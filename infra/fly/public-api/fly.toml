@@ -1,0 +1,51 @@
+app = "microbima-public-api"
+primary_region = "nrt"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  NODE_ENV = "production"
+  KONG_PROXY_ACCESS_LOG = "/dev/stdout"
+  KONG_ADMIN_ACCESS_LOG = "/dev/stdout"
+  KONG_PROXY_ERROR_LOG = "/dev/stderr"
+  KONG_ADMIN_ERROR_LOG = "/dev/stderr"
+  KONG_ADMIN_LISTEN = "0.0.0.0:8001"
+  KONG_PROXY_LISTEN = "0.0.0.0:8000"
+  KONG_DATABASE = "off"
+  KONG_DECLARATIVE_CONFIG = "/etc/kong/kong.yml"
+
+[[services]]
+  internal_port = 8000
+  protocol = "tcp"
+
+  [[services.ports]]
+    port = 80
+    handlers = ["http"]
+    force_https = true
+
+  [[services.ports]]
+    port = 443
+    handlers = ["tls", "http"]
+
+  [services.concurrency]
+    type = "connections"
+    hard_limit = 50
+    soft_limit = 40
+
+  [[services.tcp_checks]]
+    interval = "15s"
+    timeout = "2s"
+    grace_period = "1s"
+
+[metrics]
+  port = 8001
+  path = "/"
+
+[[vm]]
+  cpu_kind = "shared"
+  cpus = 1
+  memory_mb = 1024
+
+# Kong will route public API requests to the internal API
+# via private networking

@@ -2159,7 +2159,1574 @@ Let me help you implement **task 5.1.1.1: Create directory structure (`apps/*`, 
 
 ---
 
+```bash
+mkdir -p apps/{api,web-admin,mobile} packages/{sdk,ui,core} infra/{docker,fly} openapi docs
+```
 
+```
+judeokello@fedora:~/Projects/microbima$ mkdir -p apps/{api,web-admin,mobile} packages/{sdk,ui,c
+ore} infra/{docker,fly} omkdir -p apps/{api,web-admin,mobile} packages/{sdk,ui,core} infra/{doc
+ker,fly} openapi docs
+judeokello@fedora:~/Projects/microbima$
+```
+
+---
+
+Great! Now let's verify the directory structure was created correctly:
+
+
+---
+
+```bash
+tree -a
+```
+
+```
+judeokello@fedora:~/Projects/microbima$ tree -a
+.
+├── apps
+│   ├── api
+│   ├── mobile
+│   └── web-admin
+├── .cursor
+│   └── rules
+│       └── microbima_rules.md
+├── .cursorindexingignore
+├── docs
+│   ├── devplan.md
+│   ├── microbima_ai_analytics_blueprint.md
+│   ├── microbima_master_document.md
+│   └── openapi_template.json
+├── infra
+│   ├── docker
+│   └── fly
+├── openapi
+├── packages
+│   ├── core
+│   ├── sdk
+│   └── ui
+└── .specstory
+    ├── .gitignore
+    ├── history
+    │   └── 2025-08-26_19-16Z-review-micro-insurance-system-blueprint.md
+    └── .what-is-this.md
+
+18 directories, 9 files
+judeokello@fedora:~/Projects/microbima$
+```
+
+---
+
+Excellent! The directory structure is created. Now let's move on to **task 5.1.1.2: Set up root package.json and pnpm-workspace.yaml**:
+
+
+---
+
+<details><summary>Edit file: package.json</summary>
+
+I'm creating the root package.json file for the MicroBima monorepo with workspace configuration and essential scripts.
+
+**Chunk 1**
+Lines added: 34, lines removed: 1
+
+```diff
+@@ -1,1 +1,34 @@
+- 
++ {
++   "name": "microbima",
++   "version": "0.1.0",
++   "description": "MicroBima - Modern API-first microinsurance platform",
++   "private": true,
++   "workspaces": [
++     "apps/*",
++     "packages/*"
++   ],
++   "scripts": {
++     "dev": "turbo run dev",
++     "build": "turbo run build",
++     "test": "turbo run test",
++     "lint": "turbo run lint",
++     "clean": "turbo run clean",
++     "sdk:gen": "pnpm --filter @microbima/sdk generate",
++     "sdk:build": "pnpm --filter @microbima/sdk build",
++     "sdk:clean": "pnpm --filter @microbima/sdk clean",
++     "db:generate": "pnpm --filter @microbima/api db:generate",
++     "db:migrate": "pnpm --filter @microbima/api db:migrate",
++     "db:seed": "pnpm --filter @microbima/api db:seed"
++   },
++   "devDependencies": {
++     "turbo": "^2.1.0",
++     "typescript": "^5.5.0",
++     "@types/node": "^20.0.0"
++   },
++   "engines": {
++     "node": ">=18.0.0",
++     "pnpm": ">=8.0.0"
++   },
++   "packageManager": "pnpm@8.15.0"
++ }
++ 
+```
+
+</details>
+
+---
+
+Now let's create the pnpm-workspace.yaml file:
+
+
+---
+
+<details><summary>Edit file: pnpm-workspace.yaml</summary>
+
+I'm creating the pnpm workspace configuration file to define the monorepo structure.
+
+**Chunk 1**
+Lines added: 4, lines removed: 1
+
+```diff
+@@ -1,1 +1,4 @@
+- 
++ packages:
++   - "apps/*"
++   - "packages/*"
++ 
+```
+
+</details>
+
+---
+
+Now let's move to **task 5.1.1.3: Configure TypeScript base configuration**:
+
+
+---
+
+<details><summary>Edit file: tsconfig.base.json</summary>
+
+I'm creating the base TypeScript configuration that will be extended by all packages in the monorepo.
+
+**Chunk 1**
+Lines added: 31, lines removed: 1
+
+```diff
+@@ -1,1 +1,31 @@
+- 
++ {
++   "compilerOptions": {
++     "target": "ES2022",
++     "module": "ESNext",
++     "moduleResolution": "Bundler",
++     "strict": true,
++     "skipLibCheck": true,
++     "esModuleInterop": true,
++     "resolveJsonModule": true,
++     "allowSyntheticDefaultImports": true,
++     "forceConsistentCasingInFileNames": true,
++     "declaration": true,
++     "declarationMap": true,
++     "sourceMap": true,
++     "baseUrl": ".",
++     "paths": {
++       "@microbima/sdk": ["packages/sdk/src"],
++       "@microbima/ui": ["packages/ui/src"],
++       "@microbima/core": ["packages/core/src"]
++     },
++     "types": ["node"]
++   },
++   "exclude": [
++     "node_modules",
++     "**/dist",
++     "**/build",
++     "**/.next",
++     "**/.expo"
++   ]
++ }
++ 
+```
+
+</details>
+
+---
+
+Now let's move to **task 5.1.1.4: Set up .gitignore and development tools**:
+
+
+---
+
+<details><summary>Edit file: .gitignore</summary>
+
+I'm creating a comprehensive .gitignore file for the MicroBima monorepo, excluding build artifacts, dependencies, and sensitive files.
+
+**Chunk 1**
+Lines added: 112, lines removed: 1
+
+```diff
+@@ -1,1 +1,112 @@
+- 
++ # Dependencies
++ node_modules/
++ .pnpm-store/
++ 
++ # Build outputs
++ dist/
++ build/
++ .next/
++ .expo/
++ .turbo/
++ 
++ # Generated files
++ packages/sdk/src/gen/
++ packages/sdk/dist/
++ 
++ # Environment variables
++ .env
++ .env.local
++ .env.development.local
++ .env.test.local
++ .env.production.local
++ 
++ # Logs
++ npm-debug.log*
++ yarn-debug.log*
++ yarn-error.log*
++ pnpm-debug.log*
++ lerna-debug.log*
++ 
++ # Runtime data
++ pids
++ *.pid
++ *.seed
++ *.pid.lock
++ 
++ # Coverage directory used by tools like istanbul
++ coverage/
++ *.lcov
++ 
++ # nyc test coverage
++ .nyc_output
++ 
++ # Dependency directories
++ jspm_packages/
++ 
++ # Optional npm cache directory
++ .npm
++ 
++ # Optional eslint cache
++ .eslintcache
++ 
++ # Microbundle cache
++ .rpt2_cache/
++ .rts2_cache_cjs/
++ .rts2_cache_es/
++ .rts2_cache_umd/
++ 
++ # Optional REPL history
++ .node_repl_history
++ 
++ # Output of 'npm pack'
++ *.tgz
++ 
++ # Yarn Integrity file
++ .yarn-integrity
++ 
++ # parcel-bundler cache (https://parceljs.org/)
++ .cache
++ .parcel-cache
++ 
++ # Next.js build output
++ .next
++ 
++ # Nuxt.js build / generate output
++ .nuxt
++ dist
++ 
++ # Storybook build outputs
++ .out
++ .storybook-out
++ 
++ # Temporary folders
++ tmp/
++ temp/
++ 
++ # Editor directories and files
++ .vscode/
++ .idea/
++ *.swp
++ *.swo
++ *~
++ 
++ # OS generated files
++ .DS_Store
++ .DS_Store?
++ ._*
++ .Spotlight-V100
++ .Trashes
++ ehthumbs.db
++ Thumbs.db
++ 
++ # Fly.io
++ .fly/
++ 
++ # Database
++ *.db
++ *.sqlite
++ *.sqlite3
++ 
++ # Prisma
++ prisma/migrations/
++ 
+```
+
+</details>
+
+---
+
+Now let's create a turbo.json configuration file for the monorepo:
+
+
+---
+
+<details><summary>Edit file: turbo.json</summary>
+
+I'm creating the Turbo configuration file to define build pipelines and dependencies between packages in the monorepo.
+
+**Chunk 1**
+Lines added: 34, lines removed: 1
+
+```diff
+@@ -1,1 +1,34 @@
+- 
++ {
++   "$schema": "https://turbo.build/schema.json",
++   "globalDependencies": ["**/.env.*local"],
++   "pipeline": {
++     "build": {
++       "dependsOn": ["^build"],
++       "outputs": ["dist/**", ".next/**", "build/**"]
++     },
++     "dev": {
++       "cache": false,
++       "persistent": true
++     },
++     "lint": {
++       "dependsOn": ["^build"]
++     },
++     "test": {
++       "dependsOn": ["^build"],
++       "outputs": ["coverage/**"]
++     },
++     "clean": {
++       "cache": false
++     },
++     "db:generate": {
++       "cache": false
++     },
++     "db:migrate": {
++       "cache": false
++     },
++     "db:seed": {
++       "cache": false
++     }
++   }
++ }
++ 
+```
+
+</details>
+
+---
+
+Now let's create a README.md file to document the project:
+
+
+---
+
+<details><summary>Edit file: README.md</summary>
+
+I'm creating a comprehensive README file that explains the MicroBima project structure, setup instructions, and development workflow.
+
+**Chunk 1**
+Lines added: 139, lines removed: 1
+
+```diff
+@@ -1,1 +1,139 @@
+- 
++ # MicroBima
++ 
++ Modern, API-first microinsurance platform designed for flexible products, fast onboarding, and robust partner integrations.
++ 
++ ## 🏗️ Project Structure
++ 
++ ```
++ microbima/
++ ├── apps/                    # Application packages
++ │   ├── api/                # NestJS backend API
++ │   ├── web-admin/          # Next.js admin dashboard
++ │   └── mobile/             # React Native mobile app
++ ├── packages/                # Shared packages
++ │   ├── sdk/                # Generated TypeScript SDK
++ │   ├── ui/                 # Shared UI components
++ │   └── core/               # Shared business logic
++ ├── infra/                   # Infrastructure configuration
++ │   ├── docker/             # Docker configurations
++ │   └── fly/                # Fly.io deployment configs
++ ├── openapi/                 # OpenAPI specifications
++ └── docs/                    # Documentation
++ ```
++ 
++ ## 🚀 Quick Start
++ 
++ ### Prerequisites
++ 
++ - Node.js 18+
++ - pnpm 8+
++ - Docker (for local development)
++ - Fly CLI (for deployment)
++ 
++ ### Installation
++ 
++ 1. **Clone the repository**
++    ```bash
++    git clone <repository-url>
++    cd microbima
++    ```
++ 
++ 2. **Install dependencies**
++    ```bash
++    pnpm install
++    ```
++ 
++ 3. **Set up environment variables**
++    ```bash
++    cp .env.example .env
++    # Edit .env with your configuration
++    ```
++ 
++ 4. **Generate SDK**
++    ```bash
++    pnpm sdk:gen
++    pnpm sdk:build
++    ```
++ 
++ 5. **Start development**
++    ```bash
++    pnpm dev
++    ```
++ 
++ ## 📚 Development
++ 
++ ### Available Scripts
++ 
++ - `pnpm dev` - Start all applications in development mode
++ - `pnpm build` - Build all packages and applications
++ - `pnpm test` - Run tests across all packages
++ - `pnpm lint` - Run linting across all packages
++ - `pnpm sdk:gen` - Generate TypeScript SDK from OpenAPI spec
++ - `pnpm sdk:build` - Build the generated SDK
++ - `pnpm db:generate` - Generate Prisma client
++ - `pnpm db:migrate` - Run database migrations
++ - `pnpm db:seed` - Seed database with sample data
++ 
++ ### Adding New Features
++ 
++ 1. **Update OpenAPI specification** in `openapi/microbima.yaml`
++ 2. **Regenerate SDK** with `pnpm sdk:gen`
++ 3. **Implement backend logic** in `apps/api`
++ 4. **Add frontend components** in `apps/web-admin` or `apps/mobile`
++ 5. **Test integration** through the generated SDK
++ 
++ ## 🔧 Architecture
++ 
++ ### API Strategy
++ 
++ - **Internal APIs** (`/api/internal/*`) - For portal access
++ - **Public APIs** (`/api/v1/*`) - For partner integrations via Kong gateway
++ 
++ ### Authentication
++ 
++ - **Internal APIs**: JWT authentication
++ - **Public APIs**: OIDC authentication through Kong
++ 
++ ### Database
++ 
++ - **PostgreSQL** with Prisma ORM
++ - **Supabase** for hosting and real-time features
++ 
++ ## 🚀 Deployment
++ 
++ ### Fly.io
++ 
++ Applications are deployed to Fly.io with private networking:
++ 
++ - `microbima-api` - Backend API
++ - `microbima-web-admin` - Admin dashboard
++ - `microbima-mobile` - Mobile app backend
++ 
++ ### Environment Variables
++ 
++ Set required environment variables in Fly.io:
++ 
++ ```bash
++ fly secrets set DATABASE_URL="postgresql://..."
++ fly secrets set JWT_SECRET="your-secret"
++ fly secrets set KONG_OIDC_CLIENT_ID="your-client-id"
++ ```
++ 
++ ## 📖 Documentation
++ 
++ - [Master Document](docs/microbima_master_document.md) - Complete technical blueprint
++ - [Development Plan](docs/devplan.md) - Step-by-step implementation guide
++ - [AI & Analytics Blueprint](docs/microbima_ai_analytics_blueprint.md) - AI IDE setup and analytics
++ 
++ ## 🤝 Contributing
++ 
++ 1. Follow the development plan in `docs/devplan.md`
++ 2. Use the generated SDK for all API interactions
++ 3. Follow TypeScript strict mode
++ 4. Write tests for new features
++ 5. Update OpenAPI spec when adding endpoints
++ 
++ ## 📄 License
++ 
++ Private - All rights reserved
++ 
+```
+
+</details>
+
+---
+
+Now let's verify our current directory structure and then install the dependencies:
+
+
+---
+
+```bash
+tree -a -I node_modules
+```
+
+```
+judeokello@fedora:~/Projects/microbima$ tree -a -I node_modules
+.
+├── apps
+│   ├── api
+│   ├── mobile
+│   └── web-admin
+├── .cursor
+│   └── rules
+│       └── microbima_rules.md
+├── .cursorindexingignore
+├── docs
+│   ├── devplan.md
+│   ├── microbima_ai_analytics_blueprint.md
+│   ├── microbima_master_document.md
+│   └── openapi_template.json
+├── .gitignore
+├── infra
+│   ├── docker
+│   └── fly
+├── openapi
+├── package.json
+├── packages
+│   ├── core
+│   ├── sdk
+│   └── ui
+├── pnpm-workspace.yaml
+├── README.md
+├── .specstory
+│   ├── .gitignore
+│   ├── history
+│   │   └── 2025-08-26_19-16Z-review-micro-insurance-system-blueprint.md
+│   └── .what-is-this.md
+├── tsconfig.base.json
+└── turbo.json
+
+18 directories, 15 files
+judeokello@fedora:~/Projects/microbima$
+```
+
+---
+
+Perfect! Now let's install the dependencies:
+
+
+---
+
+```bash
+pnpm install
+```
+
+```
+judeokello@fedora:~/Projects/microbima$ pnpm install
+bash: pnpm: command not found...
+Similar command is: 'npm'
+judeokello@fedora:~/Projects/microbima$
+```
+
+---
+
+We need to install pnpm first. Let's install it:
+
+
+---
+
+```bash
+npm install -g pnpm
+```
+
+```
+judeokello@fedora:~/Projects/microbima$ npm install -g pnpm
+
+added 1 package in 3s
+
+1 package is looking for funding
+  run `npm fund` for details
+judeokello@fedora:~/Projects/microbima$
+```
+
+---
+
+Great! Now let's install the dependencies:
+
+
+---
+
+```bash
+pnpm install
+```
+
+```
+judeokello@fedora:~/Projects/microbima$ pnpm install
+Packages: +5
++++++
+Downloading registry.npmjs.org/turbo-linux-64/2.5.6: 14.30 MB/14.30 MB, done
+Progress: resolved 10, reused 0, downloaded 5, added 5, done
+
+devDependencies:
++ @types/node 20.19.11 (24.3.0 is available)
++ turbo 2.5.6
++ typescript 5.9.2
+
+Done in 9.8s
+judeokello@fedora:~/Projects/microbima$
+```
+
+---
+
+Excellent! Now let's verify that our setup is working by checking the installed packages:
+
+
+---
+
+```bash
+pnpm list
+```
+
+```
+judeokello@fedora:~/Projects/microbima$ pnpm list
+Legend: production dependency, optional only, dev only
+
+microbima@0.1.0 /home/judeokello/Projects/microbima (PRIVATE)
+
+devDependencies:
+@types/node 20.19.11
+turbo 2.5.6
+typescript 5.9.2
+judeokello@fedora:~/Projects/microbima$
+```
+
+---
+
+Perfect! Now let's test our turbo setup:
+
+
+---
+
+```bash
+pnpm turbo --version
+```
+
+```
+judeokello@fedora:~/Projects/microbima$ pnpm turbo --version
+2.5.6
+judeokello@fedora:~/Projects/microbima$
+```
+
+---
+
+Excellent! Now let's commit our progress and mark the first task as complete. Let me update the development plan:
+
+
+---
+
+<details><summary>Edit file: docs/devplan.md</summary>
+
+undefined
+
+**Chunk 1**
+Lines added: 4, lines removed: 4
+
+```diff
+@@ -68,8 +68,8 @@
+  
+  ##### **5.1.1 Initialize Monorepo Structure**
+- - [ ] **5.1.1.1** Create directory structure (`apps/*`, `packages/*`, `infra/*`)
+- - [ ] **5.1.1.2** Set up root package.json and pnpm-workspace.yaml
+- - [ ] **5.1.1.3** Configure TypeScript base configuration
+- - [ ] **5.1.1.4** Set up .gitignore and development tools
++ - [x] **5.1.1.1** Create directory structure (`apps/*`, `packages/*`, `infra/*`)
++ - [x] **5.1.1.2** Set up root package.json and pnpm-workspace.yaml
++ - [x] **5.1.1.3** Configure TypeScript base configuration
++ - [x] **5.1.1.4** Set up .gitignore and development tools
+  
+  ##### **5.1.2 Fly.io Infrastructure Setup**
+```
+
+</details>
+
+---
+
+Now let's commit our progress:
+
+
+---
+
+```bash
+git add .
+```
+
+```
+judeokello@fedora:~/Projects/microbima$ git add .
+fatal: not a git repository (or any parent up to mount point /)
+Stopping at filesystem boundary (GIT_DISCOVERY_ACROSS_FILESYSTEM not set).
+judeokello@fedora:~/Projects/microbima$
+```
+
+---
+
+We need to initialize git first. Let's do that:
+
+
+---
+
+```bash
+git init
+```
+
+```
+judeokello@fedora:~/Projects/microbima$ git init
+hint: Using 'master' as the name for the initial branch. This default branch name
+hint: is subject to change. To configure the initial branch name to use in all
+hint: of your new repositories, which will suppress this warning, call:
+hint:
+hint:   git config --global init.defaultBranch <name>
+hint:
+hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+hint: 'development'. The just-created branch can be renamed via this command:
+hint:
+hint:   git branch -m <name>
+hint:
+hint: Disable this message with "git config set advice.defaultBranchName false"
+Initialized empty Git repository in /home/judeokello/Projects/microbima/.git/
+judeokello@fedora:~/Projects/microbima$
+```
+
+---
+
+Now let's add and commit our files:
+
+
+---
+
+```bash
+git add .
+```
+
+```
+judeokello@fedora:~/Projects/microbima$ git add .
+judeokello@fedora:~/Projects/microbima$
+```
+
+---
+
+```bash
+git commit -m "feat: complete Phase 5.1.1 - Initialize Monorepo Structure
+
+- Created directory structure (apps/*, packages/*, infra/*)
+- Set up root package.json and pnpm-workspace.yaml
+- Configured TypeScript base configuration
+- Set up .gitignore and development tools
+- Added turbo.json for monorepo management
+- Created comprehensive README.md"
+```
+
+```
+
+[master (root-commit) a6cb384] feat: complete Phase 5.1.1 - Initialize Monorepo Structure
+ 15 files changed, 6276 insertions(+)
+ create mode 100644 .cursor/rules/microbima_rules.md
+ create mode 100644 .cursorindexingignore
+ create mode 100644 .gitignore
+ create mode 100644 .specstory/.gitignore
+ create mode 100644 .specstory/history/2025-08-26_19-16Z-review-micro-insurance-system-blueprin
+t.md
+
+ create mode 100644 README.md
+ create mode 100644 docs/devplan.md
+ create mode 100644 docs/microbima_ai_analytics_blueprint.md
+ create mode 100644 docs/microbima_master_document.md
+ create mode 100644 docs/openapi_template.json
+ create mode 100644 package.json
+ create mode 100644 pnpm-lock.yaml
+ create mode 100644 pnpm-workspace.yaml
+ create mode 100644 tsconfig.base.json
+ create mode 100644 turbo.json
+```
+
+---
+
+Perfect! �� 
+
+## **Phase 5.1.1 Complete! ✅**
+
+We've successfully completed **Phase 5.1.1: Initialize Monorepo Structure**. Here's what we accomplished:
+
+### **✅ Completed Tasks:**
+- **5.1.1.1** Create directory structure (`apps/*`, `packages/*`, `infra/*`)
+- **5.1.1.2** Set up root package.json and pnpm-workspace.yaml  
+- **5.1.1.3** Configure TypeScript base configuration
+- **5.1.1.4** Set up .gitignore and development tools
+
+### **��️ What We Built:**
+1. **Monorepo Structure** with apps, packages, and infrastructure directories
+2. **Package Management** with pnpm workspaces and turbo for build orchestration
+3. **TypeScript Configuration** with path mapping for `@microbima/*` packages
+4. **Development Tools** including comprehensive .gitignore and turbo.json
+5. **Documentation** with detailed README.md and project structure
+
+### **🚀 Ready for Next Phase:**
+The foundation is now solid and ready for **Phase 5.1.2: Fly.io Infrastructure Setup**. 
+
+Would you like to:
+1. **Continue to Phase 5.1.2** (Fly.io setup)?
+2. **Review what we've built** so far?
+3. **Move to a different phase**?
+
+The monorepo is now properly configured and ready for the next development phase!
+
+---
+
+_**User**_
+
+what monorepo task runner are we running? What other options exist?
+Is this project set up to use yarn when running commands like adding packages instead of npm/pnpm?
+
+---
+
+_**Assistant**_
+
+Great questions! Let me clarify our monorepo setup and the options available:
+
+## **Current Monorepo Task Runner: Turbo ⚡**
+
+We're using **Turbo** (by Vercel) as our monorepo task runner. Here's what it provides:
+
+### **Turbo Features:**
+- **Parallel Execution** - Runs tasks across packages simultaneously
+- **Incremental Builds** - Only rebuilds what changed
+- **Remote Caching** - Can share build caches across team/CI
+- **Dependency Graph** - Automatically determines build order
+- **Task Pipelining** - Defines dependencies between tasks
+
+### **Our Turbo Configuration:**
+```json
+// turbo.json
+{
+  "pipeline": {
+    "build": { "dependsOn": ["^build"] },
+    "dev": { "cache": false, "persistent": true },
+    "test": { "dependsOn": ["^build"] }
+  }
+}
+```
+
+## **Alternative Monorepo Task Runners:**
+
+### **1. Nx (by Nrwl)**
+- **Pros**: More powerful than Turbo, excellent dependency graph, built-in generators
+- **Cons**: Steeper learning curve, more complex configuration
+- **Best for**: Enterprise projects, complex monorepos
+
+### **2. Lerna (by Nx team)**
+- **Pros**: Mature, simple, good for publishing packages
+- **Cons**: Slower than Turbo/Nx, limited task running capabilities
+- **Best for**: Simple monorepos, package publishing workflows
+
+### **3. Rush (by Microsoft)**
+- **Pros**: Enterprise-grade, excellent dependency management, strict policies
+- **Cons**: Complex setup, Microsoft-specific tooling
+- **Best for**: Large enterprise teams, strict governance requirements
+
+### **4. pnpm Workspaces (Native)**
+- **Pros**: Built into pnpm, simple, fast
+- **Cons**: Limited task orchestration, no dependency graph
+- **Best for**: Simple monorepos, when you just need package management
+
+## **Package Manager: pnpm (Not Yarn) 🚫**
+
+**We are NOT set up to use Yarn.** Here's our current setup:
+
+### **Current Configuration:**
+```json
+// package.json
+{
+  "packageManager": "pnpm@8.15.0",
+  "engines": {
+    "pnpm": ">=8.0.0"
+  }
+}
+```
+
+### **Why pnpm over Yarn/npm:**
+
+#### **pnpm Advantages:**
+- **Faster** - Hard links instead of copying
+- **Disk Space** - Single copy of packages in store
+- **Strict** - Prevents phantom dependencies
+- **Workspaces** - Native monorepo support
+
+#### **Yarn vs pnpm:**
+- **Yarn 1.x**: Slower, less efficient
+- **Yarn 2+ (Berry)**: Better but more complex, different workspace syntax
+- **pnpm**: Faster, simpler, better workspace support
+
+### **Our Commands Use pnpm:**
+```bash
+# These are pnpm commands, not yarn:
+pnpm install          # Install dependencies
+pnpm add package     # Add new package
+pnpm run script      # Run scripts
+pnpm --filter @microbima/sdk build  # Run in specific package
+```
+
+## **To Switch to Yarn (if desired):**
+
+### **Option 1: Yarn 1.x (Classic)**
+```bash
+# Remove pnpm
+npm uninstall -g pnpm
+
+# Install yarn
+npm install -g yarn
+
+# Update package.json
+# Remove "packageManager" field
+# Change "engines.pnpm" to "engines.yarn"
+
+# Convert pnpm-lock.yaml to yarn.lock
+rm pnpm-lock.yaml
+yarn install
+```
+
+### **Option 2: Yarn 2+ (Berry)**
+```bash
+# Install yarn berry
+npm install -g yarn
+
+# Enable yarn berry
+yarn set version berry
+
+# Update .yarnrc.yml for workspaces
+# Convert pnpm-workspace.yaml to yarn workspaces
+```
+
+## **Recommendation: Stick with pnpm + Turbo**
+
+**Why this combination is optimal for MicroBima:**
+
+1. **Speed**: pnpm is fastest for package management
+2. **Simplicity**: pnpm workspaces are straightforward
+3. **Performance**: Turbo provides excellent build orchestration
+4. **Ecosystem**: Both tools are actively maintained and popular
+5. **Integration**: Perfect for our NestJS + Next.js + React Native stack
+
+The current setup gives us the best of both worlds: fast package management with pnpm and powerful task orchestration with Turbo!
+
+---
+
+_**User**_
+
+I am ready to move on to 5.1.2
+I would like to clarify that in 5.1.2.2 the mobile folder is supposed to be a react native app for ios and android and as such I do not think it should be deployed to vercel.
+Also this project is supposed to have an internal API and an public API. My assumtption is that we will create folders/fly apps for each of: internal API and public api
+I could be missing something but am I right that the core system/backend is the project that is bound to the internal API? Therefore deploying the internal api we have also deployed the core system?
+
+---
+
+_**Assistant**_
+
+Excellent observations! You're absolutely correct on all points. Let me clarify the architecture and update our deployment strategy:
+
+## **Your Understanding is 100% Correct:**
+
+### **1. Mobile App ≠ Web Deployment**
+- **`apps/mobile`** = React Native app (iOS/Android)
+- **NOT deployed to Fly.io** - it's a mobile app that gets built and distributed through App Store/Play Store
+- **Only needs backend API** to communicate with
+
+### **2. Dual API Architecture = Separate Deployments**
+You're absolutely right! We need **TWO separate Fly.io apps**:
+
+- **`microbima-internal-api`** - Core system + Internal APIs (`/api/internal/*`)
+- **`microbima-public-api`** - Public API gateway (`/api/v1/*`)
+
+### **3. Core System = Internal API**
+Yes, exactly! The **core system/backend** is what powers the **internal API**. When you deploy the internal API, you're deploying the entire core system.
+
+## **Corrected Architecture:**
+
+```
+microbima/
+├── apps/
+│   ├── api/                    # Core system (NestJS backend)
+│   ├── web-admin/             # Next.js admin dashboard
+│   └── mobile/                # React Native app (NOT deployed)
+├── packages/
+│   ├── sdk/                   # Generated from OpenAPI
+│   ├── ui/                    # Shared components
+│   └── core/                  # Shared business logic
+└── infra/
+    ├── docker/
+    └── fly/
+        ├── internal-api/       # Fly.io config for core system
+        └── public-api/         # Fly.io config for public gateway
+```
+
+## **Deployment Strategy:**
+
+### **Fly.io Apps:**
+1. **`microbima-internal-api`** 
+   - Deploys `apps/api` (NestJS core system)
+   - Handles internal APIs (`/api/internal/*`)
+   - Private network only
+
+2. **`microbima-public-api`**
+   - Deploys Kong gateway + routing
+   - Handles public APIs (`/api/v1/*`)
+   - Routes to internal API via private network
+
+3. **`microbima-web-admin`**
+   - Deploys `apps/web-admin` (Next.js dashboard)
+   - Communicates with internal API
+
+### **Mobile App:**
+- **NOT deployed** - it's a mobile app
+- **Communicates with** public API endpoints
+- **Built locally** and distributed through app stores
+
+## **Let me update the development plan to reflect this:**
+
+Should I update **Phase 5.1.2** to show:
+- **5.1.2.1** Install Fly CLI and authenticate
+- **5.1.2.2** Create Fly apps: `microbima-internal-api`, `microbima-public-api`, `microbima-web-admin`
+- **5.1.2.3** Set up private networking between internal and public APIs
+- **5.1.2.4** Configure environment variables and secrets
+
+This makes much more sense architecturally! The core system (internal API) handles all business logic, and the public API is just a secure gateway that routes requests to it.
+
+Does this clarification match your understanding? Should we proceed with this corrected approach?
+
+---
+
+_**User**_
+
+I need some clarification on this section
+
+"1. Mobile App ≠ Web Deployment
+apps/mobile = React Native app (iOS/Android)
+NOT deployed to Fly.io - it's a mobile app that gets built and distributed through App Store/Play Store
+Only needs backend API to communicate with"
+
+When you say "Only needs backend API to communicate with", is my understanding correct that you mean public API instead of backend API. My understanding is that the backend API is the internal API
+
+---
+
+_**Assistant**_
+
+You're absolutely correct! I was imprecise with my terminology. Let me clarify:
+
+## **Corrected Understanding:**
+
+### **Mobile App Communication Flow:**
+```
+Mobile App → Public API Gateway → Internal API (Core System)
+```
+
+### **What I Should Have Said:**
+
+**"Only needs the Public API to communicate with"** - not "backend API"
+
+## **Clarified Architecture:**
+
+### **1. Internal API (Core System)**
+- **Location**: `apps/api` (NestJS backend)
+- **Deployed as**: `microbima-internal-api` on Fly.io
+- **Purpose**: Core business logic, database operations, internal portal access
+- **Access**: Only accessible via private network
+
+### **2. Public API Gateway**
+- **Location**: Kong gateway configuration
+- **Deployed as**: `microbima-public-api` on Fly.io  
+- **Purpose**: Secure entry point for external clients (mobile app, partners)
+- **Access**: Publicly accessible, routes to internal API
+
+### **3. Mobile App**
+- **Location**: `apps/mobile` (React Native)
+- **Deployment**: NOT deployed to Fly.io (distributed via app stores)
+- **Communication**: Talks to **Public API Gateway** (`/api/v1/*`)
+- **Flow**: Mobile App → Public API → Internal API → Database
+
+## **So the Correct Flow is:**
+
+```
+Mobile App (iOS/Android)
+    ↓
+Public API Gateway (Kong) - microbima-public-api
+    ↓ (via private network)
+Internal API (NestJS) - microbima-internal-api
+    ↓
+Database (PostgreSQL)
+```
+
+## **Why This Architecture:**
+
+- **Mobile App** needs public access (can't be on private network)
+- **Public API** provides security, rate limiting, authentication
+- **Internal API** stays private and secure
+- **Mobile App** never directly accesses internal API
+
+You're absolutely right - I should have said "Public API" instead of "backend API" to be precise. The mobile app communicates with the public API gateway, which then securely routes to the internal API (core system).
+
+Does this clarification make the architecture clearer?
+
+---
+
+_**User**_
+
+Yes, this is now accurate. However, show me what the paths for the internal API and public API folders are? I can see they currently do not exist in the folder structure in the project.
+
+---
+
+_**Assistant**_
+
+You're absolutely right! Looking at our current folder structure, those Fly.io configuration folders don't exist yet. Let me show you what we need to create:
+
+## **Current Structure (Missing Fly.io Configs):**
+```
+microbima/
+├── apps/
+│   ├── api/                    # Core system (NestJS backend)
+│   ├── web-admin/             # Next.js admin dashboard
+│   └── mobile/                # React Native app
+├── packages/
+│   ├── sdk/
+│   ├── ui/
+│   └── core/
+└── infra/
+    ├── docker/
+    └── fly/                    # ← This exists but is empty
+        ├── internal-api/       # ← NEED TO CREATE
+        └── public-api/         # ← NEED TO CREATE
+```
+
+## **What We Need to Create:**
+
+### **1. Internal API Fly.io Config:**
+```
+infra/fly/internal-api/
+├── fly.toml                    # Fly.io configuration for core system
+├── Dockerfile                  # Docker build for NestJS app
+└── .dockerignore
+```
+
+### **2. Public API Fly.io Config:**
+```
+infra/fly/public-api/
+├── fly.toml                    # Fly.io configuration for Kong gateway
+├── kong.yml                    # Kong API gateway configuration
+├── Dockerfile                  # Docker build for Kong
+└── .dockerignore
+```
+
+### **3. Web Admin Fly.io Config:**
+```
+infra/fly/web-admin/
+├── fly.toml                    # Fly.io configuration for Next.js
+├── Dockerfile                  # Docker build for Next.js
+└── .dockerignore
+```
+
+## **Let's Create These Folders Now:**
+
+Should I create the folder structure and basic configuration files for:
+
+1. **`infra/fly/internal-api/`** - Core system deployment
+2. **`infra/fly/public-api/`** - Kong gateway deployment  
+3. **`infra/fly/web-admin/`** - Admin dashboard deployment
+
+This will give us the proper structure for **Phase 5.1.2: Fly.io Infrastructure Setup** where we'll configure each deployment properly.
+
+Would you like me to create these folders and basic configuration files now, or would you prefer to see the development plan updated first to reflect this structure?
+
+---
+
+_**User**_
+
+I am actually talking about the internal and public API folders in the /apps folder
+
+---
+
+_**Assistant**_
+
+Ah, I see the confusion! You're absolutely right to question this. Let me clarify the folder structure:
+
+## **Current Structure (What We Have):**
+```
+microbima/
+├── apps/
+│   ├── api/                    # ← This is the CORE SYSTEM
+│   ├── web-admin/             # Next.js admin dashboard
+│   └── mobile/                # React Native app
+```
+
+## **The Issue:**
+
+We currently have **`apps/api/`** which is supposed to be the **core system**, but we're talking about having **separate internal and public APIs**.
+
+## **Two Possible Approaches:**
+
+### **Approach 1: Single API with Dual Endpoints (Current)**
+```
+apps/api/                       # Single NestJS app
+├── src/
+│   ├── modules/
+│   │   ├── internal/          # Internal API routes (/api/internal/*)
+│   │   └── public/            # Public API routes (/api/v1/*)
+│   └── main.ts                # Single server with dual prefixes
+```
+
+### **Approach 2: Separate API Apps (What You're Suggesting)**
+```
+apps/
+├── internal-api/               # Core system + Internal APIs
+├── public-api/                 # Public API gateway (Kong)
+├── web-admin/                  # Next.js admin dashboard
+└── mobile/                     # React Native app
+```
+
+## **My Recommendation: Approach 1 (Single API)**
+
+**Why?** Because:
+- **Internal and Public APIs** are just different route prefixes in the same NestJS app
+- **Kong gateway** handles the public API exposure and security
+- **Single codebase** is easier to maintain
+- **Shared business logic** between internal and public endpoints
+
+## **So the Correct Structure Should Be:**
+```
+apps/
+├── api/                        # Single NestJS app with dual API layers
+│   ├── src/
+│   │   ├── modules/           # Business logic modules
+│   │   ├── internal/          # Internal API controllers
+│   │   ├── public/            # Public API controllers
+│   │   └── main.ts            # Server with dual prefixes
+├── web-admin/                  # Next.js admin dashboard
+└── mobile/                     # React Native app
+```
+
+**We don't need separate `internal-api/` and `public-api/` folders in `apps/`** - it's all one NestJS application with different route prefixes.
+
+Does this clarify the architecture? The separation happens at the **deployment level** (different Fly.io apps) and **route level** (different URL prefixes), not at the **folder level**.
+
+---
+
+_**User**_
+
+"The separation happens at the deployment level (different Fly.io apps) and route level (different URL prefixes), not at the folder level."
+I understand this perfectly now.
+
+"Internal and Public APIs are just different route prefixes in the same NestJS app"
+What is meant by "route prefix" ?
+
+---
+
+_**Assistant**_
+
+Great question! Let me explain **route prefixes** with a concrete example:
+
+## **Route Prefixes Explained:**
+
+### **What is a Route Prefix?**
+A route prefix is a **URL path segment** that gets added to the beginning of all routes in a specific group.
+
+### **In Our NestJS App:**
+
+```typescript
+// apps/api/src/main.ts
+async function bootstrap() {
+  const app = await NestFactory.create(AppModule);
+
+  // INTERNAL API - for portals (admin, web-admin)
+  app.setGlobalPrefix('api/internal');
+  
+  // PUBLIC API - for external clients (mobile app, partners)
+  const publicApp = await NestFactory.create(AppModule);
+  publicApp.setGlobalPrefix('api/v1');
+
+  // Start both servers
+  await app.listen(3000);        // Internal API on port 3000
+  await publicApp.listen(3001);  // Public API on port 3001
+}
+```
+
+### **How Routes Get Different Prefixes:**
+
+#### **Internal API Routes (Port 3000):**
+```typescript
+// apps/api/src/modules/customer/customer.controller.ts
+@Controller('customers')  // This becomes /api/internal/customers
+export class CustomerController {
+  
+  @Get()                  // GET /api/internal/customers
+  getCustomers() { ... }
+  
+  @Post()                 // POST /api/internal/customers
+  createCustomer() { ... }
+}
+```
+
+#### **Public API Routes (Port 3001):**
+```typescript
+// apps/api/src/modules/customer/customer.controller.ts
+@Controller('customers')  // This becomes /api/v1/customers
+export class CustomerController {
+  
+  @Get()                  // GET /api/v1/customers
+  getCustomers() { ... }
+  
+  @Post()                 // POST /api/v1/customers
+  createCustomer() { ... }
+}
+```
+
+## **Final URLs:**
+
+### **Internal API (Port 3000):**
+- `GET http://localhost:3000/api/internal/customers`
+- `POST http://localhost:3000/api/internal/customers`
+- `GET http://localhost:3000/api/internal/policies`
+
+### **Public API (Port 3001):**
+- `GET http://localhost:3001/api/v1/customers`
+- `POST http://localhost:3001/api/v1/customers`
+- `GET http://localhost:3001/api/v1/policies`
+
+## **Why This Approach?**
+
+1. **Same Business Logic**: Both APIs use the same controllers and services
+2. **Different Security**: Internal API uses JWT, Public API uses OIDC
+3. **Different Access**: Internal API for portals, Public API for external clients
+4. **Same Codebase**: Easier to maintain and keep in sync
+
+## **In Production (Fly.io):**
+
+- **Internal API** (`microbima-internal-api`): Only accessible via private network
+- **Public API** (`microbima-public-api`): Kong gateway routes `/api/v1/*` to internal API
+- **Same NestJS code** runs in both places, just with different route prefixes
+
+Does this clarify what "route prefixes" mean? It's essentially adding `/api/internal` or `/api/v1` to the beginning of all your API endpoints!
+
+---
+
+_**User**_
+
+I sort of understand it now but will understand it more as we keep implementing it
+
+---
+
+_**Assistant**_
+
+Perfect! That's exactly the right approach. Route prefixes are one of those concepts that become crystal clear once you see them in action during implementation.
+
+## **Let's Continue with Phase 5.1.2: Fly.io Infrastructure Setup**
+
+Since you understand the concept now, let's move forward and you'll see exactly how this works when we:
+
+1. **Set up the NestJS app** with dual route prefixes
+2. **Deploy to separate Fly.io apps** 
+3. **Configure Kong routing** between them
+4. **Test the different endpoints**
+
+The hands-on experience will make everything click into place!
+
+## **Ready to Start Phase 5.1.2?**
+
+Let's begin with **task 5.1.2.1: Install Fly CLI and authenticate**
+
+Should I:
+1. **Install the Fly CLI** on your system?
+2. **Help you authenticate** with Fly.io?
+3. **Create the Fly.io apps** for our three services?
+
+This is where we'll start seeing the deployment architecture come together, and the route prefix concept will become much clearer as we configure the actual infrastructure.
+
+Ready to dive in?
+
+---
+
+_**User**_
+
+I want us to dive in but I need more info on the configuration of the Kong routing between them. Will we deploy kong at any of these steps? I am probably not seeing it in 5.2 and 5.3
+However, I have just seen it in 5.4 and wondering if we are talking about the kong cloud or our own hosted instance on fly.io? Will the kong components have a UI or how will they be configured?
+
+---
+
+_**Assistant**_
+
+Excellent questions! Let me clarify the Kong deployment strategy and configuration approach:
+
+## **Kong Deployment Strategy:**
+
+### **We're NOT using Kong Cloud (SaaS)**
+- **Kong Cloud** = Managed service (monthly fees, less control)
+- **Our approach** = Self-hosted Kong on Fly.io (free, full control)
+
+### **Kong Will Be Deployed in Phase 5.4**
+Looking at our development plan, Kong is indeed in **Phase 5.4: API Gateway Infrastructure Setup**, not in 5.2 or 5.3.
+
+## **Kong Configuration & UI:**
+
+### **1. Kong Admin API (No Built-in UI)**
+Kong itself doesn't have a web UI - it's configured via:
+- **Kong Admin API** (REST endpoints)
+- **Kong configuration files** (YAML/JSON)
+- **Kong plugins** for authentication, rate limiting, etc.
+
+### **2. Our Kong Setup Will Include:**
+```
+infra/fly/public-api/
+├── fly.toml                    # Fly.io deployment config
+├── kong.yml                    # Kong configuration (routes, plugins)
+├── Dockerfile                  # Kong + our custom config
+└── scripts/
+    ├── setup-kong.sh          # Initial Kong configuration
+    └── update-routes.sh        # Update routing rules
+```
+
+### **3. Kong Configuration Methods:**
+
+#### **Option A: Declarative Configuration (Recommended)**
+```yaml
+# kong.yml
+_format_version: "2.1"
+services:
+  - name: microbima-internal-api
+    url: http://microbima-internal-api.internal:3000
+    routes:
+      - name: public-customers
+        paths: ["/api/v1/customers"]
+        strip_path: false
+    plugins:
+      - name: oidc
+        config:
+          client_id: ${KONG_OIDC_CLIENT_ID}
+```
+
+#### **Option B: Kong Admin API (Dynamic)**
+```bash
+# Add routes via API calls
+curl -X POST http://kong:8001/services \
+  --data "name=microbima-internal-api" \
+  --data "url=http://microbima-internal-api.internal:3000"
+```
+
+## **Why Kong in Phase 5.4, Not Earlier?**
+
+### **Phase 5.2-5.3**: Build the core system
+- Set up NestJS backend
+- Create API endpoints
+- Generate SDK
+
+### **Phase 5.4**: Add the gateway layer
+- Deploy Kong as a separate service
+- Configure routing to internal API
+- Set up authentication plugins
+
+## **Kong UI Alternatives:**
+
+### **1. Kong Manager (Enterprise)**
+- Kong's official UI (requires Enterprise license)
+- **We won't use this** (too expensive)
+
+### **2. Konga (Open Source)**
+- Community-built Kong admin UI
+- **We could deploy this** if you want a visual interface
+
+### **3. Custom Admin Dashboard**
+- Build our own Kong management interface
+- **Most flexible but requires development**
+
+## **My Recommendation:**
+
+**Start with declarative configuration** (`kong.yml`) because:
+- ✅ **Version controlled** - changes tracked in git
+- ✅ **Reproducible** - same config every deployment
+- ✅ **Simple** - no need for complex UI management
+- ✅ **Fast** - Kong starts with all routes pre-configured
+
+## **So the Flow Will Be:**
+
+1. **Phase 5.2-5.3**: Build NestJS app with dual APIs
+2. **Phase 5.4**: Deploy Kong gateway with `kong.yml` config
+3. **Phase 5.5+**: Test routing between public API → Kong → internal API
+
+Does this clarify the Kong strategy? We'll deploy our own Kong instance on Fly.io and configure it via YAML files, giving us full control without the complexity of a web UI.
+
+---
+
+_**User**_
+
+Yes, that clarifies how we'll use KOng.
+and I am aligned with your recommendation.
+
+Let us now get started on 5.1.2
+
+---
+
+_**Assistant**_
+
+Perfect! Let's dive into **Phase 5.1.2: Fly.io Infrastructure Setup**. 
+
+## **Starting with Task 5.1.2.1: Install Fly CLI and authenticate**
+
+Let's begin by installing the Fly CLI:
+
+
+---
+
+```bash
+curl -L https://fly.io/install.sh | sh
+```
+
+```
+judeokello@fedora:~/Projects/microbima$ curl -L https://fly.io/install.sh | sh
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+100  1735    0  1735    0     0   2609      0 --:--:-- --:--:-- --:--:--  2609
+#########################################################                 80.3%
+```
 
 ---
 

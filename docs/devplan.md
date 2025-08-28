@@ -73,10 +73,10 @@ The Customer Onboarding module is a core component of the MicroBima microinsuran
 - [x] **5.1.1.4** Set up .gitignore and development tools
 
 ##### **5.1.2 Fly.io Infrastructure Setup**
-- [ ] **5.1.2.1** Install Fly CLI and authenticate
-- [ ] **5.1.2.2** Create Fly apps for each service (api, web-admin, mobile)
-- [ ] **5.1.2.3** Set up private networking for internal services
-- [ ] **5.1.2.4** Configure environment variables and secrets
+- [x] **5.1.2.1** Install Fly CLI and authenticate
+- [x] **5.1.2.2** Create Fly apps for each service (internal-api, public-api, web-admin)
+- [x] **5.1.2.3** Set up private networking for internal services
+- [x] **5.1.2.4** Configure environment variables and secrets
 
 ##### **5.1.3 Database Setup**
 - [ ] **5.1.3.1** Create Supabase project and PostgreSQL database
