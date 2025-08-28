@@ -1,0 +1,370 @@
+# MicroBima Customer Onboarding Development Plan
+
+## **Customer Onboarding Core Module Implementation**
+
+### **1. Overview**
+The Customer Onboarding module is a core component of the MicroBima microinsurance platform that enables external customers to onboard through public APIs, which invoke internal APIs and SDKs. This system provides flexible onboarding flows for individuals, groups, and corporate customers with comprehensive KYC verification and policy setup.
+
+### **2. Goals and Objectives**
+- **Enable External API Access** for partner integrations and customer onboarding
+- **Implement Flexible Onboarding Flows** for individual, group, and corporate customers
+- **Establish Dual API Architecture** with internal APIs for portals and public APIs for partners
+- **Deploy Early to Fly.io** with proper networking and security
+- **Generate Type-Safe SDK** from OpenAPI specifications for consistent client access
+
+### **3. Scope of MVP**
+
+#### **3.1 Core Features**
+
+##### **External Customer Onboarding via Public API**
+- [ ] **Public API Gateway** through Kong with OIDC authentication
+- [ ] **Customer Creation Endpoint** for individual customers
+- [ ] **Onboarding Status Tracking** with step-by-step progress
+- [ ] **KYC Verification Integration** with automated and manual processes
+- [ ] **Dependent/Beneficiary Management** during onboarding
+- [ ] **Address and Contact Information** collection and validation
+
+##### **Internal API Integration**
+- [ ] **NestJS Backend** with dual API layers (internal/public)
+- [ ] **Prisma ORM Integration** with PostgreSQL database
+- [ ] **Role-Based Access Control** for different user types
+- [ ] **Audit Logging** for all customer operations
+- [ ] **Webhook Support** for partner integrations
+
+##### **SDK Generation and Integration**
+- [ ] **OpenAPI Specification** for customer onboarding endpoints
+- [ ] **TypeScript SDK Generation** using openapi-typescript-codegen
+- [ ] **Client-Side Type Safety** with generated types and services
+- [ ] **Authentication Integration** with JWT tokens
+
+### **4. Technical Architecture**
+
+#### **4.1 Backend Structure**
+- [ ] **NestJS Application** with modular architecture
+- [ ] **Customer Module** with controller, service, and DTOs
+- [ ] **Policy Module** for plan selection and management
+- [ ] **Payment Module** for premium setup and billing
+- [ ] **KYC Module** for verification workflows
+- [ ] **Shared Guards and Interceptors** for security and validation
+
+#### **4.2 Database Schema**
+- [ ] **Customer Table** with personal information and status
+- [ ] **Address Table** for customer location data
+- [ ] **Dependent Table** for family members and beneficiaries
+- [ ] **Onboarding Progress Table** for step tracking
+- [ ] **KYC Verification Table** for verification status and documents
+- [ ] **Audit Log Table** for change tracking
+
+#### **4.3 API Design**
+- [ ] **Internal API Routes** (`/api/internal/*`) for portal access
+- [ ] **Public API Routes** (`/api/v1/*`) for partner access
+- [ ] **OpenAPI Documentation** with Swagger UI
+- [ ] **Request/Response Validation** using DTOs and Zod
+- [ ] **Error Handling** with consistent error responses
+
+### **5. Development Phases**
+
+#### **5.1 Phase 1: Foundation & Infrastructure Setup (Week 1)**
+
+##### **5.1.1 Initialize Monorepo Structure**
+- [x] **5.1.1.1** Create directory structure (`apps/*`, `packages/*`, `infra/*`)
+- [x] **5.1.1.2** Set up root package.json and pnpm-workspace.yaml
+- [x] **5.1.1.3** Configure TypeScript base configuration
+- [x] **5.1.1.4** Set up .gitignore and development tools
+
+##### **5.1.2 Fly.io Infrastructure Setup**
+- [ ] **5.1.2.1** Install Fly CLI and authenticate
+- [ ] **5.1.2.2** Create Fly apps for each service (api, web-admin, mobile)
+- [ ] **5.1.2.3** Set up private networking for internal services
+- [ ] **5.1.2.4** Configure environment variables and secrets
+
+##### **5.1.3 Database Setup**
+- [ ] **5.1.3.1** Create Supabase project and PostgreSQL database
+- [ ] **5.1.3.2** Configure database connection strings
+- [ ] **5.1.3.3** Set up Prisma ORM with initial schema
+
+#### **5.2 Phase 2: Backend API Foundation (Week 2)**
+
+##### **5.2.1 NestJS Backend Setup**
+- [ ] **5.2.1.1** Initialize NestJS application in `apps/api`
+- [ ] **5.2.1.2** Install and configure required dependencies
+- [ ] **5.2.1.3** Set up application configuration and environment
+- [ ] **5.2.1.4** Configure Swagger documentation
+
+##### **5.2.2 Customer Onboarding Module Structure**
+- [ ] **5.2.2.1** Create customer controller with CRUD endpoints
+- [ ] **5.2.2.2** Implement customer service with business logic
+- [ ] **5.2.2.3** Define DTOs for request/response validation
+- [ ] **5.2.2.4** Set up customer module with dependencies
+
+##### **5.2.3 Database Models and Migrations**
+- [ ] **5.2.3.1** Define Prisma schema for customer entities
+- [ ] **5.2.3.2** Create database migrations
+- [ ] **5.2.3.3** Set up seed data for development
+- [ ] **5.2.3.4** Configure Prisma client and service
+
+#### **5.3 Phase 3: SDK Infrastructure Setup (Week 3) - Foundation Complete When Checked**
+
+##### **5.3.1 OpenAPI Specification Foundation**
+- [ ] **5.3.1.1** Define customer onboarding API endpoints
+- [ ] **5.3.1.2** Create request/response schemas
+- [ ] **5.3.1.3** Document authentication and authorization
+- [ ] **5.3.1.4** Generate initial OpenAPI specification file
+- [ ] **5.3.1.5** Set up OpenAPI validation in CI pipeline
+
+##### **5.3.2 SDK Package Infrastructure**
+- [ ] **5.3.2.1** Create `packages/sdk` structure
+- [ ] **5.3.2.2** Configure package.json and TypeScript
+- [ ] **5.3.2.3** Set up SDK generation scripts
+- [ ] **5.3.2.4** Implement authentication helpers
+- [ ] **5.3.2.5** Configure build and publish workflows
+
+##### **5.3.3 Initial SDK Generation**
+- [ ] **5.3.3.1** Generate initial TypeScript client from OpenAPI
+- [ ] **5.3.3.2** Build and package SDK for distribution
+- [ ] **5.3.3.3** Test basic SDK integration in sample applications
+- [ ] **5.3.3.4** Document SDK usage and examples
+- [ ] **5.3.3.5** Set up automated SDK generation on OpenAPI changes
+
+**Note: This phase establishes SDK infrastructure. Ongoing SDK generation and testing happens throughout Phases 5-8 as features are built.**
+
+#### **5.4 Phase 4: API Gateway Infrastructure Setup (Week 4) - Foundation Complete When Checked**
+
+##### **5.4.1 Kong Gateway Foundation**
+- [ ] **5.4.1.1** Set up Kong API gateway for public API exposure
+- [ ] **5.4.1.2** Configure OIDC authentication plugin
+- [ ] **5.4.1.3** Set up rate limiting and CORS policies
+- [ ] **5.4.1.4** Configure basic routing to internal API services
+- [ ] **5.4.1.5** Set up Kong health checks and monitoring
+
+##### **5.4.2 API Security Infrastructure**
+- [ ] **5.4.2.1** Implement internal vs public API separation
+- [ ] **5.4.2.2** Set up JWT authentication for internal APIs
+- [ ] **5.4.2.3** Configure OIDC authentication for public APIs
+- [ ] **5.4.2.4** Implement basic request validation and sanitization
+- [ ] **5.4.2.5** Set up API key management for partners
+
+##### **5.4.3 API Documentation Infrastructure**
+- [ ] **5.4.3.1** Set up Swagger UI for both API layers
+- [ ] **5.4.3.2** Create basic API testing suite framework
+- [ ] **5.4.3.3** Document API architecture and security model
+- [ ] **5.4.3.4** Set up basic API monitoring and logging
+- [ ] **5.4.3.5** Configure API analytics and usage tracking
+
+**Note: This phase establishes API gateway infrastructure. Actual endpoint implementation, testing, and security validation happens throughout Phases 5-8 as features are built.**
+
+---
+
+## **Ongoing Work Throughout Development (Phases 5-8)**
+
+### **5.4.4 Ongoing API Gateway Work (Throughout Phases 5-8)**
+- [ ] **5.4.4.1** Implement and test each API endpoint through Kong
+- [ ] **5.4.4.2** Validate OIDC authentication for each public endpoint
+- [ ] **5.4.4.3** Test rate limiting and CORS for each endpoint
+- [ ] **5.4.4.4** Monitor API performance and security metrics
+- [ ] **5.4.4.5** Update Kong routing as new endpoints are added
+
+### **5.3.4 Ongoing SDK Work (Throughout Phases 5-8)**
+- [ ] **5.3.4.1** Regenerate SDK after each OpenAPI spec update
+- [ ] **5.3.4.2** Test SDK integration with each new feature
+- [ ] **5.3.4.3** Validate type safety for new endpoints
+- [ ] **5.3.4.4** Update SDK documentation for new features
+- [ ] **5.3.4.5** Test SDK performance with new endpoints
+
+---
+
+#### **5.5 Phase 5: Database Schema & Prisma Models (Week 5)**
+
+##### **5.5.1 Customer Data Model**
+- [ ] **5.5.1.1** Implement customer table with all required fields
+- [ ] **5.5.1.2** Create address and dependent tables
+- [ ] **5.5.1.3** Set up relationships and constraints
+- [ ] **5.5.1.4** Configure indexes for performance
+- [ ] **5.5.1.5** Update OpenAPI spec with new data models (triggers 5.3.4.1)
+- [ ] **5.5.1.6** Test Kong routing to new endpoints (triggers 5.4.4.1)
+
+##### **5.5.2 Onboarding Progress Tracking**
+- [ ] **5.5.2.1** Implement onboarding progress table
+- [ ] **5.5.2.2** Set up step completion tracking
+- [ ] **5.5.2.3** Configure status transitions and validation
+- [ ] **5.5.2.4** Create progress calculation logic
+- [ ] **5.5.2.5** Update OpenAPI spec with progress endpoints (triggers 5.3.4.1)
+- [ ] **5.5.2.6** Test Kong authentication for progress endpoints (triggers 5.4.4.2)
+
+##### **5.5.3 KYC and Verification System**
+- [ ] **5.5.3.1** Set up KYC verification table
+- [ ] **5.5.3.2** Implement document storage and validation
+- [ ] **5.5.3.3** Configure verification workflow states
+- [ ] **5.5.3.4** Set up audit logging for verification actions
+- [ ] **5.5.3.5** Update OpenAPI spec with KYC endpoints (triggers 5.3.4.1)
+- [ ] **5.5.3.6** Test Kong rate limiting for KYC endpoints (triggers 5.4.4.3)
+
+#### **5.6 Phase 6: Fly.io Deployment Configuration (Week 6)**
+
+##### **5.6.1 Application Deployment**
+- [ ] **5.6.1.1** Create Dockerfiles for each application
+- [ ] **5.6.1.2** Configure Fly.io deployment files
+- [ ] **5.6.1.3** Set up environment variables and secrets
+- [ ] **5.6.1.4** Configure health checks and monitoring
+
+##### **5.6.2 Networking and Security**
+- [ ] **5.6.2.1** Set up private networking between services
+- [ ] **5.6.2.2** Configure SSL certificates and HTTPS
+- [ ] **5.6.2.3** Set up firewall rules and access controls
+- [ ] **5.6.2.4** Configure backup and disaster recovery
+
+##### **5.6.3 Environment Management**
+- [ ] **5.6.3.1** Set up development, staging, and production environments
+- [ ] **5.6.3.2** Configure environment-specific configurations
+- [ ] **5.6.3.3** Set up CI/CD pipelines for automated deployment
+- [ ] **5.6.3.4** Configure monitoring and alerting
+
+#### **5.7 Phase 7: Testing & Validation (Week 7)**
+
+##### **5.7.1 API Testing**
+- [ ] **5.7.1.1** Create unit tests for all services
+- [ ] **5.7.1.2** Implement integration tests for API endpoints
+- [ ] **5.7.1.3** Set up end-to-end testing for onboarding flows
+- [ ] **5.7.1.4** Configure test coverage reporting
+
+##### **5.7.2 SDK Testing**
+- [ ] **5.7.2.1** Test SDK generation and build process
+- [ ] **5.7.2.2** Validate type safety and error handling
+- [ ] **5.7.2.3** Test authentication and authorization flows
+- [ ] **5.7.2.4** Verify API contract compliance
+
+##### **5.7.3 Performance and Security Testing**
+- [ ] **5.7.3.1** Load test API endpoints
+- [ ] **5.7.3.2** Security audit of authentication and authorization
+- [ ] **5.7.3.3** Validate rate limiting and CORS policies
+- [ ] **5.7.3.4** Test error handling and edge cases
+
+#### **5.8 Phase 8: Monitoring & Analytics (Week 8)**
+
+##### **5.8.1 Application Monitoring**
+- [ ] **5.8.1.1** Set up PostHog for product analytics
+- [ ] **5.8.1.2** Configure event tracking for onboarding flows
+- [ ] **5.8.1.3** Set up error monitoring with Sentry
+- [ ] **5.8.1.4** Implement performance monitoring
+
+##### **5.8.2 Business Intelligence**
+- [ ] **5.8.2.1** Set up Metabase for BI dashboards
+- [ ] **5.8.2.2** Create onboarding funnel analytics
+- [ ] **5.8.2.3** Set up conversion tracking and reporting
+- [ ] **5.8.2.4** Configure automated reporting
+
+##### **5.8.3 Operational Monitoring**
+- [ ] **5.8.3.1** Set up API usage monitoring
+- [ ] **5.8.3.2** Configure alerting for system issues
+- [ ] **5.8.3.3** Implement log aggregation and analysis
+- [ ] **5.8.3.4** Set up health check monitoring
+
+### **6. User Roles and Permissions**
+
+#### **External Customers (Public API)**
+- [ ] Can create customer accounts via public API
+- [ ] Can view onboarding progress and status
+- [ ] Can update personal information during onboarding
+- [ ] Can manage dependents and beneficiaries
+
+#### **Internal Users (Internal API)**
+- [ ] **Customer Service Representatives** can view and manage customer accounts
+- [ ] **KYC Officers** can verify customer documents and information
+- [ ] **Underwriters** can review and approve customer applications
+- [ ] **System Administrators** can manage system configuration
+
+#### **Partner Applications (Public API)**
+- [ ] Can onboard customers on behalf of their users
+- [ ] Can access customer data within defined scopes
+- [ ] Can receive webhook notifications for status changes
+- [ ] Can access usage analytics and reporting
+
+### **7. Tech Stack**
+
+#### **Backend**
+- [ ] **NestJS** with TypeScript for API development
+- [ ] **Prisma ORM** with PostgreSQL database
+- [ ] **JWT Authentication** for internal APIs
+- [ ] **OIDC Authentication** for public APIs
+
+#### **API Gateway**
+- [ ] **Kong** for public API exposure and security
+- [ ] **Rate Limiting** and CORS policies
+- [ ] **OIDC Plugin** for authentication
+- [ ] **Request/Response Transformation**
+
+#### **Infrastructure**
+- [ ] **Fly.io** for containerized deployment
+- [ ] **Private Networking** for internal services
+- [ ] **SSL/TLS** encryption for all communications
+- [ ] **Environment Management** with secrets
+
+#### **SDK and Client Tools**
+- [ ] **OpenAPI Specification** for API contracts
+- [ ] **TypeScript SDK Generation** with openapi-typescript-codegen
+- [ ] **Generated Types** for type-safe client development
+- [ ] **Authentication Helpers** for client integration
+
+### **8. Success Metrics**
+
+#### **Technical Metrics**
+- [ ] **API Response Time** < 200ms for 95% of requests
+- [ ] **SDK Generation** completes in < 30 seconds
+- [ ] **Test Coverage** > 80% for all modules
+- [ ] **Zero Critical Security Vulnerabilities**
+
+#### **Business Metrics**
+- [ ] **Customer Onboarding Success Rate** > 90%
+- [ ] **KYC Verification Time** < 24 hours
+- [ ] **API Uptime** > 99.9%
+- [ ] **Partner Integration Time** < 1 week
+
+### **9. Future Considerations**
+
+#### **Post-MVP Enhancements**
+- [ ] **Automated KYC Verification** using AI and machine learning
+- [ ] **Real-time Notifications** for onboarding status updates
+- [ ] **Advanced Analytics** for onboarding optimization
+- [ ] **Multi-language Support** for international markets
+
+#### **Scalability Improvements**
+- [ ] **Microservices Architecture** for better scalability
+- [ ] **Event-Driven Architecture** for real-time processing
+- [ ] **Caching Layer** for improved performance
+- [ ] **CDN Integration** for global content delivery
+
+### **10. Conclusion**
+
+This development plan provides a comprehensive roadmap for implementing the MicroBima Customer Onboarding module with external API access, early Fly.io deployment, and generated SDK integration. The phased approach ensures systematic development while maintaining quality and security standards.
+
+**Next Steps:**
+1. Begin with Phase 1 (Foundation & Infrastructure Setup)
+2. Set up Fly.io accounts and infrastructure
+3. Initialize the monorepo structure
+4. Configure development environment and tools
+
+**Estimated Timeline:** 8 weeks for complete MVP implementation
+**Team Requirements:** 2-3 developers, 1 DevOps engineer, 1 QA engineer
+
+---
+
+## **Development Flow Summary**
+
+### **Infrastructure Phases (3-4): "Set It Up"**
+- **Phase 3**: SDK infrastructure ready for generation
+- **Phase 4**: API gateway ready for routing
+- **Checkboxes**: Mark complete when infrastructure is functional
+
+### **Implementation Phases (5-8): "Build and Test"**
+- **Phase 5**: Build database and business logic
+- **Phase 6**: Deploy and configure infrastructure
+- **Phase 7**: Test everything together
+- **Phase 8**: Monitor and optimize
+
+### **Ongoing Integration Points**
+- Every new feature triggers SDK regeneration (5.3.4.x)
+- Every new endpoint tests Kong routing (5.4.4.x)
+- Infrastructure phases provide the foundation for implementation phases
+- Implementation phases validate and enhance the infrastructure
+
+**Key Insight**: Phases 3-4 are "one-time setup" but their ongoing work continues throughout Phases 5-8 as features are built and tested.

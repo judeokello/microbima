@@ -1,0 +1,2579 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Birdview Micro Insurance API",
+    "version": "1.0.0",
+    "description": "Comprehensive API for micro insurance operations with correlation ID tracing support.\nThis API provides endpoints for managing principal members, their family members, \ninsurance products, payment history, and status tracking.\n\n**Shared TypeScript Architecture**: All request/response types use centralized, \ntype-safe interfaces from /src/types/domain.ts to eliminate duplication and ensure \nconsistency. Shared validation utilities in /src/lib/api/validation.ts provide \nconsistent validation logic across all endpoints.\n\n**Documentation**: See /docs/typescript-interfaces.md for complete interface \ndefinitions, validation utilities, and usage examples.",
+    "contact": {
+      "name": "Birdview API Support",
+      "email": "apisupport@birdviewinsurance.com"
+    },
+    "license": {
+      "name": "MIT",
+      "url": "https://opensource.org/licenses/MIT"
+    }
+  },
+  "servers": [
+    {
+      "url": "https://sandbox-birdview-api.vercel.app",
+      "description": "Birdview sandbox API"
+    }
+  ],
+  "security": [
+    {
+      "ApiKeyAuth": []
+    }
+  ],
+  "paths": {
+    "/api/health": {
+      "get": {
+        "tags": ["Health Check"],
+        "summary": "Health check endpoint",
+        "description": "Simple health check to verify API availability",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "API is healthy and operational",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string",
+                      "example": "API is healthy"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/products": {
+      "get": {
+        "tags": ["Products"],
+        "summary": "Get available insurance products",
+        "description": "Retrieve all insurance products available to partners",
+        "parameters": [
+          {
+            "name": "correlationId",
+            "in": "header",
+            "description": "Optional correlation ID for request tracing",
+            "schema": {
+              "type": "string",
+              "example": "req-products-12345"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successfully retrieved products",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "correlationId": {
+                      "type": "string",
+                      "nullable": true,
+                      "example": "req-products-12345"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/PartnerProductsResponse"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/principal-member": {
+      "post": {
+        "tags": ["principal member"],
+        "summary": "Create principal member",
+        "description": "Create a new principal member with beneficiaries and product selection.\n\n**Customer Identity Architecture:**\n- Provide a `partnerCustomerId` - your own customer reference (any format)\n- Include government ID (`idType` + `idNumber`) for person verification\n- API returns your `partnerCustomerId` (not an internal ID)\n- Subsequent API calls use your `partnerCustomerId`\n\n**Unique Constraints:**\n- One `partnerCustomerId` per partner (tenant)\n- One person (government ID) per partner (tenant)",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreatePrincipalMemberRequest"
+              },
+              "example": {
+                "correlationId": "CORR-123456789",
+                "product": {
+                  "productId": "mfanisi-go",
+                  "planId": "basic"
+                },
+                "principalMember": {
+                  "partnerCustomerId": "PARTNER-CUST-001",
+                  "firstName": "John",
+                  "middleName": "Michael",
+                  "surName": "Doe",
+                  "dateOfBirth": "1985-06-15",
+                  "gender": "male",
+                  "email": "john.doe@example.com",
+                  "phoneNumber": "+254712345678",
+                  "idType": "national",
+                  "idNumber": "12345678"
+                },
+                "beneficiaries": [
+                  {
+                    "firstName": "Jane",
+                    "surName": "Doe",
+                    "dateOfBirth": "1987-03-20",
+                    "gender": "female",
+                    "email": "jane.doe@example.com",
+                    "idType": "national",
+                    "idNumber": "87654321",
+                    "relationship": "spouse"
+                  },
+                  {
+                    "firstName": "Tommy",
+                    "surName": "Doe",
+                    "dateOfBirth": "2010-05-15",
+                    "gender": "male",
+                    "idType": "national",
+                    "idNumber": "11223344",
+                    "relationship": "child"
+                  }
+                ],
+                "children": [
+                  {
+                    "firstName": "Tommy",
+                    "surName": "Doe",
+                    "dateOfBirth": "2010-05-15",
+                    "gender": "male"
+                  },
+                  {
+                    "firstName": "Sarah",
+                    "middleName": "Grace",
+                    "surName": "Doe",
+                    "dateOfBirth": "2012-08-22",
+                    "gender": "female",
+                    "idType": "birthCertificateNumber",
+                    "idNumber": "BC-2012-002"
+                  }
+                ],
+                "spouses": [
+                  {
+                    "firstName": "Jane",
+                    "surName": "Doe",
+                    "dateOfBirth": "1987-03-20",
+                    "gender": "female",
+                    "email": "jane.doe@example.com",
+                    "idType": "national",
+                    "idNumber": "87654321"
+                  }
+                ],
+                "referredBy": "Agent Smith"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Principal already exists - returns existing principal information",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "correlationId": {
+                      "type": "string",
+                      "example": "req-12345-67890"
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Principal already exists"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "principalId": {
+                          "type": "string",
+                          "example": "BISP250000000133"
+                        },
+                        "referredBy": {
+                          "type": "string",
+                          "description": "Optional referral information (returned only if provided in request)",
+                          "example": "Agent Smith"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Principal member created successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "integer",
+                      "example": 201
+                    },
+                    "correlationId": {
+                      "type": "string",
+                      "example": "req-12345-67890"
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Principal member created successfully"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "principalId": {
+                          "type": "string",
+                          "example": "BISP250000000135"
+                        },
+                        "partnerCustomerId": {
+                          "type": "string",
+                          "example": "CUST-2024-001"
+                        },
+                        "policy": {
+                          "type": "object",
+                          "properties": {
+                            "issued": {
+                              "type": "boolean",
+                              "example": true
+                            },
+                            "policyNumber": {
+                              "type": "string",
+                              "example": "POL-MFG-1755245811023-5193"
+                            },
+                            "productCode": {
+                              "type": "string",
+                              "example": "mfanisi-go"
+                            },
+                            "productName": {
+                              "type": "string",
+                              "example": "Mfanisi Go Medical Coverage"
+                            },
+                            "status": {
+                              "type": "string",
+                              "example": "active"
+                            }
+                          }
+                        },
+                        "payment": {
+                          "type": "object",
+                          "properties": {
+                            "productName": {
+                              "type": "string",
+                              "example": "Mfanisi Go Medical Coverage"
+                            },
+                            "dailyAmount": {
+                              "type": "number",
+                              "example": 0
+                            },
+                            "totalAmount": {
+                              "type": "number",
+                              "example": 0
+                            },
+                            "currency": {
+                              "type": "string",
+                              "example": "KES"
+                            }
+                          }
+                        },
+                        "referredBy": {
+                          "type": "string",
+                          "description": "Optional referral information (returned only if provided in request)",
+                          "example": "Agent Smith"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - validation errors",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/principal-member/{principalId}": {
+      "get": {
+        "tags": ["principal member"],
+        "summary": "Get principal member details",
+        "description": "Retrieve detailed information about a specific principal member",
+        "parameters": [
+          {
+            "name": "principalId",
+            "in": "path",
+            "required": true,
+            "description": "Unique customer identifier",
+            "schema": {
+              "type": "string",
+              "example": "CUST-2024-001"
+            }
+          },
+          {
+            "name": "correlationId",
+            "in": "header",
+            "description": "Optional correlation ID for request tracing",
+            "schema": {
+              "type": "string",
+              "example": "req-user-details-12345"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successfully retrieved user details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "correlationId": {
+                      "type": "string",
+                      "example": "req-user-details-12345"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/PrincipalMemberDetails"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Customer not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/principal-member/{principalId}/spouses": {
+      "post": {
+        "tags": ["Family Members"],
+        "summary": "Add spouses to principal member",
+        "description": "Add one or more spouses to an existing principal member. This endpoint supports adding multiple spouses in a single request and handles payment adjustments automatically.",
+        "parameters": [
+          {
+            "name": "principalId",
+            "in": "path",
+            "required": true,
+            "description": "Unique customer identifier for the principal member",
+            "schema": {
+              "type": "string",
+              "example": "CUST-2024-001"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddSpousesRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Spouses added successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AddSpousesResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error or invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Invalid API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Principal member not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/principal-member/{principalId}/children": {
+      "post": {
+        "tags": ["Family Members"],
+        "summary": "Add children to principal member",
+        "description": "Add one or more children to an existing principal member. This endpoint supports adding multiple children in a single request. Children are covered at no additional cost.",
+        "parameters": [
+          {
+            "name": "principalId",
+            "in": "path",
+            "required": true,
+            "description": "Unique customer identifier for the principal member",
+            "schema": {
+              "type": "string",
+              "example": "CUST-2024-001"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddChildrenRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Children added successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AddChildrenResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error or invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Invalid API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Principal member not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/principal-member/{principalId}/beneficiaries": {
+      "post": {
+        "tags": ["Family Members"],
+        "summary": "Add beneficiaries to principal member",
+        "description": "Add one or more beneficiaries to an existing principal member. This endpoint supports adding multiple beneficiaries in a single request and validates that total percentage allocation does not exceed 100%.",
+        "parameters": [
+          {
+            "name": "principalId",
+            "in": "path",
+            "required": true,
+            "description": "Unique customer identifier for the principal member",
+            "schema": {
+              "type": "string",
+              "example": "CUST-2024-001"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddBeneficiariesRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Beneficiaries added successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AddBeneficiariesResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error or invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Invalid API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Principal member not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/payments": {
+      "post": {
+        "tags": ["Payments"],
+        "summary": "Process bulk payments",
+        "description": "Process multiple payment records in a single request with correlation ID tracking. Maximum 30 records per request (configurable via MAX_PAYMENT_RECORDS environment variable). **Breaking Change**: New request format requires correlationId and uses camelCase field names.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BulkPaymentRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Payments processed successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExternalPaymentResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error, missing correlationId, or too many records",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExternalPaymentErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExternalPaymentErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExternalPaymentErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/principal-member/{principalId}/status": {
+      "get": {
+        "tags": ["Customer Status"],
+        "summary": "Get principal member status",
+        "description": "Retrieve detailed product and financial status information for a principal member.\n\n**Features:**\n- Returns all products with dependants and financial details per product\n- Optional filtering by productId (comma-separated list)\n- Optional filtering by categoryId (comma-separated list)\n- Includes summary totals across all filtered products\n- Returns empty array if no products match filters\n\n**Query Parameters:**\n- `correlationId` (required): Request correlation ID for tracing\n- `productId` (optional): Filter by specific product IDs (comma-separated)\n- `categoryId` (optional): Filter by product categories (comma-separated)\n\n**Response Structure:**\n- Each product includes dependants count (total, children, spouses)\n- Financial details include daily/weekly amounts, payment frequency, installments\n- Summary provides totals across all returned products",
+        "parameters": [
+          {
+            "name": "principalId",
+            "in": "path",
+            "required": true,
+            "description": "Principal member ID (your partnerCustomerId)",
+            "schema": {
+              "type": "string",
+              "example": "PRIN-12345"
+            }
+          },
+          {
+            "name": "correlationId",
+            "in": "query",
+            "required": true,
+            "description": "Correlation ID for request tracing",
+            "schema": {
+              "type": "string",
+              "example": "corr-12345-status"
+            }
+          },
+          {
+            "name": "productId",
+            "in": "query",
+            "required": false,
+            "description": "Filter by specific product IDs (comma-separated)",
+            "schema": {
+              "type": "string",
+              "example": "PROD-MICRO-001,PROD-HEALTH-002"
+            }
+          },
+          {
+            "name": "categoryId",
+            "in": "query",
+            "required": false,
+            "description": "Filter by product categories (comma-separated)",
+            "schema": {
+              "type": "string",
+              "example": "health,micro-insurance"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Principal member status retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PrincipalMemberStatusResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - missing correlationId or invalid productId",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - missing or invalid API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sos": {
+      "get": {
+        "tags": ["Emergency Services"],
+        "summary": "Get SOS emergency contacts",
+        "description": "Retrieve emergency contacts for ambulance and rescue services",
+        "parameters": [
+          {
+            "name": "x-api-key",
+            "in": "header",
+            "required": true,
+            "description": "API key for authentication",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "SOS contacts retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SOSResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - missing or invalid API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/principal-member/{principalId}/benefits": {
+      "get": {
+        "tags": ["Customer Benefits"],
+        "summary": "Get customer benefits",
+        "description": "Retrieve all insurance benefits associated with a specific customer",
+        "parameters": [
+          {
+            "name": "principalId",
+            "in": "path",
+            "required": true,
+            "description": "Unique identifier for the principal member",
+            "schema": {
+              "type": "string",
+              "example": "BISP250000000067"
+            }
+          },
+          {
+            "name": "correlationId",
+            "in": "query",
+            "required": true,
+            "description": "Correlation ID for request tracing",
+            "schema": {
+              "type": "string",
+              "example": "req-products-12345"
+            }
+          },
+          {
+            "name": "productId",
+            "in": "query",
+            "required": false,
+            "description": "Product identifier for filtering (optional)",
+            "schema": {
+              "type": "string",
+              "example": "PROD-001"
+            }
+          },
+          {
+            "name": "dependantId",
+            "in": "query",
+            "required": false,
+            "description": "Dependant identifier for filtering (optional)",
+            "schema": {
+              "type": "string",
+              "example": "DEP-001"
+            }
+          },
+          {
+            "name": "x-api-key",
+            "in": "header",
+            "required": true,
+            "description": "API key for authentication",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successfully retrieved customer benefits",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CustomerProductsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - missing correlationId or invalid parameters",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - missing or invalid API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Principal member not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/principal-member/{principalId}/payment-history": {
+      "get": {
+        "tags": ["Payment History"],
+        "summary": "Get payment history for a principal member",
+        "description": "Retrieve detailed payment history including all transactions and payment records",
+        "parameters": [
+          {
+            "name": "principalId",
+            "in": "path",
+            "required": true,
+            "description": "Unique identifier for the principal member",
+            "schema": {
+              "type": "string",
+              "example": "BISP250000000050"
+            }
+          },
+          {
+            "name": "correlationId",
+            "in": "query",
+            "required": true,
+            "description": "Correlation ID for request tracing",
+            "schema": {
+              "type": "string",
+              "example": "test-correlation-123"
+            }
+          },
+          {
+            "name": "productId",
+            "in": "query",
+            "required": false,
+            "description": "Product identifier (optional - not currently used by internal API)",
+            "schema": {
+              "type": "string",
+              "example": "PROD-001"
+            }
+          },
+          {
+            "name": "startDate",
+            "in": "query",
+            "required": true,
+            "description": "Start date for payment history (YYYY-MM-DD format)",
+            "schema": {
+              "type": "string",
+              "format": "date",
+              "example": "2025-01-01"
+            }
+          },
+          {
+            "name": "endDate",
+            "in": "query",
+            "required": true,
+            "description": "End date for payment history (YYYY-MM-DD format)",
+            "schema": {
+              "type": "string",
+              "format": "date",
+              "example": "2025-12-31"
+            }
+          },
+          {
+            "name": "x-api-key",
+            "in": "header",
+            "required": true,
+            "description": "API key for authentication",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Payment history retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentHistoryResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - missing required parameters or invalid date format",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - missing or invalid API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "ApiKeyAuth": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "apikey",
+        "description": "API key for authentication"
+      }
+    },
+    "schemas": {
+      "CreatePrincipalMemberRequest": {
+        "type": "object",
+        "description": "Request payload for creating a principal member.\nTypeScript Interface: CreatePrincipalMemberRequest in /docs/typescript-interfaces.md",
+        "required": ["correlationId", "product", "principalMember"],
+        "properties": {
+          "correlationId": {
+            "type": "string",
+            "description": "Correlation ID for request tracing",
+            "example": "req-12345-67890"
+          },
+          "product": {
+            "$ref": "#/components/schemas/Product"
+          },
+          "principalMember": {
+            "$ref": "#/components/schemas/PrincipalMember"
+          },
+          "beneficiaries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Beneficiary"
+            },
+            "description": "Optional array of beneficiaries for the principal member"
+          },
+          "children": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Child"
+            },
+            "description": "Optional array of children for the principal member"
+          },
+          "spouses": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Spouse"
+            },
+            "description": "Optional array of spouses for the principal member"
+          },
+          "referredBy": {
+            "type": "string",
+            "maxLength": 50,
+            "description": "Optional referral information indicating who referred this principal member (max 50 characters)",
+            "example": "Agent Smith"
+          }
+        }
+      },
+      "PrincipalMember": {
+        "type": "object",
+        "description": "Principal member information for insurance policy holder.\nTypeScript Interface: PrincipalMember in /docs/typescript-interfaces.md",
+        "required": ["firstName", "surName", "dateOfBirth", "idType", "idNumber", "partnerCustomerId"],
+        "properties": {
+          "firstName": {
+            "type": "string",
+            "example": "John"
+          },
+          "surName": {
+            "type": "string",
+            "example": "Doe"
+          },
+          "middleName": {
+            "type": "string",
+            "example": "Michael"
+          },
+          "dateOfBirth": {
+            "type": "string",
+            "format": "date",
+            "example": "1985-06-15"
+          },
+          "gender": {
+            "type": "string",
+            "enum": ["male", "female"],
+            "example": "male"
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "example": "john.doe@example.com"
+          },
+          "idType": {
+            "type": "string",
+            "enum": ["national", "alien", "passport"],
+            "example": "national"
+          },
+          "idNumber": {
+            "type": "string",
+            "example": "12345678"
+          },
+          "partnerCustomerId": {
+            "type": "string",
+            "description": "Your own customer reference identifier. Can be any format (numeric, alphanumeric, UUID, etc.).\nThis is what you'll use in subsequent API calls. Examples:\n- \"BANK-ACCOUNT-123456\"\n- \"EMP-2024-0156\" \n- \"user-uuid-abc-123-def\"\n- \"CUSTOMER-789\"",
+            "example": "PARTNER-CUST-001"
+          }
+        }
+      },
+      "Product": {
+        "type": "object",
+        "required": ["productId", "planId"],
+        "properties": {
+          "productId": {
+            "type": "string",
+            "example": "LIFE-INS-001"
+          },
+          "planId": {
+            "type": "string",
+            "example": "BASIC-PLAN"
+          }
+        }
+      },
+      "Child": {
+        "type": "object",
+        "description": "Child information for family member coverage.\nTypeScript Interface: Child in /docs/typescript-interfaces.md",
+        "required": ["firstName", "surName", "dateOfBirth"],
+        "properties": {
+          "firstName": {
+            "type": "string",
+            "example": "Tommy"
+          },
+          "surName": {
+            "type": "string",
+            "example": "Doe"
+          },
+          "middleName": {
+            "type": "string",
+            "example": "James"
+          },
+          "dateOfBirth": {
+            "type": "string",
+            "format": "date",
+            "example": "2010-08-12"
+          },
+          "gender": {
+            "type": "string",
+            "enum": ["male", "female"],
+            "example": "male"
+          },
+          "idType": {
+            "type": "string",
+            "enum": ["birthCertificateNumber", "national"],
+            "example": "birthCertificateNumber",
+            "description": "Optional ID type for children - birth certificate numbers or national IDs (for 18+ children)"
+          },
+          "idNumber": {
+            "type": "string",
+            "example": "123456789",
+            "description": "Optional ID number corresponding to the birth certificate"
+          }
+        }
+      },
+      "Spouse": {
+        "type": "object",
+        "description": "Spouse information for family member coverage.\nTypeScript Interface: Spouse in /docs/typescript-interfaces.md",
+        "required": ["firstName", "surName", "dateOfBirth", "idType", "idNumber"],
+        "properties": {
+          "firstName": {
+            "type": "string",
+            "example": "Mary"
+          },
+          "surName": {
+            "type": "string",
+            "example": "Doe"
+          },
+          "middleName": {
+            "type": "string",
+            "example": "Elizabeth"
+          },
+          "dateOfBirth": {
+            "type": "string",
+            "format": "date",
+            "example": "1988-12-05"
+          },
+          "gender": {
+            "type": "string",
+            "enum": ["male", "female"],
+            "example": "female"
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "example": "mary.doe@example.com"
+          },
+          "idType": {
+            "type": "string",
+            "enum": ["national", "alien", "passport"],
+            "example": "national"
+          },
+          "idNumber": {
+            "type": "string",
+            "example": "11223344"
+          }
+        }
+      },
+      "Beneficiary": {
+        "type": "object",
+        "required": ["firstName", "surName", "dateOfBirth", "relationship", "idType", "idNumber", "percentage"],
+        "properties": {
+          "firstName": {
+            "type": "string",
+            "example": "Sarah"
+          },
+          "surName": {
+            "type": "string",
+            "example": "Johnson"
+          },
+          "middleName": {
+            "type": "string",
+            "example": "Grace"
+          },
+          "dateOfBirth": {
+            "type": "string",
+            "format": "date",
+            "example": "1990-08-15"
+          },
+          "relationship": {
+            "type": "string",
+            "enum": ["spouse", "child", "parent", "sibling", "friend", "other"],
+            "example": "spouse",
+            "description": "Relationship to the principal member"
+          },
+          "relationshipDescription": {
+            "type": "string",
+            "example": "Life partner",
+            "description": "Required when relationship is 'other'"
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "example": "sarah.johnson@example.com"
+          },
+          "phoneNumber": {
+            "type": "string",
+            "example": "+254712345678",
+            "description": "Kenyan phone number format"
+          },
+          "idType": {
+            "type": "string",
+            "enum": ["national", "alien", "passport", "birth_certificate"],
+            "example": "national"
+          },
+          "idNumber": {
+            "type": "string",
+            "example": "12345678"
+          },
+          "percentage": {
+            "type": "number",
+            "minimum": 1,
+            "maximum": 100,
+            "example": 50,
+            "description": "Percentage of benefits this beneficiary will receive"
+          },
+          "address": {
+            "type": "object",
+            "properties": {
+              "street": {
+                "type": "string",
+                "example": "123 Main Street"
+              },
+              "city": {
+                "type": "string",
+                "example": "Nairobi"
+              },
+              "county": {
+                "type": "string",
+                "example": "Nairobi County"
+              },
+              "postalCode": {
+                "type": "string",
+                "example": "00100"
+              }
+            }
+          }
+        }
+      },
+      "PartnerProductsResponse": {
+        "type": "object",
+        "properties": {
+          "partnerId": {
+            "type": "string",
+            "example": "PARTNER-001"
+          },
+          "partnerName": {
+            "type": "string",
+            "example": "Birdview Insurance Partners"
+          },
+          "totalProducts": {
+            "type": "integer",
+            "example": 1
+          },
+          "activeProducts": {
+            "type": "integer",
+            "example": 1
+          },
+          "products": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProductWithPlans"
+            }
+          }
+        }
+      },
+      "ProductWithPlans": {
+        "type": "object",
+        "properties": {
+          "productId": {
+            "type": "string",
+            "example": "PROD-MFANISIGO-001"
+          },
+          "productName": {
+            "type": "string",
+            "example": "Mfanisigo Insurance"
+          },
+          "productDescription": {
+            "type": "string",
+            "example": "Comprehensive micro-insurance coverage providing medical, emergency rescue, hospital cash, and personal accident benefits for individuals and families."
+          },
+          "currency": {
+            "type": "string",
+            "example": "KSH"
+          },
+          "plans": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InsurancePlan"
+            }
+          }
+        }
+      },
+      "InsurancePlan": {
+        "type": "object",
+        "properties": {
+          "planId": {
+            "type": "string",
+            "example": "PLAN-SILVER"
+          },
+          "planName": {
+            "type": "string",
+            "example": "Silver Plan"
+          },
+          "planDescription": {
+            "type": "string",
+            "example": "Essential coverage with basic benefit limits for budget-conscious customers"
+          },
+          "benefits": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InsuranceBenefit"
+            }
+          }
+        }
+      },
+      "InsuranceBenefit": {
+        "type": "object",
+        "properties": {
+          "category": {
+            "type": "string",
+            "example": "Medical"
+          },
+          "benefitId": {
+            "type": "string",
+            "example": "MED-OUTPATIENT"
+          },
+          "benefitName": {
+            "type": "string",
+            "example": "Outpatient"
+          },
+          "description": {
+            "type": "string",
+            "example": "Coverage for outpatient medical consultations, treatments, and procedures"
+          },
+          "limit": {
+            "oneOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "example": 30000
+          },
+          "limitDescription": {
+            "type": "string",
+            "example": "30,000 KSH annual limit"
+          },
+          "notes": {
+            "type": "string",
+            "example": ""
+          }
+        }
+      },
+      "PrincipalMemberDetails": {
+        "type": "object",
+        "properties": {
+          "partnerCustomerId": {
+            "type": "string",
+            "example": "CUST-2024-001"
+          },
+          "personalInfo": {
+            "$ref": "#/components/schemas/PrincipalMember"
+          },
+          "familyMembers": {
+            "type": "object",
+            "properties": {
+              "spouse": {
+                "$ref": "#/components/schemas/Spouse"
+              },
+              "children": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/Child"
+                }
+              }
+            }
+          },
+          "accountStatus": {
+            "type": "string",
+            "enum": ["active", "inactive", "suspended", "pending"],
+            "example": "active"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2024-01-15T10:30:00Z"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2024-01-20T14:45:00Z"
+          }
+        }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "description": "Standard error response format used across all endpoints.\nTypeScript Interface: ErrorResponse in /docs/typescript-interfaces.md",
+        "properties": {
+          "status": {
+            "type": "integer",
+            "example": 400
+          },
+          "correlationId": {
+            "type": "string",
+            "nullable": true,
+            "example": "req-12345-67890"
+          },
+          "error": {
+            "type": "string",
+            "example": "Validation error"
+          },
+          "message": {
+            "type": "string",
+            "example": "Required field 'firstName' is missing"
+          },
+          "details": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        }
+      },
+      "AddSpousesRequest": {
+        "type": "object",
+        "description": "Request payload for adding spouses to a principal member",
+        "required": ["correlationId", "spouses"],
+        "properties": {
+          "correlationId": {
+            "type": "string",
+            "description": "Unique identifier for request tracing",
+            "example": "req-add-spouses-12345"
+          },
+          "spouses": {
+            "type": "array",
+            "description": "Array of spouses to add",
+            "minItems": 1,
+            "maxItems": 4,
+            "items": {
+              "$ref": "#/components/schemas/Spouse"
+            }
+          }
+        }
+      },
+      "AddSpousesResponse": {
+        "type": "object",
+        "description": "Response after adding spouses",
+        "properties": {
+          "status": {
+            "type": "integer",
+            "example": 201
+          },
+          "correlationId": {
+            "type": "string",
+            "example": "req-add-spouses-12345"
+          },
+          "data": {
+            "$ref": "#/components/schemas/AddSpousesResponseData"
+          }
+        }
+      },
+      "AddSpousesResponseData": {
+        "type": "object",
+        "description": "Data payload for spouse addition response",
+        "properties": {
+          "partnerCustomerId": {
+            "type": "string",
+            "example": "CUST-2024-001"
+          },
+          "dependants": {
+            "type": "object",
+            "properties": {
+              "processed": {
+                "type": "integer",
+                "description": "Number of spouses processed",
+                "example": 2
+              },
+              "success": {
+                "type": "boolean",
+                "description": "Whether all spouses were added successfully",
+                "example": true
+              },
+              "spousesAdded": {
+                "type": "integer",
+                "description": "Number of spouses successfully added",
+                "example": 2
+              },
+              "message": {
+                "type": "string",
+                "description": "Result message",
+                "example": "2 spouses added successfully"
+              }
+            }
+          },
+          "payment": {
+            "type": "object",
+            "description": "Payment adjustment information",
+            "properties": {
+              "totalSpouses": {
+                "type": "integer",
+                "description": "Total number of spouses after addition",
+                "example": 2
+              },
+              "totalChildren": {
+                "type": "integer",
+                "description": "Total number of children",
+                "example": 1
+              },
+              "adjustmentAmount": {
+                "type": "number",
+                "description": "Payment adjustment amount (currently 0 for MVP)",
+                "example": 0
+              },
+              "hasChanged": {
+                "type": "boolean",
+                "description": "Whether payment has changed",
+                "example": false
+              },
+              "reason": {
+                "type": "string",
+                "description": "Reason for payment adjustment",
+                "example": "Payment calculation deferred to internal API"
+              }
+            }
+          }
+        }
+      },
+      "AddChildrenRequest": {
+        "type": "object",
+        "description": "Request payload for adding children to a principal member",
+        "required": ["correlationId", "children"],
+        "properties": {
+          "correlationId": {
+            "type": "string",
+            "description": "Unique identifier for request tracing",
+            "example": "req-add-children-12345"
+          },
+          "children": {
+            "type": "array",
+            "description": "Array of children to add",
+            "minItems": 1,
+            "maxItems": 7,
+            "items": {
+              "$ref": "#/components/schemas/Child"
+            }
+          }
+        }
+      },
+      "AddChildrenResponse": {
+        "type": "object",
+        "description": "Response after adding children",
+        "properties": {
+          "status": {
+            "type": "integer",
+            "example": 201
+          },
+          "correlationId": {
+            "type": "string",
+            "example": "req-add-children-12345"
+          },
+          "data": {
+            "$ref": "#/components/schemas/AddChildrenResponseData"
+          }
+        }
+      },
+      "AddChildrenResponseData": {
+        "type": "object",
+        "description": "Data payload for children addition response",
+        "properties": {
+          "partnerCustomerId": {
+            "type": "string",
+            "example": "CUST-2024-001"
+          },
+          "dependants": {
+            "type": "object",
+            "properties": {
+              "processed": {
+                "type": "integer",
+                "description": "Number of children processed",
+                "example": 3
+              },
+              "success": {
+                "type": "boolean",
+                "description": "Whether all children were added successfully",
+                "example": true
+              },
+              "childrenAdded": {
+                "type": "integer",
+                "description": "Number of children successfully added",
+                "example": 3
+              },
+              "message": {
+                "type": "string",
+                "description": "Result message",
+                "example": "3 children added successfully"
+              }
+            }
+          },
+          "payment": {
+            "type": "object",
+            "description": "Payment information (children are free)",
+            "properties": {
+              "totalSpouses": {
+                "type": "integer",
+                "description": "Total number of spouses",
+                "example": 1
+              },
+              "totalChildren": {
+                "type": "integer",
+                "description": "Total number of children after addition",
+                "example": 4
+              },
+              "adjustmentAmount": {
+                "type": "number",
+                "description": "Payment adjustment amount (always 0 for children)",
+                "example": 0
+              },
+              "hasChanged": {
+                "type": "boolean",
+                "description": "Whether payment has changed (always false for children)",
+                "example": false
+              },
+              "reason": {
+                "type": "string",
+                "description": "Reason for no payment change",
+                "example": "Children are covered at no additional cost"
+              }
+            }
+          }
+        }
+      },
+      "AddBeneficiariesRequest": {
+        "type": "object",
+        "description": "Request payload for adding beneficiaries to a principal member",
+        "required": ["correlationId", "beneficiaries"],
+        "properties": {
+          "correlationId": {
+            "type": "string",
+            "description": "Correlation ID for request tracing",
+            "example": "req-add-beneficiaries-12345"
+          },
+          "beneficiaries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Beneficiary"
+            },
+            "description": "Array of beneficiaries to add",
+            "minItems": 1
+          }
+        }
+      },
+      "AddBeneficiariesResponse": {
+        "type": "object",
+        "description": "Response after adding beneficiaries",
+        "properties": {
+          "status": {
+            "type": "integer",
+            "example": 201
+          },
+          "correlationId": {
+            "type": "string",
+            "example": "req-add-beneficiaries-12345"
+          },
+          "data": {
+            "$ref": "#/components/schemas/AddBeneficiariesResponseData"
+          }
+        }
+      },
+      "AddBeneficiariesResponseData": {
+        "type": "object",
+        "description": "Data payload for beneficiaries addition response",
+        "properties": {
+          "totalBeneficiaries": {
+            "type": "integer",
+            "description": "Total number of beneficiaries added",
+            "example": 2
+          },
+          "totalPercentage": {
+            "type": "number",
+            "description": "Total percentage allocation of all beneficiaries",
+            "example": 100
+          },
+          "message": {
+            "type": "string",
+            "description": "Success message",
+            "example": "2 beneficiaries added successfully to principal member account"
+          },
+          "policy": {
+            "$ref": "#/components/schemas/Policy"
+          }
+        }
+      }
+    },
+    "PaymentRecord": {
+      "type": "object",
+      "description": "Individual payment record for bulk payment processing (camelCase format)",
+      "required": ["amount", "principalId", "partnerTransactionId", "transactionTime"],
+      "properties": {
+        "amount": {
+          "type": "number",
+          "description": "Payment amount",
+          "example": 210
+        },
+        "principalId": {
+          "type": "string",
+          "description": "Principal member identifier",
+          "example": "BISP250000000087"
+        },
+        "partnerTransactionId": {
+          "type": "string",
+          "description": "Unique partner transaction identifier",
+          "example": "U0QJRN3AZIF"
+        },
+        "transactionTime": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Transaction timestamp in ISO 8601 format",
+          "example": "2025-08-12T15:35:00Z"
+        }
+      }
+    },
+    "PaymentResult": {
+      "type": "object",
+      "description": "Individual payment processing result",
+      "required": ["success", "message", "actualAmount", "paidAmount"],
+      "properties": {
+        "success": {
+          "type": "boolean",
+          "description": "Whether the payment was successful",
+          "example": true
+        },
+        "message": {
+          "type": "string",
+          "description": "Payment processing message",
+          "example": "Payment processed successfully"
+        },
+        "actualAmount": {
+          "type": "string",
+          "description": "Actual amount processed",
+          "example": "210.00"
+        },
+        "paidAmount": {
+          "type": "string",
+          "description": "Amount paid",
+          "example": "210.00"
+        }
+      }
+    },
+    "BulkPaymentRequest": {
+      "type": "object",
+      "description": "Bulk payment request with correlation ID and payment records",
+      "required": ["correlationId", "payments"],
+      "properties": {
+        "correlationId": {
+          "type": "string",
+          "description": "Unique correlation ID for request tracking",
+          "example": "TEST-CORR-123"
+        },
+        "payments": {
+          "type": "array",
+          "description": "Array of payment records to process",
+          "items": {
+            "$ref": "#/components/schemas/PaymentRecord"
+          },
+          "minItems": 1,
+          "maxItems": 30,
+          "example": [
+            {
+              "amount": 1000,
+              "principalId": "BISP250000000111",
+              "partnerTransactionId": "TXN-ABC123",
+              "transactionTime": "2025-08-12T15:35:00Z"
+            },
+            {
+              "amount": 2000,
+              "principalId": "BISP250000000112",
+              "partnerTransactionId": "TXN-ABC124",
+              "transactionTime": "2025-08-12T15:36:00Z"
+            }
+          ]
+        }
+      }
+    },
+    "ExternalPaymentResult": {
+      "type": "object",
+      "description": "Individual payment result in external API format",
+      "required": ["principalId", "partnerTransactionId", "status", "message"],
+      "properties": {
+        "principalId": {
+          "type": "string",
+          "description": "Principal member identifier",
+          "example": "BISP250000000111"
+        },
+        "partnerTransactionId": {
+          "type": "string",
+          "description": "Partner transaction identifier",
+          "example": "TXN-ABC123"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["success", "failed"],
+          "description": "Payment processing status",
+          "example": "success"
+        },
+        "message": {
+          "type": "string",
+          "description": "Payment processing message",
+          "example": "Payment processed successfully"
+        }
+      }
+    },
+    "ExternalPaymentResponseData": {
+      "type": "object",
+      "description": "Payment response data with categorized results",
+      "required": ["message", "processedCount", "successCount", "failureCount", "successfulPayments", "failedPayments"],
+      "properties": {
+        "message": {
+          "type": "string",
+          "description": "Overall processing message",
+          "example": "Payments processed"
+        },
+        "processedCount": {
+          "type": "integer",
+          "description": "Total number of payments processed",
+          "example": 2
+        },
+        "successCount": {
+          "type": "integer",
+          "description": "Number of successful payments",
+          "example": 1
+        },
+        "failureCount": {
+          "type": "integer",
+          "description": "Number of failed payments",
+          "example": 1
+        },
+        "successfulPayments": {
+          "type": "array",
+          "description": "Array of successful payment results",
+          "items": {
+            "$ref": "#/components/schemas/ExternalPaymentResult"
+          }
+        },
+        "failedPayments": {
+          "type": "array",
+          "description": "Array of failed payment results",
+          "items": {
+            "$ref": "#/components/schemas/ExternalPaymentResult"
+          }
+        }
+      }
+    },
+    "ExternalPaymentResponse": {
+      "type": "object",
+      "description": "Successful payment processing response in external API format",
+      "required": ["status", "correlationId", "data"],
+      "properties": {
+        "status": {
+          "type": "integer",
+          "description": "HTTP status code",
+          "example": 200
+        },
+        "correlationId": {
+          "type": "string",
+          "description": "Correlation ID from request",
+          "example": "TEST-CORR-123"
+        },
+        "data": {
+          "$ref": "#/components/schemas/ExternalPaymentResponseData"
+        }
+      }
+    },
+    "ExternalPaymentErrorResponse": {
+      "type": "object",
+      "description": "Payment processing error response in external API format",
+      "required": ["status", "data"],
+      "properties": {
+        "status": {
+          "type": "integer",
+          "description": "HTTP status code",
+          "example": 400
+        },
+        "correlationId": {
+          "type": "string",
+          "description": "Correlation ID from request (if available)",
+          "example": "TEST-CORR-123"
+        },
+        "data": {
+          "type": "object",
+          "required": ["message", "error"],
+          "properties": {
+            "message": {
+              "type": "string",
+              "description": "Error message",
+              "example": "Payment validation failed"
+            },
+            "error": {
+              "type": "string",
+              "description": "Error type",
+              "example": "Bad Request"
+            },
+            "details": {
+              "type": "array",
+              "description": "Detailed validation errors",
+              "items": {
+                "type": "string"
+              },
+              "example": ["payments[0].amount must be greater than 0", "payments[0].principalId is required"]
+            }
+          }
+        }
+      }
+    },
+    "PrincipalMemberStatusResponse": {
+      "type": "object",
+      "description": "Response containing principal member status with product and financial details",
+      "required": ["status", "correlationId", "data"],
+      "properties": {
+        "status": {
+          "type": "integer",
+          "description": "HTTP status code",
+          "example": 200
+        },
+        "correlationId": {
+          "type": "string",
+          "description": "Correlation ID from request",
+          "example": "corr-12345-status"
+        },
+        "data": {
+          "$ref": "#/components/schemas/PrincipalMemberStatus"
+        }
+      }
+    },
+    "PrincipalMemberStatus": {
+      "type": "object",
+      "description": "Principal member status with products and summary",
+      "required": ["principalId", "products", "summary"],
+      "properties": {
+        "principalId": {
+          "type": "string",
+          "description": "Principal member ID",
+          "example": "PRIN-12345"
+        },
+        "products": {
+          "type": "array",
+          "description": "Array of products with status and financial details",
+          "items": {
+            "$ref": "#/components/schemas/ProductStatus"
+          }
+        },
+        "summary": {
+          "$ref": "#/components/schemas/StatusSummary"
+        }
+      }
+    },
+    "ProductStatus": {
+      "type": "object",
+      "description": "Product status with dependants and financial information",
+      "required": ["productId", "productName", "categoryId", "planId", "planName", "productStatus", "dependants", "financial"],
+      "properties": {
+        "productId": {
+          "type": "string",
+          "description": "Unique product identifier",
+          "example": "PROD-MICRO-001"
+        },
+        "productName": {
+          "type": "string",
+          "description": "Product name",
+          "example": "Micro Life Insurance"
+        },
+        "categoryId": {
+          "type": "string",
+          "description": "Product category identifier",
+          "example": "micro-insurance"
+        },
+        "planId": {
+          "type": "string",
+          "description": "Insurance plan identifier",
+          "example": "PLAN-SILVER"
+        },
+        "planName": {
+          "type": "string",
+          "description": "Insurance plan name",
+          "example": "Silver Plan"
+        },
+        "productStatus": {
+          "type": "string",
+          "enum": ["active", "inactive", "suspended", "terminated"],
+          "description": "Current product status",
+          "example": "active"
+        },
+        "dependants": {
+          "$ref": "#/components/schemas/ProductDependants"
+        },
+        "financial": {
+          "$ref": "#/components/schemas/ProductFinancial"
+        }
+      }
+    },
+    "ProductDependants": {
+      "type": "object",
+      "description": "Dependants count for a product",
+      "required": ["total", "children", "spouses"],
+      "properties": {
+        "total": {
+          "type": "integer",
+          "description": "Total number of dependants",
+          "example": 5
+        },
+        "children": {
+          "type": "integer",
+          "description": "Number of children dependants",
+          "example": 3
+        },
+        "spouses": {
+          "type": "integer",
+          "description": "Number of spouse dependants",
+          "example": 2
+        }
+      }
+    },
+    "ProductFinancial": {
+      "type": "object",
+      "description": "Financial details for a product",
+      "required": ["dailyAmount", "weeklyAmount", "paymentFrequency", "totalInstallments", "installmentsPaid", "outstandingInstallmentAmount", "currency"],
+      "properties": {
+        "dailyAmount": {
+          "type": "number",
+          "description": "Daily payment amount",
+          "example": 50.00
+        },
+        "weeklyAmount": {
+          "type": "number",
+          "description": "Weekly payment amount",
+          "example": 350.00
+        },
+        "paymentFrequency": {
+          "type": "integer",
+          "description": "Payment frequency in days (e.g., 7 = weekly, 1 = daily)",
+          "example": 7
+        },
+        "totalInstallments": {
+          "type": "integer",
+          "description": "Total number of installments",
+          "example": 52
+        },
+        "installmentsPaid": {
+          "type": "integer",
+          "description": "Number of installments paid",
+          "example": 12
+        },
+        "outstandingInstallmentAmount": {
+          "type": "number",
+          "description": "Outstanding installment amount",
+          "example": 2000.00
+        },
+        "currency": {
+          "type": "string",
+          "description": "Currency code",
+          "example": "KSH"
+        }
+      }
+    },
+    "StatusSummary": {
+      "type": "object",
+      "description": "Summary totals across all products",
+      "required": ["totalProducts", "totalDailyAmount", "totalWeeklyAmount", "totalOutstandingAmount", "currency"],
+      "properties": {
+        "totalProducts": {
+          "type": "integer",
+          "description": "Total number of products",
+          "example": 3
+        },
+        "totalDailyAmount": {
+          "type": "number",
+          "description": "Total daily amount across all products",
+          "example": 90.00
+        },
+        "totalWeeklyAmount": {
+          "type": "number",
+          "description": "Total weekly amount across all products",
+          "example": 630.00
+        },
+        "totalOutstandingAmount": {
+          "type": "number",
+          "description": "Total outstanding amount across all products",
+          "example": 2555.00
+        },
+        "currency": {
+          "type": "string",
+          "description": "Currency code",
+          "example": "KSH"
+        }
+      }
+    },
+    "SOSResponse": {
+      "type": "object",
+      "description": "Response containing SOS emergency contacts",
+      "required": ["status", "success", "message", "data"],
+      "properties": {
+        "status": {
+          "type": "integer",
+          "description": "HTTP status code",
+          "example": 200
+        },
+        "success": {
+          "type": "boolean",
+          "description": "Indicates if the request was successful",
+          "example": true
+        },
+        "message": {
+          "type": "string",
+          "description": "Response message",
+          "example": "SOS contacts retrieved successfully"
+        },
+        "data": {
+          "type": "object",
+          "description": "SOS contacts data",
+          "required": ["sosContacts"],
+          "properties": {
+            "sosContacts": {
+              "type": "array",
+              "description": "List of emergency contacts",
+              "items": {
+                "$ref": "#/components/schemas/SOSContact"
+              }
+            }
+          }
+        }
+      }
+    },
+    "SOSContact": {
+      "type": "object",
+      "description": "Emergency contact information",
+      "required": ["name", "phone", "serviceType"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Name of the emergency service",
+          "example": "Emergency Ambulance Service"
+        },
+        "phone": {
+          "type": "string",
+          "description": "Emergency contact phone number",
+          "example": "+254700123456"
+        },
+        "serviceType": {
+          "type": "string",
+          "description": "Type of emergency service",
+          "example": "AmbulanceRescue"
+        }
+      }
+    },
+    "CustomerProductsResponse": {
+      "type": "object",
+      "description": "Response containing customer products and benefits data",
+      "required": ["status", "correlationId", "data"],
+      "properties": {
+        "status": {
+          "type": "integer",
+          "description": "HTTP status code",
+          "example": 200
+        },
+        "correlationId": {
+          "type": "string",
+          "description": "Correlation ID for request tracing",
+          "example": "req-products-12345"
+        },
+        "data": {
+          "$ref": "#/components/schemas/CustomerProductsData"
+        }
+      }
+    },
+    "CustomerProductsData": {
+      "type": "object",
+      "description": "Customer products and benefits data",
+      "required": ["actualAmount", "outstandingAmount", "paidAmount", "benefits"],
+      "properties": {
+        "actualAmount": {
+          "type": "string",
+          "description": "Total actual amount for all benefits",
+          "example": "34317.00"
+        },
+        "outstandingAmount": {
+          "type": "number",
+          "description": "Total outstanding amount",
+          "example": 31167
+        },
+        "paidAmount": {
+          "type": "string",
+          "description": "Total amount paid",
+          "example": "3150.00"
+        },
+        "benefits": {
+          "type": "array",
+          "description": "Array of benefit objects",
+          "items": {
+            "$ref": "#/components/schemas/Benefit"
+          }
+        }
+      }
+    },
+    "Benefit": {
+      "type": "object",
+      "description": "Individual benefit information",
+      "required": ["policy_number", "cover_type", "dependants_count", "product", "sub_product", "cover_amount", "cover_usage", "currency", "addon_products"],
+      "properties": {
+        "policy_number": {
+          "type": "string",
+          "description": "Policy number for this benefit",
+          "example": "BIHC25000178"
+        },
+        "cover_type": {
+          "type": "string",
+          "description": "Type of coverage",
+          "enum": ["per-person", "per-family"],
+          "example": "per-person"
+        },
+        "dependants_count": {
+          "type": "integer",
+          "description": "Number of dependants covered",
+          "example": 4
+        },
+        "product": {
+          "type": "string",
+          "description": "Product type",
+          "example": "hospitalCash"
+        },
+        "sub_product": {
+          "type": "string",
+          "description": "Sub-product type",
+          "example": "hospitalCash"
+        },
+        "cover_amount": {
+          "type": "number",
+          "description": "Coverage amount",
+          "example": 2000
+        },
+        "cover_usage": {
+          "type": "number",
+          "description": "Amount of coverage used",
+          "example": 0
+        },
+        "currency": {
+          "type": "string",
+          "description": "Currency code",
+          "example": "KES"
+        },
+        "addon_products": {
+          "type": "array",
+          "description": "Array of addon products",
+          "items": {
+            "$ref": "#/components/schemas/AddonProduct"
+          }
+        }
+      }
+    },
+    "AddonProduct": {
+      "type": "object",
+      "description": "Addon product information",
+      "required": ["product_id", "cover_amount", "sub_product", "product", "sub_limits", "cover_usage"],
+      "properties": {
+        "product_id": {
+          "type": "integer",
+          "description": "Addon product ID",
+          "example": 1
+        },
+        "cover_amount": {
+          "type": "number",
+          "description": "Addon coverage amount",
+          "example": 2
+        },
+        "sub_product": {
+          "type": "string",
+          "description": "Addon sub-product name",
+          "example": "EmergencyRescue"
+        },
+        "product": {
+          "type": "string",
+          "description": "Addon product name",
+          "example": "EmergencyRescue"
+        },
+        "sub_limits": {
+          "type": "array",
+          "description": "Sub-limits for the addon",
+          "items": {
+            "type": "object"
+          }
+        },
+        "cover_usage": {
+          "type": "number",
+          "description": "Amount of addon coverage used",
+          "example": 0
+        }
+      }
+    },
+    "PaymentHistoryResponse": {
+      "type": "object",
+      "description": "Response containing payment history for a principal member",
+      "required": ["status", "correlationId", "data"],
+      "properties": {
+        "status": {
+          "type": "integer",
+          "description": "HTTP status code",
+          "example": 200
+        },
+        "correlationId": {
+          "type": "string",
+          "description": "Correlation ID for request tracing",
+          "example": "test-correlation-123"
+        },
+        "data": {
+          "$ref": "#/components/schemas/PaymentHistoryData"
+        }
+      }
+    },
+    "PaymentHistoryData": {
+      "type": "object",
+      "description": "Payment history data for a principal member",
+      "required": ["principalId", "debitNumber", "consolidatedAmount", "totalAmountPaid", "totalPayments", "payments"],
+      "properties": {
+        "principalId": {
+          "type": "string",
+          "description": "Principal member identifier",
+          "example": "BISP250000000050"
+        },
+        "debitNumber": {
+          "type": "string",
+          "description": "Debit number for the principal member",
+          "example": "BS-BISP250000000050"
+        },
+        "consolidatedAmount": {
+          "type": "number",
+          "description": "Total consolidated amount",
+          "example": 17257
+        },
+        "totalAmountPaid": {
+          "type": "number",
+          "description": "Total amount paid to date",
+          "example": 2310
+        },
+        "totalPayments": {
+          "type": "integer",
+          "description": "Total number of payments made",
+          "example": 2
+        },
+        "lastPaymentDate": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Date of the last payment",
+          "example": "2025-08-11T12:57:07.688Z",
+          "nullable": true
+        },
+        "payments": {
+          "type": "array",
+          "description": "List of individual payment records",
+          "items": {
+            "$ref": "#/components/schemas/PaymentHistoryRecord"
+          }
+        }
+      }
+    },
+    "PaymentHistoryRecord": {
+      "type": "object",
+      "description": "Individual payment history record",
+      "required": ["paymentId", "amount", "currency", "currencyRate", "paymentDate", "lastUpdated", "paymentMethod", "status", "transactionReference"],
+      "properties": {
+        "paymentId": {
+          "type": "string",
+          "description": "Unique payment identifier",
+          "example": "payment-uuid-1"
+        },
+        "amount": {
+          "type": "number",
+          "description": "Payment amount",
+          "example": 210
+        },
+        "currency": {
+          "type": "string",
+          "description": "Currency code",
+          "example": "KES"
+        },
+        "currencyRate": {
+          "type": "number",
+          "description": "Currency exchange rate",
+          "example": 1
+        },
+        "paymentDate": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Date when payment was made",
+          "example": "2025-08-11T12:57:07.688Z"
+        },
+        "lastUpdated": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Date when payment record was last updated",
+          "example": "2025-08-11T12:57:07.688Z"
+        },
+        "paymentMethod": {
+          "type": "string",
+          "description": "Method used for payment",
+          "example": "LittleMerchantWallet"
+        },
+        "status": {
+          "type": "string",
+          "description": "Payment status",
+          "example": "completed"
+        },
+        "transactionReference": {
+          "type": "string",
+          "description": "Transaction reference number",
+          "example": "SNGRC6O8YN7"
+        }
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "Health Check",
+      "description": "API health and status endpoints"
+    },
+    {
+      "name": "Products",
+      "description": "Insurance product management"
+    },
+    {
+      "name": "principal member",
+      "description": "principal member account management"
+    },
+    {
+      "name": "Family Members",
+      "description": "Family member management (spouses and children)"
+    },
+    {
+      "name": "Customer Products",
+      "description": "Customer-specific product information"
+    },
+    {
+      "name": "Payments",
+      "description": "Payment history and transaction management"
+    },
+    {
+      "name": "Customer Status",
+      "description": "Customer account status and information"
+    },
+    {
+      "name": "Emergency Services",
+      "description": "SOS emergency contacts and services"
+    },
+    {
+      "name": "Payment History",
+      "description": "Payment history and transaction records"
+    }
+  ]
+}

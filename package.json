@@ -1,0 +1,33 @@
+{
+  "name": "microbima",
+  "version": "0.1.0",
+  "description": "MicroBima - Modern API-first microinsurance platform",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "test": "turbo run test",
+    "lint": "turbo run lint",
+    "clean": "turbo run clean",
+    "sdk:gen": "pnpm --filter @microbima/sdk generate",
+    "sdk:build": "pnpm --filter @microbima/sdk build",
+    "sdk:clean": "pnpm --filter @microbima/sdk clean",
+    "db:generate": "pnpm --filter @microbima/api db:generate",
+    "db:migrate": "pnpm --filter @microbima/api db:migrate",
+    "db:seed": "pnpm --filter @microbima/api db:seed"
+  },
+  "devDependencies": {
+    "turbo": "^2.1.0",
+    "typescript": "^5.5.0",
+    "@types/node": "^20.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "pnpm": ">=8.0.0"
+  },
+  "packageManager": "pnpm@8.15.0"
+}
