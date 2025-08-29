@@ -31,6 +31,9 @@ model Customer {
   // Dependents
   dependents      Dependent[]
   
+  // Beneficiaries
+  beneficiaries   Beneficiary[]
+  
   // Onboarding progress
   onboardingProgress OnboardingProgress?
   
@@ -81,6 +84,24 @@ model Dependent {
   updatedAt   DateTime @updatedAt
 
   @@map("dependents")
+}
+
+model Beneficiary {
+  id          String   @id @default(cuid())
+  customerId  String
+  customer    Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  
+  firstName   String
+  middleName  String?  // Optional field
+  lastName    String
+  idType      IdType
+  idNumber    String
+  gender      Gender?  // Optional field
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("beneficiaries")
 }
 
 model OnboardingProgress {
@@ -139,6 +160,7 @@ model Policy {
   endDate      DateTime?
   premium      Decimal  @db.Decimal(10, 2)
   frequency    PaymentFrequency
+  paymentCadence Int    // Number of days between premium payments
   
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -165,7 +187,9 @@ enum OnboardingStep {
 enum IdType {
   NATIONAL_ID
   PASSPORT
-  DRIVING_LICENSE
+  ALIEN
+  BIRTH_CERTIFICATE
+  MILITARY
 }
 
 enum DependentRelationship {
@@ -173,7 +197,15 @@ enum DependentRelationship {
   CHILD
   PARENT
   SIBLING
+  FRIEND
   OTHER
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+  PREFER_NOT_TO_SAY
 }
 
 enum KYCStatus {

@@ -21,9 +21,9 @@
     "db:seed": "pnpm --filter @microbima/api db:seed"
   },
   "devDependencies": {
+    "@types/node": "^20.0.0",
     "turbo": "^2.1.0",
-    "typescript": "^5.5.0",
-    "@types/node": "^20.0.0"
+    "typescript": "^5.3.3"
   },
   "engines": {
     "node": ">=18.0.0",

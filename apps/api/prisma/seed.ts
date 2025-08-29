@@ -46,6 +46,32 @@ async function main() {
           }
         ]
       },
+      beneficiaries: {
+        create: [
+          {
+            firstName: 'Jane',
+            middleName: 'Marie',
+            lastName: 'Doe',
+            idType: 'NATIONAL_ID',
+            idNumber: '87654321',
+            gender: 'FEMALE'
+          },
+          {
+            firstName: 'Junior',
+            lastName: 'Doe',
+            idType: 'BIRTH_CERTIFICATE',
+            idNumber: 'BC-2015-001',
+            gender: 'MALE'
+          },
+          {
+            firstName: 'Sarah',
+            lastName: 'Johnson',
+            idType: 'PASSPORT',
+            idNumber: 'P12345678',
+            gender: 'FEMALE'
+          }
+        ]
+      },
       onboardingProgress: {
         create: {
           currentStep: 'ACTIVE',
@@ -89,6 +115,17 @@ async function main() {
           country: 'KE'
         }
       },
+      beneficiaries: {
+        create: [
+          {
+            firstName: 'Michael',
+            lastName: 'Smith',
+            idType: 'MILITARY',
+            idNumber: 'MIL-001-2020',
+            gender: 'MALE'
+          }
+        ]
+      },
       onboardingProgress: {
         create: {
           currentStep: 'BASIC_INFO',
@@ -108,7 +145,7 @@ async function main() {
     }
   })
 
-  // Create sample policies
+  // Create sample policies with paymentCadence
   await prisma.policy.upsert({
     where: { policyNumber: 'POL-001-2024' },
     update: {},
@@ -121,12 +158,48 @@ async function main() {
       startDate: new Date('2024-01-01'),
       endDate: new Date('2024-12-31'),
       premium: 5000.00,
-      frequency: 'MONTHLY'
+      frequency: 'MONTHLY',
+      paymentCadence: 30  // 30 days for monthly
+    }
+  })
+
+  await prisma.policy.upsert({
+    where: { policyNumber: 'POL-002-2024' },
+    update: {},
+    create: {
+      policyNumber: 'POL-002-2024',
+      customerId: customer1.id,
+      productName: 'Life Shield',
+      planName: 'Premium',
+      status: 'ACTIVE',
+      startDate: new Date('2024-01-01'),
+      endDate: new Date('2024-12-31'),
+      premium: 15000.00,
+      frequency: 'QUARTERLY',
+      paymentCadence: 90  // 90 days for quarterly
+    }
+  })
+
+  await prisma.policy.upsert({
+    where: { policyNumber: 'POL-003-2024' },
+    update: {},
+    create: {
+      policyNumber: 'POL-003-2024',
+      customerId: customer2.id,
+      productName: 'Motor Insurance',
+      planName: 'Basic',
+      status: 'ACTIVE',
+      startDate: new Date('2024-01-01'),
+      endDate: new Date('2024-12-31'),
+      premium: 25000.00,
+      frequency: 'ANNUALLY',
+      paymentCadence: 365  // 365 days for annually
     }
   })
 
   console.log('✅ Database seeded successfully!')
   console.log(`📊 Created ${await prisma.customer.count()} customers`)
+  console.log(`📊 Created ${await prisma.beneficiary.count()} beneficiaries`)
   console.log(`📊 Created ${await prisma.policy.count()} policies`)
 }
 
