@@ -79,9 +79,9 @@ The Customer Onboarding module is a core component of the MicroBima microinsuran
 - [x] **5.1.2.4** Configure environment variables and secrets
 
 ##### **5.1.3 Database Setup**
-- [ ] **5.1.3.1** Create Supabase project and PostgreSQL database
-- [ ] **5.1.3.2** Configure database connection strings
-- [ ] **5.1.3.3** Set up Prisma ORM with initial schema
+- [x] **5.1.3.1** Create Supabase project and PostgreSQL database
+- [x] **5.1.3.2** Configure database connection strings
+- [x] **5.1.3.3** Set up Prisma ORM with initial schema
 
 #### **5.2 Phase 2: Backend API Foundation (Week 2)**
 

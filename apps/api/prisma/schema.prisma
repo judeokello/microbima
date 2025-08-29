@@ -1,0 +1,207 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+/// @seed="npx ts-node prisma/seed.ts"
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model Customer {
+  id              String   @id @default(cuid())
+  firstName       String
+  lastName        String
+  email           String   @unique
+  phoneNumber     String
+  dateOfBirth     DateTime
+  idType          IdType
+  idNumber        String
+  status          CustomerStatus @default(PENDING_KYC)
+  onboardingStep  OnboardingStep @default(BASIC_INFO)
+  
+  // Address information
+  address         Address?
+  
+  // Dependents
+  dependents      Dependent[]
+  
+  // Onboarding progress
+  onboardingProgress OnboardingProgress?
+  
+  // KYC information
+  kycVerification KYCVerification?
+  
+  // Policies
+  policies        Policy[]
+  
+  // Audit fields
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  createdBy       String?  // User ID who created
+  updatedBy       String?  // User ID who last updated
+
+  @@map("customers")
+}
+
+model Address {
+  id          String   @id @default(cuid())
+  customerId  String   @unique
+  customer    Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  
+  street      String
+  city        String
+  state       String
+  postalCode  String
+  country     String @default("KE") // Default to Kenya
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("addresses")
+}
+
+model Dependent {
+  id          String   @id @default(cuid())
+  customerId  String
+  customer    Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  
+  firstName   String
+  lastName    String
+  dateOfBirth DateTime
+  relationship DependentRelationship
+  isBeneficiary Boolean @default(false)
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("dependents")
+}
+
+model OnboardingProgress {
+  id          String   @id @default(cuid())
+  customerId  String   @unique
+  customer    Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  
+  currentStep OnboardingStep
+  completedSteps OnboardingStep[]
+  nextStep    OnboardingStep?
+  estimatedCompletion DateTime?
+  
+  // Step-specific data
+  basicInfoCompleted    Boolean @default(false)
+  kycCompleted         Boolean @default(false)
+  planSelected         Boolean @default(false)
+  paymentSetupCompleted Boolean @default(false)
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("onboarding_progress")
+}
+
+model KYCVerification {
+  id          String   @id @default(cuid())
+  customerId  String   @unique
+  customer    Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  
+  status      KYCStatus @default(PENDING)
+  verificationMethod KYCVerificationMethod
+  documents   Json?    // Array of document references
+  verifiedAt  DateTime?
+  verifiedBy  String?  // User ID who verified
+  
+  // KYC provider response
+  providerReference String?
+  providerResponse Json?
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("kyc_verifications")
+}
+
+model Policy {
+  id          String   @id @default(cuid())
+  customerId  String
+  customer    Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  
+  policyNumber String  @unique
+  productName  String
+  planName     String
+  status       PolicyStatus @default(ACTIVE)
+  startDate    DateTime
+  endDate      DateTime?
+  premium      Decimal  @db.Decimal(10, 2)
+  frequency    PaymentFrequency
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("policies")
+}
+
+enum CustomerStatus {
+  PENDING_KYC
+  KYC_VERIFIED
+  ACTIVE
+  SUSPENDED
+  TERMINATED
+}
+
+enum OnboardingStep {
+  BASIC_INFO
+  KYC_VERIFICATION
+  PLAN_SELECTION
+  PAYMENT_SETUP
+  ACTIVE
+}
+
+enum IdType {
+  NATIONAL_ID
+  PASSPORT
+  DRIVING_LICENSE
+}
+
+enum DependentRelationship {
+  SPOUSE
+  CHILD
+  PARENT
+  SIBLING
+  OTHER
+}
+
+enum KYCStatus {
+  PENDING
+  IN_PROGRESS
+  VERIFIED
+  REJECTED
+  EXPIRED
+}
+
+enum KYCVerificationMethod {
+  MANUAL
+  AUTOMATED
+  THIRD_PARTY
+}
+
+enum PolicyStatus {
+  ACTIVE
+  SUSPENDED
+  TERMINATED
+  EXPIRED
+}
+
+enum PaymentFrequency {
+  DAILY
+  WEEKLY
+  MONTHLY
+  QUARTERLY
+  ANNUALLY
+  CUSTOM
+}
