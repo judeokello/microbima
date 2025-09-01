@@ -109,3 +109,6 @@ Thumbs.db
 
 # Prisma
 prisma/migrations/
+
+# Internal development docs
+#docs/
