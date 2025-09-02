@@ -1,0 +1,20 @@
+{
+  "name": "@microbima/common-config",
+  "version": "0.1.0",
+  "description": "Shared configuration utilities for MicroBima applications",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "typescript": "^5.3.0"
+  },
+  "peerDependencies": {
+    "@nestjs/common": "^11.0.0"
+  }
+}
+
