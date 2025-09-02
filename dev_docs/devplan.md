@@ -92,10 +92,16 @@ The Customer Onboarding module is a core component of the MicroBima microinsuran
 - [ ] **5.2.1.4** Configure Swagger documentation
 
 ##### **5.2.2 Customer Onboarding Module Structure**
-- [ ] **5.2.2.1** Create customer controller with CRUD endpoints
-- [ ] **5.2.2.2** Implement customer service with business logic
-- [ ] **5.2.2.3** Define DTOs for request/response validation
-- [ ] **5.2.2.4** Set up customer module with dependencies
+- [ ] **5.2.2.1** Create Prisma Service for database operations
+- [ ] **5.2.2.2** Create DTOs for principal-member endpoints
+- [ ] **5.2.2.3** Create Entity classes for internal use
+- [ ] **5.2.2.4** Create Mappers for DTO ↔ Entity conversion
+- [ ] **5.2.2.5** Implement API Key Authentication middleware
+- [ ] **5.2.2.6** Implement Correlation ID middleware
+- [ ] **5.2.2.7** Create Global Exception Filter with Sentry integration
+- [ ] **5.2.2.8** Implement Customer Service with business logic
+- [ ] **5.2.2.9** Implement Customer Controller with CRUD endpoints
+- [ ] **5.2.2.10** Update database schema and run migrations
 
 ##### **5.2.3 Database Models and Migrations**
 - [ ] **5.2.3.1** Define Prisma schema for customer entities

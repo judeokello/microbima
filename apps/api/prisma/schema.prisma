@@ -13,17 +13,72 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
+model Partner {
+  id              String   @id @default(cuid())
+  partnerName     String
+  website         String?
+  officeLocation  String?
+  isActive        Boolean  @default(true)
+  
+  // Relations
+  partnerContacts PartnerContact[]
+  partnerCustomers PartnerCustomer[]
+  
+  // Audit fields
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  createdBy       String?  // User ID who created
+  updatedBy       String?  // User ID who last updated
+
+  @@map("partners")
+}
+
+model PartnerContact {
+  id              String   @id @default(cuid())
+  partnerId       String
+  partner         Partner  @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+  
+  contactName     String
+  contactPhone    String
+  contactEmail    String?
+  isPrimary       Boolean  @default(false)
+  
+  // Audit fields
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("partner_contacts")
+}
+
+model PartnerCustomer {
+  id              String   @id @default(cuid())
+  partnerId       String
+  partner         Partner  @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+  customerId      String
+  customer        Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  partnerCustomerId String // External partner customer ID (unique per partner)
+  
+  // Audit fields
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([partnerId, partnerCustomerId]) // Unique combination of partner and partnerCustomerId
+  @@map("partner_customers")
+}
+
 model Customer {
   id              String   @id @default(cuid())
   firstName       String
   lastName        String
   email           String   @unique
   phoneNumber     String
-  dateOfBirth     DateTime
+  dateOfBirth     DateTime? // Optional date of birth
+  gender          Gender?  // Optional gender field
   idType          IdType
   idNumber        String
   status          CustomerStatus @default(PENDING_KYC)
   onboardingStep  OnboardingStep @default(BASIC_INFO)
+  createdByPartnerId String // Partner who created this customer
   
   // Address information
   address         Address?
@@ -42,6 +97,9 @@ model Customer {
   
   // Policies
   policies        Policy[]
+  
+  // Relations
+  partnerCustomers PartnerCustomer[]
   
   // Audit fields
   createdAt       DateTime @default(now())
@@ -76,9 +134,11 @@ model Dependent {
   
   firstName   String
   lastName    String
-  dateOfBirth DateTime
+  dateOfBirth DateTime? // Optional date of birth
+  gender      Gender?  // Optional gender field
   relationship DependentRelationship
   isBeneficiary Boolean @default(false)
+  createdByPartnerId String // Partner who created this dependent
   
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -94,9 +154,13 @@ model Beneficiary {
   firstName   String
   middleName  String?  // Optional field
   lastName    String
+  dateOfBirth DateTime? // Optional date of birth
+  gender      Gender?  // Optional field
   idType      IdType
   idNumber    String
-  gender      Gender?  // Optional field
+  relationship String? // Relationship to principal member
+  percentage  Int?     // Percentage of benefits (1-100)
+  createdByPartnerId String // Partner who created this beneficiary
   
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt

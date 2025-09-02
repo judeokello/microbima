@@ -2,6 +2,7 @@ import { Controller, Get } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { AppService } from './app.service';
 import { ConfigurationService } from './config/configuration.service';
+import { PrismaService } from './prisma/prisma.service';
 
 @ApiTags('Health')
 @Controller()
@@ -9,6 +10,7 @@ export class AppController {
   constructor(
     private readonly appService: AppService,
     private readonly configService: ConfigurationService,
+    private readonly prismaService: PrismaService,
   ) {}
 
   @Get('health')
@@ -145,5 +147,59 @@ export class AppController {
         enableFile: this.configService.logging.enableFile,
       },
     };
+  }
+
+  @Get('api/internal/db/health')
+  @ApiTags('Database')
+  @ApiOperation({ 
+    summary: 'Database Health Check',
+    description: 'Check database connectivity and get connection information'
+  })
+  @ApiResponse({ 
+    status: 200, 
+    description: 'Database is healthy and connection info retrieved',
+    schema: {
+      type: 'object',
+      properties: {
+        healthy: { type: 'boolean', example: true },
+        connectionInfo: {
+          type: 'object',
+          properties: {
+            database: { type: 'string', example: 'postgres' },
+            user: { type: 'string', example: 'postgres' },
+            host: { type: 'string', example: '127.0.0.1' },
+            port: { type: 'number', example: 54322 },
+            version: { type: 'string', example: 'PostgreSQL 15.4' }
+          }
+        }
+      }
+    }
+  })
+  @ApiResponse({ 
+    status: 503, 
+    description: 'Database is unhealthy',
+    schema: {
+      type: 'object',
+      properties: {
+        healthy: { type: 'boolean', example: false },
+        error: { type: 'string', example: 'Database connection failed' }
+      }
+    }
+  })
+  async getDatabaseHealth() {
+    try {
+      const isHealthy = await this.prismaService.isHealthy();
+      const connectionInfo = await this.prismaService.getConnectionInfo();
+      
+      return {
+        healthy: isHealthy,
+        connectionInfo: (connectionInfo as any[])[0],
+      };
+    } catch (error: any) {
+      return {
+        healthy: false,
+        error: error.message,
+      };
+    }
   }
 }
