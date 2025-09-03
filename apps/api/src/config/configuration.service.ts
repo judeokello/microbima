@@ -24,6 +24,13 @@ export interface AppConfig {
     enableConsole: boolean;
     enableFile: boolean;
   };
+  sentry: {
+    dsn: string;
+    environment: string;
+    tracesSampleRate: number;
+    profilesSampleRate: number;
+    enabled: boolean;
+  };
 }
 
 @Injectable()
@@ -56,6 +63,13 @@ export class ConfigurationService extends BaseConfigurationService implements On
       jwt: {
         secret: process.env.JWT_SECRET || this.getDefaultJwtSecret(baseConfig.environment),
         expiresIn: process.env.JWT_EXPIRES_IN || this.getDefaultJwtExpiry(baseConfig.environment),
+      },
+      sentry: {
+        dsn: process.env.SENTRY_DSN || '',
+        environment: process.env.SENTRY_ENVIRONMENT || baseConfig.environment,
+        tracesSampleRate: parseFloat(process.env.SENTRY_TRACES_SAMPLE_RATE || '1.0'),
+        profilesSampleRate: parseFloat(process.env.SENTRY_PROFILES_SAMPLE_RATE || '1.0'),
+        enabled: !!process.env.SENTRY_DSN,
       },
     };
   }
@@ -143,6 +157,16 @@ export class ConfigurationService extends BaseConfigurationService implements On
       level: 'debug',
       enableConsole: true,
       enableFile: false
+    };
+  }
+
+  get sentry() {
+    return this.config?.sentry || {
+      dsn: '',
+      environment: 'development',
+      tracesSampleRate: 1.0,
+      profilesSampleRate: 1.0,
+      enabled: false,
     };
   }
 

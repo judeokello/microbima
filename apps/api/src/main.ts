@@ -3,6 +3,8 @@ import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
 import { ConfigurationService } from './config/configuration.service';
 import { SwaggerConfig } from './config/swagger.config';
+import { GlobalExceptionFilter } from './filters/global-exception.filter';
+import { ExternalIntegrationsService } from './services/external-integrations.service';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -16,6 +18,10 @@ async function bootstrap() {
     forbidNonWhitelisted: true,
     transform: true,
   }));
+
+  // Global exception filter
+  const externalIntegrationsService = app.get(ExternalIntegrationsService);
+  app.useGlobalFilters(new GlobalExceptionFilter(externalIntegrationsService));
 
   // CORS configuration
   app.enableCors({

@@ -5,3 +5,4 @@
  */
 
 export { ApiKeyService } from './api-key.service';
+export { ExternalIntegrationsService } from './external-integrations.service';

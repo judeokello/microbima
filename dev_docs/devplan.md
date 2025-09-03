@@ -95,10 +95,20 @@ The Customer Onboarding module is a core component of the MicroBima microinsuran
 - [x] **5.2.2.1** Create Prisma Service for database operations
 - [x] **5.2.2.2** Create DTOs for principal-member endpoints
 - [x] **5.2.2.3** Create Entity classes for internal use
-- [ ] **5.2.2.4** Create Mappers for DTO ↔ Entity conversion
-- [ ] **5.2.2.5** Implement API Key Authentication middleware
-- [ ] **5.2.2.6** Implement Correlation ID middleware
-- [ ] **5.2.2.7** Create Global Exception Filter with Sentry integration
+- [x] **5.2.2.4** Create Mappers for DTO ↔ Entity conversion
+- [x] **5.2.2.5** Implement API Key Authentication middleware
+- [x] **5.2.2.6** Implement Correlation ID middleware
+  - [x] **5.2.2.6.1** Basic correlation ID extraction and validation
+  - [x] **5.2.2.6.2** Correlation ID decorator for easy access
+  - [x] **5.2.2.6.3** TypeScript type definitions
+  - [ ] **5.2.2.6.4** Basic request tracing endpoint (MVP - Post Phase 2)
+  - [ ] **5.2.2.6.5** Enhanced internal system tracing (Post-MVP)
+- [x] **5.2.2.7** Create Global Exception Filter with Sentry integration
+  - [x] **5.2.2.7.1** Global exception filter implementation
+  - [x] **5.2.2.7.2** Consistent error response format
+  - [x] **5.2.2.7.3** Correlation ID inclusion in error responses
+  - [x] **5.2.2.7.4** Request context logging
+  - [ ] **5.2.2.7.5** Sentry integration (Post-MVP)
 - [ ] **5.2.2.8** Implement Customer Service with business logic
 - [ ] **5.2.2.9** Implement Customer Controller with CRUD endpoints
 - [x] **5.2.2.10** Update database schema and run migrations
