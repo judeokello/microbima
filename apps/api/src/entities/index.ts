@@ -4,6 +4,7 @@ export { Customer, type CustomerData } from './customer.entity';
 export { Beneficiary, type BeneficiaryData } from './beneficiary.entity';
 export { Dependant, type DependantData } from './dependant.entity';
 export { PartnerCustomer, type PartnerCustomerData } from './partner-customer.entity';
+export { PartnerApiKey, type PartnerApiKeyData } from './partner-api-key.entity';
 
 // Export common interfaces
 export type { ValidationResult } from './partner.entity';

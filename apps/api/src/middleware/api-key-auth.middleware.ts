@@ -1,6 +1,8 @@
 import { Injectable, NestMiddleware, UnauthorizedException } from '@nestjs/common';
 import { Request, Response, NextFunction } from 'express';
 import { ConfigService } from '@nestjs/config';
+import { PrismaService } from '../prisma/prisma.service';
+import { PartnerApiKey } from '../entities/partner-api-key.entity';
 
 /**
  * API Key Authentication Middleware
@@ -12,9 +14,12 @@ import { ConfigService } from '@nestjs/config';
  */
 @Injectable()
 export class ApiKeyAuthMiddleware implements NestMiddleware {
-  constructor(private readonly configService: ConfigService) {}
+  constructor(
+    private readonly configService: ConfigService,
+    private readonly prismaService: PrismaService,
+  ) {}
 
-  use(req: Request, res: Response, next: NextFunction) {
+  async use(req: Request, res: Response, next: NextFunction) {
     // Skip authentication for internal API routes
     if (req.path.startsWith('/api/internal')) {
       return next();
@@ -42,56 +47,96 @@ export class ApiKeyAuthMiddleware implements NestMiddleware {
       });
     }
 
-    // Validate the API key
-    if (!this.isValidApiKey(apiKey)) {
+    // Validate the API key against database
+    const validationResult = await this.validateApiKey(apiKey);
+    
+    if (!validationResult.valid) {
       throw new UnauthorizedException({
         statusCode: 401,
-        message: 'Invalid API key',
+        message: validationResult.message,
         error: 'Unauthorized',
         timestamp: new Date().toISOString(),
         path: req.path,
       });
     }
 
-    // Add the validated API key to the request for later use
+    // Add the validated API key and partner ID to the request for later use
     req['apiKey'] = apiKey;
+    req['partnerId'] = validationResult.partnerId;
     
     next();
   }
 
   /**
-   * Validate the API key
+   * Validate the API key against database
    * @param apiKey - The API key from the request header
-   * @returns boolean - True if valid, false otherwise
+   * @returns ValidationResult with validation status and partner ID
    */
-  private isValidApiKey(apiKey: string): boolean {
-    // For now, we'll use a simple validation
-    // In production, this should validate against a database of valid API keys
-    // and potentially check against a partner/tenant system
-    
-    if (!apiKey || typeof apiKey !== 'string') {
-      return false;
+  private async validateApiKey(apiKey: string): Promise<{
+    valid: boolean;
+    message: string;
+    partnerId?: string;
+  }> {
+    // Basic format validation first
+    if (!PartnerApiKey.validateApiKeyFormat(apiKey)) {
+      return {
+        valid: false,
+        message: 'Invalid API key format',
+      };
     }
 
-    // Basic validation - API key should be at least 16 characters
-    if (apiKey.length < 16) {
-      return false;
+    // Hash the API key for database lookup
+    const hashedApiKey = PartnerApiKey.hashApiKey(apiKey);
+
+    try {
+      // Find the API key in the database
+      const partnerApiKey = await this.prismaService.partnerApiKey.findFirst({
+        where: {
+          apiKey: hashedApiKey,
+        },
+        include: {
+          partner: true, // Include partner data to check if partner is active
+        },
+      });
+
+      // Check if API key exists
+      if (!partnerApiKey) {
+        return {
+          valid: false,
+          message: 'Invalid API key',
+        };
+      }
+
+      // Check if API key is active
+      if (!partnerApiKey.isActive) {
+        return {
+          valid: false,
+          message: 'API key is inactive',
+        };
+      }
+
+      // Check if the partner is active
+      if (!partnerApiKey.partner.isActive) {
+        return {
+          valid: false,
+          message: 'Partner is inactive',
+        };
+      }
+
+      // All validations passed
+      return {
+        valid: true,
+        message: 'API key is valid',
+        partnerId: partnerApiKey.partnerId,
+      };
+    } catch (error) {
+      // Log the error but don't expose internal details
+      console.error('Error validating API key:', error);
+      return {
+        valid: false,
+        message: 'Error validating API key',
+      };
     }
-
-    // Check if it matches the expected format (alphanumeric with optional hyphens/underscores)
-    const apiKeyRegex = /^[a-zA-Z0-9_-]+$/;
-    if (!apiKeyRegex.test(apiKey)) {
-      return false;
-    }
-
-    // TODO: In production, implement proper API key validation:
-    // 1. Check against database of valid API keys
-    // 2. Validate against partner/tenant system
-    // 3. Check API key permissions/scopes
-    // 4. Rate limiting per API key
-    // 5. API key expiration/rotation
-
-    return true;
   }
 
 

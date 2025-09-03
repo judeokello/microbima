@@ -23,6 +23,7 @@ model Partner {
   // Relations
   partnerContacts PartnerContact[]
   partnerCustomers PartnerCustomer[]
+  partnerApiKeys  PartnerApiKey[]
   
   // Audit fields
   createdAt       DateTime @default(now())
@@ -31,6 +32,22 @@ model Partner {
   updatedBy       String?  // User ID who last updated
 
   @@map("partners")
+}
+
+model PartnerApiKey {
+  id          String   @id @default(cuid())
+  partnerId   String
+  partner     Partner  @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+  apiKey      String   // SHA-256 hashed API key
+  isActive    Boolean  @default(true)
+  
+  // Audit fields
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([partnerId, isActive], name: "unique_active_key_per_partner") // Only one active key per partner
+  @@index([apiKey], name: "idx_api_key_lookup") // For fast API key lookups
+  @@map("partner_api_keys")
 }
 
 model PartnerContact {

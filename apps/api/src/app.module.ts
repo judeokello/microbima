@@ -11,6 +11,7 @@ import { ExternalIntegrationsService } from './services/external-integrations.se
   imports: [ConfigurationModule, PrismaModule],
   controllers: [AppController],
   providers: [AppService, ExternalIntegrationsService],
+  exports: [PrismaModule], // Export PrismaModule so middleware can access PrismaService
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {

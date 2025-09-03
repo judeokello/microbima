@@ -108,10 +108,42 @@ The Customer Onboarding module is a core component of the MicroBima microinsuran
   - [x] **5.2.2.7.2** Consistent error response format
   - [x] **5.2.2.7.3** Correlation ID inclusion in error responses
   - [x] **5.2.2.7.4** Request context logging
-  - [ ] **5.2.2.7.5** Sentry integration (Post-MVP)
+  - [x] **5.2.2.7.5** External integrations service for async calls
+  - [ ] **5.2.2.7.6** Proper Sentry SDK integration (Deferred to 5.2.4.1)
 - [ ] **5.2.2.8** Implement Customer Service with business logic
+  - [x] **5.2.2.8.1** Create PartnerApiKey entity and database schema
+  - [x] **5.2.2.8.2** Update API key validation middleware to use database
+  - [ ] **5.2.2.8.3** Implement Customer Service with partner scoping
+  - [ ] **5.2.2.8.4** Implement Customer Controller with CRUD operations
 - [ ] **5.2.2.9** Implement Customer Controller with CRUD endpoints
 - [x] **5.2.2.10** Update database schema and run migrations
+
+##### **5.2.4 Deployment Preparation (Post-CRUD Implementation)**
+- [ ] **5.2.4.1** Implement proper Sentry integration using official SDK
+  - [ ] **5.2.4.1.1** Install @sentry/nestjs package
+  - [ ] **5.2.4.1.2** Create instrument.ts file for Sentry initialization
+  - [ ] **5.2.4.1.3** Add SentryModule to app.module.ts
+  - [ ] **5.2.4.1.4** Update GlobalExceptionFilter with @SentryExceptionCaptured decorator
+  - [ ] **5.2.4.1.5** Configure source maps for readable stack traces
+- [ ] **5.2.4.2** Deploy staging environment to Fly.io
+  - [ ] **5.2.4.2.1** Configure staging environment variables
+  - [ ] **5.2.4.2.2** Deploy internal-api to staging
+  - [ ] **5.2.4.2.3** Deploy public-api to staging
+  - [ ] **5.2.4.2.4** Configure staging database
+  - [ ] **5.2.4.2.5** Run database migrations on staging
+  - [ ] **5.2.4.2.6** Test CRUD endpoints on staging
+- [ ] **5.2.4.3** Deploy production environment to Fly.io
+  - [ ] **5.2.4.3.1** Configure production environment variables
+  - [ ] **5.2.4.3.2** Deploy internal-api to production
+  - [ ] **5.2.4.3.3** Deploy public-api to production
+  - [ ] **5.2.4.3.4** Configure production database
+  - [ ] **5.2.4.3.5** Run database migrations on production
+  - [ ] **5.2.4.3.6** Test CRUD endpoints on production
+- [ ] **5.2.4.4** Post-deployment validation
+  - [ ] **5.2.4.4.1** Verify Sentry error reporting in staging/production
+  - [ ] **5.2.4.4.2** Test correlation ID tracking across environments
+  - [ ] **5.2.4.4.3** Validate API key authentication in production
+  - [ ] **5.2.4.4.4** Monitor application performance and logs
 
 ##### **5.2.3 Database Models and Migrations**
 - [x] **5.2.3.1** Define Prisma schema for customer entities
