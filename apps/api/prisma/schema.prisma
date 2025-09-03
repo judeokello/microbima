@@ -69,6 +69,7 @@ model PartnerCustomer {
 model Customer {
   id              String   @id @default(cuid())
   firstName       String
+  middleName      String?  // Optional middle name
   lastName        String
   email           String   @unique
   phoneNumber     String
@@ -133,6 +134,7 @@ model Dependent {
   customer    Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
   
   firstName   String
+  middleName  String?  // Optional middle name
   lastName    String
   dateOfBirth DateTime? // Optional date of birth
   gender      Gender?  // Optional gender field

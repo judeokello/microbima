@@ -94,7 +94,7 @@ The Customer Onboarding module is a core component of the MicroBima microinsuran
 ##### **5.2.2 Customer Onboarding Module Structure**
 - [ ] **5.2.2.1** Create Prisma Service for database operations
 - [ ] **5.2.2.2** Create DTOs for principal-member endpoints
-- [ ] **5.2.2.3** Create Entity classes for internal use
+- [x] **5.2.2.3** Create Entity classes for internal use
 - [ ] **5.2.2.4** Create Mappers for DTO ↔ Entity conversion
 - [ ] **5.2.2.5** Implement API Key Authentication middleware
 - [ ] **5.2.2.6** Implement Correlation ID middleware
