@@ -119,18 +119,18 @@ The Customer Onboarding module is a core component of the MicroBima microinsuran
 - [x] **5.2.2.10** Update database schema and run migrations
 
 ##### **5.2.2.11: Partner Management API**
-- [ ] **5.2.2.11.1** Create Partner Service and Controller (internal API)
-  - [ ] **5.2.2.11.1.1** Partner Service with business logic
-  - [ ] **5.2.2.11.1.2** Partner Controller with createPartner endpoint
-  - [ ] **5.2.2.11.1.3** Partner creation validation and error handling
-- [ ] **5.2.2.11.2** Generate API Key Service and Controller (internal API)
-  - [ ] **5.2.2.11.2.1** API Key Service with generation logic
-  - [ ] **5.2.2.11.2.2** API Key Controller with generateApiKey endpoint
-  - [ ] **5.2.2.11.2.3** Automatic deactivation of previous active keys
-- [ ] **5.2.2.11.3** Generate API Key Service and Controller (public API)
-  - [ ] **5.2.2.11.3.1** Public API Key Service with validation
-  - [ ] **5.2.2.11.3.2** Public API Key Controller with generateApiKey endpoint
-  - [ ] **5.2.2.11.3.3** Rate limiting handled by Kong (external API)
+- [x] **5.2.2.11.1** Partner Management Service (consolidated)
+  - [x] **5.2.2.11.1.1** Partner operations (create, get, update)
+  - [x] **5.2.2.11.1.2** API Key operations (generate, validate, deactivate)
+  - [x] **5.2.2.11.1.3** Business logic and validation
+- [ ] **5.2.2.11.2** Internal API Controller
+  - [ ] **5.2.2.11.2.1** Partner Management Controller (internal)
+  - [ ] **5.2.2.11.2.2** Create partner endpoint
+  - [ ] **5.2.2.11.2.3** Generate API key endpoint
+- [ ] **5.2.2.11.3** Public API Controller
+  - [ ] **5.2.2.11.3.1** Partner Management Controller (public)
+  - [ ] **5.2.2.11.3.2** Generate API key endpoint (with auth)
+  - [ ] **5.2.2.11.3.3** Rate limiting handled by Kong
 - [ ] **5.2.2.11.4** API Key Management Infrastructure
   - [ ] **5.2.2.11.4.1** API key generation utilities (crypto, validation)
   - [ ] **5.2.2.11.4.2** Standard response format with correlation IDs

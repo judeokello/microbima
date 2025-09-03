@@ -7,3 +7,4 @@
 export { ApiKeyService } from './api-key.service';
 export { ExternalIntegrationsService } from './external-integrations.service';
 export { CustomerService } from './customer.service';
+export { PartnerManagementService } from './partner-management.service';

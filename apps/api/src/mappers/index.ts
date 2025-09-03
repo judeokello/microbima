@@ -16,4 +16,6 @@ export { CustomerMapper } from './customer.mapper';
 export { DependantMapper } from './dependant.mapper';
 export { BeneficiaryMapper } from './beneficiary.mapper';
 export { PartnerCustomerMapper } from './partner-customer.mapper';
+export { PartnerMapper } from './partner.mapper';
+export { PartnerApiKeyMapper } from './partner-api-key.mapper';
 export { SharedMapperUtils } from './shared.mapper.utils';
