@@ -1,6 +1,6 @@
-import { Gender, DependentRelationship } from '@prisma/client';
+import { Gender, DependantRelationship } from '@prisma/client';
 
-export interface DependentData {
+export interface DependantData {
   id: string;
   customerId: string;
   firstName: string;
@@ -8,14 +8,14 @@ export interface DependentData {
   lastName: string;
   dateOfBirth?: Date | null;
   gender?: Gender | null;
-  relationship: DependentRelationship;
+  relationship: DependantRelationship;
   isBeneficiary: boolean;
   createdByPartnerId: string;
   createdAt: Date;
   updatedAt: Date;
 }
 
-export class Dependent {
+export class Dependant {
   // Properties (all Prisma fields)
   id: string;
   customerId: string;
@@ -24,13 +24,13 @@ export class Dependent {
   lastName: string;
   dateOfBirth?: Date | null;
   gender?: Gender | null;
-  relationship: DependentRelationship;
+  relationship: DependantRelationship;
   isBeneficiary: boolean;
   createdByPartnerId: string;
   createdAt: Date;
   updatedAt: Date;
 
-  constructor(data: DependentData) {
+  constructor(data: DependantData) {
     this.id = data.id;
     this.customerId = data.customerId;
     this.firstName = data.firstName;
@@ -76,34 +76,34 @@ export class Dependent {
   }
 
   get isSpouse(): boolean {
-    return this.relationship === DependentRelationship.SPOUSE;
+    return this.relationship === DependantRelationship.SPOUSE;
   }
 
   get isChild(): boolean {
-    return this.relationship === DependentRelationship.CHILD;
+    return this.relationship === DependantRelationship.CHILD;
   }
 
   get isParent(): boolean {
-    return this.relationship === DependentRelationship.PARENT;
+    return this.relationship === DependantRelationship.PARENT;
   }
 
   get isSibling(): boolean {
-    return this.relationship === DependentRelationship.SIBLING;
+    return this.relationship === DependantRelationship.SIBLING;
   }
 
   get relationshipDisplayName(): string {
     switch (this.relationship) {
-      case DependentRelationship.SPOUSE:
+      case DependantRelationship.SPOUSE:
         return 'Spouse';
-      case DependentRelationship.CHILD:
+      case DependantRelationship.CHILD:
         return 'Child';
-      case DependentRelationship.PARENT:
+      case DependantRelationship.PARENT:
         return 'Parent';
-      case DependentRelationship.SIBLING:
+      case DependantRelationship.SIBLING:
         return 'Sibling';
-      case DependentRelationship.FRIEND:
+      case DependantRelationship.FRIEND:
         return 'Friend';
-      case DependentRelationship.OTHER:
+      case DependantRelationship.OTHER:
         return 'Other';
       default:
         return 'Unknown';
@@ -188,7 +188,7 @@ export class Dependent {
     const errors: string[] = [];
 
     if (!this.id) {
-      errors.push('Dependent ID is required for updates');
+      errors.push('Dependant ID is required for updates');
     }
 
     const baseValidation = this.validateBeforeSave();
@@ -239,8 +239,8 @@ export class Dependent {
     };
   }
 
-  static fromPrismaData(data: any): Dependent {
-    return new Dependent({
+  static fromPrismaData(data: any): Dependant {
+    return new Dependant({
       id: data.id,
       customerId: data.customerId,
       firstName: data.firstName,

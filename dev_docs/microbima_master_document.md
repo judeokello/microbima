@@ -25,7 +25,7 @@ MicroBima is a modern, API‑first micro‑insurance core designed for flexible 
 
 ## 3. Personas & Roles
 
-* **Customers** – buy/manage policies; view dependents, payments, claims.
+* **Customers** – buy/manage policies; view dependants, payments, claims.
 * **Brokers/Agents** – onboard customers, view commissions, manage sales.
 * **Providers/Hospitals** – verify coverage, submit/manage claims.
 * **Partners (Insurtechs)** – integrate via Public APIs for policy ops.
@@ -62,11 +62,11 @@ microbima/
 
 ### 5.1 Onboarding Module
 
-**Objectives:** register individuals and groups; allow partner onboarding via API; enforce KYC, dependents, and plan selection.
+**Objectives:** register individuals and groups; allow partner onboarding via API; enforce KYC, dependants, and plan selection.
 
 **A. Individual Customers (Customer/Broker Portal)**
 
-* Capture personal details, contacts, ID/KYC; dependents/beneficiaries.
+* Capture personal details, contacts, ID/KYC; dependants/beneficiaries.
 * Assign **Policy ID** + **Plan ID**; configurable pre‑activation/grace rules.
 * Optionally allow activation before first payment (per product config).
 
@@ -77,11 +77,11 @@ microbima/
 
 **C. Partners (Public API)**
 
-* Onboard principal members + dependents via partner credentials.
+* Onboard principal members + dependants via partner credentials.
 * All partner traffic goes through **Kong** with OIDC scopes; policies auto‑assigned IDs.
 * Webhooks/callbacks for enrollment confirmations.
 
-**Outputs/Artifacts:** customer record, policy record, dependents/beneficiaries, KYC docs, audit trail.
+**Outputs/Artifacts:** customer record, policy record, dependants/beneficiaries, KYC docs, audit trail.
 
 ### 5.2 Product & Plan Management
 
@@ -137,7 +137,7 @@ microbima/
 
 ## 6. Data Model (Conceptual)
 
-**Core entities:** Customer, Group, Policy, Plan, Product, Dependent, Beneficiary, Provider, Claim, Payment, Invoice, Commission, Partner App, Webhook, User/Role.
+**Core entities:** Customer, Group, Policy, Plan, Product, Dependant, Beneficiary, Provider, Claim, Payment, Invoice, Commission, Partner App, Webhook, User/Role.
 **Identifiers:** Policy ID, Plan ID, Group ID; partner apps receive Client ID/Secret and scopes.
 
 ---

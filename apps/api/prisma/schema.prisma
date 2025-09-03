@@ -84,8 +84,8 @@ model Customer {
   // Address information
   address         Address?
   
-  // Dependents
-  dependents      Dependent[]
+  // Dependants
+  dependants      Dependant[]
   
   // Beneficiaries
   beneficiaries   Beneficiary[]
@@ -128,7 +128,7 @@ model Address {
   @@map("addresses")
 }
 
-model Dependent {
+model Dependant {
   id          String   @id @default(cuid())
   customerId  String
   customer    Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
@@ -138,14 +138,14 @@ model Dependent {
   lastName    String
   dateOfBirth DateTime? // Optional date of birth
   gender      Gender?  // Optional gender field
-  relationship DependentRelationship
+  relationship DependantRelationship
   isBeneficiary Boolean @default(false)
-  createdByPartnerId String // Partner who created this dependent
+  createdByPartnerId String // Partner who created this dependant
   
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  @@map("dependents")
+  @@map("dependants")
 }
 
 model Beneficiary {
@@ -258,7 +258,7 @@ enum IdType {
   MILITARY
 }
 
-enum DependentRelationship {
+enum DependantRelationship {
   SPOUSE
   CHILD
   PARENT

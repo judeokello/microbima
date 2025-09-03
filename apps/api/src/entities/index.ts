@@ -2,7 +2,7 @@
 export { Partner, type PartnerData } from './partner.entity';
 export { Customer, type CustomerData } from './customer.entity';
 export { Beneficiary, type BeneficiaryData } from './beneficiary.entity';
-export { Dependent, type DependentData } from './dependent.entity';
+export { Dependant, type DependantData } from './dependant.entity';
 export { PartnerCustomer, type PartnerCustomerData } from './partner-customer.entity';
 
 // Export common interfaces

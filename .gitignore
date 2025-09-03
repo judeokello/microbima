@@ -112,3 +112,7 @@ prisma/migrations/
 
 # Internal development docs
 #docs/
+
+
+# spec story
+.specstory/

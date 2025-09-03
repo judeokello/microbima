@@ -61,7 +61,7 @@ async function main() {
           country: 'KE',
         },
       },
-      dependents: {
+      dependants: {
         create: [
           {
             firstName: 'Jane',

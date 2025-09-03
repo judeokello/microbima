@@ -21,7 +21,7 @@ The Customer Onboarding module is a core component of the MicroBima microinsuran
 - [ ] **Customer Creation Endpoint** for individual customers
 - [ ] **Onboarding Status Tracking** with step-by-step progress
 - [ ] **KYC Verification Integration** with automated and manual processes
-- [ ] **Dependent/Beneficiary Management** during onboarding
+- [ ] **Dependant/Beneficiary Management** during onboarding
 - [ ] **Address and Contact Information** collection and validation
 
 ##### **Internal API Integration**
@@ -50,7 +50,7 @@ The Customer Onboarding module is a core component of the MicroBima microinsuran
 #### **4.2 Database Schema**
 - [ ] **Customer Table** with personal information and status
 - [ ] **Address Table** for customer location data
-- [ ] **Dependent Table** for family members and beneficiaries
+- [ ] **Dependant Table** for family members and beneficiaries
 - [ ] **Onboarding Progress Table** for step tracking
 - [ ] **KYC Verification Table** for verification status and documents
 - [ ] **Audit Log Table** for change tracking
@@ -183,7 +183,7 @@ The Customer Onboarding module is a core component of the MicroBima microinsuran
 
 ##### **5.5.1 Customer Data Model**
 - [ ] **5.5.1.1** Implement customer table with all required fields
-- [ ] **5.5.1.2** Create address and dependent tables
+- [ ] **5.5.1.2** Create address and dependant tables
 - [ ] **5.5.1.3** Set up relationships and constraints
 - [ ] **5.5.1.4** Configure indexes for performance
 - [ ] **5.5.1.5** Update OpenAPI spec with new data models (triggers 5.3.4.1)
@@ -271,7 +271,7 @@ The Customer Onboarding module is a core component of the MicroBima microinsuran
 - [ ] Can create customer accounts via public API
 - [ ] Can view onboarding progress and status
 - [ ] Can update personal information during onboarding
-- [ ] Can manage dependents and beneficiaries
+- [ ] Can manage dependants and beneficiaries
 
 #### **Internal Users (Internal API)**
 - [ ] **Customer Service Representatives** can view and manage customer accounts

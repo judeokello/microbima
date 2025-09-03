@@ -16,7 +16,7 @@ We will follow these entity design patterns:
 
 ### Business Logic Methods
 - **Include in entities**: Domain-specific operations that belong to the entity
-- **Examples**: `get fullName()`, `get age()`, `isEligibleForInsurance()`, `canAddDependent()`
+- **Examples**: `get fullName()`, `get age()`, `isEligibleForInsurance()`, `canAddDependant()`
 - **Purpose**: Encapsulation, reusability, testability, domain modeling
 
 ### Validation Methods

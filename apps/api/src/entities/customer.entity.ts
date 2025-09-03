@@ -115,7 +115,7 @@ export class Customer {
     return this.isActive && this.isAdult && this.isKYCVerified;
   }
 
-  canAddDependent(): boolean {
+  canAddDependant(): boolean {
     return this.isActive && this.isAdult;
   }
 
