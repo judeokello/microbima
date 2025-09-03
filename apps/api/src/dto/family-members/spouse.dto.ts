@@ -14,7 +14,7 @@ export class SpouseDto {
     example: 'Doe'
   })
   @IsString()
-  surName: string;
+  lastName: string;
 
   @ApiProperty({
     description: 'Middle name of the spouse',

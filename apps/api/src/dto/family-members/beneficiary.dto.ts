@@ -16,7 +16,7 @@ export class BeneficiaryDto {
     example: 'Johnson'
   })
   @IsString()
-  surName: string;
+  lastName: string;
 
   @ApiProperty({
     description: 'Middle name of the beneficiary',

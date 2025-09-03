@@ -14,7 +14,7 @@ export class ChildDto {
     example: 'Doe'
   })
   @IsString()
-  surName: string;
+  lastName: string;
 
   @ApiProperty({
     description: 'Middle name of the child',

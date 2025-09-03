@@ -24,7 +24,7 @@ export class BeneficiaryMapper {
       customerId: customerId,
       firstName: dto.firstName,
       middleName: dto.middleName || null,
-      lastName: dto.surName, // Note: DTO uses 'surName', entity uses 'lastName'
+      lastName: dto.lastName,
       dateOfBirth: dto.dateOfBirth ? new Date(dto.dateOfBirth) : null,
       gender: SharedMapperUtils.mapGenderFromDto(dto.gender),
       idType: SharedMapperUtils.mapIdTypeFromDto(dto.idType),
@@ -47,7 +47,7 @@ export class BeneficiaryMapper {
   static toBeneficiaryDto(beneficiary: Beneficiary): BeneficiaryDto {
     return {
       firstName: beneficiary.firstName,
-      surName: beneficiary.lastName, // Note: DTO uses 'surName', entity uses 'lastName'
+      lastName: beneficiary.lastName,
       middleName: beneficiary.middleName || undefined,
       dateOfBirth: beneficiary.dateOfBirth?.toISOString().split('T')[0] || '',
       gender: SharedMapperUtils.mapGenderToDto(beneficiary.gender),

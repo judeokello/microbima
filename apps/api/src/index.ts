@@ -20,6 +20,12 @@ export * from './entities';
 // Mappers (DTO ↔ Entity conversion)
 export * from './mappers';
 
+// Middleware and Guards
+export * from './middleware';
+
+// Services
+export * from './services';
+
 // Main Application
 export { AppModule } from './app.module';
 export { AppController } from './app.controller';

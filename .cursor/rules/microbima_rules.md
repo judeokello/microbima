@@ -41,7 +41,7 @@ import { PoliciesService, type Policy } from "@microbima/sdk";
 
 ### DTOs (External API)
 - **Class names**: `PascalCase` + `Dto` suffix (e.g., `PrincipalMemberDto`)
-- **Property names**: `camelCase` (e.g., `firstName`, `surName` - external naming)
+- **Property names**: `camelCase` (e.g., `firstName`, `lastName` - consistent naming)
 
 ## Synchronization Strategy
 - **Hybrid approach**: Manual mapping for complex cases, auto-generated for simple cases

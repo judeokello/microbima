@@ -26,7 +26,7 @@ export class DependantMapper {
       customerId: customerId,
       firstName: dto.firstName,
       middleName: dto.middleName || null,
-      lastName: dto.surName, // Note: DTO uses 'surName', entity uses 'lastName'
+      lastName: dto.lastName,
       dateOfBirth: dto.dateOfBirth ? new Date(dto.dateOfBirth) : null,
       gender: SharedMapperUtils.mapGenderFromDto(dto.gender),
       idType: dto.idType ? SharedMapperUtils.mapIdTypeFromDto(dto.idType) : null,
@@ -58,7 +58,7 @@ export class DependantMapper {
       customerId: customerId,
       firstName: dto.firstName,
       middleName: dto.middleName || null,
-      lastName: dto.surName, // Note: DTO uses 'surName', entity uses 'lastName'
+      lastName: dto.lastName,
       dateOfBirth: dto.dateOfBirth ? new Date(dto.dateOfBirth) : null,
       gender: SharedMapperUtils.mapGenderFromDto(dto.gender),
       idType: SharedMapperUtils.mapIdTypeFromDto(dto.idType),
@@ -81,7 +81,7 @@ export class DependantMapper {
   static toChildDto(dependant: Dependant): ChildDto {
     return {
       firstName: dependant.firstName,
-      surName: dependant.lastName, // Note: DTO uses 'surName', entity uses 'lastName'
+      lastName: dependant.lastName,
       middleName: dependant.middleName || undefined,
       dateOfBirth: dependant.dateOfBirth?.toISOString().split('T')[0] || '',
       gender: SharedMapperUtils.mapGenderToDto(dependant.gender),
@@ -98,7 +98,7 @@ export class DependantMapper {
   static toSpouseDto(dependant: Dependant): SpouseDto {
     return {
       firstName: dependant.firstName,
-      surName: dependant.lastName, // Note: DTO uses 'surName', entity uses 'lastName'
+      lastName: dependant.lastName,
       middleName: dependant.middleName || undefined,
       dateOfBirth: dependant.dateOfBirth?.toISOString().split('T')[0] || '',
       gender: SharedMapperUtils.mapGenderToDto(dependant.gender),
