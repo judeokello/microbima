@@ -86,14 +86,14 @@ The Customer Onboarding module is a core component of the MicroBima microinsuran
 #### **5.2 Phase 2: Backend API Foundation (Week 2)**
 
 ##### **5.2.1 NestJS Backend Setup**
-- [ ] **5.2.1.1** Initialize NestJS application in `apps/api`
-- [ ] **5.2.1.2** Install and configure required dependencies
-- [ ] **5.2.1.3** Set up application configuration and environment
-- [ ] **5.2.1.4** Configure Swagger documentation
+- [x] **5.2.1.1** Initialize NestJS application in `apps/api`
+- [x] **5.2.1.2** Install and configure required dependencies
+- [x] **5.2.1.3** Set up application configuration and environment
+- [x] **5.2.1.4** Configure Swagger documentation
 
 ##### **5.2.2 Customer Onboarding Module Structure**
-- [ ] **5.2.2.1** Create Prisma Service for database operations
-- [ ] **5.2.2.2** Create DTOs for principal-member endpoints
+- [x] **5.2.2.1** Create Prisma Service for database operations
+- [x] **5.2.2.2** Create DTOs for principal-member endpoints
 - [x] **5.2.2.3** Create Entity classes for internal use
 - [ ] **5.2.2.4** Create Mappers for DTO ↔ Entity conversion
 - [ ] **5.2.2.5** Implement API Key Authentication middleware
@@ -101,13 +101,13 @@ The Customer Onboarding module is a core component of the MicroBima microinsuran
 - [ ] **5.2.2.7** Create Global Exception Filter with Sentry integration
 - [ ] **5.2.2.8** Implement Customer Service with business logic
 - [ ] **5.2.2.9** Implement Customer Controller with CRUD endpoints
-- [ ] **5.2.2.10** Update database schema and run migrations
+- [x] **5.2.2.10** Update database schema and run migrations
 
 ##### **5.2.3 Database Models and Migrations**
-- [ ] **5.2.3.1** Define Prisma schema for customer entities
-- [ ] **5.2.3.2** Create database migrations
-- [ ] **5.2.3.3** Set up seed data for development
-- [ ] **5.2.3.4** Configure Prisma client and service
+- [x] **5.2.3.1** Define Prisma schema for customer entities
+- [x] **5.2.3.2** Create database migrations
+- [x] **5.2.3.3** Set up seed data for development
+- [x] **5.2.3.4** Configure Prisma client and service
 
 #### **5.3 Phase 3: SDK Infrastructure Setup (Week 3) - Foundation Complete When Checked**
 

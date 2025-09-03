@@ -138,6 +138,8 @@ model Dependant {
   lastName    String
   dateOfBirth DateTime? // Optional date of birth
   gender      Gender?  // Optional gender field
+  idType      IdType?  // Optional ID type for identification
+  idNumber    String?  // Optional ID number for identification
   relationship DependantRelationship
   isBeneficiary Boolean @default(false)
   createdByPartnerId String // Partner who created this dependant

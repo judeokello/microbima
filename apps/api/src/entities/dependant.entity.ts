@@ -1,4 +1,4 @@
-import { Gender, DependantRelationship } from '@prisma/client';
+import { Gender, DependantRelationship, IdType } from '@prisma/client';
 
 export interface DependantData {
   id: string;
@@ -8,6 +8,8 @@ export interface DependantData {
   lastName: string;
   dateOfBirth?: Date | null;
   gender?: Gender | null;
+  idType?: IdType | null;
+  idNumber?: string | null;
   relationship: DependantRelationship;
   isBeneficiary: boolean;
   createdByPartnerId: string;
@@ -24,6 +26,8 @@ export class Dependant {
   lastName: string;
   dateOfBirth?: Date | null;
   gender?: Gender | null;
+  idType?: IdType | null;
+  idNumber?: string | null;
   relationship: DependantRelationship;
   isBeneficiary: boolean;
   createdByPartnerId: string;
@@ -38,6 +42,8 @@ export class Dependant {
     this.lastName = data.lastName;
     this.dateOfBirth = data.dateOfBirth;
     this.gender = data.gender;
+    this.idType = data.idType;
+    this.idNumber = data.idNumber;
     this.relationship = data.relationship;
     this.isBeneficiary = data.isBeneficiary;
     this.createdByPartnerId = data.createdByPartnerId;
@@ -231,6 +237,8 @@ export class Dependant {
       lastName: this.lastName,
       dateOfBirth: this.dateOfBirth,
       gender: this.gender,
+      idType: this.idType,
+      idNumber: this.idNumber,
       relationship: this.relationship,
       isBeneficiary: this.isBeneficiary,
       createdByPartnerId: this.createdByPartnerId,
@@ -248,6 +256,8 @@ export class Dependant {
       lastName: data.lastName,
       dateOfBirth: data.dateOfBirth,
       gender: data.gender,
+      idType: data.idType,
+      idNumber: data.idNumber,
       relationship: data.relationship,
       isBeneficiary: data.isBeneficiary,
       createdByPartnerId: data.createdByPartnerId,
