@@ -6,11 +6,13 @@ import { AppService } from './app.service';
 import { ApiKeyAuthMiddleware } from './middleware/api-key-auth.middleware';
 import { CorrelationIdMiddleware } from './middleware/correlation-id.middleware';
 import { ExternalIntegrationsService } from './services/external-integrations.service';
+import { CustomerService } from './services/customer.service';
+import { CustomerController } from './controllers/customer.controller';
 
 @Module({
   imports: [ConfigurationModule, PrismaModule],
-  controllers: [AppController],
-  providers: [AppService, ExternalIntegrationsService],
+  controllers: [AppController, CustomerController],
+  providers: [AppService, ExternalIntegrationsService, CustomerService],
   exports: [PrismaModule], // Export PrismaModule so middleware can access PrismaService
 })
 export class AppModule implements NestModule {

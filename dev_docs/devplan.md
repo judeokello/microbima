@@ -113,10 +113,28 @@ The Customer Onboarding module is a core component of the MicroBima microinsuran
 - [ ] **5.2.2.8** Implement Customer Service with business logic
   - [x] **5.2.2.8.1** Create PartnerApiKey entity and database schema
   - [x] **5.2.2.8.2** Update API key validation middleware to use database
-  - [ ] **5.2.2.8.3** Implement Customer Service with partner scoping
-  - [ ] **5.2.2.8.4** Implement Customer Controller with CRUD operations
-- [ ] **5.2.2.9** Implement Customer Controller with CRUD endpoints
+  - [x] **5.2.2.8.3** Implement Customer Service with partner scoping
+- [x] **5.2.2.9** Implement Customer Controller with CRUD endpoints
+  - [x] **5.2.2.9.1** Implement Customer Controller with CRUD operations
 - [x] **5.2.2.10** Update database schema and run migrations
+
+##### **5.2.2.11: Partner Management API**
+- [ ] **5.2.2.11.1** Create Partner Service and Controller (internal API)
+  - [ ] **5.2.2.11.1.1** Partner Service with business logic
+  - [ ] **5.2.2.11.1.2** Partner Controller with createPartner endpoint
+  - [ ] **5.2.2.11.1.3** Partner creation validation and error handling
+- [ ] **5.2.2.11.2** Generate API Key Service and Controller (internal API)
+  - [ ] **5.2.2.11.2.1** API Key Service with generation logic
+  - [ ] **5.2.2.11.2.2** API Key Controller with generateApiKey endpoint
+  - [ ] **5.2.2.11.2.3** Automatic deactivation of previous active keys
+- [ ] **5.2.2.11.3** Generate API Key Service and Controller (public API)
+  - [ ] **5.2.2.11.3.1** Public API Key Service with validation
+  - [ ] **5.2.2.11.3.2** Public API Key Controller with generateApiKey endpoint
+  - [ ] **5.2.2.11.3.3** Rate limiting handled by Kong (external API)
+- [ ] **5.2.2.11.4** API Key Management Infrastructure
+  - [ ] **5.2.2.11.4.1** API key generation utilities (crypto, validation)
+  - [ ] **5.2.2.11.4.2** Standard response format with correlation IDs
+  - [ ] **5.2.2.11.4.3** Internal API rate limiting (Post-MVP)
 
 ##### **5.2.4 Deployment Preparation (Post-CRUD Implementation)**
 - [ ] **5.2.4.1** Implement proper Sentry integration using official SDK
