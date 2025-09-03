@@ -7,12 +7,15 @@ import { ApiKeyAuthMiddleware } from './middleware/api-key-auth.middleware';
 import { CorrelationIdMiddleware } from './middleware/correlation-id.middleware';
 import { ExternalIntegrationsService } from './services/external-integrations.service';
 import { CustomerService } from './services/customer.service';
+import { PartnerManagementService } from './services/partner-management.service';
 import { CustomerController } from './controllers/customer.controller';
+import { InternalPartnerManagementController } from './controllers/internal/partner-management.controller';
+import { PublicPartnerManagementController } from './controllers/public/partner-management.controller';
 
 @Module({
   imports: [ConfigurationModule, PrismaModule],
-  controllers: [AppController, CustomerController],
-  providers: [AppService, ExternalIntegrationsService, CustomerService],
+  controllers: [AppController, CustomerController, InternalPartnerManagementController, PublicPartnerManagementController],
+  providers: [AppService, ExternalIntegrationsService, CustomerService, PartnerManagementService],
   exports: [PrismaModule], // Export PrismaModule so middleware can access PrismaService
 })
 export class AppModule implements NestModule {

@@ -110,7 +110,7 @@ The Customer Onboarding module is a core component of the MicroBima microinsuran
   - [x] **5.2.2.7.4** Request context logging
   - [x] **5.2.2.7.5** External integrations service for async calls
   - [ ] **5.2.2.7.6** Proper Sentry SDK integration (Deferred to 5.2.4.1)
-- [ ] **5.2.2.8** Implement Customer Service with business logic
+- [x] **5.2.2.8** Implement Customer Service with business logic
   - [x] **5.2.2.8.1** Create PartnerApiKey entity and database schema
   - [x] **5.2.2.8.2** Update API key validation middleware to use database
   - [x] **5.2.2.8.3** Implement Customer Service with partner scoping
@@ -123,17 +123,17 @@ The Customer Onboarding module is a core component of the MicroBima microinsuran
   - [x] **5.2.2.11.1.1** Partner operations (create, get, update)
   - [x] **5.2.2.11.1.2** API Key operations (generate, validate, deactivate)
   - [x] **5.2.2.11.1.3** Business logic and validation
-- [ ] **5.2.2.11.2** Internal API Controller
-  - [ ] **5.2.2.11.2.1** Partner Management Controller (internal)
-  - [ ] **5.2.2.11.2.2** Create partner endpoint
-  - [ ] **5.2.2.11.2.3** Generate API key endpoint
-- [ ] **5.2.2.11.3** Public API Controller
-  - [ ] **5.2.2.11.3.1** Partner Management Controller (public)
-  - [ ] **5.2.2.11.3.2** Generate API key endpoint (with auth)
-  - [ ] **5.2.2.11.3.3** Rate limiting handled by Kong
-- [ ] **5.2.2.11.4** API Key Management Infrastructure
-  - [ ] **5.2.2.11.4.1** API key generation utilities (crypto, validation)
-  - [ ] **5.2.2.11.4.2** Standard response format with correlation IDs
+- [x] **5.2.2.11.2** Internal API Controller
+  - [x] **5.2.2.11.2.1** Partner Management Controller (internal)
+  - [x] **5.2.2.11.2.2** Create partner endpoint
+  - [x] **5.2.2.11.2.3** Generate API key endpoint
+- [x] **5.2.2.11.3** Public API Controller
+  - [x] **5.2.2.11.3.1** Partner Management Controller (public)
+  - [x] **5.2.2.11.3.2** Generate API key endpoint (with auth)
+  - [x] **5.2.2.11.3.3** Rate limiting handled by Kong
+- [x] **5.2.2.11.4** API Key Management Infrastructure
+  - [x] **5.2.2.11.4.1** API key generation utilities (crypto, validation)
+  - [x] **5.2.2.11.4.2** Standard response format with correlation IDs
   - [ ] **5.2.2.11.4.3** Internal API rate limiting (Post-MVP)
 
 ##### **5.2.4 Deployment Preparation (Post-CRUD Implementation)**
