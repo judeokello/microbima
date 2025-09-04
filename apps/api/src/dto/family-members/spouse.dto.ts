@@ -63,4 +63,30 @@ export class SpouseDto {
   })
   @IsString()
   idNumber: string;
+
+  @ApiProperty({
+    description: 'Verification status of the spouse',
+    example: true,
+    required: false
+  })
+  @IsOptional()
+  isVerified?: boolean;
+
+  @ApiProperty({
+    description: 'When the spouse was verified',
+    example: '2025-09-04T14:30:00Z',
+    required: false
+  })
+  @IsOptional()
+  @IsDateString()
+  verifiedAt?: string;
+
+  @ApiProperty({
+    description: 'Who verified the spouse (user ID)',
+    example: 'user-12345',
+    required: false
+  })
+  @IsOptional()
+  @IsString()
+  verifiedBy?: string;
 }

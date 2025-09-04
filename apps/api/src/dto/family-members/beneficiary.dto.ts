@@ -112,4 +112,30 @@ export class BeneficiaryDto {
   @ValidateNested()
   @Type(() => AddressDto)
   address?: AddressDto;
+
+  @ApiProperty({
+    description: 'Verification status of the beneficiary',
+    example: true,
+    required: false
+  })
+  @IsOptional()
+  isVerified?: boolean;
+
+  @ApiProperty({
+    description: 'When the beneficiary was verified',
+    example: '2025-09-04T14:30:00Z',
+    required: false
+  })
+  @IsOptional()
+  @IsDateString()
+  verifiedAt?: string;
+
+  @ApiProperty({
+    description: 'Who verified the beneficiary (user ID)',
+    example: 'user-12345',
+    required: false
+  })
+  @IsOptional()
+  @IsString()
+  verifiedBy?: string;
 }

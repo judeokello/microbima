@@ -23,6 +23,9 @@ async function bootstrap() {
   const externalIntegrationsService = app.get(ExternalIntegrationsService);
   app.useGlobalFilters(new GlobalExceptionFilter(externalIntegrationsService));
 
+  // Set global prefix
+  app.setGlobalPrefix(configService.apiPrefix);
+
   // CORS configuration
   app.enableCors({
     origin: configService.cors.origin,

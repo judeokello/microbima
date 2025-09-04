@@ -19,7 +19,7 @@ export class CorrelationIdMiddleware implements NestMiddleware {
     }
 
     // Skip correlation ID requirement for health check endpoints
-    if (req.path === '/health' || req.path === '/api/health') {
+    if (req.path === '/health' || req.path === '/api/health' || req.originalUrl === '/health' || req.originalUrl === '/api/health') {
       return next();
     }
 

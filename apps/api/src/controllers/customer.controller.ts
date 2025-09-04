@@ -22,7 +22,7 @@ import { CreatePrincipalMemberRequestDto } from '../dto/principal-member/create-
 import { CreatePrincipalMemberResponseDto } from '../dto/principal-member/create-principal-member-response.dto';
 import { PrincipalMemberDto } from '../dto/principal-member/principal-member.dto';
 import { CorrelationId } from '../decorators/correlation-id.decorator';
-import { ApiKey } from '../decorators/api-key.decorator';
+import { PartnerId } from '../decorators/api-key.decorator';
 
 /**
  * Customer Controller
@@ -71,7 +71,7 @@ export class CustomerController {
   })
   async createCustomer(
     @Body() createRequest: CreatePrincipalMemberRequestDto,
-    @ApiKey() partnerId: string,
+    @PartnerId() partnerId: string,
     @CorrelationId() correlationId: string,
   ): Promise<CreatePrincipalMemberResponseDto> {
     // Skip partner validation since API key middleware already validated it
@@ -115,7 +115,7 @@ export class CustomerController {
   })
   async getCustomerById(
     @Param('customerId') customerId: string,
-    @ApiKey() partnerId: string,
+    @PartnerId() partnerId: string,
     @CorrelationId() correlationId: string,
   ): Promise<PrincipalMemberDto> {
     return this.customerService.getCustomerById(
@@ -177,7 +177,7 @@ export class CustomerController {
     description: 'Unauthorized - invalid or inactive API key',
   })
   async getCustomers(
-    @ApiKey() partnerId: string,
+    @PartnerId() partnerId: string,
     @CorrelationId() correlationId: string,
     @Query('page') page?: string,
     @Query('limit') limit?: string,

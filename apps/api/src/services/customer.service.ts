@@ -58,6 +58,7 @@ export class CustomerService {
       }
 
       // Check if partner-customer relationship already exists
+      this.logger.log(`[${correlationId}] Checking for existing partner customer: partnerId=${partnerId}, partnerCustomerId=${createRequest.partnerCustomerId}`);
       const existingPartnerCustomer = await this.prismaService.partnerCustomer.findFirst({
         where: {
           partnerId: partnerId,

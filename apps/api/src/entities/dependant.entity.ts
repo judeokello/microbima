@@ -11,7 +11,9 @@ export interface DependantData {
   idType?: IdType | null;
   idNumber?: string | null;
   relationship: DependantRelationship;
-  isBeneficiary: boolean;
+  isVerified: boolean;
+  verifiedAt?: Date | null;
+  verifiedBy?: string | null;
   createdByPartnerId: string;
   createdAt: Date;
   updatedAt: Date;
@@ -29,7 +31,9 @@ export class Dependant {
   idType?: IdType | null;
   idNumber?: string | null;
   relationship: DependantRelationship;
-  isBeneficiary: boolean;
+  isVerified: boolean;
+  verifiedAt?: Date | null;
+  verifiedBy?: string | null;
   createdByPartnerId: string;
   createdAt: Date;
   updatedAt: Date;
@@ -45,7 +49,9 @@ export class Dependant {
     this.idType = data.idType;
     this.idNumber = data.idNumber;
     this.relationship = data.relationship;
-    this.isBeneficiary = data.isBeneficiary;
+    this.isVerified = data.isVerified;
+    this.verifiedAt = data.verifiedAt;
+    this.verifiedBy = data.verifiedBy;
     this.createdByPartnerId = data.createdByPartnerId;
     this.createdAt = data.createdAt;
     this.updatedAt = data.updatedAt;
@@ -176,9 +182,7 @@ export class Dependant {
     }
 
     // Business rule validations
-    if (this.isBeneficiary && !this.canBeBeneficiary()) {
-      errors.push('Only adults can be beneficiaries');
-    }
+    // Note: isBeneficiary field removed - beneficiaries are now separate entities
 
     if (this.isSpouse && this.age !== null && this.age < 18) {
       errors.push('Spouse must be at least 18 years old');
@@ -240,7 +244,9 @@ export class Dependant {
       idType: this.idType,
       idNumber: this.idNumber,
       relationship: this.relationship,
-      isBeneficiary: this.isBeneficiary,
+      isVerified: this.isVerified,
+      verifiedAt: this.verifiedAt,
+      verifiedBy: this.verifiedBy,
       createdByPartnerId: this.createdByPartnerId,
       createdAt: this.createdAt,
       updatedAt: this.updatedAt,
@@ -259,7 +265,9 @@ export class Dependant {
       idType: data.idType,
       idNumber: data.idNumber,
       relationship: data.relationship,
-      isBeneficiary: data.isBeneficiary,
+      isVerified: data.isVerified,
+      verifiedAt: data.verifiedAt,
+      verifiedBy: data.verifiedBy,
       createdByPartnerId: data.createdByPartnerId,
       createdAt: data.createdAt,
       updatedAt: data.updatedAt,

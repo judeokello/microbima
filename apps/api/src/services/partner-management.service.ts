@@ -214,26 +214,29 @@ export class PartnerManagementService {
       const plainApiKey = this.generateSecureApiKey();
       const hashedApiKey = PartnerApiKey.hashApiKey(plainApiKey);
 
-      // Deactivate any existing active API keys for this partner
-      await this.prismaService.partnerApiKey.updateMany({
-        where: {
-          partnerId: partnerId,
-          isActive: true,
-        },
-        data: {
-          isActive: false,
-          updatedAt: new Date(),
-        },
+      // Use a transaction to ensure atomicity
+      const result = await this.prismaService.$transaction(async (tx) => {
+        // Delete any existing active API keys for this partner
+        await tx.partnerApiKey.deleteMany({
+          where: {
+            partnerId: partnerId,
+            isActive: true,
+          },
+        });
+
+        // Create new API key
+        const createdApiKey = await tx.partnerApiKey.create({
+          data: {
+            partnerId: partnerId,
+            apiKey: hashedApiKey,
+            isActive: true,
+          },
+        });
+
+        return createdApiKey;
       });
 
-      // Create new API key
-      const createdApiKey = await this.prismaService.partnerApiKey.create({
-        data: {
-          partnerId: partnerId,
-          apiKey: hashedApiKey,
-          isActive: true,
-        },
-      });
+      const createdApiKey = result;
 
       this.logger.log(`[${correlationId}] API key generated successfully for partner: ${partnerId}`);
 

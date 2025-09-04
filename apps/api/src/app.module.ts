@@ -24,9 +24,8 @@ export class AppModule implements NestModule {
       .apply(CorrelationIdMiddleware)
       .forRoutes('*'); // Apply correlation ID to all routes
     
-    // Temporarily disable API key middleware for testing
-    // consumer
-    //   .apply(ApiKeyAuthMiddleware)
-    //   .forRoutes('*');
+    consumer
+      .apply(ApiKeyAuthMiddleware)
+      .forRoutes('*'); // Apply API key auth to all routes
   }
 }

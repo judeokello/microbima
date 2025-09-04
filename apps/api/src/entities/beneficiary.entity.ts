@@ -12,6 +12,9 @@ export interface BeneficiaryData {
   idNumber: string;
   relationship?: string | null;
   percentage?: number | null;
+  isVerified: boolean;
+  verifiedAt?: Date | null;
+  verifiedBy?: string | null;
   createdByPartnerId: string;
   createdAt: Date;
   updatedAt: Date;
@@ -30,6 +33,9 @@ export class Beneficiary {
   idNumber: string;
   relationship?: string | null;
   percentage?: number | null;
+  isVerified: boolean;
+  verifiedAt?: Date | null;
+  verifiedBy?: string | null;
   createdByPartnerId: string;
   createdAt: Date;
   updatedAt: Date;
@@ -46,6 +52,9 @@ export class Beneficiary {
     this.idNumber = data.idNumber;
     this.relationship = data.relationship;
     this.percentage = data.percentage;
+    this.isVerified = data.isVerified;
+    this.verifiedAt = data.verifiedAt;
+    this.verifiedBy = data.verifiedBy;
     this.createdByPartnerId = data.createdByPartnerId;
     this.createdAt = data.createdAt;
     this.updatedAt = data.updatedAt;
@@ -213,6 +222,9 @@ export class Beneficiary {
       idNumber: this.idNumber,
       relationship: this.relationship,
       percentage: this.percentage,
+      isVerified: this.isVerified,
+      verifiedAt: this.verifiedAt,
+      verifiedBy: this.verifiedBy,
       createdByPartnerId: this.createdByPartnerId,
       createdAt: this.createdAt,
       updatedAt: this.updatedAt,
@@ -232,6 +244,9 @@ export class Beneficiary {
       idNumber: data.idNumber,
       relationship: data.relationship,
       percentage: data.percentage,
+      isVerified: data.isVerified,
+      verifiedAt: data.verifiedAt,
+      verifiedBy: data.verifiedBy,
       createdByPartnerId: data.createdByPartnerId,
       createdAt: data.createdAt,
       updatedAt: data.updatedAt,

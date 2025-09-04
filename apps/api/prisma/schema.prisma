@@ -158,6 +158,9 @@ model Dependant {
   idType      IdType?  // Optional ID type for identification
   idNumber    String?  @db.VarChar(20) // Optional ID number for identification, max 20 characters
   relationship DependantRelationship
+  isVerified  Boolean  @default(false) // Verification status
+  verifiedAt  DateTime? // When verification was completed
+  verifiedBy  String?   @db.Uuid // Who verified (user ID)
   createdByPartnerId Int // Partner who created this dependant
   
   createdAt   DateTime @default(now())
@@ -180,6 +183,9 @@ model Beneficiary {
   idNumber    String   @db.VarChar(20) // Max 20 characters
   relationship String? // Relationship to principal member
   percentage  Int?     // Percentage of benefits (1-100)
+  isVerified  Boolean  @default(false) // Verification status
+  verifiedAt  DateTime? // When verification was completed
+  verifiedBy  String?   @db.Uuid // Who verified (user ID)
   createdByPartnerId Int // Partner who created this beneficiary
   
   createdAt   DateTime @default(now())
