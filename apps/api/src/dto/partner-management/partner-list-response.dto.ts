@@ -102,7 +102,7 @@ export class PartnerListResponseDto {
   })
   data: {
     partners: Array<{
-      id: string;
+      id: number;
       partnerName: string;
       website?: string;
       officeLocation?: string;

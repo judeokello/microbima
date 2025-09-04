@@ -1,8 +1,8 @@
 import { ValidationResult } from './partner.entity';
 
 export interface PartnerApiKeyData {
-  id: string;
-  partnerId: string;
+  id: number;
+  partnerId: number;
   apiKey: string; // SHA-256 hashed
   isActive: boolean;
   createdAt: Date;
@@ -11,8 +11,8 @@ export interface PartnerApiKeyData {
 
 export class PartnerApiKey {
   // Properties (all Prisma fields)
-  id: string;
-  partnerId: string;
+  id: number;
+  partnerId: number;
   apiKey: string; // SHA-256 hashed
   isActive: boolean;
   createdAt: Date;
@@ -39,7 +39,7 @@ export class PartnerApiKey {
     return this.isActive;
   }
 
-  isForPartner(partnerId: string): boolean {
+  isForPartner(partnerId: number): boolean {
     return this.partnerId === partnerId;
   }
 

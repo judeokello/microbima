@@ -13,7 +13,7 @@ export interface CustomerData {
   idNumber: string;
   status: CustomerStatus;
   onboardingStep: OnboardingStep;
-  createdByPartnerId: string;
+  createdByPartnerId: number;
   createdAt: Date;
   updatedAt: Date;
   createdBy?: string | null;
@@ -34,7 +34,7 @@ export class Customer {
   idNumber: string;
   status: CustomerStatus;
   onboardingStep: OnboardingStep;
-  createdByPartnerId: string;
+  createdByPartnerId: number;
   createdAt: Date;
   updatedAt: Date;
   createdBy?: string | null;

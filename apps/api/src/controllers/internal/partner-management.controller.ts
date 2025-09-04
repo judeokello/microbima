@@ -213,7 +213,7 @@ export class InternalPartnerManagementController {
     try {
       // Get partner using the service
       const partner = await this.partnerManagementService.getPartnerById(
-        partnerId,
+        Number(partnerId),
         correlationId || 'unknown'
       );
 
@@ -261,7 +261,7 @@ export class InternalPartnerManagementController {
     try {
       // Generate API key using the service
       const apiKeyData = await this.partnerManagementService.generateApiKey(
-        generateRequest.partnerId,
+        Number(generateRequest.partnerId),
         correlationId || 'unknown'
       );
 

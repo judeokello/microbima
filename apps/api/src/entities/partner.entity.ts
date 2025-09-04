@@ -1,7 +1,7 @@
 import { CustomerStatus, OnboardingStep } from '@prisma/client';
 
 export interface PartnerData {
-  id: string;
+  id: number;
   partnerName: string;
   website?: string | null;
   officeLocation?: string | null;
@@ -14,7 +14,7 @@ export interface PartnerData {
 
 export class Partner {
   // Properties (all Prisma fields)
-  id: string;
+  id: number;
   partnerName: string;
   website?: string | null;
   officeLocation?: string | null;

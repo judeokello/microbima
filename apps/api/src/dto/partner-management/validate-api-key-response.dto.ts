@@ -41,6 +41,6 @@ export class ValidateApiKeyResponseDto {
   })
   data: {
     valid: boolean;
-    partnerId?: string;
+    partnerId?: number;
   };
 }

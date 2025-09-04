@@ -1,6 +1,6 @@
 export interface PartnerCustomerData {
-  id: string;
-  partnerId: string;
+  id: number;
+  partnerId: number;
   customerId: string;
   partnerCustomerId: string;
   createdAt: Date;
@@ -9,8 +9,8 @@ export interface PartnerCustomerData {
 
 export class PartnerCustomer {
   // Properties (all Prisma fields)
-  id: string;
-  partnerId: string;
+  id: number;
+  partnerId: number;
   customerId: string;
   partnerCustomerId: string;
   createdAt: Date;
@@ -37,7 +37,7 @@ export class PartnerCustomer {
   }
 
   // Business logic methods
-  isForPartner(partnerId: string): boolean {
+  isForPartner(partnerId: number): boolean {
     return this.partnerId === partnerId;
   }
 

@@ -77,7 +77,7 @@ export class CustomerController {
     // Skip partner validation since API key middleware already validated it
     return this.customerService.createCustomer(
       createRequest,
-      partnerId,
+      Number(partnerId),
       correlationId,
       true // Skip redundant partner validation
     );
@@ -120,7 +120,7 @@ export class CustomerController {
   ): Promise<PrincipalMemberDto> {
     return this.customerService.getCustomerById(
       customerId,
-      partnerId,
+      Number(partnerId),
       correlationId
     );
   }
@@ -195,7 +195,7 @@ export class CustomerController {
     const limitNumber = limit ? parseInt(limit, 10) : 10;
 
     return this.customerService.getCustomersByPartner(
-      partnerId,
+      Number(partnerId),
       correlationId,
       pageNumber,
       limitNumber

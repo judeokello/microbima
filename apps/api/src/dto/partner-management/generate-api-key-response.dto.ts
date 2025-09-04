@@ -45,7 +45,7 @@ export class GenerateApiKeyResponseDto {
   })
   data: {
     apiKey: string;
-    partnerId: string;
+    partnerId: number;
     createdAt: string;
   };
 }

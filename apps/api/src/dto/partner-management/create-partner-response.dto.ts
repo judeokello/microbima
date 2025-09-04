@@ -66,7 +66,7 @@ export class CreatePartnerResponseDto {
     },
   })
   data: {
-    id: string;
+    id: number;
     partnerName: string;
     website?: string;
     officeLocation?: string;

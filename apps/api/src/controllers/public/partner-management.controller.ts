@@ -85,13 +85,13 @@ export class PublicPartnerManagementController {
 
     try {
       // Validate that the request is for the authenticated partner
-      if (generateRequest.partnerId !== partnerId) {
+      if (generateRequest.partnerId !== Number(partnerId)) {
         throw new Error('Partner ID in request does not match authenticated partner');
       }
 
       // Generate API key using the service
       const apiKeyData = await this.partnerManagementService.generateApiKey(
-        partnerId,
+        Number(partnerId),
         correlationId
       );
 

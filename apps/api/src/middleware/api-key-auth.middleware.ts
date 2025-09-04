@@ -20,20 +20,30 @@ export class ApiKeyAuthMiddleware implements NestMiddleware {
   ) {}
 
   async use(req: Request, res: Response, next: NextFunction) {
+    console.log('API Key Middleware - Request path:', req.path);
+    console.log('API Key Middleware - Request method:', req.method);
+    console.log('API Key Middleware - Request URL:', req.url);
+    console.log('API Key Middleware - Request originalUrl:', req.originalUrl);
+    
     // Skip authentication for internal API routes
-    if (req.path.startsWith('/api/internal')) {
+    if (req.path.startsWith('/api/internal') || req.originalUrl.startsWith('/api/internal')) {
+      console.log('Skipping API key auth for internal route:', req.path);
       return next();
     }
 
     // Skip authentication for health check endpoints
-    if (req.path === '/health' || req.path === '/api/health') {
+    if (req.path === '/health' || req.path === '/api/health' || req.originalUrl === '/health' || req.originalUrl === '/api/health') {
+      console.log('Skipping API key auth for health check:', req.path);
       return next();
     }
 
     // Skip authentication for Swagger documentation (in development)
-    if (process.env.NODE_ENV === 'development' && req.path.startsWith('/api-docs')) {
+    if (process.env.NODE_ENV === 'development' && (req.path.startsWith('/api-docs') || req.originalUrl.startsWith('/api-docs'))) {
+      console.log('Skipping API key auth for Swagger docs:', req.path);
       return next();
     }
+
+    console.log('Applying API key auth for route:', req.path);
 
     const apiKey = req.headers['x-api-key'] as string;
 
@@ -75,7 +85,7 @@ export class ApiKeyAuthMiddleware implements NestMiddleware {
   private async validateApiKey(apiKey: string): Promise<{
     valid: boolean;
     message: string;
-    partnerId?: string;
+    partnerId?: number;
   }> {
     // Basic format validation first
     if (!PartnerApiKey.validateApiKeyFormat(apiKey)) {

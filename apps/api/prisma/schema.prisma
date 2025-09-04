@@ -14,7 +14,7 @@ datasource db {
 }
 
 model Partner {
-  id              String   @id @default(cuid())
+  id              Int      @id @default(autoincrement())
   partnerName     String
   website         String?
   officeLocation  String?
@@ -35,8 +35,8 @@ model Partner {
 }
 
 model PartnerApiKey {
-  id          String   @id @default(cuid())
-  partnerId   String
+  id          Int      @id @default(autoincrement())
+  partnerId   Int
   partner     Partner  @relation(fields: [partnerId], references: [id], onDelete: Cascade)
   apiKey      String   // SHA-256 hashed API key
   isActive    Boolean  @default(true)
@@ -51,12 +51,12 @@ model PartnerApiKey {
 }
 
 model PartnerContact {
-  id              String   @id @default(cuid())
-  partnerId       String
+  id              Int      @id @default(autoincrement())
+  partnerId       Int
   partner         Partner  @relation(fields: [partnerId], references: [id], onDelete: Cascade)
   
   contactName     String
-  contactPhone    String
+  contactPhone    String   @db.VarChar(20) // Numeric phone number, max 20 characters
   contactEmail    String?
   isPrimary       Boolean  @default(false)
   
@@ -68,10 +68,10 @@ model PartnerContact {
 }
 
 model PartnerCustomer {
-  id              String   @id @default(cuid())
-  partnerId       String
+  id              Int      @id @default(autoincrement())
+  partnerId       Int
   partner         Partner  @relation(fields: [partnerId], references: [id], onDelete: Cascade)
-  customerId      String
+  customerId      String   @db.Uuid
   customer        Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
   partnerCustomerId String // External partner customer ID (unique per partner)
   
@@ -84,19 +84,19 @@ model PartnerCustomer {
 }
 
 model Customer {
-  id              String   @id @default(cuid())
-  firstName       String
-  middleName      String?  // Optional middle name
-  lastName        String
+  id              String   @id @default(uuid()) @db.Uuid
+  firstName       String   @db.VarChar(50)
+  middleName      String?  @db.VarChar(50) // Optional middle name
+  lastName        String   @db.VarChar(50)
   email           String   @unique
-  phoneNumber     String
-  dateOfBirth     DateTime? // Optional date of birth
+  phoneNumber     String   @db.VarChar(20) // Numeric phone number, max 20 characters
+  dateOfBirth     DateTime? @db.Date // Date only, no time component
   gender          Gender?  // Optional gender field
   idType          IdType
-  idNumber        String
+  idNumber        String   @db.VarChar(20) // Max 20 characters
   status          CustomerStatus @default(PENDING_KYC)
   onboardingStep  OnboardingStep @default(BASIC_INFO)
-  createdByPartnerId String // Partner who created this customer
+  createdByPartnerId Int // Partner who created this customer
   
   // Address information
   address         Address?
@@ -129,8 +129,8 @@ model Customer {
 }
 
 model Address {
-  id          String   @id @default(cuid())
-  customerId  String   @unique
+  id          Int      @id @default(autoincrement())
+  customerId  String   @unique @db.Uuid
   customer    Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
   
   street      String
@@ -146,20 +146,19 @@ model Address {
 }
 
 model Dependant {
-  id          String   @id @default(cuid())
-  customerId  String
+  id          String   @id @default(uuid()) @db.Uuid
+  customerId  String   @db.Uuid
   customer    Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
   
-  firstName   String
-  middleName  String?  // Optional middle name
-  lastName    String
-  dateOfBirth DateTime? // Optional date of birth
+  firstName   String   @db.VarChar(50)
+  middleName  String?  @db.VarChar(50) // Optional middle name
+  lastName    String   @db.VarChar(50)
+  dateOfBirth DateTime? @db.Date // Optional date of birth, date only
   gender      Gender?  // Optional gender field
   idType      IdType?  // Optional ID type for identification
-  idNumber    String?  // Optional ID number for identification
+  idNumber    String?  @db.VarChar(20) // Optional ID number for identification, max 20 characters
   relationship DependantRelationship
-  isBeneficiary Boolean @default(false)
-  createdByPartnerId String // Partner who created this dependant
+  createdByPartnerId Int // Partner who created this dependant
   
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -168,20 +167,20 @@ model Dependant {
 }
 
 model Beneficiary {
-  id          String   @id @default(cuid())
-  customerId  String
+  id          String   @id @default(uuid()) @db.Uuid
+  customerId  String   @db.Uuid
   customer    Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
   
-  firstName   String
-  middleName  String?  // Optional field
-  lastName    String
-  dateOfBirth DateTime? // Optional date of birth
+  firstName   String   @db.VarChar(50)
+  middleName  String?  @db.VarChar(50) // Optional field
+  lastName    String   @db.VarChar(50)
+  dateOfBirth DateTime? @db.Date // Optional date of birth, date only
   gender      Gender?  // Optional field
   idType      IdType
-  idNumber    String
+  idNumber    String   @db.VarChar(20) // Max 20 characters
   relationship String? // Relationship to principal member
   percentage  Int?     // Percentage of benefits (1-100)
-  createdByPartnerId String // Partner who created this beneficiary
+  createdByPartnerId Int // Partner who created this beneficiary
   
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -190,8 +189,8 @@ model Beneficiary {
 }
 
 model OnboardingProgress {
-  id          String   @id @default(cuid())
-  customerId  String   @unique
+  id          Int      @id @default(autoincrement())
+  customerId  String   @unique @db.Uuid
   customer    Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
   
   currentStep OnboardingStep
@@ -212,8 +211,8 @@ model OnboardingProgress {
 }
 
 model KYCVerification {
-  id          String   @id @default(cuid())
-  customerId  String   @unique
+  id          Int      @id @default(autoincrement())
+  customerId  String   @unique @db.Uuid
   customer    Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
   
   status      KYCStatus @default(PENDING)
@@ -233,8 +232,8 @@ model KYCVerification {
 }
 
 model Policy {
-  id          String   @id @default(cuid())
-  customerId  String
+  id          String   @id @default(uuid()) @db.Uuid
+  customerId  String   @db.Uuid
   customer    Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
   
   policyNumber String  @unique

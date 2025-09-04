@@ -14,7 +14,7 @@ export class PartnerApiKeyMapper {
   static toApiKeyResponseDto(
     apiKeyData: {
       apiKey: string;
-      partnerId: string;
+      partnerId: number;
       createdAt: Date;
     },
     correlationId: string
@@ -24,7 +24,7 @@ export class PartnerApiKeyMapper {
     message: string;
     data: {
       apiKey: string;
-      partnerId: string;
+      partnerId: number;
       createdAt: string;
       expiresAt?: string;
     };
@@ -52,7 +52,7 @@ export class PartnerApiKeyMapper {
   static toApiKeyValidationResponseDto(
     validationResult: {
       valid: boolean;
-      partnerId?: string;
+      partnerId?: number;
       message: string;
     },
     correlationId: string
@@ -62,7 +62,7 @@ export class PartnerApiKeyMapper {
     message: string;
     data: {
       valid: boolean;
-      partnerId?: string;
+      partnerId?: number;
     };
   } {
     return {

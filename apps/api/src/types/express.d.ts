@@ -4,7 +4,7 @@ declare global {
   namespace Express {
     interface Request {
       apiKey?: string;
-      partnerId?: string;
+      partnerId?: number;
       correlationId: string; // Mandatory for all external requests
       userId?: string; // Will be set by auth middleware
     }

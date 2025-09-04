@@ -7,10 +7,10 @@ async function main() {
 
   // Create Maisha Poa partner
   const maishaPoaPartner = await prisma.partner.upsert({
-    where: { id: 'maisha-poa-partner-id' },
+    where: { id: 1 },
     update: {},
     create: {
-      id: 'maisha-poa-partner-id',
+      id: 1,
       partnerName: 'Maisha Poa',
       website: 'https://www.maishapoa.co.ke',
       officeLocation: 'Lotus Plaza, parklands',
@@ -19,13 +19,13 @@ async function main() {
         create: [
           {
             contactName: 'John Mwangi',
-            contactPhone: '+254700123456',
+            contactPhone: '254700123456',
             contactEmail: 'john@maishapoa.co.ke',
             isPrimary: true,
           },
           {
             contactName: 'Sarah Wanjiku',
-            contactPhone: '+254700123457',
+            contactPhone: '254700123457',
             contactEmail: 'sarah@maishapoa.co.ke',
             isPrimary: false,
           },
@@ -44,7 +44,7 @@ async function main() {
       firstName: 'John',
       lastName: 'Doe',
       email: 'john.doe@example.com',
-      phoneNumber: '+254700000001',
+      phoneNumber: '254700000001',
       dateOfBirth: new Date('1990-01-01'),
       gender: 'MALE',
       idType: 'NATIONAL_ID',
@@ -69,7 +69,6 @@ async function main() {
             dateOfBirth: new Date('1992-05-15'),
             gender: 'FEMALE',
             relationship: 'SPOUSE',
-            isBeneficiary: true,
             createdByPartnerId: maishaPoaPartner.id,
           },
           {
@@ -78,7 +77,6 @@ async function main() {
             dateOfBirth: new Date('2015-08-20'),
             gender: 'MALE',
             relationship: 'CHILD',
-            isBeneficiary: true,
             createdByPartnerId: maishaPoaPartner.id,
           },
         ],
@@ -149,7 +147,7 @@ async function main() {
       firstName: 'Jane',
       lastName: 'Smith',
       email: 'jane.smith@example.com',
-      phoneNumber: '+254700000002',
+      phoneNumber: '254700000002',
       dateOfBirth: new Date('1985-03-15'),
       gender: 'FEMALE',
       idType: 'PASSPORT',
