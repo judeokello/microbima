@@ -13,11 +13,16 @@ Welcome to the MicroBima project documentation. This guide will help you underst
 - [Coding Standards](development/coding-standards.md)
 - [Quick Reference Guide](quick-reference/development-guide.md)
 
+### 🧪 API Testing
+- [API Testing Guide](API_Testing_Guide.md)
+- [Postman Collection](MicroBima_API_Collection.postman_collection.json)
+
 ## 🚀 Quick Start
 
 1. **Read the [Quick Reference Guide](quick-reference/development-guide.md)** for immediate development guidance
 2. **Review [Coding Standards](development/coding-standards.md)** for best practices
 3. **Check [Architecture Decisions](architecture/decisions/)** for design rationale
+4. **Test the APIs** using the [Postman Collection](MicroBima_API_Collection.postman_collection.json) and [Testing Guide](API_Testing_Guide.md)
 
 ## 📋 Key Decisions Summary
 

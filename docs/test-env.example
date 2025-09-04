@@ -1,0 +1,22 @@
+# MicroBima API Test Environment Configuration
+# Copy this file to test-env.sh and modify as needed
+
+# API Configuration
+export BASE_URL="http://localhost:3000"
+export API_PREFIX="api"
+
+# Test Data
+export TEST_PARTNER_NAME="Test Insurance Ltd"
+export TEST_PARTNER_WEBSITE="https://test-insurance.com"
+export TEST_PARTNER_LOCATION="Nairobi, Kenya"
+
+export TEST_CUSTOMER_ID="test-cust-001"
+export TEST_CUSTOMER_FIRST_NAME="John"
+export TEST_CUSTOMER_LAST_NAME="Doe"
+export TEST_CUSTOMER_EMAIL="john.doe@test.com"
+export TEST_CUSTOMER_PHONE="+254712345678"
+
+# Optional: Override default values
+# export CORRELATION_ID="custom-correlation-id"
+# export PARTNER_ID="custom-partner-id"
+# export API_KEY="custom-api-key"
