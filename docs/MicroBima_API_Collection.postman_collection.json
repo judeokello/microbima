@@ -159,7 +159,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"partnerId\": \"{{partnerId}}\"\n}"
+              "raw": "{\n  \"partnerId\": {{partnerId}}\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/{{apiPrefix}}/internal/partner-management/api-keys",
@@ -177,7 +177,7 @@
       "description": "Public API endpoints for partner management (requires API key authentication)",
       "item": [
         {
-          "name": "Generate API Key (Authenticated)",
+          "name": "Reset API Key",
           "request": {
             "method": "POST",
             "header": [
@@ -194,16 +194,12 @@
                 "value": "{{correlationId}}"
               }
             ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"partnerId\": \"{{partnerId}}\"\n}"
-            },
             "url": {
               "raw": "{{baseUrl}}/{{apiPrefix}}/v1/partner-management/api-keys",
               "host": ["{{baseUrl}}"],
               "path": ["{{apiPrefix}}", "v1", "partner-management", "api-keys"]
             },
-            "description": "Generate new API key for authenticated partner"
+            "description": "Reset API key for authenticated partner (requires existing API key)"
           },
           "response": []
         },
@@ -217,20 +213,20 @@
                 "value": "application/json"
               },
               {
+                "key": "x-api-key",
+                "value": "{{apiKey}}"
+              },
+              {
                 "key": "x-correlation-id",
                 "value": "{{correlationId}}"
               }
             ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"apiKey\": \"{{apiKey}}\"\n}"
-            },
             "url": {
               "raw": "{{baseUrl}}/{{apiPrefix}}/v1/partner-management/api-keys/validate",
               "host": ["{{baseUrl}}"],
               "path": ["{{apiPrefix}}", "v1", "partner-management", "api-keys", "validate"]
             },
-            "description": "Validate an API key (no authentication required)"
+            "description": "Validate an API key (requires API key in header)"
           },
           "response": []
         },
@@ -252,16 +248,12 @@
                 "value": "{{correlationId}}"
               }
             ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"apiKey\": \"{{apiKey}}\"\n}"
-            },
             "url": {
               "raw": "{{baseUrl}}/{{apiPrefix}}/v1/partner-management/api-keys",
               "host": ["{{baseUrl}}"],
               "path": ["{{apiPrefix}}", "v1", "partner-management", "api-keys"]
             },
-            "description": "Deactivate an API key"
+            "description": "Deactivate an API key (sets isActive to false)"
           },
           "response": []
         }
@@ -291,7 +283,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"partnerCustomerId\": \"cust-12345\",\n  \"correlationId\": \"{{correlationId}}\",\n  \"product\": {\n    \"productId\": \"prod-001\",\n    \"productName\": \"Micro Health Insurance\",\n    \"planId\": \"plan-basic\",\n    \"planName\": \"Basic Plan\",\n    \"premiumAmount\": 500,\n    \"currency\": \"KES\",\n    \"coverageAmount\": 50000,\n    \"coveragePeriod\": \"1 year\"\n  },\n  \"principalMember\": {\n    \"firstName\": \"John\",\n    \"middleName\": \"Michael\",\n    \"lastName\": \"Doe\",\n    \"dateOfBirth\": \"1990-05-15\",\n    \"gender\": \"Male\",\n    \"nationalId\": \"12345678\",\n    \"phoneNumber\": \"+254712345678\",\n    \"email\": \"john.doe@example.com\",\n    \"address\": {\n      \"street\": \"123 Main Street\",\n      \"city\": \"Nairobi\",\n      \"state\": \"Nairobi County\",\n      \"postalCode\": \"00100\",\n      \"country\": \"Kenya\"\n    },\n    \"occupation\": \"Software Engineer\",\n    \"maritalStatus\": \"Single\",\n    \"emergencyContact\": {\n      \"name\": \"Jane Doe\",\n      \"relationship\": \"Sister\",\n      \"phoneNumber\": \"+254723456789\"\n    }\n  },\n  \"beneficiaries\": [\n    {\n      \"firstName\": \"Alice\",\n      \"middleName\": \"Marie\",\n      \"lastName\": \"Doe\",\n      \"dateOfBirth\": \"1995-03-20\",\n      \"gender\": \"Female\",\n      \"relationship\": \"Sister\",\n      \"benefitPercentage\": 50\n    }\n  ],\n  \"children\": [\n    {\n      \"firstName\": \"Bob\",\n      \"middleName\": \"James\",\n      \"lastName\": \"Doe\",\n      \"dateOfBirth\": \"2010-08-10\",\n      \"gender\": \"Male\",\n      \"relationship\": \"Son\"\n    }\n  ],\n  \"spouses\": [\n    {\n      \"firstName\": \"Sarah\",\n      \"middleName\": \"Elizabeth\",\n      \"lastName\": \"Doe\",\n      \"dateOfBirth\": \"1992-12-05\",\n      \"gender\": \"Female\",\n      \"marriageDate\": \"2015-06-15\"\n    }\n  ],\n  \"referredBy\": \"Agent Smith\"\n}"
+              "raw": "{\n  \"partnerCustomerId\": \"cust-12345\",\n  \"correlationId\": \"{{correlationId}}\",\n  \"product\": {\n    \"productId\": \"prod-001\",\n    \"planId\": \"plan-basic\"\n  },\n  \"principalMember\": {\n    \"firstName\": \"John\",\n    \"middleName\": \"Michael\",\n    \"lastName\": \"Doe\",\n    \"dateOfBirth\": \"1990-05-15\",\n    \"gender\": \"Male\",\n    \"idType\": \"national\",\n    \"idNumber\": \"12345678\",\n    \"phoneNumber\": \"+254712345678\",\n    \"email\": \"john.doe@example.com\",\n    \"occupation\": \"Software Engineer\",\n    \"maritalStatus\": \"Single\",\n    \"emergencyContact\": {\n      \"name\": \"Jane Doe\",\n      \"relationship\": \"Sister\",\n      \"phoneNumber\": \"+254723456789\"\n    }\n  },\n  \"beneficiaries\": [\n    {\n      \"firstName\": \"Alice\",\n      \"middleName\": \"Marie\",\n      \"lastName\": \"Doe\",\n      \"dateOfBirth\": \"1995-03-20\",\n      \"gender\": \"Female\",\n      \"relationship\": \"Sister\",\n      \"benefitPercentage\": 50\n    }\n  ],\n  \"children\": [\n    {\n      \"firstName\": \"Bob\",\n      \"middleName\": \"James\",\n      \"lastName\": \"Doe\",\n      \"dateOfBirth\": \"2010-08-10\",\n      \"gender\": \"Male\",\n      \"relationship\": \"Son\"\n    }\n  ],\n  \"spouses\": [\n    {\n      \"firstName\": \"Sarah\",\n      \"middleName\": \"Elizabeth\",\n      \"lastName\": \"Doe\",\n      \"dateOfBirth\": \"1992-12-05\",\n      \"gender\": \"Female\",\n      \"marriageDate\": \"2015-06-15\"\n    }\n  ],\n  \"referredBy\": \"Agent Smith\"\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/{{apiPrefix}}/customers",

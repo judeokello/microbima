@@ -55,8 +55,8 @@ export class PublicPartnerManagementController {
   @Post('api-keys')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ 
-    summary: 'Generate API key for authenticated partner',
-    description: 'Generates a new API key for the partner making the request. Requires valid API key authentication.'
+    summary: 'Reset API key for authenticated partner',
+    description: 'Generates a new API key for the partner making the request, deactivating the previous one. Requires valid API key authentication.'
   })
   @ApiResponse({ 
     status: HttpStatus.CREATED, 
@@ -76,19 +76,13 @@ export class PublicPartnerManagementController {
     description: 'Internal server error' 
   })
   async generateApiKey(
-    @Body() generateRequest: GenerateApiKeyRequestDto,
     @ApiKey() apiKey: string,
     @PartnerId() partnerId: string,
     @CorrelationId() correlationId: string,
   ): Promise<GenerateApiKeyResponseDto> {
-    this.logger.log(`[${correlationId}] Received request to generate API key for partner: ${partnerId}`);
+    this.logger.log(`[${correlationId}] Received request to reset API key for partner: ${partnerId}`);
 
     try {
-      // Validate that the request is for the authenticated partner
-      if (generateRequest.partnerId !== Number(partnerId)) {
-        throw new Error('Partner ID in request does not match authenticated partner');
-      }
-
       // Generate API key using the service
       const apiKeyData = await this.partnerManagementService.generateApiKey(
         Number(partnerId),
@@ -98,11 +92,11 @@ export class PublicPartnerManagementController {
       // Convert to response DTO
       const response = PartnerApiKeyMapper.toApiKeyResponseDto(apiKeyData, correlationId);
 
-      this.logger.log(`[${correlationId}] API key generated successfully for partner: ${partnerId}`);
+      this.logger.log(`[${correlationId}] API key reset successfully for partner: ${partnerId}`);
 
       return response;
     } catch (error) {
-      this.logger.error(`[${correlationId}] Error generating API key: ${error instanceof Error ? error.message : 'Unknown error'}`, error instanceof Error ? error.stack : undefined);
+      this.logger.error(`[${correlationId}] Error resetting API key: ${error instanceof Error ? error.message : 'Unknown error'}`, error instanceof Error ? error.stack : undefined);
       throw error;
     }
   }
@@ -115,7 +109,7 @@ export class PublicPartnerManagementController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ 
     summary: 'Validate API key',
-    description: 'Validates an API key and returns partner information if valid. Does not require API key authentication.'
+    description: 'Validates an API key and returns partner information if valid. Requires API key in x-api-key header.'
   })
   @ApiResponse({ 
     status: HttpStatus.OK, 
@@ -131,7 +125,7 @@ export class PublicPartnerManagementController {
     description: 'Internal server error' 
   })
   async validateApiKey(
-    @Body() validateRequest: ValidateApiKeyRequestDto,
+    @ApiKey() apiKey: string,
     @CorrelationId() correlationId: string,
   ): Promise<ValidateApiKeyResponseDto> {
     this.logger.log(`[${correlationId}] Received request to validate API key`);
@@ -139,7 +133,7 @@ export class PublicPartnerManagementController {
     try {
       // Validate API key using the service
       const validationResult = await this.partnerManagementService.validateApiKey(
-        validateRequest.apiKey,
+        apiKey,
         correlationId
       );
 
@@ -163,7 +157,7 @@ export class PublicPartnerManagementController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ 
     summary: 'Deactivate API key',
-    description: 'Deactivates an API key. Requires valid API key authentication.'
+    description: 'Deactivates the authenticated API key. Requires valid API key authentication.'
   })
   @ApiResponse({ 
     status: HttpStatus.OK, 
@@ -183,7 +177,6 @@ export class PublicPartnerManagementController {
     description: 'Internal server error' 
   })
   async deactivateApiKey(
-    @Body() deactivateRequest: DeactivateApiKeyRequestDto,
     @ApiKey() apiKey: string,
     @PartnerId() partnerId: string,
     @CorrelationId() correlationId: string,
@@ -193,7 +186,7 @@ export class PublicPartnerManagementController {
     try {
       // Deactivate API key using the service
       const success = await this.partnerManagementService.deactivateApiKey(
-        deactivateRequest.apiKey,
+        apiKey,
         correlationId
       );
 

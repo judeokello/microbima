@@ -146,13 +146,7 @@ The collection uses the following variables (automatically set):
   "correlationId": "{{correlationId}}",
   "product": {
     "productId": "prod-001",
-    "productName": "Micro Health Insurance",
-    "planId": "plan-basic",
-    "planName": "Basic Plan",
-    "premiumAmount": 500,
-    "currency": "KES",
-    "coverageAmount": 50000,
-    "coveragePeriod": "1 year"
+    "planId": "plan-basic"
   },
   "principalMember": {
     "firstName": "John",
@@ -160,16 +154,10 @@ The collection uses the following variables (automatically set):
     "lastName": "Doe",
     "dateOfBirth": "1990-05-15",
     "gender": "Male",
-    "nationalId": "12345678",
+    "idType": "national",
+    "idNumber": "12345678",
     "phoneNumber": "+254712345678",
     "email": "john.doe@example.com",
-    "address": {
-      "street": "123 Main Street",
-      "city": "Nairobi",
-      "state": "Nairobi County",
-      "postalCode": "00100",
-      "country": "Kenya"
-    },
     "occupation": "Software Engineer",
     "maritalStatus": "Single",
     "emergencyContact": {
@@ -260,16 +248,10 @@ The collection uses the following variables (automatically set):
     "lastName": "Doe",
     "dateOfBirth": "1990-05-15",
     "gender": "Male",
-    "nationalId": "12345678",
+    "idType": "national",
+    "idNumber": "12345678",
     "phoneNumber": "+254712345678",
     "email": "john.doe@example.com",
-    "address": {
-      "street": "123 Main Street",
-      "city": "Nairobi",
-      "state": "Nairobi County",
-      "postalCode": "00100",
-      "country": "Kenya"
-    },
     "occupation": "Software Engineer",
     "maritalStatus": "Single",
     "status": "active",
@@ -328,14 +310,11 @@ The collection uses the following variables (automatically set):
 #### 3.1 Validate API Key
 **Endpoint**: `POST /api/v1/partner-management/api-keys/validate`
 
-**Purpose**: Validate an API key (no authentication required)
+**Purpose**: Validate an API key (requires API key in header)
 
-**Request Body**:
-```json
-{
-  "apiKey": "{{apiKey}}"
-}
-```
+**Headers Required**:
+- `x-api-key`: `{{apiKey}}`
+- `x-correlation-id`: `{{correlationId}}`
 
 **Expected Response**:
 ```json
@@ -352,21 +331,14 @@ The collection uses the following variables (automatically set):
 }
 ```
 
-#### 3.2 Generate New API Key (Authenticated)
+#### 3.2 Reset API Key
 **Endpoint**: `POST /api/v1/partner-management/api-keys`
 
-**Purpose**: Generate a new API key for the authenticated partner
+**Purpose**: Reset API key for authenticated partner (requires existing API key)
 
 **Headers Required**:
 - `x-api-key`: `{{apiKey}}`
 - `x-correlation-id`: `{{correlationId}}`
-
-**Request Body**:
-```json
-{
-  "partnerId": "{{partnerId}}"
-}
-```
 
 **Expected Response**:
 ```json
@@ -386,18 +358,11 @@ The collection uses the following variables (automatically set):
 #### 3.3 Deactivate API Key
 **Endpoint**: `DELETE /api/v1/partner-management/api-keys`
 
-**Purpose**: Deactivate an API key
+**Purpose**: Deactivate an API key (sets isActive to false)
 
 **Headers Required**:
 - `x-api-key`: `{{apiKey}}`
 - `x-correlation-id`: `{{correlationId}}`
-
-**Request Body**:
-```json
-{
-  "apiKey": "{{apiKey}}"
-}
-```
 
 **Expected Response**:
 ```json

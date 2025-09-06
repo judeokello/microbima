@@ -6,10 +6,10 @@ import { IsNumber, IsNotEmpty } from 'class-validator';
  */
 export class GenerateApiKeyRequestDto {
   @ApiProperty({
-    description: 'Partner ID for which to generate API key',
-    example: 'partner_123456789',
+    description: 'Partner ID for which to generate API key (numeric value)',
+    example: 1,
   })
-  @IsNumber()
-  @IsNotEmpty()
+  @IsNumber({}, { message: 'partnerId must be a numeric value' })
+  @IsNotEmpty({ message: 'partnerId is required' })
   partnerId: number;
 }

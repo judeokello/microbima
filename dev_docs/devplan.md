@@ -249,6 +249,14 @@ The Customer Onboarding module is a core component of the MicroBima microinsuran
 - [ ] **5.5.1.5** Update OpenAPI spec with new data models (triggers 5.3.4.1)
 - [ ] **5.5.1.6** Test Kong routing to new endpoints (triggers 5.4.4.1)
 
+##### **5.5.1.7 Address Management (Post-MVP Enhancement)**
+- [ ] **5.5.1.7.1** Add address fields to principal member DTO
+- [ ] **5.5.1.7.2** Implement address validation and storage
+- [ ] **5.5.1.7.3** Update customer creation flow to handle addresses
+- [ ] **5.5.1.7.4** Add address update endpoints
+- [ ] **5.5.1.7.5** Update OpenAPI spec with address endpoints (triggers 5.3.4.1)
+- [ ] **5.5.1.7.6** Test Kong routing for address endpoints (triggers 5.4.4.1)
+
 ##### **5.5.2 Onboarding Progress Tracking**
 - [ ] **5.5.2.1** Implement onboarding progress table
 - [ ] **5.5.2.2** Set up step completion tracking

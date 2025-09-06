@@ -39,19 +39,19 @@ make_request() {
     local method=$1
     local url=$2
     local data=$3
-    local headers=$4
+    shift 3  # Remove first 3 arguments, leaving only header arguments
     
     if [ -n "$data" ]; then
         curl -s -X "$method" \
              -H "Content-Type: application/json" \
              -H "x-correlation-id: $CORRELATION_ID" \
-             $headers \
+             "$@" \
              -d "$data" \
              "$url"
     else
         curl -s -X "$method" \
              -H "x-correlation-id: $CORRELATION_ID" \
-             $headers \
+             "$@" \
              "$url"
     fi
 }
@@ -60,7 +60,7 @@ make_request() {
 extract_json_value() {
     local json=$1
     local key=$2
-    echo "$json" | jq -r ".$key // empty"
+    echo "$json" | jq -r ".$key // empty" | tr -d '\n'
 }
 
 # Check if API is running
@@ -85,12 +85,15 @@ test_create_partner() {
     
     # First, try to get existing partners
     local list_response=$(make_request "GET" "$BASE_URL/$API_PREFIX/internal/partner-management/partners")
-    local partners_count=$(echo "$list_response" | jq -r '.data.partners | length')
+    local partners_count=$(echo "$list_response" | jq -r '.data.partners | length' | tr -d '\n')
     
     if [ "$partners_count" -gt 0 ]; then
-        PARTNER_ID=$(echo "$list_response" | jq -r '.data.partners[0].id')
-        print_success "Using existing partner: $PARTNER_ID"
-        return 0
+        # Get the first active partner
+        PARTNER_ID=$(echo "$list_response" | jq -r '.data.partners[] | select(.isActive == true) | .id' | head -1 | tr -d '\n')
+        if [ -n "$PARTNER_ID" ]; then
+            print_success "Using existing active partner: $PARTNER_ID"
+            return 0
+        fi
     fi
     
     local partner_data='{
@@ -144,8 +147,9 @@ test_validate_api_key() {
 test_create_simple_customer() {
     print_status "Testing simple customer creation..."
     
+    local timestamp=$(date +%s)
     local customer_data='{
-        "partnerCustomerId": "test-cust-001",
+        "partnerCustomerId": "test-cust-'$timestamp'-001",
         "correlationId": "'$CORRELATION_ID'",
         "product": {
             "productId": "mfanisi-go",
@@ -157,15 +161,15 @@ test_create_simple_customer() {
             "lastName": "Doe",
             "dateOfBirth": "1990-05-15",
             "gender": "male",
-            "email": "john.doe@test.com",
+            "email": "john.doe.'$timestamp'@test.com",
             "phoneNumber": "254712345678",
             "idType": "national",
             "idNumber": "12345678",
-            "partnerCustomerId": "test-cust-001"
+            "partnerCustomerId": "test-cust-'$timestamp'-001"
         }
     }'
     
-    local response=$(make_request "POST" "$BASE_URL/$API_PREFIX/customers" "$customer_data" "-H x-api-key: $API_KEY")
+    local response=$(make_request "POST" "$BASE_URL/$API_PREFIX/customers" "$customer_data" "-H" "x-api-key: $API_KEY")
     local status=$(extract_json_value "$response" "status")
     
     if [ "$status" = "201" ]; then
@@ -183,8 +187,9 @@ test_create_simple_customer() {
 test_create_complex_customer() {
     print_status "Testing complex customer creation with family members..."
     
+    local timestamp=$(date +%s)
     local customer_data='{
-        "partnerCustomerId": "test-cust-002",
+        "partnerCustomerId": "test-cust-'$timestamp'-002",
         "correlationId": "'$CORRELATION_ID'",
         "product": {
             "productId": "mfanisi-go",
@@ -196,11 +201,11 @@ test_create_complex_customer() {
             "lastName": "Wilson",
             "dateOfBirth": "1985-12-10",
             "gender": "male",
-            "email": "david.wilson@test.com",
+            "email": "david.wilson.'$timestamp'@test.com",
             "phoneNumber": "254745678901",
             "idType": "national",
             "idNumber": "99887766",
-            "partnerCustomerId": "test-cust-002"
+            "partnerCustomerId": "test-cust-'$timestamp'-002"
         },
         "beneficiaries": [
             {
@@ -249,7 +254,7 @@ test_create_complex_customer() {
         ]
     }'
     
-    local response=$(make_request "POST" "$BASE_URL/$API_PREFIX/customers" "$customer_data" "-H x-api-key: $API_KEY")
+    local response=$(make_request "POST" "$BASE_URL/$API_PREFIX/customers" "$customer_data" "-H" "x-api-key: $API_KEY")
     local status=$(extract_json_value "$response" "status")
     
     if [ "$status" = "201" ]; then
@@ -267,11 +272,11 @@ test_create_complex_customer() {
 test_get_customer() {
     print_status "Testing customer retrieval..."
     
-    local response=$(make_request "GET" "$BASE_URL/$API_PREFIX/customers/$CUSTOMER_ID" "" "-H x-api-key: $API_KEY")
-    local status=$(extract_json_value "$response" "status")
+    local response=$(make_request "GET" "$BASE_URL/$API_PREFIX/customers/$CUSTOMER_ID" "" "-H" "x-api-key: $API_KEY")
+    local firstName=$(extract_json_value "$response" "firstName")
     
-    if [ "$status" = "200" ]; then
-        print_success "Customer retrieved successfully"
+    if [ -n "$firstName" ]; then
+        print_success "Customer retrieved successfully: $firstName"
         return 0
     else
         print_error "Customer retrieval failed"
@@ -284,11 +289,11 @@ test_get_customer() {
 test_get_customers() {
     print_status "Testing customer list retrieval..."
     
-    local response=$(make_request "GET" "$BASE_URL/$API_PREFIX/customers?page=1&limit=10" "" "-H x-api-key: $API_KEY")
-    local status=$(extract_json_value "$response" "status")
+    local response=$(make_request "GET" "$BASE_URL/$API_PREFIX/customers?page=1&limit=10" "" "-H" "x-api-key: $API_KEY")
+    local total=$(extract_json_value "$response" "pagination.total")
     
-    if [ "$status" = "200" ]; then
-        print_success "Customer list retrieved successfully"
+    if [ -n "$total" ] && [ "$total" -gt 0 ]; then
+        print_success "Customer list retrieved successfully: $total customers"
         return 0
     else
         print_error "Customer list retrieval failed"
@@ -302,10 +307,10 @@ test_get_partners() {
     print_status "Testing partner list retrieval..."
     
     local response=$(make_request "GET" "$BASE_URL/$API_PREFIX/internal/partner-management/partners?page=1&limit=10")
-    local status=$(extract_json_value "$response" "status")
+    local total=$(extract_json_value "$response" "data.pagination.total")
     
-    if [ "$status" = "200" ]; then
-        print_success "Partner list retrieved successfully"
+    if [ -n "$total" ] && [ "$total" -gt 0 ]; then
+        print_success "Partner list retrieved successfully: $total partners"
         return 0
     else
         print_error "Partner list retrieval failed"
