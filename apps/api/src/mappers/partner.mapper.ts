@@ -9,11 +9,13 @@ export class PartnerMapper {
    * Convert Partner entity to partner response DTO
    * @param partner - Partner entity from internal domain
    * @param correlationId - Correlation ID from request
+   * @param isCreated - Whether this is a creation response (true) or retrieval response (false)
    * @returns Partner response DTO
    */
   static toPartnerResponseDto(
     partner: Partner,
-    correlationId: string
+    correlationId: string,
+    isCreated: boolean = true
   ): {
     status: number;
     correlationId: string;
@@ -29,9 +31,9 @@ export class PartnerMapper {
     };
   } {
     return {
-      status: 201,
+      status: isCreated ? 201 : 200,
       correlationId: correlationId,
-      message: 'Partner created successfully',
+      message: isCreated ? 'Partner created successfully' : 'Partner already exists',
       data: {
         id: partner.id,
         partnerName: partner.partnerName,

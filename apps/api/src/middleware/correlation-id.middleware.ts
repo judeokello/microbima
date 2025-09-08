@@ -13,8 +13,17 @@ import { Request, Response, NextFunction } from 'express';
 @Injectable()
 export class CorrelationIdMiddleware implements NestMiddleware {
   use(req: Request, res: Response, next: NextFunction) {
+    // Debug logging
+    console.log(`[CorrelationIdMiddleware] req.path: "${req.path}", req.originalUrl: "${req.originalUrl}"`);
+    
     // Skip correlation ID requirement for internal API routes
-    if (req.path.startsWith('/api/internal')) {
+    // Check both req.path and req.originalUrl to handle different routing scenarios
+    const isInternalRoute = req.path.includes('/internal') || req.originalUrl.includes('/internal');
+    
+    console.log(`[CorrelationIdMiddleware] isInternalRoute: ${isInternalRoute}`);
+    
+    if (isInternalRoute) {
+      console.log(`[CorrelationIdMiddleware] Skipping correlation ID for internal route`);
       return next();
     }
 
@@ -29,7 +38,10 @@ export class CorrelationIdMiddleware implements NestMiddleware {
     }
 
     // Extract correlation ID from header
-    const correlationId = req.headers['x-correlation-id'] as string;
+    const correlationIdHeader = req.headers['x-correlation-id'];
+    const correlationId = Array.isArray(correlationIdHeader) 
+      ? correlationIdHeader[0] 
+      : correlationIdHeader as string;
 
     if (!correlationId) {
       throw new BadRequestException({
@@ -55,11 +67,8 @@ export class CorrelationIdMiddleware implements NestMiddleware {
     // Add correlation ID to request object for access throughout the request lifecycle
     req['correlationId'] = correlationId;
     
-    // Add correlation ID to response headers for client tracking
-    res.setHeader('x-correlation-id', correlationId);
-    
-    // Add correlation ID to response object for access in controllers/services
-    res['correlationId'] = correlationId;
+    // Note: Correlation ID is set in response body by mappers, not in headers
+    // to avoid duplication issues
     
     next();
   }

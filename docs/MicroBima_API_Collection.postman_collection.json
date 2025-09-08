@@ -12,31 +12,42 @@
       "description": "Base URL for the MicroBima API"
     },
     {
-      "key": "apiPrefix",
-      "value": "api",
-      "description": "API prefix for all endpoints"
+      "key": "correlationId",
+      "value": "req-{{$timestamp}}-{{$randomInt}}",
+      "description": "Correlation ID for request tracking"
     },
-    "correlationId",
-    "partnerId",
-    "apiKey",
-    "customerId"
+    {
+      "key": "partnerId",
+      "value": "",
+      "description": "Partner ID for testing"
+    },
+    {
+      "key": "apiKey",
+      "value": "",
+      "description": "API Key for authentication"
+    },
+    {
+      "key": "customerId",
+      "value": "",
+      "description": "Customer ID for testing"
+    }
   ],
   "auth": {
     "type": "apikey",
     "apikey": [
       {
         "key": "key",
+        "value": "x-api-key",
+        "type": "string"
+      },
+      {
+        "key": "value",
         "value": "{{apiKey}}",
         "type": "string"
       },
       {
         "key": "in",
         "value": "header",
-        "type": "string"
-      },
-      {
-        "key": "key",
-        "value": "x-api-key",
         "type": "string"
       }
     ]
@@ -53,7 +64,7 @@
           "}",
           "",
           "// Set correlation ID header for all requests",
-          "pm.request.headers.add({",
+          "pm.request.headers.upsert({",
           "    key: 'x-correlation-id',",
           "    value: pm.collectionVariables.get('correlationId')",
           "});"
@@ -74,10 +85,6 @@
               {
                 "key": "Content-Type",
                 "value": "application/json"
-              },
-              {
-                "key": "x-correlation-id",
-                "value": "{{correlationId}}"
               }
             ],
             "body": {
@@ -85,11 +92,11 @@
               "raw": "{\n  \"partnerName\": \"Acme Insurance Ltd\",\n  \"website\": \"https://acme-insurance.com\",\n  \"officeLocation\": \"Nairobi, Kenya\"\n}"
             },
             "url": {
-              "raw": "{{baseUrl}}/{{apiPrefix}}/internal/partner-management/partners",
+              "raw": "{{baseUrl}}/api/internal/partner-management/partners",
               "host": ["{{baseUrl}}"],
-              "path": ["{{apiPrefix}}", "internal", "partner-management", "partners"]
+              "path": ["api", "internal", "partner-management", "partners"]
             },
-            "description": "Create a new partner in the system"
+            "description": "Create a new partner in the system. If a partner with the same name already exists, returns the existing partner with status 200 and message 'Partner already exists' (idempotent behavior)."
           },
           "response": []
         },
@@ -98,15 +105,11 @@
           "request": {
             "method": "GET",
             "header": [
-              {
-                "key": "x-correlation-id",
-                "value": "{{correlationId}}"
-              }
             ],
             "url": {
-              "raw": "{{baseUrl}}/{{apiPrefix}}/internal/partner-management/partners?page=1&limit=10",
+              "raw": "{{baseUrl}}/api/internal/partner-management/partners?page=1&limit=10",
               "host": ["{{baseUrl}}"],
-              "path": ["{{apiPrefix}}", "internal", "partner-management", "partners"],
+              "path": ["api", "internal", "partner-management", "partners"],
               "query": [
                 {
                   "key": "page",
@@ -129,15 +132,11 @@
           "request": {
             "method": "GET",
             "header": [
-              {
-                "key": "x-correlation-id",
-                "value": "{{correlationId}}"
-              }
             ],
             "url": {
-              "raw": "{{baseUrl}}/{{apiPrefix}}/internal/partner-management/partners/{{partnerId}}",
+              "raw": "{{baseUrl}}/api/internal/partner-management/partners/{{partnerId}}",
               "host": ["{{baseUrl}}"],
-              "path": ["{{apiPrefix}}", "internal", "partner-management", "partners", "{{partnerId}}"]
+              "path": ["api", "internal", "partner-management", "partners", "{{partnerId}}"]
             },
             "description": "Get specific partner by ID"
           },
@@ -151,10 +150,6 @@
               {
                 "key": "Content-Type",
                 "value": "application/json"
-              },
-              {
-                "key": "x-correlation-id",
-                "value": "{{correlationId}}"
               }
             ],
             "body": {
@@ -162,11 +157,38 @@
               "raw": "{\n  \"partnerId\": {{partnerId}}\n}"
             },
             "url": {
-              "raw": "{{baseUrl}}/{{apiPrefix}}/internal/partner-management/api-keys",
+              "raw": "{{baseUrl}}/api/internal/partner-management/api-keys",
               "host": ["{{baseUrl}}"],
-              "path": ["{{apiPrefix}}", "internal", "partner-management", "api-keys"]
+              "path": ["api", "internal", "partner-management", "api-keys"]
             },
             "description": "Generate API key for a specific partner"
+          },
+          "response": []
+        },
+        {
+          "name": "Get All Customers",
+          "request": {
+            "method": "GET",
+            "header": [
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/internal/customers?page=1&limit=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "internal", "customers"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": "Page number"
+                },
+                {
+                  "key": "limit",
+                  "value": "10",
+                  "description": "Items per page (max: 100)"
+                }
+              ]
+            },
+            "description": "Get paginated list of all customers (Internal API only)"
           },
           "response": []
         }
@@ -188,16 +210,12 @@
               {
                 "key": "x-api-key",
                 "value": "{{apiKey}}"
-              },
-              {
-                "key": "x-correlation-id",
-                "value": "{{correlationId}}"
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/{{apiPrefix}}/v1/partner-management/api-keys",
+              "raw": "{{baseUrl}}/api/v1/partner-management/api-keys",
               "host": ["{{baseUrl}}"],
-              "path": ["{{apiPrefix}}", "v1", "partner-management", "api-keys"]
+              "path": ["api", "v1", "partner-management", "api-keys"]
             },
             "description": "Reset API key for authenticated partner (requires existing API key)"
           },
@@ -215,16 +233,12 @@
               {
                 "key": "x-api-key",
                 "value": "{{apiKey}}"
-              },
-              {
-                "key": "x-correlation-id",
-                "value": "{{correlationId}}"
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/{{apiPrefix}}/v1/partner-management/api-keys/validate",
+              "raw": "{{baseUrl}}/api/v1/partner-management/api-keys/validate",
               "host": ["{{baseUrl}}"],
-              "path": ["{{apiPrefix}}", "v1", "partner-management", "api-keys", "validate"]
+              "path": ["api", "v1", "partner-management", "api-keys", "validate"]
             },
             "description": "Validate an API key (requires API key in header)"
           },
@@ -242,16 +256,12 @@
               {
                 "key": "x-api-key",
                 "value": "{{apiKey}}"
-              },
-              {
-                "key": "x-correlation-id",
-                "value": "{{correlationId}}"
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/{{apiPrefix}}/v1/partner-management/api-keys",
+              "raw": "{{baseUrl}}/api/v1/partner-management/api-keys",
               "host": ["{{baseUrl}}"],
-              "path": ["{{apiPrefix}}", "v1", "partner-management", "api-keys"]
+              "path": ["api", "v1", "partner-management", "api-keys"]
             },
             "description": "Deactivate an API key (sets isActive to false)"
           },
@@ -275,22 +285,18 @@
               {
                 "key": "x-api-key",
                 "value": "{{apiKey}}"
-              },
-              {
-                "key": "x-correlation-id",
-                "value": "{{correlationId}}"
               }
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"partnerCustomerId\": \"cust-12345\",\n  \"correlationId\": \"{{correlationId}}\",\n  \"product\": {\n    \"productId\": \"prod-001\",\n    \"planId\": \"plan-basic\"\n  },\n  \"principalMember\": {\n    \"firstName\": \"John\",\n    \"middleName\": \"Michael\",\n    \"lastName\": \"Doe\",\n    \"dateOfBirth\": \"1990-05-15\",\n    \"gender\": \"Male\",\n    \"idType\": \"national\",\n    \"idNumber\": \"12345678\",\n    \"phoneNumber\": \"+254712345678\",\n    \"email\": \"john.doe@example.com\",\n    \"occupation\": \"Software Engineer\",\n    \"maritalStatus\": \"Single\",\n    \"emergencyContact\": {\n      \"name\": \"Jane Doe\",\n      \"relationship\": \"Sister\",\n      \"phoneNumber\": \"+254723456789\"\n    }\n  },\n  \"beneficiaries\": [\n    {\n      \"firstName\": \"Alice\",\n      \"middleName\": \"Marie\",\n      \"lastName\": \"Doe\",\n      \"dateOfBirth\": \"1995-03-20\",\n      \"gender\": \"Female\",\n      \"relationship\": \"Sister\",\n      \"benefitPercentage\": 50\n    }\n  ],\n  \"children\": [\n    {\n      \"firstName\": \"Bob\",\n      \"middleName\": \"James\",\n      \"lastName\": \"Doe\",\n      \"dateOfBirth\": \"2010-08-10\",\n      \"gender\": \"Male\",\n      \"relationship\": \"Son\"\n    }\n  ],\n  \"spouses\": [\n    {\n      \"firstName\": \"Sarah\",\n      \"middleName\": \"Elizabeth\",\n      \"lastName\": \"Doe\",\n      \"dateOfBirth\": \"1992-12-05\",\n      \"gender\": \"Female\",\n      \"marriageDate\": \"2015-06-15\"\n    }\n  ],\n  \"referredBy\": \"Agent Smith\"\n}"
+              "raw": "{\n  \"correlationId\": \"{{correlationId}}\",\n  \"referredBy\": \"Agent Smith\",\n  \"product\": {\n    \"productId\": \"1\",\n    \"planId\": \"1\"\n  },\n  \"principalMember\": {\n    \"partnerCustomerId\": \"PARTNER-CUST-001\",\n    \"firstName\": \"John\",\n    \"middleName\": \"Michael\",\n    \"lastName\": \"Doe\",\n    \"dateOfBirth\": \"1985-06-15\",\n    \"gender\": \"Male\",\n    \"email\": \"john.doe@example.com\",\n    \"phoneNumber\": \"+254712345678\",\n    \"idType\": \"national\",\n    \"idNumber\": \"12345678\"\n  },\n  \"beneficiaries\": [\n    {\n      \"firstName\": \"Jane\",\n      \"lastName\": \"Doe\",\n      \"dateOfBirth\": \"1987-03-20\",\n      \"gender\": \"Female\",\n      \"email\": \"jane.doe@example.com\",\n      \"idType\": \"national\",\n      \"idNumber\": \"87654321\",\n      \"relationship\": \"spouse\",\n      \"percentage\": 50\n    }\n  ],\n  \"children\": [\n    {\n      \"firstName\": \"Tommy\",\n      \"lastName\": \"Doe\",\n      \"dateOfBirth\": \"2010-05-15\",\n      \"gender\": \"Male\"\n    }\n  ],\n  \"spouses\": [\n    {\n      \"firstName\": \"Jane\",\n      \"lastName\": \"Doe\",\n      \"dateOfBirth\": \"1987-03-20\",\n      \"gender\": \"Female\",\n      \"email\": \"jane.doe@example.com\",\n      \"idType\": \"national\",\n      \"idNumber\": \"87654321\"\n    }\n  ]\n}"
             },
             "url": {
-              "raw": "{{baseUrl}}/{{apiPrefix}}/customers",
+              "raw": "{{baseUrl}}/api/customers",
               "host": ["{{baseUrl}}"],
-              "path": ["{{apiPrefix}}", "customers"]
+              "path": ["api", "customers"]
             },
-            "description": "Create a new customer with partner relationship"
+            "description": "Create a new principal member with beneficiaries and product selection. If principal already exists, returns existing principal information with status 200."
           },
           "response": []
         },
@@ -302,53 +308,14 @@
               {
                 "key": "x-api-key",
                 "value": "{{apiKey}}"
-              },
-              {
-                "key": "x-correlation-id",
-                "value": "{{correlationId}}"
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/{{apiPrefix}}/customers/{{customerId}}",
+              "raw": "{{baseUrl}}/api/customers/{{customerId}}",
               "host": ["{{baseUrl}}"],
-              "path": ["{{apiPrefix}}", "customers", "{{customerId}}"]
+              "path": ["api", "customers", "{{customerId}}"]
             },
-            "description": "Get specific customer by ID (scoped to authenticated partner)"
-          },
-          "response": []
-        },
-        {
-          "name": "Get All Customers",
-          "request": {
-            "method": "GET",
-            "header": [
-              {
-                "key": "x-api-key",
-                "value": "{{apiKey}}"
-              },
-              {
-                "key": "x-correlation-id",
-                "value": "{{correlationId}}"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/{{apiPrefix}}/customers?page=1&limit=10",
-              "host": ["{{baseUrl}}"],
-              "path": ["{{apiPrefix}}", "customers"],
-              "query": [
-                {
-                  "key": "page",
-                  "value": "1",
-                  "description": "Page number"
-                },
-                {
-                  "key": "limit",
-                  "value": "10",
-                  "description": "Items per page (max: 100)"
-                }
-              ]
-            },
-            "description": "Get paginated list of customers for authenticated partner"
+            "description": "Get specific principal member details by ID"
           },
           "response": []
         }
@@ -364,25 +331,11 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/health",
+              "raw": "{{baseUrl}}/api/health",
               "host": ["{{baseUrl}}"],
-              "path": ["health"]
+              "path": ["api", "health"]
             },
             "description": "Check API health status"
-          },
-          "response": []
-        },
-        {
-          "name": "API Health Check (Alternative)",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/{{apiPrefix}}/health",
-              "host": ["{{baseUrl}}"],
-              "path": ["{{apiPrefix}}", "health"]
-            },
-            "description": "Alternative health check endpoint"
           },
           "response": []
         }
@@ -393,16 +346,30 @@
       "description": "API documentation endpoints",
       "item": [
         {
-          "name": "Swagger UI",
+          "name": "Internal API Swagger UI",
           "request": {
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/api-docs",
+              "raw": "{{baseUrl}}/api/internal/docs",
               "host": ["{{baseUrl}}"],
-              "path": ["api-docs"]
+              "path": ["api", "internal", "docs"]
             },
-            "description": "Access Swagger UI for API documentation"
+            "description": "Access Swagger UI for Internal API documentation"
+          },
+          "response": []
+        },
+        {
+          "name": "Public API Swagger UI",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/docs",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "docs"]
+            },
+            "description": "Access Swagger UI for Public API documentation"
           },
           "response": []
         }

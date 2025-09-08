@@ -53,18 +53,22 @@ export class InternalPartnerManagementController {
   ) {}
 
   /**
-   * Create a new partner
+   * Create a new partner (idempotent operation)
    * POST /internal/partner-management/partners
    */
   @Post('partners')
-  @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ 
     summary: 'Create a new partner (Internal API)',
-    description: 'Creates a new partner in the system. This endpoint is for internal admin use only.'
+    description: 'Creates a new partner in the system. If a partner with the same name already exists, returns the existing partner with status 200. This endpoint is for internal admin use only.'
   })
   @ApiResponse({ 
     status: HttpStatus.CREATED, 
     description: 'Partner created successfully', 
+    type: CreatePartnerResponseDto 
+  })
+  @ApiResponse({ 
+    status: HttpStatus.OK, 
+    description: 'Partner already exists', 
     type: CreatePartnerResponseDto 
   })
   @ApiResponse({ 
@@ -77,29 +81,30 @@ export class InternalPartnerManagementController {
   })
   async createPartner(
     @Body() createRequest: CreatePartnerRequestDto,
-    @CorrelationId() correlationId: string,
   ): Promise<CreatePartnerResponseDto> {
-    this.logger.log(`[${correlationId}] Received request to create partner: ${createRequest.partnerName}`);
+    this.logger.log(`[internal] Received request to create partner: ${createRequest.partnerName}`);
 
     try {
-      // Create partner using the service
-      const partner = await this.partnerManagementService.createPartner(
+      // Create partner using the service (service handles idempotency)
+      const result = await this.partnerManagementService.createPartner(
         {
           partnerName: createRequest.partnerName,
           website: createRequest.website,
           officeLocation: createRequest.officeLocation,
         },
-        correlationId
+        'internal'
       );
 
-      // Convert to response DTO
-      const response = PartnerMapper.toPartnerResponseDto(partner, correlationId);
+      // Convert to response DTO with appropriate status based on whether it was created - no correlation ID for internal API
+      const response = PartnerMapper.toPartnerResponseDto(result.partner, '', result.wasCreated);
+      // Remove correlation ID from response for internal API
+      delete response.correlationId;
 
-      this.logger.log(`[${correlationId}] Partner created successfully: ${partner.id}`);
+      this.logger.log(`[internal] Partner ${result.wasCreated ? 'created' : 'retrieved'} successfully: ${result.partner.id}`);
 
       return response;
     } catch (error) {
-      this.logger.error(`[${correlationId}] Error creating partner: ${error instanceof Error ? error.message : 'Unknown error'}`, error instanceof Error ? error.stack : undefined);
+      this.logger.error(`[internal] Error creating partner: ${error instanceof Error ? error.message : 'Unknown error'}`, error instanceof Error ? error.stack : undefined);
       throw error;
     }
   }
@@ -144,22 +149,20 @@ export class InternalPartnerManagementController {
   async getPartners(
     @Query('page') page?: number,
     @Query('limit') limit?: number,
-    @CorrelationId() correlationId?: string,
   ): Promise<PartnerListResponseDto> {
-    this.logger.log(`[${correlationId}] Received request to get partners, page: ${page}, limit: ${limit}`);
+    this.logger.log(`[internal] Received request to get partners, page: ${page}, limit: ${limit}`);
 
     try {
       // Get partners using the service
       const result = await this.partnerManagementService.getPartners(
-        correlationId || 'unknown',
+        'internal',
         page || 1,
         limit || 10
       );
 
-      // Convert to response DTO
+      // Convert to response DTO (no correlation ID for internal API)
       const response: PartnerListResponseDto = {
         status: 200,
-        correlationId: correlationId || 'unknown',
         message: 'Partners retrieved successfully',
         data: {
           partners: result.partners.map(partner => PartnerMapper.toPartnerListItemDto(partner)),
@@ -167,11 +170,11 @@ export class InternalPartnerManagementController {
         },
       };
 
-      this.logger.log(`[${correlationId}] Retrieved ${result.partners.length} partners`);
+      this.logger.log(`[internal] Retrieved ${result.partners.length} partners`);
 
       return response;
     } catch (error) {
-      this.logger.error(`[${correlationId}] Error getting partners: ${error instanceof Error ? error.message : 'Unknown error'}`, error instanceof Error ? error.stack : undefined);
+      this.logger.error(`[internal] Error getting partners: ${error instanceof Error ? error.message : 'Unknown error'}`, error instanceof Error ? error.stack : undefined);
       throw error;
     }
   }
@@ -206,25 +209,26 @@ export class InternalPartnerManagementController {
   })
   async getPartnerById(
     @Param('id') partnerId: string,
-    @CorrelationId() correlationId?: string,
   ): Promise<CreatePartnerResponseDto> {
-    this.logger.log(`[${correlationId}] Received request to get partner: ${partnerId}`);
+    this.logger.log(`[internal] Received request to get partner: ${partnerId}`);
 
     try {
       // Get partner using the service
       const partner = await this.partnerManagementService.getPartnerById(
         Number(partnerId),
-        correlationId || 'unknown'
+        'internal'
       );
 
-      // Convert to response DTO
-      const response = PartnerMapper.toPartnerResponseDto(partner, correlationId || 'unknown');
+      // Convert to response DTO (GET operation should return status 200) - no correlation ID for internal API
+      const response = PartnerMapper.toPartnerResponseDto(partner, '', false);
+      // Remove correlation ID from response for internal API
+      delete response.correlationId;
 
-      this.logger.log(`[${correlationId}] Partner retrieved successfully: ${partnerId}`);
+      this.logger.log(`[internal] Partner retrieved successfully: ${partnerId}`);
 
       return response;
     } catch (error) {
-      this.logger.error(`[${correlationId}] Error getting partner: ${error instanceof Error ? error.message : 'Unknown error'}`, error instanceof Error ? error.stack : undefined);
+      this.logger.error(`[internal] Error getting partner: ${error instanceof Error ? error.message : 'Unknown error'}`, error instanceof Error ? error.stack : undefined);
       throw error;
     }
   }
@@ -254,25 +258,26 @@ export class InternalPartnerManagementController {
   })
   async generateApiKey(
     @Body() generateRequest: GenerateApiKeyRequestDto,
-    @CorrelationId() correlationId?: string,
   ): Promise<GenerateApiKeyResponseDto> {
-    this.logger.log(`[${correlationId}] Received request to generate API key for partner: ${generateRequest.partnerId}`);
+    this.logger.log(`[internal] Received request to generate API key for partner: ${generateRequest.partnerId}`);
 
     try {
       // Generate API key using the service
       const apiKeyData = await this.partnerManagementService.generateApiKey(
         Number(generateRequest.partnerId),
-        correlationId || 'unknown'
+        'internal'
       );
 
-      // Convert to response DTO
-      const response = PartnerApiKeyMapper.toApiKeyResponseDto(apiKeyData, correlationId || 'unknown');
+      // Convert to response DTO - no correlation ID for internal API
+      const response = PartnerApiKeyMapper.toApiKeyResponseDto(apiKeyData, '');
+      // Remove correlation ID from response for internal API
+      delete response.correlationId;
 
-      this.logger.log(`[${correlationId}] API key generated successfully for partner: ${generateRequest.partnerId}`);
+      this.logger.log(`[internal] API key generated successfully for partner: ${generateRequest.partnerId}`);
 
       return response;
     } catch (error) {
-      this.logger.error(`[${correlationId}] Error generating API key: ${error instanceof Error ? error.message : 'Unknown error'}`, error instanceof Error ? error.stack : undefined);
+      this.logger.error(`[internal] Error generating API key: ${error instanceof Error ? error.message : 'Unknown error'}`, error instanceof Error ? error.stack : undefined);
       throw error;
     }
   }
