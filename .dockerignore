@@ -15,8 +15,7 @@ README.md
 .env.test
 .env.production
 
-# Exclude build artifacts
-dist
+# Exclude build artifacts (but keep apps/api/dist)
 build
 coverage
 .nyc_output
