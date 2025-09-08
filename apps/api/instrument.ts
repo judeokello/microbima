@@ -1,7 +1,32 @@
 import * as Sentry from "@sentry/nestjs";
+import * as dotenv from "dotenv";
+import * as path from "path";
+
+// Load environment variables from .env file in project root
+// Try multiple possible paths
+const envPaths = [
+  path.resolve(__dirname, '../../.env'),
+  path.resolve(__dirname, '../../../.env'),
+  path.join(process.cwd(), '.env'),
+  path.join(process.cwd(), '../.env'),
+];
+
+let envLoaded = false;
+for (const envPath of envPaths) {
+  const result = dotenv.config({ path: envPath });
+  if (result.parsed && Object.keys(result.parsed).length > 0) {
+    console.log(`✅ Environment loaded from: ${envPath}`);
+    envLoaded = true;
+    break;
+  }
+}
+
+if (!envLoaded) {
+  console.log('⚠️  No .env file found, using system environment variables');
+}
 
 // Ensure to call this before requiring any other modules!
-Sentry.init({
+const sentryConfig = {
   dsn: process.env.SENTRY_DSN,
   environment: process.env.SENTRY_ENVIRONMENT || "development",
   
@@ -18,4 +43,14 @@ Sentry.init({
   // Learn more at
   // https://docs.sentry.io/platforms/javascript/guides/nestjs/configuration/options/#profilesSampleRate
   profilesSampleRate: parseFloat(process.env.SENTRY_PROFILES_SAMPLE_RATE || "1.0"),
+};
+
+console.log('🔧 Sentry Configuration:', {
+  dsn: sentryConfig.dsn ? 'Set' : 'Not set',
+  environment: sentryConfig.environment,
+  tracesSampleRate: sentryConfig.tracesSampleRate,
+  profilesSampleRate: sentryConfig.profilesSampleRate,
 });
+
+Sentry.init(sentryConfig);
+console.log('✅ Sentry initialized successfully');

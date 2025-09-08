@@ -204,7 +204,7 @@ export class AppController {
     }
   }
 
-  @Get('api/internal/debug-sentry')
+  @Get('internal/debug-sentry')
   @ApiTags('Debug')
   @ApiOperation({ 
     summary: 'Sentry Debug Endpoint',
@@ -221,16 +221,27 @@ export class AppController {
     }
   })
   getSentryError() {
-    Sentry.startSpan(
-      {
-        op: "test",
-        name: "My First Test Transaction",
-      },
-      () => {
-        setTimeout(() => {
-          throw new Error("My first Sentry error!");
-        }, 99);
-      },
-    );
+    // Simple error for testing
+    throw new Error("My first Sentry error!");
+  }
+
+  @Get('internal/debug-sentry-simple')
+  @ApiTags('Debug')
+  @ApiOperation({ 
+    summary: 'Simple Sentry Debug Endpoint',
+    description: 'Simple test endpoint that immediately throws an error for Sentry testing'
+  })
+  @ApiResponse({ 
+    status: 500, 
+    description: 'Intentionally throws an error for Sentry testing',
+    schema: {
+      type: 'object',
+      properties: {
+        error: { type: 'string', example: 'Simple Sentry test error!' }
+      }
+    }
+  })
+  getSimpleSentryError() {
+    throw new Error("Simple Sentry test error!");
   }
 }
