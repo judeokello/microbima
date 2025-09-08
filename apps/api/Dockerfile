@@ -27,6 +27,7 @@ COPY . .
 RUN npm install -g pnpm
 
 # Build the application
+WORKDIR /app/apps/api
 RUN pnpm build
 
 # Debug: List contents to see what was built
