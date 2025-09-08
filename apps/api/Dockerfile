@@ -30,8 +30,11 @@ RUN npm install -g pnpm
 RUN pnpm build
 
 # Debug: List contents to see what was built
+RUN echo "=== Contents of /app/apps/api/ ==="
 RUN ls -la /app/apps/api/
+RUN echo "=== Contents of /app/apps/api/dist/ ==="
 RUN ls -la /app/apps/api/dist/ || echo "dist directory not found"
+RUN echo "=== Build completed ==="
 
 # Production image, copy all the files and run the app
 FROM base AS runner
