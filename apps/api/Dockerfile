@@ -29,6 +29,10 @@ RUN npm install -g pnpm
 # Build the application
 RUN pnpm build
 
+# Debug: List contents to see what was built
+RUN ls -la /app/apps/api/
+RUN ls -la /app/apps/api/dist/ || echo "dist directory not found"
+
 # Production image, copy all the files and run the app
 FROM base AS runner
 WORKDIR /app
