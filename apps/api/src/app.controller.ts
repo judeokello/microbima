@@ -1,5 +1,6 @@
 import { Controller, Get } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+import * as Sentry from '@sentry/nestjs';
 import { AppService } from './app.service';
 import { ConfigurationService } from './config/configuration.service';
 import { PrismaService } from './prisma/prisma.service';
@@ -201,5 +202,35 @@ export class AppController {
         error: error.message,
       };
     }
+  }
+
+  @Get('api/internal/debug-sentry')
+  @ApiTags('Debug')
+  @ApiOperation({ 
+    summary: 'Sentry Debug Endpoint',
+    description: 'Test endpoint to verify Sentry error monitoring is working correctly'
+  })
+  @ApiResponse({ 
+    status: 500, 
+    description: 'Intentionally throws an error for Sentry testing',
+    schema: {
+      type: 'object',
+      properties: {
+        error: { type: 'string', example: 'My first Sentry error!' }
+      }
+    }
+  })
+  getSentryError() {
+    Sentry.startSpan(
+      {
+        op: "test",
+        name: "My First Test Transaction",
+      },
+      () => {
+        setTimeout(() => {
+          throw new Error("My first Sentry error!");
+        }, 99);
+      },
+    );
   }
 }

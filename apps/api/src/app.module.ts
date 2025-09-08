@@ -1,4 +1,5 @@
 import { Module, NestModule, MiddlewareConsumer, RequestMethod } from '@nestjs/common';
+import { SentryModule } from '@sentry/nestjs/setup';
 import { ConfigurationModule } from './config/config.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { AppController } from './app.controller';
@@ -13,7 +14,11 @@ import { InternalPartnerManagementController } from './controllers/internal/part
 import { PublicPartnerManagementController } from './controllers/public/partner-management.controller';
 
 @Module({
-  imports: [ConfigurationModule, PrismaModule],
+  imports: [
+    SentryModule.forRoot(),
+    ConfigurationModule, 
+    PrismaModule
+  ],
   controllers: [AppController, CustomerController, InternalPartnerManagementController, PublicPartnerManagementController],
   providers: [AppService, ExternalIntegrationsService, CustomerService, PartnerManagementService],
   exports: [PrismaModule], // Export PrismaModule so middleware can access PrismaService

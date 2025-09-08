@@ -7,6 +7,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { Request, Response } from 'express';
+import { SentryExceptionCaptured } from '@sentry/nestjs';
 import { ExternalIntegrationsService } from '../services/external-integrations.service';
 
 /**
@@ -27,6 +28,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
 
   constructor(private readonly externalIntegrationsService: ExternalIntegrationsService) {}
 
+  @SentryExceptionCaptured()
   catch(exception: unknown, host: ArgumentsHost) {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse<Response>();
