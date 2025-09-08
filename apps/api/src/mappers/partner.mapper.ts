@@ -18,7 +18,7 @@ export class PartnerMapper {
     isCreated: boolean = true
   ): {
     status: number;
-    correlationId: string;
+    correlationId?: string;
     message: string;
     data: {
       id: number;

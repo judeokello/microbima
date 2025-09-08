@@ -13,8 +13,9 @@ export class CreatePartnerResponseDto {
   @ApiProperty({
     description: 'Correlation ID for request tracing',
     example: 'req_123456789',
+    required: false,
   })
-  correlationId: string;
+  correlationId?: string;
 
   @ApiProperty({
     description: 'Response message',

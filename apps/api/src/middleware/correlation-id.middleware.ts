@@ -13,17 +13,21 @@ import { Request, Response, NextFunction } from 'express';
 @Injectable()
 export class CorrelationIdMiddleware implements NestMiddleware {
   use(req: Request, res: Response, next: NextFunction) {
-    // Debug logging
-    console.log(`[CorrelationIdMiddleware] req.path: "${req.path}", req.originalUrl: "${req.originalUrl}"`);
-    
     // Skip correlation ID requirement for internal API routes
-    // Check both req.path and req.originalUrl to handle different routing scenarios
-    const isInternalRoute = req.path.includes('/internal') || req.originalUrl.includes('/internal');
+    // Check multiple path formats to handle different routing scenarios
+    const path = req.path || '';
+    const originalUrl = req.originalUrl || '';
+    const url = req.url || '';
     
-    console.log(`[CorrelationIdMiddleware] isInternalRoute: ${isInternalRoute}`);
+    const isInternalRoute = 
+      path.includes('/internal') || 
+      originalUrl.includes('/internal') || 
+      url.includes('/internal') ||
+      path.includes('/api/internal') || 
+      originalUrl.includes('/api/internal') || 
+      url.includes('/api/internal');
     
     if (isInternalRoute) {
-      console.log(`[CorrelationIdMiddleware] Skipping correlation ID for internal route`);
       return next();
     }
 
@@ -39,9 +43,14 @@ export class CorrelationIdMiddleware implements NestMiddleware {
 
     // Extract correlation ID from header
     const correlationIdHeader = req.headers['x-correlation-id'];
-    const correlationId = Array.isArray(correlationIdHeader) 
+    let correlationId = Array.isArray(correlationIdHeader) 
       ? correlationIdHeader[0] 
       : correlationIdHeader as string;
+
+    // For internal routes, set a default correlation ID if none provided
+    if (!correlationId && isInternalRoute) {
+      correlationId = 'internal-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+    }
 
     if (!correlationId) {
       throw new BadRequestException({

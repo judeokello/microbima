@@ -97,8 +97,8 @@ export class InternalPartnerManagementController {
 
       // Convert to response DTO with appropriate status based on whether it was created - no correlation ID for internal API
       const response = PartnerMapper.toPartnerResponseDto(result.partner, '', result.wasCreated);
-      // Remove correlation ID from response for internal API
-      delete response.correlationId;
+      // Set correlation ID to undefined for internal API
+      response.correlationId = undefined;
 
       this.logger.log(`[internal] Partner ${result.wasCreated ? 'created' : 'retrieved'} successfully: ${result.partner.id}`);
 
@@ -164,6 +164,7 @@ export class InternalPartnerManagementController {
       const response: PartnerListResponseDto = {
         status: 200,
         message: 'Partners retrieved successfully',
+        correlationId: undefined, // No correlation ID for internal API
         data: {
           partners: result.partners.map(partner => PartnerMapper.toPartnerListItemDto(partner)),
           pagination: result.pagination,
@@ -221,8 +222,8 @@ export class InternalPartnerManagementController {
 
       // Convert to response DTO (GET operation should return status 200) - no correlation ID for internal API
       const response = PartnerMapper.toPartnerResponseDto(partner, '', false);
-      // Remove correlation ID from response for internal API
-      delete response.correlationId;
+      // Set correlation ID to undefined for internal API
+      response.correlationId = undefined;
 
       this.logger.log(`[internal] Partner retrieved successfully: ${partnerId}`);
 
@@ -270,8 +271,8 @@ export class InternalPartnerManagementController {
 
       // Convert to response DTO - no correlation ID for internal API
       const response = PartnerApiKeyMapper.toApiKeyResponseDto(apiKeyData, '');
-      // Remove correlation ID from response for internal API
-      delete response.correlationId;
+      // Set correlation ID to undefined for internal API
+      response.correlationId = undefined;
 
       this.logger.log(`[internal] API key generated successfully for partner: ${generateRequest.partnerId}`);
 

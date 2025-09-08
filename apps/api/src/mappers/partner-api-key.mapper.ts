@@ -20,7 +20,7 @@ export class PartnerApiKeyMapper {
     correlationId: string
   ): {
     status: number;
-    correlationId: string;
+    correlationId?: string;
     message: string;
     data: {
       apiKey: string;
@@ -58,7 +58,7 @@ export class PartnerApiKeyMapper {
     correlationId: string
   ): {
     status: number;
-    correlationId: string;
+    correlationId?: string;
     message: string;
     data: {
       valid: boolean;
