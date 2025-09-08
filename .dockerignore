@@ -2,7 +2,6 @@
 apps/api/instrument.ts
 apps/api/src/**/*.ts
 apps/api/**/*.ts
-!apps/api/dist/**/*.js
 
 # Exclude development files
 node_modules
