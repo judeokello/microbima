@@ -40,7 +40,7 @@ RUN adduser --system --uid 1001 nestjs
 
 # Copy the built application
 COPY --from=builder --chown=nestjs:nodejs /app/apps/api/dist ./dist
-COPY --from=builder --chown=nestjs:nodejs /app/apps/api/node_modules ./node_modules
+COPY --from=builder --chown=nestjs:nodejs /app/node_modules ./node_modules
 COPY --from=builder --chown=nestjs:nodejs /app/apps/api/package.json ./package.json
 COPY --from=builder --chown=nestjs:nodejs /app/apps/api/dist/instrument.js ./instrument.js
 
