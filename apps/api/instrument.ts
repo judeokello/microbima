@@ -1,6 +1,13 @@
-import * as Sentry from "@sentry/nestjs";
 import * as dotenv from "dotenv";
 import * as path from "path";
+
+// Try to import Sentry, but don't fail if it's not available
+let Sentry: any = null;
+try {
+  Sentry = require("@sentry/nestjs");
+} catch (error) {
+  console.log("⚠️  Sentry not available, skipping initialization");
+}
 
 // Load environment variables from .env file in project root
 // Try multiple possible paths
@@ -45,12 +52,16 @@ const sentryConfig = {
   profilesSampleRate: parseFloat(process.env.SENTRY_PROFILES_SAMPLE_RATE || "1.0"),
 };
 
-console.log('🔧 Sentry Configuration:', {
-  dsn: sentryConfig.dsn ? 'Set' : 'Not set',
-  environment: sentryConfig.environment,
-  tracesSampleRate: sentryConfig.tracesSampleRate,
-  profilesSampleRate: sentryConfig.profilesSampleRate,
-});
+if (Sentry) {
+  console.log('🔧 Sentry Configuration:', {
+    dsn: sentryConfig.dsn ? 'Set' : 'Not set',
+    environment: sentryConfig.environment,
+    tracesSampleRate: sentryConfig.tracesSampleRate,
+    profilesSampleRate: sentryConfig.profilesSampleRate,
+  });
 
-Sentry.init(sentryConfig);
-console.log('✅ Sentry initialized successfully');
+  Sentry.init(sentryConfig);
+  console.log('✅ Sentry initialized successfully');
+} else {
+  console.log('⚠️  Sentry not available, skipping initialization');
+}
