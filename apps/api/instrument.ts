@@ -1,5 +1,12 @@
-import * as dotenv from "dotenv";
 import * as path from "path";
+
+// Try to import dotenv, but don't fail if it's not available
+let dotenv: any = null;
+try {
+  dotenv = require("dotenv");
+} catch (error) {
+  console.log("⚠️  dotenv not available, skipping environment file loading");
+}
 
 // Try to import Sentry, but don't fail if it's not available
 let Sentry: any = null;
@@ -19,17 +26,19 @@ const envPaths = [
 ];
 
 let envLoaded = false;
-for (const envPath of envPaths) {
-  const result = dotenv.config({ path: envPath });
-  if (result.parsed && Object.keys(result.parsed).length > 0) {
-    console.log(`✅ Environment loaded from: ${envPath}`);
-    envLoaded = true;
-    break;
+if (dotenv) {
+  for (const envPath of envPaths) {
+    const result = dotenv.config({ path: envPath });
+    if (result.parsed && Object.keys(result.parsed).length > 0) {
+      console.log(`✅ Environment loaded from: ${envPath}`);
+      envLoaded = true;
+      break;
+    }
   }
 }
 
 if (!envLoaded) {
-  console.log('⚠️  No .env file found, using system environment variables');
+  console.log('⚠️  No .env file found or dotenv not available, using system environment variables');
 }
 
 // Ensure to call this before requiring any other modules!
