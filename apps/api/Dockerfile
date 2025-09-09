@@ -39,20 +39,21 @@ ENV NODE_ENV=production
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nestjs
 
+# Install pnpm
+RUN npm install -g pnpm
+
+# Copy package files
+COPY --from=builder --chown=nestjs:nodejs /app/package.json ./package.json
+COPY --from=builder --chown=nestjs:nodejs /app/pnpm-lock.yaml ./pnpm-lock.yaml
+COPY --from=builder --chown=nestjs:nodejs /app/pnpm-workspace.yaml ./pnpm-workspace.yaml
+COPY --from=builder --chown=nestjs:nodejs /app/packages/common-config/package.json ./packages/common-config/package.json
+COPY --from=builder --chown=nestjs:nodejs /app/apps/api/package.json ./apps/api/package.json
+
+# Install production dependencies
+RUN pnpm install --frozen-lockfile --prod
+
 # Copy the built application
 COPY --from=builder --chown=nestjs:nodejs /app/apps/api/dist ./dist
-COPY --from=builder --chown=nestjs:nodejs /app/node_modules ./node_modules
-COPY --from=builder --chown=nestjs:nodejs /app/apps/api/node_modules ./apps/api/node_modules
-COPY --from=builder --chown=nestjs:nodejs /app/apps/api/package.json ./package.json
-
-# Debug: Check what's in node_modules
-RUN echo "=== Root node_modules ==="
-RUN ls -la /app/node_modules/ | head -20
-RUN echo "=== Apps API node_modules ==="
-RUN ls -la /app/apps/api/node_modules/ | head -20
-RUN echo "=== Looking for @nestjs/core ==="
-RUN find /app -name "@nestjs" -type d 2>/dev/null || echo "No @nestjs found"
-RUN find /app -name "core" -path "*/@nestjs/*" 2>/dev/null || echo "No @nestjs/core found"
 
 USER nestjs
 
