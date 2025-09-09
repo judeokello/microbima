@@ -23,6 +23,7 @@ COPY . .
 
 # Build the application
 WORKDIR /app/apps/api
+RUN npx prisma generate
 RUN pnpm build
 
 # Set production environment
