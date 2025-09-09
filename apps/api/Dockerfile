@@ -14,7 +14,7 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY packages/common-config/package.json ./packages/common-config/
 COPY apps/api/package.json ./apps/api/
 
-# Install dependencies
+# Install dependencies for all workspaces
 RUN pnpm install --frozen-lockfile
 
 # Rebuild the source code only when needed
@@ -30,13 +30,6 @@ RUN npm install -g pnpm
 WORKDIR /app/apps/api
 RUN pnpm build
 
-# Debug: List contents to see what was built
-RUN echo "=== Contents of /app/apps/api/ ==="
-RUN ls -la /app/apps/api/
-RUN echo "=== Contents of /app/apps/api/dist/ ==="
-RUN ls -la /app/apps/api/dist/ || echo "dist directory not found"
-RUN echo "=== Build completed ==="
-
 # Production image, copy all the files and run the app
 FROM base AS runner
 WORKDIR /app
@@ -49,6 +42,7 @@ RUN adduser --system --uid 1001 nestjs
 # Copy the built application
 COPY --from=builder --chown=nestjs:nodejs /app/apps/api/dist ./dist
 COPY --from=builder --chown=nestjs:nodejs /app/node_modules ./node_modules
+COPY --from=builder --chown=nestjs:nodejs /app/apps/api/node_modules ./apps/api/node_modules
 COPY --from=builder --chown=nestjs:nodejs /app/apps/api/package.json ./package.json
 
 USER nestjs
