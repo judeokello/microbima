@@ -216,21 +216,40 @@ microbima/
 
 ### Deploy Internal API
 ```bash
+# Staging
 cd /path/to/microbima
-flyctl deploy -a microbima-staging-internal-api -c infra/fly/internal-api/fly.toml
+flyctl deploy -a microbima-staging-internal-api -c infra/fly/internal-api/staging/fly.toml
+
+# Production
+flyctl deploy -a microbima-production-internal-api -c infra/fly/internal-api/production/fly.toml
 ```
 
 ### Deploy Web Admin
 ```bash
+# Staging
 cd /path/to/microbima
-flyctl deploy -a microbima-staging-web-admin -c infra/fly/web-admin/fly.toml
+flyctl deploy -a microbima-staging-web-admin -c infra/fly/web-admin/staging/fly.toml
+
+# Production
+flyctl deploy -a microbima-production-web-admin -c infra/fly/web-admin/production/fly.toml
 ```
 
 ### Deploy Public API
 ```bash
+# Staging
 cd /path/to/microbima
-flyctl deploy -a microbima-staging-public-api -c infra/fly/public-api/fly.toml
+flyctl deploy -a microbima-staging-public-api -c infra/fly/public-api/staging/fly.toml
+
+# Production
+cd /path/to/microbima
+flyctl deploy -a microbima-production-public-api -c infra/fly/public-api/production/fly.toml
 ```
+
+## 🎯 Environment Strategy
+
+For detailed information about managing multiple environments and CI/CD pipelines, see:
+- [Environment Strategy Guide](environment-strategy.md) - Complete strategy for staging/production
+- [CI/CD Pipeline Setup](.github/workflows/deploy.yml) - Automated deployment configuration
 
 ---
 

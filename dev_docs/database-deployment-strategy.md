@@ -10,14 +10,14 @@ This document outlines the database strategy, migration strategy, and deployment
 ### 1.1 Separate Databases (Recommended Approach)
 ```
 Staging Environment:
-├── microbima-internal-api-staging → microbima-staging-db
-├── microbima-public-api-staging → routes to staging
-└── microbima-web-admin-staging → staging configs
+├── microbima-staging-internal-api → microbima-staging-db
+├── microbima-staging-public-api → routes to staging
+└── microbima-staging-web-admin → staging configs
 
 Production Environment:
-├── microbima-internal-api-prod → microbima-prod-db
-├── microbima-public-api-prod → routes to production
-└── microbima-web-admin-prod → production configs
+├── microbima-production-internal-api → microbima-prod-db
+├── microbima-production-public-api → routes to production
+└── microbima-production-web-admin → production configs
 ```
 
 ### 1.2 Benefits of Separate Databases
@@ -68,7 +68,7 @@ cd ../../infra/fly/internal-api-staging
 fly deploy
 
 # SSH into staging app and run migration
-fly ssh console -a microbima-internal-api-staging
+fly ssh console -a microbima-staging-internal-api
 
 # Inside staging console
 cd /app
@@ -86,7 +86,7 @@ cd ../../infra/fly/internal-api-prod
 fly deploy
 
 # SSH into production app and run migration
-fly ssh console -a microbima-internal-api-prod
+fly ssh console -a microbima-production-internal-api
 
 # Inside production console
 cd /app
@@ -111,20 +111,20 @@ npx prisma migrate deploy
 ```bash
 # Set staging database URL
 fly secrets set DATABASE_URL="postgresql://username:password@staging-host:5432/microbima_staging" \
-  --app microbima-internal-api-staging
+  --app microbima-staging-internal-api
 
 # Verify staging secrets
-fly secrets list --app microbima-internal-api-staging
+fly secrets list --app microbima-staging-internal-api
 ```
 
 #### **Production Database:**
 ```bash
 # Set production database URL
 fly secrets set DATABASE_URL="postgresql://username:password@production-host:5432/microbima_prod" \
-  --app microbima-internal-api-prod
+  --app microbima-production-internal-api
 
 # Verify production secrets
-fly secrets list --app microbima-internal-api-prod
+fly secrets list --app microbima-production-internal-api
 ```
 
 ### 3.2 Database Connection Configuration
@@ -205,7 +205,7 @@ jobs:
           
       - name: Run database migration on staging
         run: |
-          fly ssh console -a microbima-internal-api-staging -C "cd /app && npx prisma migrate deploy"
+          fly ssh console -a microbima-staging-internal-api -C "cd /app && npx prisma migrate deploy"
 
   deploy-production:
     if: github.ref == 'refs/heads/main'
@@ -232,7 +232,7 @@ jobs:
           
       - name: Run database migration on production
         run: |
-          fly ssh console -a microbima-internal-api-prod -C "cd /app && npx prisma migrate deploy"
+          fly ssh console -a microbima-production-internal-api -C "cd /app && npx prisma migrate deploy"
 ```
 
 ### 4.2 CI/CD Workflow
@@ -267,7 +267,7 @@ cd ../web-admin-staging
 fly deploy
 
 # 5. Run database migration on staging
-fly ssh console -a microbima-internal-api-staging
+fly ssh console -a microbima-staging-internal-api
 cd /app
 npx prisma migrate deploy
 exit
@@ -295,7 +295,7 @@ cd ../web-admin-prod
 fly deploy
 
 # 5. Run database migration on production
-fly ssh console -a microbima-internal-api-prod
+fly ssh console -a microbima-production-internal-api
 cd /app
 npx prisma migrate deploy
 exit
@@ -321,43 +321,43 @@ exit
 ```bash
 # Create staging internal API app
 cd infra/fly/internal-api-staging
-fly apps create microbima-internal-api-staging
+fly apps create microbima-staging-internal-api
 
 # Create staging public API app
 cd ../public-api-staging
-fly apps create microbima-public-api-staging
+fly apps create microbima-staging-public-api
 
 # Create staging web admin app
 cd ../web-admin-staging
-fly apps create microbima-web-admin-staging
+fly apps create microbima-staging-web-admin
 ```
 
 ### 6.2 Create Production Apps
 ```bash
 # Create production internal API app
 cd infra/fly/internal-api-prod
-fly apps create microbima-internal-api-prod
+fly apps create microbima-production-internal-api
 
 # Create production public API app
 cd ../public-api-prod
-fly apps create microbima-public-api-prod
+fly apps create microbima-production-public-api
 
 # Create production web admin app
 cd ../web-admin-prod
-fly apps create microbima-web-admin-prod
+fly apps create microbima-production-web-admin
 ```
 
 ### 6.3 Set Environment Variables
 ```bash
 # Staging environment
-fly secrets set NODE_ENV=staging --app microbima-internal-api-staging
-fly secrets set NODE_ENV=staging --app microbima-public-api-staging
-fly secrets set NODE_ENV=staging --app microbima-web-admin-staging
+fly secrets set NODE_ENV=staging --app microbima-staging-internal-api
+fly secrets set NODE_ENV=staging --app microbima-staging-public-api
+fly secrets set NODE_ENV=staging --app microbima-staging-web-admin
 
 # Production environment
-fly secrets set NODE_ENV=production --app microbima-internal-api-prod
-fly secrets set NODE_ENV=production --app microbima-public-api-prod
-fly secrets set NODE_ENV=production --app microbima-web-admin-prod
+fly secrets set NODE_ENV=production --app microbima-production-internal-api
+fly secrets set NODE_ENV=production --app microbima-production-public-api
+fly secrets set NODE_ENV=production --app microbima-production-web-admin
 ```
 
 ---
@@ -367,32 +367,32 @@ fly secrets set NODE_ENV=production --app microbima-web-admin-prod
 ### 7.1 Health Checks
 ```bash
 # Check staging health
-fly status --app microbima-internal-api-staging
-fly status --app microbima-public-api-staging
+fly status --app microbima-staging-internal-api
+fly status --app microbima-staging-public-api
 
 # Check production health
-fly status --app microbima-internal-api-prod
-fly status --app microbima-public-api-prod
+fly status --app microbima-production-internal-api
+fly status --app microbima-production-public-api
 ```
 
 ### 7.2 Log Monitoring
 ```bash
 # Monitor staging logs
-fly logs --app microbima-internal-api-staging
+fly logs --app microbima-staging-internal-api
 
 # Monitor production logs
-fly logs --app microbima-internal-api-prod
+fly logs --app microbima-production-internal-api
 ```
 
 ### 7.3 Database Verification
 ```bash
 # Verify staging database
-fly ssh console -a microbima-internal-api-staging
+fly ssh console -a microbima-staging-internal-api
 cd /app
 npx prisma studio
 
 # Verify production database
-fly ssh console -a microbima-internal-api-prod
+fly ssh console -a microbima-production-internal-api
 cd /app
 npx prisma studio
 ```
@@ -404,13 +404,13 @@ npx prisma studio
 ### 8.1 Code Rollback
 ```bash
 # Rollback to previous version
-fly deploy --image-label v1.0.0 --app microbima-internal-api-prod
+fly deploy --image-label v1.0.0 --app microbima-production-internal-api
 ```
 
 ### 8.2 Database Rollback
 ```bash
 # Rollback last migration
-fly ssh console -a microbima-internal-api-prod
+fly ssh console -a microbima-production-internal-api
 cd /app
 npx prisma migrate resolve --rolled-back <migration_name>
 ```

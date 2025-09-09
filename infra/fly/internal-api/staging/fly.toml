@@ -1,0 +1,48 @@
+app = "microbima-staging-internal-api"
+primary_region = "nrt"
+
+[build]
+  dockerfile = "../../../../apps/api/Dockerfile"
+
+[env]
+  NODE_ENV = "staging"
+  PORT = "3000"
+  API_PREFIX = "internal"
+  # Staging-specific environment variables
+  LOG_LEVEL = "debug"
+  SENTRY_ENVIRONMENT = "staging"
+  SENTRY_TRACES_SAMPLE_RATE = "0.1"
+
+[[services]]
+  internal_port = 3000
+  protocol = "tcp"
+
+  [[services.ports]]
+    port = 80
+    handlers = ["http"]
+    force_https = true
+
+  [[services.ports]]
+    port = 443
+    handlers = ["tls", "http"]
+
+  [services.concurrency]
+    type = "connections"
+    hard_limit = 25
+    soft_limit = 20
+
+  [[services.tcp_checks]]
+    interval = "15s"
+    timeout = "2s"
+    grace_period = "1s"
+
+[metrics]
+  port = 9091
+  path = "/metrics"
+
+[[vm]]
+  cpu_kind = "shared"
+  cpus = 1
+  memory_mb = 512
+
+# Staging environment - less restrictive for testing

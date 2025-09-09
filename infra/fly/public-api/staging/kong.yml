@@ -2,8 +2,8 @@ _format_version: "2.1"
 _transform: true
 
 services:
-  - name: microbima-internal-api
-    url: http://microbima-internal-api.internal:3000
+  - name: microbima-staging-internal-api
+    url: http://microbima-staging-internal-api.internal:3000
     routes:
       - name: public-customers
         paths:
@@ -26,8 +26,8 @@ services:
           max_age: 3600
       - name: rate-limiting
         config:
-          minute: 100
-          hour: 1000
+          minute: 200
+          hour: 2000
           policy: local
       - name: request-size-limiting
         config:
@@ -35,6 +35,6 @@ services:
       - name: response-ratelimiting
         config:
           limits:
-            - minute: 100
+            - minute: 200
               policy: local
               fault_tolerant: true

@@ -1,12 +1,15 @@
-app = "microbima-web-admin"
+app = "microbima-staging-web-admin"
 primary_region = "nrt"
 
 [build]
   dockerfile = "Dockerfile"
 
 [env]
-  NODE_ENV = "production"
+  NODE_ENV = "staging"
   PORT = "3000"
+  # Staging-specific environment variables
+  NEXT_PUBLIC_API_URL = "https://microbima-staging-internal-api.fly.dev"
+  NEXT_PUBLIC_ENVIRONMENT = "staging"
 
 [[services]]
   internal_port = 3000
@@ -40,5 +43,4 @@ primary_region = "nrt"
   cpus = 1
   memory_mb = 512
 
-# Web admin will communicate with internal API
-# via public endpoints (through Kong) or direct internal network
+# Staging environment - web admin for testing

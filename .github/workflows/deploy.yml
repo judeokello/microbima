@@ -1,0 +1,103 @@
+name: Deploy to Fly.io
+
+on:
+  push:
+    branches:
+      - staging
+      - production
+  pull_request:
+    branches:
+      - staging
+      - production
+
+env:
+  FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+jobs:
+  deploy-staging:
+    if: github.ref == 'refs/heads/staging'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+
+      - name: Install pnpm
+        run: npm install -g pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run tests
+        run: pnpm test
+
+      - name: Deploy Internal API to Staging
+        run: |
+          flyctl deploy -a microbima-staging-internal-api -c infra/fly/internal-api/staging/fly.toml
+
+      - name: Deploy Web Admin to Staging
+        run: |
+          flyctl deploy -a microbima-staging-web-admin -c infra/fly/web-admin/staging/fly.toml
+
+      - name: Deploy Public API to Staging
+        run: |
+          flyctl deploy -a microbima-staging-public-api -c infra/fly/public-api/staging/fly.toml
+
+  deploy-production:
+    if: github.ref == 'refs/heads/production'
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+
+      - name: Install pnpm
+        run: npm install -g pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run tests
+        run: pnpm test
+
+      - name: Deploy Internal API to Production
+        run: |
+          flyctl deploy -a microbima-production-internal-api -c infra/fly/internal-api/production/fly.toml
+
+      - name: Deploy Web Admin to Production
+        run: |
+          flyctl deploy -a microbima-production-web-admin -c infra/fly/web-admin/production/fly.toml
+
+      - name: Deploy Public API to Production
+        run: |
+          flyctl deploy -a microbima-production-public-api -c infra/fly/public-api/production/fly.toml
+
+  health-check:
+    needs: [deploy-staging, deploy-production]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Health Check Staging
+        if: github.ref == 'refs/heads/staging'
+        run: |
+          curl -f https://microbima-staging-internal-api.fly.dev/api/internal/health || exit 1
+          curl -f https://microbima-staging-web-admin.fly.dev/ || exit 1
+          curl -f https://microbima-staging-public-api.fly.dev/ || exit 1
+
+      - name: Health Check Production
+        if: github.ref == 'refs/heads/production'
+        run: |
+          curl -f https://microbima-production-internal-api.fly.dev/api/internal/health || exit 1
+          curl -f https://microbima-production-web-admin.fly.dev/ || exit 1
+          curl -f https://microbima-production-public-api.fly.dev/ || exit 1
