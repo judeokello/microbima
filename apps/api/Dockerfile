@@ -49,8 +49,8 @@ COPY --from=builder --chown=nestjs:nodejs /app/pnpm-workspace.yaml ./pnpm-worksp
 COPY --from=builder --chown=nestjs:nodejs /app/packages/common-config/package.json ./packages/common-config/package.json
 COPY --from=builder --chown=nestjs:nodejs /app/apps/api/package.json ./apps/api/package.json
 
-# Install production dependencies
-RUN pnpm install --frozen-lockfile --prod
+# Install all dependencies (including dev dependencies for now)
+RUN pnpm install --frozen-lockfile
 
 # Copy the built application
 COPY --from=builder --chown=nestjs:nodejs /app/apps/api/dist ./dist
