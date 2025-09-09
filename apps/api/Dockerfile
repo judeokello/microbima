@@ -45,6 +45,15 @@ COPY --from=builder --chown=nestjs:nodejs /app/node_modules ./node_modules
 COPY --from=builder --chown=nestjs:nodejs /app/apps/api/node_modules ./apps/api/node_modules
 COPY --from=builder --chown=nestjs:nodejs /app/apps/api/package.json ./package.json
 
+# Debug: Check what's in node_modules
+RUN echo "=== Root node_modules ==="
+RUN ls -la /app/node_modules/ | head -20
+RUN echo "=== Apps API node_modules ==="
+RUN ls -la /app/apps/api/node_modules/ | head -20
+RUN echo "=== Looking for @nestjs/core ==="
+RUN find /app -name "@nestjs" -type d 2>/dev/null || echo "No @nestjs found"
+RUN find /app -name "core" -path "*/@nestjs/*" 2>/dev/null || echo "No @nestjs/core found"
+
 USER nestjs
 
 EXPOSE 3000
