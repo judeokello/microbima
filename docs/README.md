@@ -17,12 +17,17 @@ Welcome to the MicroBima project documentation. This guide will help you underst
 - [API Testing Guide](API_Testing_Guide.md)
 - [Postman Collection](MicroBima_API_Collection.postman_collection.json)
 
+### 🚀 Deployment
+- [Fly.io Deployment Guide](deployment/fly-deployment-guide.md) - Comprehensive deployment guide with lessons learned
+- [Fly.io Quick Reference](deployment/fly-quick-reference.md) - Quick troubleshooting and deployment commands
+
 ## 🚀 Quick Start
 
 1. **Read the [Quick Reference Guide](quick-reference/development-guide.md)** for immediate development guidance
 2. **Review [Coding Standards](development/coding-standards.md)** for best practices
 3. **Check [Architecture Decisions](architecture/decisions/)** for design rationale
 4. **Test the APIs** using the [Postman Collection](MicroBima_API_Collection.postman_collection.json) and [Testing Guide](API_Testing_Guide.md)
+5. **Deploy to Fly.io** using the [Deployment Guide](deployment/fly-deployment-guide.md) and [Quick Reference](deployment/fly-quick-reference.md)
 
 ## 📋 Key Decisions Summary
 

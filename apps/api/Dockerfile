@@ -26,8 +26,12 @@ WORKDIR /app/apps/api
 RUN npx prisma generate
 RUN pnpm build
 
-# Set production environment
-ENV NODE_ENV=production
+# Fix pnpm symlinks for production
+# pnpm creates symlinks that don't work well in Docker, so we need to resolve them
+WORKDIR /app
+RUN pnpm install --prod --frozen-lockfile --shamefully-hoist
+
+# NODE_ENV will be set by Fly.io environment variables
 
 # Create non-root user
 RUN addgroup --system --gid 1001 nodejs
@@ -45,4 +49,4 @@ EXPOSE 3000
 ENV PORT=3000
 
 # Start the application
-CMD ["node", "--enable-source-maps", "dist/src/main"]
+CMD ["node", "--enable-source-maps", "apps/api/dist/src/main"]
