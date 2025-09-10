@@ -103,7 +103,7 @@ jobs:
       - name: Health Check Staging
         if: github.ref == 'refs/heads/staging'
         run: |
-          curl -f https://microbima-staging-internal-api.fly.dev/api/internal/health || exit 1
+          curl -f https://microbima-staging-internal-api.fly.dev/api/health || exit 1
           # TODO: Add health checks when web-admin and public-api are deployed
           # curl -f https://microbima-staging-web-admin.fly.dev/ || exit 1
           # curl -f https://microbima-staging-public-api.fly.dev/ || exit 1
@@ -111,7 +111,7 @@ jobs:
       - name: Health Check Production
         if: github.ref == 'refs/heads/production'
         run: |
-          curl -f https://microbima-production-internal-api.fly.dev/api/internal/health || exit 1
+          curl -f https://microbima-production-internal-api.fly.dev/api/health || exit 1
           # TODO: Add health checks when web-admin and public-api are deployed
           # curl -f https://microbima-production-web-admin.fly.dev/ || exit 1
           # curl -f https://microbima-production-public-api.fly.dev/ || exit 1
