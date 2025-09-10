@@ -7,9 +7,9 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
   private static instance: PrismaService;
 
   constructor() {
-    // Add connection pool parameters and disable prepared statements
+    // Use default connection pooling with prepared statements disabled
     const databaseUrl = process.env.DATABASE_URL;
-    const urlWithPooling = databaseUrl + '?connection_limit=5&pool_timeout=20&connect_timeout=60&prepared_statements=false';
+    const urlWithPooling = databaseUrl + '?prepared_statements=false';
 
     super({
       log: ['error', 'warn'],
