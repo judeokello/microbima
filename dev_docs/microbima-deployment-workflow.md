@@ -45,14 +45,36 @@ Development Branch → Staging Branch → Master Branch
 
 ### Step 2: Merge to Development
 
-1. **Review and merge** the Pull Request on GitHub
-2. **Pull latest development** locally:
+**Option A: Merge via GitHub Pull Request (Recommended)**
+1. **Create Pull Request** on GitHub from `feature/test-deployment` to `development`
+2. **Review the changes** in the PR
+3. **Merge the Pull Request** on GitHub
+4. **Pull latest development** locally:
    ```bash
    git checkout development
    git pull origin development
    ```
 
-3. **Verify changes** are in development:
+**Option B: Merge directly via Git (Alternative)**
+1. **Switch to development branch**:
+   ```bash
+   git checkout development
+   git pull origin development
+   ```
+
+2. **Merge feature branch**:
+   ```bash
+   git merge feature/test-deployment
+   git push origin development
+   ```
+
+3. **Clean up feature branch** (optional):
+   ```bash
+   git branch -d feature/test-deployment
+   git push origin --delete feature/test-deployment
+   ```
+
+4. **Verify changes** are in development:
    ```bash
    git log --oneline -5
    ```
