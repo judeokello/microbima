@@ -25,7 +25,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22'
-          cache: 'pnpm'
 
       - name: Install pnpm
         run: npm install -g pnpm
@@ -36,17 +35,24 @@ jobs:
       - name: Run tests
         run: pnpm test
 
+      - name: Install Fly.io CLI
+        run: |
+          curl -L https://fly.io/install.sh | sh
+          echo "$HOME/.fly/bin" >> $GITHUB_PATH
+
       - name: Deploy Internal API to Staging
         run: |
           flyctl deploy -a microbima-staging-internal-api -c infra/fly/internal-api/staging/fly.toml
 
-      - name: Deploy Web Admin to Staging
-        run: |
-          flyctl deploy -a microbima-staging-web-admin -c infra/fly/web-admin/staging/fly.toml
+      # TODO: Enable when web-admin app is created
+      # - name: Deploy Web Admin to Staging
+      #   run: |
+      #     flyctl deploy -a microbima-staging-web-admin -c infra/fly/web-admin/staging/fly.toml
 
-      - name: Deploy Public API to Staging
-        run: |
-          flyctl deploy -a microbima-staging-public-api -c infra/fly/public-api/staging/fly.toml
+      # TODO: Enable when public-api app is created
+      # - name: Deploy Public API to Staging
+      #   run: |
+      #     flyctl deploy -a microbima-staging-public-api -c infra/fly/public-api/staging/fly.toml
 
   deploy-production:
     if: github.ref == 'refs/heads/production'
@@ -60,7 +66,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22'
-          cache: 'pnpm'
 
       - name: Install pnpm
         run: npm install -g pnpm
@@ -71,17 +76,24 @@ jobs:
       - name: Run tests
         run: pnpm test
 
+      - name: Install Fly.io CLI
+        run: |
+          curl -L https://fly.io/install.sh | sh
+          echo "$HOME/.fly/bin" >> $GITHUB_PATH
+
       - name: Deploy Internal API to Production
         run: |
           flyctl deploy -a microbima-production-internal-api -c infra/fly/internal-api/production/fly.toml
 
-      - name: Deploy Web Admin to Production
-        run: |
-          flyctl deploy -a microbima-production-web-admin -c infra/fly/web-admin/production/fly.toml
+      # TODO: Enable when web-admin app is created
+      # - name: Deploy Web Admin to Production
+      #   run: |
+      #     flyctl deploy -a microbima-production-web-admin -c infra/fly/web-admin/production/fly.toml
 
-      - name: Deploy Public API to Production
-        run: |
-          flyctl deploy -a microbima-production-public-api -c infra/fly/public-api/production/fly.toml
+      # TODO: Enable when public-api app is created
+      # - name: Deploy Public API to Production
+      #   run: |
+      #     flyctl deploy -a microbima-production-public-api -c infra/fly/public-api/production/fly.toml
 
   health-check:
     needs: [deploy-staging, deploy-production]
@@ -91,13 +103,15 @@ jobs:
       - name: Health Check Staging
         if: github.ref == 'refs/heads/staging'
         run: |
-          curl -f https://microbima-staging-internal-api.fly.dev/api/internal/health || exit 1
-          curl -f https://microbima-staging-web-admin.fly.dev/ || exit 1
-          curl -f https://microbima-staging-public-api.fly.dev/ || exit 1
+          curl -f https://microbima-staging-internal-api.fly.dev/api/health || exit 1
+          # TODO: Add health checks when web-admin and public-api are deployed
+          # curl -f https://microbima-staging-web-admin.fly.dev/ || exit 1
+          # curl -f https://microbima-staging-public-api.fly.dev/ || exit 1
 
       - name: Health Check Production
         if: github.ref == 'refs/heads/production'
         run: |
-          curl -f https://microbima-production-internal-api.fly.dev/api/internal/health || exit 1
-          curl -f https://microbima-production-web-admin.fly.dev/ || exit 1
-          curl -f https://microbima-production-public-api.fly.dev/ || exit 1
+          curl -f https://microbima-production-internal-api.fly.dev/api/health || exit 1
+          # TODO: Add health checks when web-admin and public-api are deployed
+          # curl -f https://microbima-production-web-admin.fly.dev/ || exit 1
+          # curl -f https://microbima-production-public-api.fly.dev/ || exit 1

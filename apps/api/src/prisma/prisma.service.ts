@@ -4,11 +4,18 @@ import { PrismaClient } from '@prisma/client';
 @Injectable()
 export class PrismaService extends PrismaClient implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(PrismaService.name);
+  private static instance: PrismaService;
 
   constructor() {
     super({
       log: ['error', 'warn'],
     });
+
+    // Ensure singleton pattern
+    if (PrismaService.instance) {
+      return PrismaService.instance;
+    }
+    PrismaService.instance = this;
   }
 
   async onModuleInit() {
