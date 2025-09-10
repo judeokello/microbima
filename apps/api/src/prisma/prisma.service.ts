@@ -7,17 +7,8 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
   private static instance: PrismaService;
 
   constructor() {
-    // Use default connection pooling with prepared statements disabled
-    const databaseUrl = process.env.DATABASE_URL;
-    const urlWithPooling = databaseUrl + '?prepared_statements=false';
-
     super({
       log: ['error', 'warn'],
-      datasources: {
-        db: {
-          url: urlWithPooling,
-        },
-      },
     });
 
     // Ensure singleton pattern
