@@ -27,7 +27,7 @@ Development Branch → Staging Branch → Master Branch
    ```bash
    git checkout development
    git pull origin development
-   git checkout -b feature/your-feature-name
+   git checkout -b feature/test-deployment
    ```
 
 2. **Make your changes** and commit them:
@@ -38,7 +38,7 @@ Development Branch → Staging Branch → Master Branch
 
 3. **Push feature branch**:
    ```bash
-   git push origin feature/your-feature-name
+   git push origin feature/test-deployment
    ```
 
 4. **Create Pull Request** to development branch on GitHub
