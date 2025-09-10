@@ -35,6 +35,11 @@ jobs:
       - name: Run tests
         run: pnpm test
 
+      - name: Install Fly.io CLI
+        run: |
+          curl -L https://fly.io/install.sh | sh
+          echo "$HOME/.fly/bin" >> $GITHUB_PATH
+
       - name: Deploy Internal API to Staging
         run: |
           flyctl deploy -a microbima-staging-internal-api -c infra/fly/internal-api/staging/fly.toml
@@ -68,6 +73,11 @@ jobs:
 
       - name: Run tests
         run: pnpm test
+
+      - name: Install Fly.io CLI
+        run: |
+          curl -L https://fly.io/install.sh | sh
+          echo "$HOME/.fly/bin" >> $GITHUB_PATH
 
       - name: Deploy Internal API to Production
         run: |
