@@ -1,14 +1,22 @@
 import { Injectable, OnModuleInit, OnModuleDestroy, Logger } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
+import { ConfigurationService } from '../config/configuration.service';
 
 @Injectable()
 export class PrismaService extends PrismaClient implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(PrismaService.name);
   private static instance: PrismaService;
 
-  constructor() {
+  constructor(private configService: ConfigurationService) {
+    const dbConfig = configService.database;
+    
     super({
       log: ['error', 'warn'],
+      datasources: {
+        db: {
+          url: dbConfig.url,
+        },
+      },
     });
 
     // Ensure singleton pattern
