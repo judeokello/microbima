@@ -39,7 +39,7 @@ import { PartnerId } from '../decorators/api-key.decorator';
  */
 @ApiTags('Customer Management')
 @ApiSecurity('api-key')
-@Controller('customers')
+@Controller('v1/customers')
 export class CustomerController {
   constructor(private readonly customerService: CustomerService) {}
 

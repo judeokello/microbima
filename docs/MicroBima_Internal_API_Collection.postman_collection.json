@@ -1,0 +1,219 @@
+{
+  "info": {
+    "name": "MicroBima Internal API Collection",
+    "description": "Internal API endpoints for MicroBima (Developer use only - No authentication required)",
+    "version": "1.0.0",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000",
+      "description": "Base URL for the MicroBima Internal API"
+    },
+    {
+      "key": "correlationId",
+      "value": "req-{{$timestamp}}-{{$randomInt}}",
+      "description": "Correlation ID for request tracking"
+    },
+    {
+      "key": "partnerId",
+      "value": "",
+      "description": "Partner ID for testing"
+    },
+    {
+      "key": "customerId",
+      "value": "",
+      "description": "Customer ID for testing"
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Generate correlation ID if not set",
+          "if (!pm.collectionVariables.get('correlationId')) {",
+          "    pm.collectionVariables.set('correlationId', 'req-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9));",
+          "}",
+          "",
+          "// Set correlation ID header for all requests",
+          "pm.request.headers.upsert({",
+          "    key: 'x-correlation-id',",
+          "    value: pm.collectionVariables.get('correlationId')",
+          "});"
+        ]
+      }
+    }
+  ],
+  "item": [
+    {
+      "name": "Partner Management",
+      "description": "Internal API endpoints for partner management (no authentication required)",
+      "item": [
+        {
+          "name": "Create Partner",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"partnerName\": \"Acme Insurance Ltd\",\n  \"website\": \"https://acme-insurance.com\",\n  \"officeLocation\": \"Nairobi, Kenya\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/internal/partner-management/partners",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "internal", "partner-management", "partners"]
+            },
+            "description": "Create a new partner in the system. If a partner with the same name already exists, returns the existing partner with status 200 and message 'Partner already exists' (idempotent behavior)."
+          },
+          "response": []
+        },
+        {
+          "name": "Get All Partners",
+          "request": {
+            "method": "GET",
+            "header": [
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/internal/partner-management/partners?page=1&limit=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "internal", "partner-management", "partners"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": "Page number"
+                },
+                {
+                  "key": "limit",
+                  "value": "10",
+                  "description": "Items per page"
+                }
+              ]
+            },
+            "description": "Get paginated list of all partners"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Partner by ID",
+          "request": {
+            "method": "GET",
+            "header": [
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/internal/partner-management/partners/{{partnerId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "internal", "partner-management", "partners", "{{partnerId}}"]
+            },
+            "description": "Get specific partner by ID"
+          },
+          "response": []
+        },
+        {
+          "name": "Generate API Key for Partner",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"partnerId\": {{partnerId}}\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/internal/partner-management/api-keys",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "internal", "partner-management", "api-keys"]
+            },
+            "description": "Generate API key for a specific partner"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Customer Management",
+      "description": "Internal API endpoints for customer management (no authentication required)",
+      "item": [
+        {
+          "name": "Get All Customers",
+          "request": {
+            "method": "GET",
+            "header": [
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/internal/customers?page=1&limit=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "internal", "customers"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": "Page number"
+                },
+                {
+                  "key": "limit",
+                  "value": "10",
+                  "description": "Items per page (max: 100)"
+                }
+              ]
+            },
+            "description": "Get paginated list of all customers (Internal API only)"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Health Check",
+      "description": "Health check endpoints",
+      "item": [
+        {
+          "name": "API Health Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/health",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "health"]
+            },
+            "description": "Check API health status"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "API Documentation",
+      "description": "API documentation endpoints",
+      "item": [
+        {
+          "name": "Internal API Swagger UI",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/internal/docs",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "internal", "docs"]
+            },
+            "description": "Access Swagger UI for Internal API documentation"
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}

@@ -1,7 +1,7 @@
 {
   "info": {
-    "name": "MicroBima API Collection",
-    "description": "Comprehensive Postman collection for testing MicroBima Customer Onboarding and Partner Management APIs",
+    "name": "MicroBima Public API Collection",
+    "description": "Public API endpoints for MicroBima Customer Onboarding and Partner Management (requires API key authentication)",
     "version": "1.0.0",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
@@ -9,7 +9,7 @@
     {
       "key": "baseUrl",
       "value": "http://localhost:3000",
-      "description": "Base URL for the MicroBima API"
+      "description": "Base URL for the MicroBima Public API"
     },
     {
       "key": "correlationId",
@@ -74,128 +74,7 @@
   ],
   "item": [
     {
-      "name": "Internal API - Partner Management",
-      "description": "Internal API endpoints for partner management (no authentication required)",
-      "item": [
-        {
-          "name": "Create Partner",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"partnerName\": \"Acme Insurance Ltd\",\n  \"website\": \"https://acme-insurance.com\",\n  \"officeLocation\": \"Nairobi, Kenya\"\n}"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/api/internal/partner-management/partners",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "internal", "partner-management", "partners"]
-            },
-            "description": "Create a new partner in the system. If a partner with the same name already exists, returns the existing partner with status 200 and message 'Partner already exists' (idempotent behavior)."
-          },
-          "response": []
-        },
-        {
-          "name": "Get All Partners",
-          "request": {
-            "method": "GET",
-            "header": [
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/api/internal/partner-management/partners?page=1&limit=10",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "internal", "partner-management", "partners"],
-              "query": [
-                {
-                  "key": "page",
-                  "value": "1",
-                  "description": "Page number"
-                },
-                {
-                  "key": "limit",
-                  "value": "10",
-                  "description": "Items per page"
-                }
-              ]
-            },
-            "description": "Get paginated list of all partners"
-          },
-          "response": []
-        },
-        {
-          "name": "Get Partner by ID",
-          "request": {
-            "method": "GET",
-            "header": [
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/api/internal/partner-management/partners/{{partnerId}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "internal", "partner-management", "partners", "{{partnerId}}"]
-            },
-            "description": "Get specific partner by ID"
-          },
-          "response": []
-        },
-        {
-          "name": "Generate API Key for Partner",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"partnerId\": {{partnerId}}\n}"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/api/internal/partner-management/api-keys",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "internal", "partner-management", "api-keys"]
-            },
-            "description": "Generate API key for a specific partner"
-          },
-          "response": []
-        },
-        {
-          "name": "Get All Customers",
-          "request": {
-            "method": "GET",
-            "header": [
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/api/internal/customers?page=1&limit=10",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "internal", "customers"],
-              "query": [
-                {
-                  "key": "page",
-                  "value": "1",
-                  "description": "Page number"
-                },
-                {
-                  "key": "limit",
-                  "value": "10",
-                  "description": "Items per page (max: 100)"
-                }
-              ]
-            },
-            "description": "Get paginated list of all customers (Internal API only)"
-          },
-          "response": []
-        }
-      ]
-    },
-    {
-      "name": "Public API - Partner Management",
+      "name": "Partner Management",
       "description": "Public API endpoints for partner management (requires API key authentication)",
       "item": [
         {
@@ -270,7 +149,7 @@
       ]
     },
     {
-      "name": "Public API - Customer Management",
+      "name": "Customer Management",
       "description": "Public API endpoints for customer management (requires API key authentication)",
       "item": [
         {
@@ -292,9 +171,9 @@
               "raw": "{\n  \"correlationId\": \"{{correlationId}}\",\n  \"referredBy\": \"Agent Smith\",\n  \"product\": {\n    \"productId\": \"1\",\n    \"planId\": \"1\"\n  },\n  \"principalMember\": {\n    \"partnerCustomerId\": \"PARTNER-CUST-001\",\n    \"firstName\": \"John\",\n    \"middleName\": \"Michael\",\n    \"lastName\": \"Doe\",\n    \"dateOfBirth\": \"1985-06-15\",\n    \"gender\": \"Male\",\n    \"email\": \"john.doe@example.com\",\n    \"phoneNumber\": \"+254712345678\",\n    \"idType\": \"national\",\n    \"idNumber\": \"12345678\"\n  },\n  \"beneficiaries\": [\n    {\n      \"firstName\": \"Jane\",\n      \"lastName\": \"Doe\",\n      \"dateOfBirth\": \"1987-03-20\",\n      \"gender\": \"Female\",\n      \"email\": \"jane.doe@example.com\",\n      \"idType\": \"national\",\n      \"idNumber\": \"87654321\",\n      \"relationship\": \"spouse\",\n      \"percentage\": 50\n    }\n  ],\n  \"children\": [\n    {\n      \"firstName\": \"Tommy\",\n      \"lastName\": \"Doe\",\n      \"dateOfBirth\": \"2010-05-15\",\n      \"gender\": \"Male\"\n    }\n  ],\n  \"spouses\": [\n    {\n      \"firstName\": \"Jane\",\n      \"lastName\": \"Doe\",\n      \"dateOfBirth\": \"1987-03-20\",\n      \"gender\": \"Female\",\n      \"email\": \"jane.doe@example.com\",\n      \"idType\": \"national\",\n      \"idNumber\": \"87654321\"\n    }\n  ]\n}"
             },
             "url": {
-              "raw": "{{baseUrl}}/api/customers",
+              "raw": "{{baseUrl}}/api/v1/customers",
               "host": ["{{baseUrl}}"],
-              "path": ["api", "customers"]
+              "path": ["api", "v1", "customers"]
             },
             "description": "Create a new principal member with beneficiaries and product selection. If principal already exists, returns existing principal information with status 200."
           },
@@ -311,9 +190,9 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/customers/{{customerId}}",
+              "raw": "{{baseUrl}}/api/v1/customers/{{customerId}}",
               "host": ["{{baseUrl}}"],
-              "path": ["api", "customers", "{{customerId}}"]
+              "path": ["api", "v1", "customers", "{{customerId}}"]
             },
             "description": "Get specific principal member details by ID"
           },
@@ -345,20 +224,6 @@
       "name": "API Documentation",
       "description": "API documentation endpoints",
       "item": [
-        {
-          "name": "Internal API Swagger UI",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/api/internal/docs",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "internal", "docs"]
-            },
-            "description": "Access Swagger UI for Internal API documentation"
-          },
-          "response": []
-        },
         {
           "name": "Public API Swagger UI",
           "request": {
