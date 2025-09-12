@@ -9,13 +9,6 @@ import { SpouseDto } from '../family-members/spouse.dto';
 
 export class CreatePrincipalMemberRequestDto {
   @ApiProperty({
-    description: 'Partner customer ID (external identifier from partner system)',
-    example: 'cust-12345'
-  })
-  @IsString()
-  partnerCustomerId: string;
-
-  @ApiProperty({
     description: 'Correlation ID for request tracing',
     example: 'req-12345-67890'
   })
