@@ -37,10 +37,12 @@ export class SwaggerConfig {
       )
       .addTag('Health', 'Health check and system status endpoints')
       .addTag('Configuration', 'Application configuration and environment information')
-      .addTag('Customers', 'Customer management and onboarding operations')
-      .addTag('Policies', 'Insurance policy management')
-      .addTag('KYC', 'Know Your Customer verification processes')
-      .addTag('Onboarding', 'Customer onboarding workflow management')
+      .addTag('Internal - Partner Management', 'Internal partner management operations')
+      .addTag('Supabase Test', 'Supabase connection and testing endpoints')
+      .addTag('Connection Monitor', 'Database connection monitoring and statistics')
+      .addTag('Debug', 'Debug and development endpoints')
+      .addTag('Database', 'Database operations and monitoring')
+      .addTag('Customer Onboarding KYC Verification', 'Internal KYC verification processes')
       .build();
 
     const internalDocument = SwaggerModule.createDocument(app, internalConfig, {
@@ -99,9 +101,9 @@ export class SwaggerConfig {
         'OAuth2-auth',
       )
       .addTag('Public Health', 'Public health check endpoints')
-      .addTag('Customer Onboarding', 'Customer self-service onboarding')
+      .addTag('Partner Management', 'Public partner management operations')
+      .addTag('Customer Management', 'Public customer management operations')
       .addTag('Policy Management', 'Customer policy management')
-      .addTag('KYC Verification', 'Customer identity verification')
       .addTag('Claims', 'Insurance claims processing')
       .addTag('Payments', 'Premium payments and billing')
       .addServer('https://api.microbima.com', 'Production Server')

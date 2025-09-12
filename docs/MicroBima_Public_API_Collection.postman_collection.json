@@ -101,29 +101,6 @@
           "response": []
         },
         {
-          "name": "Validate API Key",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              },
-              {
-                "key": "x-api-key",
-                "value": "{{apiKey}}"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/api/v1/partner-management/api-keys/validate",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "partner-management", "api-keys", "validate"]
-            },
-            "description": "Validate an API key (requires API key in header)"
-          },
-          "response": []
-        },
-        {
           "name": "Deactivate API Key",
           "request": {
             "method": "DELETE",

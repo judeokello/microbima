@@ -4,7 +4,7 @@ import { SupabaseService } from '../../services/supabase.service';
 import { CreatePartnerRequestDto } from '../../dto/partner-management/create-partner-request.dto';
 
 @ApiTags('Supabase Test')
-@Controller('api/internal/supabase-test')
+@Controller('internal/supabase-test')
 export class SupabaseTestController {
   constructor(private readonly supabaseService: SupabaseService) {}
 

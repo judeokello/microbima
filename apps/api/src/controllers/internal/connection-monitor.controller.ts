@@ -3,7 +3,7 @@ import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { PrismaService } from '../../prisma/prisma.service';
 
 @ApiTags('Connection Monitor')
-@Controller('api/internal/connection-monitor')
+@Controller('internal/connection-monitor')
 export class ConnectionMonitorController {
   constructor(private readonly prismaService: PrismaService) {}
 

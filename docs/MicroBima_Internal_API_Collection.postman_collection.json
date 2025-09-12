@@ -176,6 +176,69 @@
       ]
     },
     {
+      "name": "Supabase Test",
+      "description": "Supabase connection and testing endpoints (no authentication required)",
+      "item": [
+        {
+          "name": "Test Supabase Connection",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/internal/supabase-test/connection",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "internal", "supabase-test", "connection"]
+            },
+            "description": "Test if Supabase client can connect to the database"
+          },
+          "response": []
+        },
+        {
+          "name": "Create Partner (Supabase Client)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"partnerName\": \"Acme Insurance Ltd\",\n  \"website\": \"https://acme-insurance.com\",\n  \"officeLocation\": \"Nairobi, Kenya\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/internal/supabase-test/partners",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "internal", "supabase-test", "partners"]
+            },
+            "description": "Create a new partner using Supabase client instead of Prisma"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Connection Monitor",
+      "description": "Database connection monitoring and statistics (no authentication required)",
+      "item": [
+        {
+          "name": "Get Database Connection Statistics",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/internal/connection-monitor/stats",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "internal", "connection-monitor", "stats"]
+            },
+            "description": "Get database connection statistics and monitoring information"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
       "name": "Health Check",
       "description": "Health check endpoints",
       "item": [

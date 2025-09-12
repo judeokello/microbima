@@ -21,8 +21,6 @@ import { CorrelationId } from '../../decorators/correlation-id.decorator';
 import {
   GenerateApiKeyRequestDto,
   GenerateApiKeyResponseDto,
-  ValidateApiKeyRequestDto,
-  ValidateApiKeyResponseDto,
   DeactivateApiKeyRequestDto,
   DeactivateApiKeyResponseDto,
 } from '../../dto/partner-management';
@@ -101,53 +99,6 @@ export class PublicPartnerManagementController {
     }
   }
 
-  /**
-   * Validate an API key
-   * POST /v1/partner-management/api-keys/validate
-   */
-  @Post('api-keys/validate')
-  @HttpCode(HttpStatus.OK)
-  @ApiOperation({ 
-    summary: 'Validate API key',
-    description: 'Validates an API key and returns partner information if valid. Requires API key in x-api-key header.'
-  })
-  @ApiResponse({ 
-    status: HttpStatus.OK, 
-    description: 'API key validation result', 
-    type: ValidateApiKeyResponseDto 
-  })
-  @ApiResponse({ 
-    status: HttpStatus.BAD_REQUEST, 
-    description: 'Invalid API key format' 
-  })
-  @ApiResponse({ 
-    status: HttpStatus.INTERNAL_SERVER_ERROR, 
-    description: 'Internal server error' 
-  })
-  async validateApiKey(
-    @ApiKey() apiKey: string,
-    @CorrelationId() correlationId: string,
-  ): Promise<ValidateApiKeyResponseDto> {
-    this.logger.log(`[${correlationId}] Received request to validate API key`);
-
-    try {
-      // Validate API key using the service
-      const validationResult = await this.partnerManagementService.validateApiKey(
-        apiKey,
-        correlationId
-      );
-
-      // Convert to response DTO
-      const response = PartnerApiKeyMapper.toApiKeyValidationResponseDto(validationResult, correlationId);
-
-      this.logger.log(`[${correlationId}] API key validation completed: ${validationResult.valid ? 'valid' : 'invalid'}`);
-
-      return response;
-    } catch (error) {
-      this.logger.error(`[${correlationId}] Error validating API key: ${error instanceof Error ? error.message : 'Unknown error'}`, error instanceof Error ? error.stack : undefined);
-      throw error;
-    }
-  }
 
   /**
    * Deactivate an API key
