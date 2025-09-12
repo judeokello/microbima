@@ -11,6 +11,7 @@ export class ConnectionMonitorController {
   @ApiOperation({ summary: 'Get database connection statistics' })
   @ApiResponse({ status: 200, description: 'Connection statistics retrieved successfully' })
   async getConnectionStats() {
+    // Force rebuild to clear deployment cache
     try {
       // Get basic connection info
       const connectionInfo = await this.prismaService.$queryRaw<Array<{
