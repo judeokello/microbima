@@ -8,7 +8,7 @@
   "variable": [
     {
       "key": "baseUrl",
-      "value": "http://localhost:3000",
+      "value": "https://microbima-staging-internal-api.fly.dev",
       "description": "Base URL for the MicroBima Internal API"
     },
     {
