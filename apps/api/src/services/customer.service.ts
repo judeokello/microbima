@@ -1,4 +1,5 @@
 import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
+import { ValidationException } from '../exceptions/validation.exception';
 import { PrismaService } from '../prisma/prisma.service';
 import { Customer, CustomerData } from '../entities/customer.entity';
 import { PartnerCustomer, PartnerCustomerData } from '../entities/partner-customer.entity';
@@ -79,7 +80,28 @@ export class CustomerService {
       // Validate customer entity
       const validationResult = customerEntity.validateBeforeSave();
       if (!validationResult.valid) {
-        throw new BadRequestException(validationResult.errors.join(', '));
+        throw new ValidationException(validationResult.errors.join(', '));
+      }
+
+      // Pre-save validation: Check for email uniqueness
+      if (customerEntity.email) {
+        const existingCustomerWithEmail = await this.prismaService.customer.findFirst({
+          where: { email: customerEntity.email },
+        });
+        if (existingCustomerWithEmail) {
+          throw new ValidationException('Email address already exists');
+        }
+      }
+
+      // Pre-save validation: Check for idType+idNumber uniqueness
+      const existingCustomerWithId = await this.prismaService.customer.findFirst({
+        where: {
+          idType: customerEntity.idType,
+          idNumber: customerEntity.idNumber,
+        },
+      });
+      if (existingCustomerWithId) {
+        throw new ValidationException('ID number already exists for this ID type');
       }
 
       // Create customer in database
@@ -88,7 +110,7 @@ export class CustomerService {
           firstName: customerEntity.firstName,
           middleName: customerEntity.middleName,
           lastName: customerEntity.lastName,
-          email: customerEntity.email,
+          email: customerEntity.email || null,
           phoneNumber: customerEntity.phoneNumber,
           dateOfBirth: customerEntity.dateOfBirth,
           gender: customerEntity.gender,

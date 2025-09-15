@@ -25,7 +25,7 @@ export class CustomerMapper {
       firstName: dto.firstName,
       middleName: dto.middleName || null,
       lastName: dto.lastName,
-      email: dto.email || '',
+      email: dto.email || null,
       phoneNumber: dto.phoneNumber || '',
       dateOfBirth: dto.dateOfBirth ? new Date(dto.dateOfBirth) : null,
       gender: SharedMapperUtils.mapGenderFromDto(dto.gender),

@@ -5,7 +5,7 @@ export interface CustomerData {
   firstName: string;
   middleName?: string | null;
   lastName: string;
-  email: string;
+  email?: string | null; // Made nullable
   phoneNumber: string;
   dateOfBirth?: Date | null;
   gender?: Gender | null;
@@ -26,7 +26,7 @@ export class Customer {
   firstName: string;
   middleName?: string | null;
   lastName: string;
-  email: string;
+  email?: string | null; // Made nullable
   phoneNumber: string;
   dateOfBirth?: Date | null;
   gender?: Gender | null;
@@ -170,8 +170,9 @@ export class Customer {
       errors.push('Last name is required');
     }
 
-    if (!this.email || this.email.trim().length === 0) {
-      errors.push('Email is required');
+    // Email is optional but if provided, must be valid
+    if (this.email && this.email.trim().length === 0) {
+      errors.push('Email cannot be empty if provided');
     }
 
     if (!this.phoneNumber || this.phoneNumber.trim().length === 0) {

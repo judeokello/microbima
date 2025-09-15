@@ -101,7 +101,7 @@ The Customer Onboarding module is a core component of the MicroBima microinsuran
   - [x] **5.2.2.6.1** Basic correlation ID extraction and validation
   - [x] **5.2.2.6.2** Correlation ID decorator for easy access
   - [x] **5.2.2.6.3** TypeScript type definitions
-  - [ ] **5.2.2.6.4** Basic request tracing endpoint (MVP - Post Phase 2)
+  - [x] **5.2.2.6.4** Basic request tracing endpoint (MVP - Post Phase 2)
   - [ ] **5.2.2.6.5** Enhanced internal system tracing (Post-MVP)
 - [x] **5.2.2.7** Create Global Exception Filter with Sentry integration
   - [x] **5.2.2.7.1** Global exception filter implementation
@@ -109,7 +109,7 @@ The Customer Onboarding module is a core component of the MicroBima microinsuran
   - [x] **5.2.2.7.3** Correlation ID inclusion in error responses
   - [x] **5.2.2.7.4** Request context logging
   - [x] **5.2.2.7.5** External integrations service for async calls
-  - [ ] **5.2.2.7.6** Proper Sentry SDK integration (Deferred to 5.2.4.1)
+  - [x] **5.2.2.7.6** Proper Sentry SDK integration (Deferred to 5.2.4.1)
 - [x] **5.2.2.8** Implement Customer Service with business logic
   - [x] **5.2.2.8.1** Create PartnerApiKey entity and database schema
   - [x] **5.2.2.8.2** Update API key validation middleware to use database
@@ -276,22 +276,22 @@ The Customer Onboarding module is a core component of the MicroBima microinsuran
 #### **5.6 Phase 6: Fly.io Deployment Configuration (Week 6)**
 
 ##### **5.6.1 Application Deployment**
-- [ ] **5.6.1.1** Create Dockerfiles for each application
-- [ ] **5.6.1.2** Configure Fly.io deployment files
-- [ ] **5.6.1.3** Set up environment variables and secrets
-- [ ] **5.6.1.4** Configure health checks and monitoring
+- [x] **5.6.1.1** Create Dockerfiles for each application
+- [x] **5.6.1.2** Configure Fly.io deployment files
+- [x] **5.6.1.3** Set up environment variables and secrets
+- [x] **5.6.1.4** Configure health checks and monitoring
 
 ##### **5.6.2 Networking and Security**
-- [ ] **5.6.2.1** Set up private networking between services
-- [ ] **5.6.2.2** Configure SSL certificates and HTTPS
-- [ ] **5.6.2.3** Set up firewall rules and access controls
-- [ ] **5.6.2.4** Configure backup and disaster recovery
+- [x] **5.6.2.1** Set up private networking between services
+- [x] **5.6.2.2** Configure SSL certificates and HTTPS
+- [x] **5.6.2.3** Set up firewall rules and access controls
+- [x] **5.6.2.4** Configure backup and disaster recovery
 
 ##### **5.6.3 Environment Management**
-- [ ] **5.6.3.1** Set up development, staging, and production environments
-- [ ] **5.6.3.2** Configure environment-specific configurations
+- [x] **5.6.3.1** Set up development, staging, and production environments
+- [x] **5.6.3.2** Configure environment-specific configurations
 - [ ] **5.6.3.3** Set up CI/CD pipelines for automated deployment
-- [ ] **5.6.3.4** Configure monitoring and alerting
+- [x] **5.6.3.4** Configure monitoring and alerting
 
 #### **5.7 Phase 7: Testing & Validation (Week 7)**
 

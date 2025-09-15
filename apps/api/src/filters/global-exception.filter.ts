@@ -46,12 +46,12 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       message: this.getErrorMessage(exception),
       error: this.getErrorType(exception),
       timestamp: new Date().toISOString(),
-      path: request.url,
       correlationId: correlationId,
       // Additional context for debugging (only in development)
       ...(process.env.NODE_ENV === 'development' && {
         stack: exception instanceof Error ? exception.stack : undefined,
         details: this.getErrorDetails(exception),
+        path: request.url, // Include path only in development
       }),
     };
 
@@ -80,6 +80,17 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       return exception.getStatus();
     }
     
+    if (exception instanceof Error) {
+      // Handle Prisma database errors with appropriate status codes
+      if (exception.message.includes('Unique constraint failed')) {
+        return HttpStatus.UNPROCESSABLE_ENTITY; // 422 for validation errors
+      }
+      
+      if (exception.message.includes('Foreign key constraint failed')) {
+        return HttpStatus.BAD_REQUEST; // 400 for invalid references
+      }
+    }
+    
     // Default to 500 for unknown exceptions
     return HttpStatus.INTERNAL_SERVER_ERROR;
   }
@@ -97,6 +108,30 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     }
     
     if (exception instanceof Error) {
+      // Handle Prisma database errors
+      if (exception.message.includes('Unique constraint failed')) {
+        if (exception.message.includes('email')) {
+          return 'Email address already exists';
+        }
+        if (exception.message.includes('idType') || exception.message.includes('idNumber')) {
+          return 'ID number already exists for this ID type';
+        }
+        return 'A record with this information already exists';
+      }
+      
+      if (exception.message.includes('Foreign key constraint failed')) {
+        return 'Invalid reference to related data';
+      }
+      
+      if (exception.message.includes('Invalid `this.prismaService')) {
+        return 'An error occurred while saving the data';
+      }
+      
+      // For other database errors, return generic message in production
+      if (process.env.NODE_ENV === 'production') {
+        return 'An error occurred while processing your request';
+      }
+      
       return exception.message;
     }
     
@@ -109,6 +144,9 @@ export class GlobalExceptionFilter implements ExceptionFilter {
   private getErrorType(exception: unknown): string {
     if (exception instanceof HttpException) {
       const status = exception.getStatus();
+      if (status === 422) {
+        return 'Validation Error';
+      }
       if (status >= 400 && status < 500) {
         return 'Bad Request';
       }

@@ -89,7 +89,7 @@ model Customer {
   firstName       String   @db.VarChar(50)
   middleName      String?  @db.VarChar(50) // Optional middle name
   lastName        String   @db.VarChar(50)
-  email           String   @unique
+  email           String?  @unique // Made nullable - when provided must be unique
   phoneNumber     String   @db.VarChar(20) // Numeric phone number, max 20 characters
   dateOfBirth     DateTime? @db.Date // Date only, no time component
   gender          Gender?  // Optional gender field
@@ -126,6 +126,7 @@ model Customer {
   createdBy       String?  // User ID who created
   updatedBy       String?  // User ID who last updated
 
+  @@unique([idType, idNumber], name: "unique_id_type_number") // Unique combination of idType and idNumber
   @@map("customers")
 }
 
