@@ -24,6 +24,9 @@ import { PrincipalMemberDto } from '../dto/principal-member/principal-member.dto
 import { AddDependantsRequestDto } from '../dto/dependants/add-dependants-request.dto';
 import { AddDependantsResponseDto } from '../dto/dependants/add-dependants-response.dto';
 import { GetDependantsResponseDto } from '../dto/dependants/get-dependants-response.dto';
+import { AddBeneficiariesRequestDto } from '../dto/beneficiaries/add-beneficiaries-request.dto';
+import { AddBeneficiariesResponseDto } from '../dto/beneficiaries/add-beneficiaries-response.dto';
+import { GetBeneficiariesResponseDto } from '../dto/beneficiaries/get-beneficiaries-response.dto';
 import { CorrelationId } from '../decorators/correlation-id.decorator';
 import { PartnerId } from '../decorators/api-key.decorator';
 
@@ -291,6 +294,98 @@ export class CustomerController {
     @CorrelationId() correlationId: string,
   ): Promise<GetDependantsResponseDto> {
     return this.customerService.getDependants(
+      customerId,
+      Number(partnerId),
+      correlationId
+    );
+  }
+
+  /**
+   * Add beneficiaries to an existing customer
+   * @param customerId - Customer ID
+   * @param addRequest - Beneficiaries addition request
+   * @param partnerId - Partner ID from API key validation
+   * @param correlationId - Correlation ID from request header
+   * @returns Beneficiaries addition response
+   */
+  @Post(':customerId/beneficiaries')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({
+    summary: 'Add beneficiaries to customer',
+    description: 'Add one or more beneficiaries to an existing customer in a single transaction. At least one beneficiary must be provided.',
+  })
+  @ApiParam({
+    name: 'customerId',
+    description: 'Customer ID',
+    example: 'cust_1234567890',
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'Beneficiaries added successfully',
+    type: AddBeneficiariesResponseDto,
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Bad request - validation errors or no beneficiaries provided',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Customer not found or not accessible to this partner',
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Unauthorized - invalid or inactive API key',
+  })
+  async addBeneficiaries(
+    @Param('customerId') customerId: string,
+    @Body() addRequest: AddBeneficiariesRequestDto,
+    @PartnerId() partnerId: string,
+    @CorrelationId() correlationId: string,
+  ): Promise<AddBeneficiariesResponseDto> {
+    return this.customerService.addBeneficiaries(
+      customerId,
+      addRequest,
+      Number(partnerId),
+      correlationId
+    );
+  }
+
+  /**
+   * Get all beneficiaries for a customer
+   * @param customerId - Customer ID
+   * @param partnerId - Partner ID from API key validation
+   * @param correlationId - Correlation ID from request header
+   * @returns Beneficiaries retrieval response
+   */
+  @Get(':customerId/beneficiaries')
+  @ApiOperation({
+    summary: 'Get customer beneficiaries',
+    description: 'Retrieve all beneficiaries for a specific customer. Only returns beneficiaries for customers that belong to the authenticated partner.',
+  })
+  @ApiParam({
+    name: 'customerId',
+    description: 'Customer ID',
+    example: 'cust_1234567890',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Beneficiaries retrieved successfully',
+    type: GetBeneficiariesResponseDto,
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Customer not found or not accessible to this partner',
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Unauthorized - invalid or inactive API key',
+  })
+  async getBeneficiaries(
+    @Param('customerId') customerId: string,
+    @PartnerId() partnerId: string,
+    @CorrelationId() correlationId: string,
+  ): Promise<GetBeneficiariesResponseDto> {
+    return this.customerService.getBeneficiaries(
       customerId,
       Number(partnerId),
       correlationId

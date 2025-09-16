@@ -21,6 +21,14 @@ services:
             - POST
           strip_path: false
           preserve_host: true
+        - name: public-customer-beneficiaries
+          paths:
+            - /api/v1/customers
+          methods:
+            - GET
+            - POST
+          strip_path: false
+          preserve_host: true
       - name: public-partner-management
         paths:
           - /api/v1/partner-management

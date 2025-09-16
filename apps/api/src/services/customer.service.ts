@@ -12,6 +12,9 @@ import { PrincipalMemberDto } from '../dto/principal-member/principal-member.dto
 import { AddDependantsRequestDto } from '../dto/dependants/add-dependants-request.dto';
 import { AddDependantsResponseDto } from '../dto/dependants/add-dependants-response.dto';
 import { GetDependantsResponseDto } from '../dto/dependants/get-dependants-response.dto';
+import { AddBeneficiariesRequestDto } from '../dto/beneficiaries/add-beneficiaries-request.dto';
+import { AddBeneficiariesResponseDto } from '../dto/beneficiaries/add-beneficiaries-response.dto';
+import { GetBeneficiariesResponseDto } from '../dto/beneficiaries/get-beneficiaries-response.dto';
 
 /**
  * Customer Service
@@ -731,6 +734,237 @@ export class CustomerService {
       };
     } catch (error) {
       this.logger.error(`[${correlationId}] Error getting dependants: ${error instanceof Error ? error.message : 'Unknown error'}`, error instanceof Error ? error.stack : undefined);
+      throw error;
+    }
+  }
+
+  /**
+   * Add beneficiaries to an existing customer
+   * @param customerId - Customer ID
+   * @param addRequest - Beneficiaries addition request
+   * @param partnerId - Partner ID from API key validation
+   * @param correlationId - Correlation ID for tracing
+   * @returns Beneficiaries addition response
+   */
+  async addBeneficiaries(
+    customerId: string,
+    addRequest: AddBeneficiariesRequestDto,
+    partnerId: number,
+    correlationId: string
+  ): Promise<AddBeneficiariesResponseDto> {
+    this.logger.log(`[${correlationId}] Adding beneficiaries to customer ${customerId} for partner ${partnerId}`);
+
+    try {
+      // Validate that at least one beneficiary is provided
+      if (!addRequest.beneficiaries || addRequest.beneficiaries.length === 0) {
+        throw ValidationException.forField('beneficiaries', 'At least one beneficiary must be provided', ErrorCodes.NO_BENEFICIARIES_PROVIDED);
+      }
+
+      // Validate relationship description for "other" relationships
+      const validationErrors: Record<string, string> = {};
+      addRequest.beneficiaries.forEach((beneficiary, index) => {
+        if (beneficiary.relationship === 'other' && !beneficiary.relationshipDescription) {
+          validationErrors[`beneficiaries[${index}].relationshipDescription`] = 'Relationship description is required when relationship is "other"';
+        }
+      });
+
+      if (Object.keys(validationErrors).length > 0) {
+        throw ValidationException.withMultipleErrors(validationErrors, ErrorCodes.VALIDATION_ERROR);
+      }
+
+      // Validate customer exists and belongs to partner
+      const customer = await this.prismaService.customer.findFirst({
+        where: {
+          id: customerId,
+          createdByPartnerId: partnerId,
+          partnerCustomers: {
+            some: {
+              partnerId: partnerId,
+            },
+          },
+        },
+      });
+
+      if (!customer) {
+        throw new NotFoundException('Customer not found or not accessible to this partner');
+      }
+
+      // Get partner customer ID for response
+      const partnerCustomer = await this.prismaService.partnerCustomer.findFirst({
+        where: {
+          customerId: customerId,
+          partnerId: partnerId,
+        },
+      });
+
+      if (!partnerCustomer) {
+        throw new NotFoundException('Partner customer relationship not found');
+      }
+
+      // Use transaction to add all beneficiaries atomically
+      const result = await this.prismaService.$transaction(async (tx) => {
+        const addedBeneficiaries: any[] = [];
+        let beneficiariesAdded = 0;
+
+        const beneficiariesData = addRequest.beneficiaries.map(beneficiary => ({
+          customerId: customerId,
+          firstName: beneficiary.firstName,
+          middleName: beneficiary.middleName || null,
+          lastName: beneficiary.lastName,
+          dateOfBirth: new Date(beneficiary.dateOfBirth),
+          gender: beneficiary.gender.toUpperCase() as any,
+          email: beneficiary.email || null,
+          phoneNumber: beneficiary.phoneNumber || null,
+          idType: beneficiary.idType.toUpperCase() as any,
+          idNumber: beneficiary.idNumber,
+          relationship: beneficiary.relationship,
+          relationshipDescription: beneficiary.relationshipDescription || null,
+          percentage: beneficiary.percentage,
+          createdByPartnerId: partnerId,
+        }));
+
+        const createdBeneficiaries = await tx.beneficiary.createMany({
+          data: beneficiariesData,
+        });
+
+        // Get the created beneficiaries with their IDs
+        const beneficiariesWithIds = await tx.beneficiary.findMany({
+          where: {
+            customerId: customerId,
+          },
+          orderBy: {
+            createdAt: 'desc',
+          },
+          take: addRequest.beneficiaries.length,
+        });
+
+        beneficiariesAdded = createdBeneficiaries.count;
+        addedBeneficiaries.push(...beneficiariesWithIds.map((beneficiary: any) => ({
+          beneficiaryId: beneficiary.id,
+          firstName: beneficiary.firstName,
+          lastName: beneficiary.lastName,
+          dateOfBirth: beneficiary.dateOfBirth.toISOString().split('T')[0],
+          gender: beneficiary.gender,
+          email: beneficiary.email,
+          phoneNumber: beneficiary.phoneNumber,
+          idType: beneficiary.idType,
+          idNumber: beneficiary.idNumber,
+          relationship: beneficiary.relationship,
+          relationshipDescription: beneficiary.relationshipDescription,
+          percentage: beneficiary.percentage,
+        })));
+
+        return {
+          partnerCustomerId: partnerCustomer.partnerCustomerId,
+          totalProcessed: beneficiariesAdded,
+          addedBeneficiaries,
+        };
+      });
+
+      this.logger.log(`[${correlationId}] Successfully added ${result.totalProcessed} beneficiaries to customer ${customerId}`);
+
+      return {
+        status: 201,
+        correlationId: correlationId,
+        message: 'Beneficiaries added successfully',
+        data: {
+          partnerCustomerId: result.partnerCustomerId,
+          beneficiaries: {
+            totalProcessed: result.totalProcessed,
+            success: true,
+            message: `${result.totalProcessed} beneficiaries added successfully`,
+            addedBeneficiaries: result.addedBeneficiaries,
+          },
+        },
+      };
+    } catch (error) {
+      this.logger.error(`[${correlationId}] Error adding beneficiaries: ${error instanceof Error ? error.message : 'Unknown error'}`, error instanceof Error ? error.stack : undefined);
+      throw error;
+    }
+  }
+
+  /**
+   * Get all beneficiaries for a customer
+   * @param customerId - Customer ID
+   * @param partnerId - Partner ID from API key validation
+   * @param correlationId - Correlation ID for tracing
+   * @returns Beneficiaries retrieval response
+   */
+  async getBeneficiaries(
+    customerId: string,
+    partnerId: number,
+    correlationId: string
+  ): Promise<GetBeneficiariesResponseDto> {
+    this.logger.log(`[${correlationId}] Getting beneficiaries for customer ${customerId} for partner ${partnerId}`);
+
+    try {
+      // Validate customer exists and belongs to partner
+      const customer = await this.prismaService.customer.findFirst({
+        where: {
+          id: customerId,
+          createdByPartnerId: partnerId,
+          partnerCustomers: {
+            some: {
+              partnerId: partnerId,
+            },
+          },
+        },
+      });
+
+      if (!customer) {
+        throw new NotFoundException('Customer not found or not accessible to this partner');
+      }
+
+      // Get partner customer ID for response
+      const partnerCustomer = await this.prismaService.partnerCustomer.findFirst({
+        where: {
+          customerId: customerId,
+          partnerId: partnerId,
+        },
+      });
+
+      if (!partnerCustomer) {
+        throw new NotFoundException('Partner customer relationship not found');
+      }
+
+      // Get beneficiaries
+      const beneficiaries = await this.prismaService.beneficiary.findMany({
+        where: { customerId: customerId },
+        orderBy: { createdAt: 'asc' },
+      });
+
+      // Transform beneficiaries data
+      const beneficiariesWithIds = beneficiaries.map((beneficiary: any) => ({
+        beneficiaryId: beneficiary.id,
+        firstName: beneficiary.firstName,
+        lastName: beneficiary.lastName,
+        dateOfBirth: beneficiary.dateOfBirth.toISOString().split('T')[0],
+        gender: beneficiary.gender,
+        email: beneficiary.email,
+        phoneNumber: beneficiary.phoneNumber,
+        idType: beneficiary.idType,
+        idNumber: beneficiary.idNumber,
+        relationship: beneficiary.relationship,
+        relationshipDescription: beneficiary.relationshipDescription,
+        percentage: beneficiary.percentage,
+      }));
+
+      const totalBeneficiaries = beneficiariesWithIds.length;
+
+      this.logger.log(`[${correlationId}] Retrieved ${totalBeneficiaries} beneficiaries for customer ${customerId}`);
+
+      return {
+        status: 200,
+        correlationId: correlationId,
+        message: 'Beneficiaries retrieved successfully',
+        data: {
+          partnerCustomerId: partnerCustomer.partnerCustomerId,
+          beneficiaries: beneficiariesWithIds,
+          totalBeneficiaries,
+        },
+      };
+    } catch (error) {
+      this.logger.error(`[${correlationId}] Error getting beneficiaries: ${error instanceof Error ? error.message : 'Unknown error'}`, error instanceof Error ? error.stack : undefined);
       throw error;
     }
   }

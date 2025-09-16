@@ -220,6 +220,52 @@
             "description": "Get all children and spouses for a specific customer"
           },
           "response": []
+        },
+        {
+          "name": "Add Beneficiaries to Customer",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"correlationId\": \"{{correlationId}}\",\n  \"beneficiaries\": [\n    {\n      \"firstName\": \"Sarah\",\n      \"lastName\": \"Johnson\",\n      \"dateOfBirth\": \"1990-08-15\",\n      \"gender\": \"female\",\n      \"email\": \"sarah.johnson@example.com\",\n      \"phoneNumber\": \"+254712345678\",\n      \"idType\": \"national\",\n      \"idNumber\": \"12345678\",\n      \"relationship\": \"spouse\",\n      \"percentage\": 50\n    },\n    {\n      \"firstName\": \"Tommy\",\n      \"lastName\": \"Johnson\",\n      \"dateOfBirth\": \"2010-05-15\",\n      \"gender\": \"male\",\n      \"idType\": \"national\",\n      \"idNumber\": \"87654321\",\n      \"relationship\": \"child\",\n      \"percentage\": 50\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/customers/{{customerId}}/beneficiaries",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "customers", "{{customerId}}", "beneficiaries"]
+            },
+            "description": "Add one or more beneficiaries to an existing customer in a single transaction"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Customer Beneficiaries",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-api-key",
+                "value": "{{apiKey}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/customers/{{customerId}}/beneficiaries",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "customers", "{{customerId}}", "beneficiaries"]
+            },
+            "description": "Get all beneficiaries for a specific customer"
+          },
+          "response": []
         }
       ]
     },
