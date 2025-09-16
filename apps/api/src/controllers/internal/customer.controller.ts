@@ -16,7 +16,8 @@ import {
   ApiSecurity,
 } from '@nestjs/swagger';
 import { CustomerService } from '../../services/customer.service';
-import { UpdatePrincipalMemberRequestDto } from '../../dto/principal-member/update-principal-member-request.dto';
+// TODO: Create UpdatePrincipalMemberRequestDto when implementing update functionality
+// import { UpdatePrincipalMemberRequestDto } from '../../dto/principal-member/update-principal-member-request.dto';
 import { PrincipalMemberDto } from '../../dto/principal-member/principal-member.dto';
 import { CorrelationId } from '../../decorators/correlation-id.decorator';
 import { PartnerId } from '../../decorators/api-key.decorator';
@@ -78,7 +79,7 @@ export class InternalCustomerController {
   })
   async updateCustomer(
     @Param('customerId') customerId: string,
-    @Body() updateRequest: UpdatePrincipalMemberRequestDto,
+    @Body() updateRequest: any, // TODO: Replace with UpdatePrincipalMemberRequestDto
     @PartnerId() partnerId: string,
     @CorrelationId() correlationId: string,
   ): Promise<PrincipalMemberDto> {

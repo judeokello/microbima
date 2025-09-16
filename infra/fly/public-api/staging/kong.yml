@@ -21,6 +21,13 @@ services:
           - DELETE
         strip_path: false
         preserve_host: true
+      - name: public-sos
+        paths:
+          - /api/v1/sos
+        methods:
+          - GET
+        strip_path: false
+        preserve_host: true
     plugins:
       - name: cors
         config:
