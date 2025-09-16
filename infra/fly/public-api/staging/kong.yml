@@ -3,7 +3,7 @@ _transform: true
 
 services:
   - name: microbima-staging-internal-api
-    url: http://microbima-staging-internal-api.internal:3000
+    url: https://microbima-staging-internal-api.fly.dev
     routes:
       - name: public-customers
         paths:
