@@ -10,11 +10,14 @@ import { ExternalIntegrationsService } from './services/external-integrations.se
 import { CustomerService } from './services/customer.service';
 import { PartnerManagementService } from './services/partner-management.service';
 import { SupabaseService } from './services/supabase.service';
+import { SosService } from './services/sos.service';
 import { CustomerController } from './controllers/customer.controller';
+import { InternalCustomerController } from './controllers/internal/customer.controller';
 import { InternalPartnerManagementController } from './controllers/internal/partner-management.controller';
 import { PublicPartnerManagementController } from './controllers/public/partner-management.controller';
 import { SupabaseTestController } from './controllers/internal/supabase-test.controller';
 import { ConnectionMonitorController } from './controllers/internal/connection-monitor.controller';
+import { SosController } from './controllers/sos.controller';
 
 @Module({
   imports: [
@@ -22,8 +25,8 @@ import { ConnectionMonitorController } from './controllers/internal/connection-m
     ConfigurationModule, 
     PrismaModule
   ],
-  controllers: [AppController, CustomerController, InternalPartnerManagementController, PublicPartnerManagementController, SupabaseTestController, ConnectionMonitorController],
-  providers: [AppService, ExternalIntegrationsService, CustomerService, PartnerManagementService, SupabaseService],
+  controllers: [AppController, CustomerController, InternalCustomerController, InternalPartnerManagementController, PublicPartnerManagementController, SupabaseTestController, ConnectionMonitorController, SosController],
+  providers: [AppService, ExternalIntegrationsService, CustomerService, PartnerManagementService, SupabaseService, SosService],
   exports: [PrismaModule], // Export PrismaModule so middleware can access PrismaService
 })
 export class AppModule implements NestModule {

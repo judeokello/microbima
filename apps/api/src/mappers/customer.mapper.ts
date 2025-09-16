@@ -48,16 +48,72 @@ export class CustomerMapper {
    * @param customer - Customer entity from internal domain
    * @param partnerCustomerId - Partner's customer ID reference
    * @param correlationId - Correlation ID from request
+   * @param referredBy - Optional referral information
+   * @param createdChildren - Array of created children with IDs
+   * @param createdSpouses - Array of created spouses with IDs
+   * @param createdBeneficiaries - Array of created beneficiaries with IDs
    * @returns Response DTO for external API
    */
   static toCreatePrincipalMemberResponseDto(
     customer: Customer,
     partnerCustomerId: string,
-    correlationId: string
+    correlationId: string,
+    referredBy?: string,
+    createdChildren: any[] = [],
+    createdSpouses: any[] = [],
+    createdBeneficiaries: any[] = []
   ): CreatePrincipalMemberResponseDto {
+    // Transform children data
+    const childrenWithIds = createdChildren.map(child => ({
+      dependantId: child.id,
+      firstName: child.firstName,
+      lastName: child.lastName,
+      dateOfBirth: child.dateOfBirth.toISOString().split('T')[0],
+      gender: child.gender,
+      idType: child.idType,
+      idNumber: child.idNumber,
+    }));
+
+    // Transform spouses data
+    const spousesWithIds = createdSpouses.map(spouse => ({
+      dependantId: spouse.id,
+      firstName: spouse.firstName,
+      lastName: spouse.lastName,
+      dateOfBirth: spouse.dateOfBirth.toISOString().split('T')[0],
+      gender: spouse.gender,
+      email: spouse.email,
+      idType: spouse.idType,
+      idNumber: spouse.idNumber,
+    }));
+
+    // Transform beneficiaries data
+    const beneficiariesWithIds = createdBeneficiaries.map(beneficiary => ({
+      beneficiaryId: beneficiary.id,
+      firstName: beneficiary.firstName,
+      lastName: beneficiary.lastName,
+      dateOfBirth: beneficiary.dateOfBirth.toISOString().split('T')[0],
+      gender: beneficiary.gender,
+      email: beneficiary.email,
+      phoneNumber: beneficiary.phoneNumber,
+      idType: beneficiary.idType,
+      idNumber: beneficiary.idNumber,
+      relationship: beneficiary.relationship,
+      relationshipDescription: beneficiary.relationshipDescription,
+      percentage: beneficiary.percentage,
+      address: {
+        street: beneficiary.street,
+        city: beneficiary.city,
+        county: beneficiary.county,
+        postalCode: beneficiary.postalCode,
+      },
+    }));
+
+    const totalDependants = childrenWithIds.length + spousesWithIds.length;
+
     return {
       status: 201, // HTTP status code
       correlationId: correlationId,
+      referredBy: referredBy,
       message: 'Principal member created successfully',
       data: {
         principalId: customer.id,
@@ -74,7 +130,13 @@ export class CustomerMapper {
           dailyAmount: 0, // Will be calculated
           totalAmount: 0, // Will be calculated
           currency: 'KES'
-        }
+        },
+        dependants: {
+          children: childrenWithIds,
+          spouses: spousesWithIds,
+          totalDependants,
+        },
+        beneficiaries: beneficiariesWithIds,
       }
     };
   }
