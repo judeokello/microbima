@@ -32,9 +32,3 @@ services:
       - name: request-size-limiting
         config:
           allowed_payload_size: 10
-      - name: response-ratelimiting
-        config:
-          limits:
-            minute: 200
-            policy: local
-            fault_tolerant: true
