@@ -5,14 +5,22 @@ services:
   - name: microbima-staging-internal-api
     url: http://microbima-staging-internal-api.internal:3000
     routes:
-      - name: public-customers
-        paths:
-          - /api/v1/customers
-        methods:
-          - GET
-          - POST
-        strip_path: false
-        preserve_host: true
+        - name: public-customers
+          paths:
+            - /api/v1/customers
+          methods:
+            - GET
+            - POST
+          strip_path: false
+          preserve_host: true
+        - name: public-customer-dependants
+          paths:
+            - /api/v1/customers
+          methods:
+            - GET
+            - POST
+          strip_path: false
+          preserve_host: true
       - name: public-partner-management
         paths:
           - /api/v1/partner-management

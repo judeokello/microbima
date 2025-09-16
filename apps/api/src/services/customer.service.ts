@@ -9,6 +9,9 @@ import { PartnerCustomerMapper } from '../mappers/partner-customer.mapper';
 import { CreatePrincipalMemberRequestDto } from '../dto/principal-member/create-principal-member-request.dto';
 import { CreatePrincipalMemberResponseDto } from '../dto/principal-member/create-principal-member-response.dto';
 import { PrincipalMemberDto } from '../dto/principal-member/principal-member.dto';
+import { AddDependantsRequestDto } from '../dto/dependants/add-dependants-request.dto';
+import { AddDependantsResponseDto } from '../dto/dependants/add-dependants-response.dto';
+import { GetDependantsResponseDto } from '../dto/dependants/get-dependants-response.dto';
 
 /**
  * Customer Service
@@ -168,16 +171,110 @@ export class CustomerService {
         },
       });
 
+      // Create dependants and beneficiaries if provided
+      let createdChildren: any[] = [];
+      let createdSpouses: any[] = [];
+      let createdBeneficiaries: any[] = [];
+
+      if (createRequest.children && createRequest.children.length > 0) {
+        const childrenData = createRequest.children.map(child => ({
+          customerId: createdCustomer.id,
+          firstName: child.firstName,
+          middleName: child.middleName || null,
+          lastName: child.lastName,
+          dateOfBirth: new Date(child.dateOfBirth),
+          gender: child.gender.toUpperCase() as any,
+          idType: child.idType ? child.idType.toUpperCase() as any : null,
+          idNumber: child.idNumber || null,
+          relationship: 'CHILD' as const,
+          createdByPartnerId: partnerId,
+        }));
+
+        await this.prismaService.dependant.createMany({
+          data: childrenData,
+        });
+
+        // Get created children with IDs
+        createdChildren = await this.prismaService.dependant.findMany({
+          where: { 
+            customerId: createdCustomer.id,
+            relationship: 'CHILD'
+          },
+          orderBy: { createdAt: 'desc' },
+          take: createRequest.children.length,
+        });
+      }
+
+      if (createRequest.spouses && createRequest.spouses.length > 0) {
+        const spousesData = createRequest.spouses.map(spouse => ({
+          customerId: createdCustomer.id,
+          firstName: spouse.firstName,
+          middleName: spouse.middleName || null,
+          lastName: spouse.lastName,
+          dateOfBirth: new Date(spouse.dateOfBirth),
+          gender: spouse.gender.toUpperCase() as any,
+          idType: spouse.idType.toUpperCase() as any,
+          idNumber: spouse.idNumber,
+          relationship: 'SPOUSE' as const,
+          createdByPartnerId: partnerId,
+        }));
+
+        await this.prismaService.dependant.createMany({
+          data: spousesData,
+        });
+
+        // Get created spouses with IDs
+        createdSpouses = await this.prismaService.dependant.findMany({
+          where: { 
+            customerId: createdCustomer.id,
+            relationship: 'SPOUSE'
+          },
+          orderBy: { createdAt: 'desc' },
+          take: createRequest.spouses.length,
+        });
+      }
+
+      if (createRequest.beneficiaries && createRequest.beneficiaries.length > 0) {
+        const beneficiariesData = createRequest.beneficiaries.map(beneficiary => ({
+          customerId: createdCustomer.id,
+          firstName: beneficiary.firstName,
+          middleName: beneficiary.middleName || null,
+          lastName: beneficiary.lastName,
+          dateOfBirth: new Date(beneficiary.dateOfBirth),
+          gender: beneficiary.gender.toUpperCase() as any,
+          idType: beneficiary.idType.toUpperCase() as any,
+          idNumber: beneficiary.idNumber,
+          relationship: beneficiary.relationship,
+          percentage: beneficiary.percentage,
+          createdByPartnerId: partnerId,
+        }));
+
+        await this.prismaService.beneficiary.createMany({
+          data: beneficiariesData,
+        });
+
+        // Get created beneficiaries with IDs
+        createdBeneficiaries = await this.prismaService.beneficiary.findMany({
+          where: { customerId: createdCustomer.id },
+          orderBy: { createdAt: 'desc' },
+          take: createRequest.beneficiaries.length,
+        });
+      }
+
       // Create customer entity from database result
       const customer = Customer.fromPrismaData(createdCustomer);
 
       this.logger.log(`[${correlationId}] Customer created successfully: ${customer.id}`);
 
-      // Return response using mapper
+      // Return response using mapper with dependants and beneficiaries
       return CustomerMapper.toCreatePrincipalMemberResponseDto(
         customer,
         createRequest.principalMember.partnerCustomerId,
-        correlationId
+        correlationId,
+        createRequest.referredBy,
+        createdChildren,
+        createdSpouses,
+        createdBeneficiaries
       );
     } catch (error) {
       this.logger.error(`[${correlationId}] Error creating customer: ${error instanceof Error ? error.message : 'Unknown error'}`, error instanceof Error ? error.stack : undefined);
@@ -350,6 +447,292 @@ export class CustomerService {
         },
       },
     });
+  }
+
+  /**
+   * Add dependants (children and/or spouses) to an existing customer
+   * @param customerId - Customer ID
+   * @param addRequest - Dependants addition request
+   * @param partnerId - Partner ID from API key validation
+   * @param correlationId - Correlation ID for tracing
+   * @returns Dependants addition response
+   */
+  async addDependants(
+    customerId: string,
+    addRequest: AddDependantsRequestDto,
+    partnerId: number,
+    correlationId: string
+  ): Promise<AddDependantsResponseDto> {
+    this.logger.log(`[${correlationId}] Adding dependants to customer ${customerId} for partner ${partnerId}`);
+
+    try {
+      // Validate that at least one dependant is provided
+      if ((!addRequest.children || addRequest.children.length === 0) && 
+          (!addRequest.spouses || addRequest.spouses.length === 0)) {
+        throw ValidationException.forField('dependants', 'At least one child or spouse must be provided', ErrorCodes.NO_DEPENDANTS_PROVIDED);
+      }
+
+      // Validate customer exists and belongs to partner
+      const customer = await this.prismaService.customer.findFirst({
+        where: {
+          id: customerId,
+          createdByPartnerId: partnerId,
+          partnerCustomers: {
+            some: {
+              partnerId: partnerId,
+            },
+          },
+        },
+      });
+
+      if (!customer) {
+        throw new NotFoundException('Customer not found or not accessible to this partner');
+      }
+
+      // Get partner customer ID for response
+      const partnerCustomer = await this.prismaService.partnerCustomer.findFirst({
+        where: {
+          customerId: customerId,
+          partnerId: partnerId,
+        },
+      });
+
+      if (!partnerCustomer) {
+        throw new NotFoundException('Partner customer relationship not found');
+      }
+
+      // Use transaction to add all dependants atomically
+      const result = await this.prismaService.$transaction(async (tx) => {
+        const addedDependants: any[] = [];
+        let childrenAdded = 0;
+        let spousesAdded = 0;
+
+        // Add children if provided
+        if (addRequest.children && addRequest.children.length > 0) {
+          const childrenData = addRequest.children.map(child => ({
+            customerId: customerId,
+            firstName: child.firstName,
+            middleName: child.middleName || null,
+            lastName: child.lastName,
+            dateOfBirth: new Date(child.dateOfBirth),
+            gender: child.gender.toUpperCase() as any,
+            idType: child.idType ? child.idType.toUpperCase() as any : null,
+            idNumber: child.idNumber || null,
+            relationship: 'CHILD' as const,
+            createdByPartnerId: partnerId,
+          }));
+
+          const createdChildren = await tx.dependant.createMany({
+            data: childrenData,
+          });
+
+          // Get the created children with their IDs
+          const childrenWithIds = await tx.dependant.findMany({
+            where: {
+              customerId: customerId,
+              relationship: 'CHILD',
+            },
+            orderBy: {
+              createdAt: 'desc',
+            },
+            take: addRequest.children.length,
+          });
+
+          childrenAdded = createdChildren.count;
+          addedDependants.push(...childrenWithIds.map((child: any) => ({
+            dependantId: child.id,
+            relationship: 'child' as const,
+            firstName: child.firstName,
+            lastName: child.lastName,
+            dateOfBirth: child.dateOfBirth.toISOString().split('T')[0],
+            gender: child.gender,
+          })));
+        }
+
+        // Add spouses if provided
+        if (addRequest.spouses && addRequest.spouses.length > 0) {
+          const spousesData = addRequest.spouses.map(spouse => ({
+            customerId: customerId,
+            firstName: spouse.firstName,
+            middleName: spouse.middleName || null,
+            lastName: spouse.lastName,
+            dateOfBirth: new Date(spouse.dateOfBirth),
+            gender: spouse.gender.toUpperCase() as any,
+            idType: spouse.idType.toUpperCase() as any,
+            idNumber: spouse.idNumber,
+            relationship: 'SPOUSE' as const,
+            createdByPartnerId: partnerId,
+          }));
+
+          const createdSpouses = await tx.dependant.createMany({
+            data: spousesData,
+          });
+
+          // Get the created spouses with their IDs
+          const spousesWithIds = await tx.dependant.findMany({
+            where: {
+              customerId: customerId,
+              relationship: 'SPOUSE',
+            },
+            orderBy: {
+              createdAt: 'desc',
+            },
+            take: addRequest.spouses.length,
+          });
+
+          spousesAdded = createdSpouses.count;
+          addedDependants.push(...spousesWithIds.map((spouse: any) => ({
+            dependantId: spouse.id,
+            relationship: 'spouse' as const,
+            firstName: spouse.firstName,
+            lastName: spouse.lastName,
+            dateOfBirth: spouse.dateOfBirth.toISOString().split('T')[0],
+            gender: spouse.gender,
+            email: spouse.email,
+            idType: spouse.idType.toUpperCase() as any,
+            idNumber: spouse.idNumber,
+          })));
+        }
+
+        return {
+          partnerCustomerId: partnerCustomer.partnerCustomerId,
+          totalProcessed: childrenAdded + spousesAdded,
+          childrenAdded,
+          spousesAdded,
+          addedDependants,
+        };
+      });
+
+      this.logger.log(`[${correlationId}] Successfully added ${result.totalProcessed} dependants to customer ${customerId}`);
+
+      return {
+        status: 201,
+        correlationId: correlationId,
+        message: 'Dependants added successfully',
+        data: {
+          partnerCustomerId: result.partnerCustomerId,
+          dependants: {
+            totalProcessed: result.totalProcessed,
+            childrenAdded: result.childrenAdded,
+            spousesAdded: result.spousesAdded,
+            success: true,
+            message: `${result.childrenAdded} children and ${result.spousesAdded} spouses added successfully`,
+            addedDependants: result.addedDependants,
+          },
+        },
+      };
+    } catch (error) {
+      this.logger.error(`[${correlationId}] Error adding dependants: ${error instanceof Error ? error.message : 'Unknown error'}`, error instanceof Error ? error.stack : undefined);
+      throw error;
+    }
+  }
+
+  /**
+   * Get all dependants (children and spouses) for a customer
+   * @param customerId - Customer ID
+   * @param partnerId - Partner ID from API key validation
+   * @param correlationId - Correlation ID for tracing
+   * @returns Dependants retrieval response
+   */
+  async getDependants(
+    customerId: string,
+    partnerId: number,
+    correlationId: string
+  ): Promise<GetDependantsResponseDto> {
+    this.logger.log(`[${correlationId}] Getting dependants for customer ${customerId} for partner ${partnerId}`);
+
+    try {
+      // Validate customer exists and belongs to partner
+      const customer = await this.prismaService.customer.findFirst({
+        where: {
+          id: customerId,
+          createdByPartnerId: partnerId,
+          partnerCustomers: {
+            some: {
+              partnerId: partnerId,
+            },
+          },
+        },
+      });
+
+      if (!customer) {
+        throw new NotFoundException('Customer not found or not accessible to this partner');
+      }
+
+      // Get partner customer ID for response
+      const partnerCustomer = await this.prismaService.partnerCustomer.findFirst({
+        where: {
+          customerId: customerId,
+          partnerId: partnerId,
+        },
+      });
+
+      if (!partnerCustomer) {
+        throw new NotFoundException('Partner customer relationship not found');
+      }
+
+      // Get children and spouses in parallel
+      const [children, spouses] = await Promise.all([
+        this.prismaService.dependant.findMany({
+          where: { 
+            customerId: customerId,
+            relationship: 'CHILD'
+          },
+          orderBy: { createdAt: 'asc' },
+        }),
+        this.prismaService.dependant.findMany({
+          where: { 
+            customerId: customerId,
+            relationship: 'SPOUSE'
+          },
+          orderBy: { createdAt: 'asc' },
+        }),
+      ]);
+
+      // Transform children data
+      const childrenWithIds = children.map((child: any) => ({
+        dependantId: child.id,
+        firstName: child.firstName,
+        lastName: child.lastName,
+        dateOfBirth: child.dateOfBirth.toISOString().split('T')[0],
+        gender: child.gender,
+        idType: child.idType,
+        idNumber: child.idNumber,
+      }));
+
+      // Transform spouses data
+      const spousesWithIds = spouses.map((spouse: any) => ({
+        dependantId: spouse.id,
+        firstName: spouse.firstName,
+        lastName: spouse.lastName,
+        dateOfBirth: spouse.dateOfBirth.toISOString().split('T')[0],
+        gender: spouse.gender,
+        email: spouse.email,
+        idType: spouse.idType,
+        idNumber: spouse.idNumber,
+      }));
+
+      const totalDependants = childrenWithIds.length + spousesWithIds.length;
+
+      this.logger.log(`[${correlationId}] Retrieved ${totalDependants} dependants for customer ${customerId}`);
+
+      return {
+        status: 200,
+        correlationId: correlationId,
+        message: 'Dependants retrieved successfully',
+        data: {
+          partnerCustomerId: partnerCustomer.partnerCustomerId,
+          dependants: {
+            children: childrenWithIds,
+            spouses: spousesWithIds,
+            totalDependants,
+          },
+        },
+      };
+    } catch (error) {
+      this.logger.error(`[${correlationId}] Error getting dependants: ${error instanceof Error ? error.message : 'Unknown error'}`, error instanceof Error ? error.stack : undefined);
+      throw error;
+    }
   }
 
 }
