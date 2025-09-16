@@ -24,11 +24,3 @@ services:
           exposed_headers: ["X-Total-Count"]
           credentials: true
           max_age: 3600
-      - name: rate-limiting
-        config:
-          minute: 200
-          hour: 2000
-          policy: local
-      - name: request-size-limiting
-        config:
-          allowed_payload_size: 10
