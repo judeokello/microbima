@@ -35,6 +35,6 @@ services:
       - name: response-ratelimiting
         config:
           limits:
-            - minute: 200
-              policy: local
-              fault_tolerant: true
+            minute: 200
+            policy: local
+            fault_tolerant: true
