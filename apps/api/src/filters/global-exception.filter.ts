@@ -9,6 +9,8 @@ import {
 import { Request, Response } from 'express';
 import { SentryExceptionCaptured } from '@sentry/nestjs';
 import { ExternalIntegrationsService } from '../services/external-integrations.service';
+import { ErrorCodes, ERROR_CODE_STATUS_MAP } from '../enums/error-codes.enum';
+import { ValidationException } from '../exceptions/validation.exception';
 
 /**
  * Global Exception Filter
@@ -40,19 +42,21 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     // Determine HTTP status code
     const status = this.getHttpStatus(exception);
     
-    // Create consistent error response
+    // Create consistent error response using new format
     const errorResponse = {
-      statusCode: status,
-      message: this.getErrorMessage(exception),
-      error: this.getErrorType(exception),
-      timestamp: new Date().toISOString(),
-      correlationId: correlationId,
-      // Additional context for debugging (only in development)
-      ...(process.env.NODE_ENV === 'development' && {
-        stack: exception instanceof Error ? exception.stack : undefined,
+      error: {
+        code: this.getErrorCode(exception),
+        status: status,
+        message: this.getErrorMessage(exception),
         details: this.getErrorDetails(exception),
-        path: request.url, // Include path only in development
-      }),
+        correlationId: correlationId,
+        timestamp: new Date().toISOString(),
+        path: request.url,
+        // Stack trace only in development
+        ...(process.env.NODE_ENV === 'development' && {
+          stack: exception instanceof Error ? exception.stack : undefined,
+        }),
+      },
     };
 
     // Log the error with correlation ID
@@ -76,6 +80,10 @@ export class GlobalExceptionFilter implements ExceptionFilter {
    * Get HTTP status code from exception
    */
   private getHttpStatus(exception: unknown): number {
+    if (exception instanceof ValidationException) {
+      return exception.getStatus();
+    }
+    
     if (exception instanceof HttpException) {
       return exception.getStatus();
     }
@@ -96,12 +104,62 @@ export class GlobalExceptionFilter implements ExceptionFilter {
   }
 
   /**
-   * Get error message from exception
+   * Get error code from exception
    */
-  private getErrorMessage(exception: unknown): string {
+  private getErrorCode(exception: unknown): string {
+    if (exception instanceof ValidationException) {
+      return exception.errorCode;
+    }
+    
     if (exception instanceof HttpException) {
       const response = exception.getResponse();
       if (typeof response === 'object' && response !== null) {
+        const errorObj = (response as any).error;
+        if (errorObj && errorObj.code) {
+          return errorObj.code;
+        }
+      }
+    }
+    
+    if (exception instanceof Error) {
+      // Handle Prisma database errors
+      if (exception.message.includes('Unique constraint failed')) {
+        if (exception.message.includes('email')) {
+          return ErrorCodes.DUPLICATE_EMAIL;
+        }
+        if (exception.message.includes('idType') || exception.message.includes('idNumber')) {
+          return ErrorCodes.DUPLICATE_ID_NUMBER;
+        }
+        return ErrorCodes.RESOURCE_CONFLICT;
+      }
+      
+      if (exception.message.includes('Foreign key constraint failed')) {
+        return ErrorCodes.MALFORMED_REQUEST;
+      }
+      
+      if (exception.message.includes('Invalid `this.prismaService')) {
+        return ErrorCodes.DATABASE_ERROR;
+      }
+    }
+    
+    return ErrorCodes.INTERNAL_SERVER_ERROR;
+  }
+
+  /**
+   * Get error message from exception
+   */
+  private getErrorMessage(exception: unknown): string {
+    if (exception instanceof ValidationException) {
+      return exception.message;
+    }
+    
+    if (exception instanceof HttpException) {
+      const response = exception.getResponse();
+      if (typeof response === 'object' && response !== null) {
+        const errorObj = (response as any).error;
+        if (errorObj && errorObj.message) {
+          return errorObj.message;
+        }
         return (response as any).message || exception.message;
       }
       return exception.message;
@@ -157,20 +215,25 @@ export class GlobalExceptionFilter implements ExceptionFilter {
   }
 
   /**
-   * Get additional error details (for development only)
+   * Get additional error details
    */
-  private getErrorDetails(exception: unknown): any {
+  private getErrorDetails(exception: unknown): Record<string, string> | undefined {
+    if (exception instanceof ValidationException) {
+      return exception.errorDetails;
+    }
+    
     if (exception instanceof HttpException) {
       const response = exception.getResponse();
       if (typeof response === 'object' && response !== null) {
-        return response;
+        const errorObj = (response as any).error;
+        if (errorObj && errorObj.details) {
+          return errorObj.details;
+        }
+        return undefined;
       }
     }
     
-    return {
-      name: exception instanceof Error ? exception.name : 'Unknown',
-      constructor: exception?.constructor?.name || 'Unknown',
-    };
+    return undefined;
   }
 
   /**

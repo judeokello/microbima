@@ -49,7 +49,7 @@ export class ApiKeyAuthMiddleware implements NestMiddleware {
 
     if (!apiKey) {
       throw new UnauthorizedException({
-        statusCode: 401,
+        status: 401,
         message: 'API key is required',
         error: 'Unauthorized',
         timestamp: new Date().toISOString(),
@@ -62,7 +62,7 @@ export class ApiKeyAuthMiddleware implements NestMiddleware {
     
     if (!validationResult.valid) {
       throw new UnauthorizedException({
-        statusCode: 401,
+        status: 401,
         message: validationResult.message,
         error: 'Unauthorized',
         timestamp: new Date().toISOString(),

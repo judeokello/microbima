@@ -30,7 +30,7 @@ export class SupabaseTestController {
     if (!result.success) {
       throw new HttpException(
         {
-          statusCode: HttpStatus.SERVICE_UNAVAILABLE,
+          status: HttpStatus.SERVICE_UNAVAILABLE,
           message: 'Supabase connection failed',
           error: result.error,
           timestamp: new Date().toISOString(),
@@ -40,7 +40,7 @@ export class SupabaseTestController {
     }
 
     return {
-      statusCode: HttpStatus.OK,
+      status: HttpStatus.OK,
       message: 'Supabase connection successful',
       timestamp: new Date().toISOString(),
     };
@@ -57,7 +57,7 @@ export class SupabaseTestController {
     schema: {
       type: 'object',
       properties: {
-        statusCode: { type: 'number', example: 201 },
+        status: { type: 'number', example: 201 },
         message: { type: 'string', example: 'Partner created successfully' },
         data: { type: 'object' },
         timestamp: { type: 'string' }
@@ -70,7 +70,7 @@ export class SupabaseTestController {
     schema: {
       type: 'object',
       properties: {
-        statusCode: { type: 'number', example: 503 },
+        status: { type: 'number', example: 503 },
         message: { type: 'string', example: 'Supabase connection failed' },
         error: { type: 'string' },
         timestamp: { type: 'string' }
@@ -87,7 +87,7 @@ export class SupabaseTestController {
     if (!result.success) {
       throw new HttpException(
         {
-          statusCode: HttpStatus.SERVICE_UNAVAILABLE,
+          status: HttpStatus.SERVICE_UNAVAILABLE,
           message: 'Failed to create partner via Supabase',
           error: result.error,
           timestamp: new Date().toISOString(),
@@ -97,7 +97,7 @@ export class SupabaseTestController {
     }
 
     return {
-      statusCode: HttpStatus.CREATED,
+      status: HttpStatus.CREATED,
       message: 'Partner created successfully via Supabase',
       data: result.data,
       timestamp: new Date().toISOString(),

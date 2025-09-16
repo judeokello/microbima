@@ -54,7 +54,7 @@ export class CorrelationIdMiddleware implements NestMiddleware {
 
     if (!correlationId) {
       throw new BadRequestException({
-        statusCode: 400,
+        status: 400,
         message: 'x-correlation-id header is required for request tracing',
         error: 'Bad Request',
         timestamp: new Date().toISOString(),
@@ -65,7 +65,7 @@ export class CorrelationIdMiddleware implements NestMiddleware {
     // Validate correlation ID is not empty
     if (correlationId.trim() === '') {
       throw new BadRequestException({
-        statusCode: 400,
+        status: 400,
         message: 'Correlation ID cannot be empty',
         error: 'Bad Request',
         timestamp: new Date().toISOString(),

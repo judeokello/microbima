@@ -1,0 +1,160 @@
+# MicroBima API Development Rules
+
+## Error Handling Standards
+
+### MANDATORY: Use Standardized Error Handling
+
+When creating new endpoints or services, you MUST follow these error handling standards:
+
+#### 1. Use Existing Error Codes
+- **ALWAYS** check `src/enums/error-codes.enum.ts` for existing error codes before creating new ones
+- **DO NOT** create overlapping or duplicate error codes
+- **REUSE** existing codes like `VALIDATION_ERROR`, `DUPLICATE_EMAIL`, `NOT_FOUND`, etc.
+
+#### 2. Use ValidationException for Validation Errors
+```typescript
+// ✅ CORRECT: Multiple field errors
+const validationErrors: Record<string, string> = {};
+if (existingEmail) validationErrors['email'] = 'Email already exists';
+if (existingId) validationErrors['id_number'] = 'ID already exists';
+throw ValidationException.withMultipleErrors(validationErrors);
+
+// ✅ CORRECT: Single field error  
+throw ValidationException.forField('email', 'Email already exists');
+```
+
+#### 3. Use "status" Field (NOT "statusCode")
+- **ALWAYS** use `status` in error responses
+- **NEVER** use `statusCode` in new code
+- **UPDATE** any existing `statusCode` references to `status`
+
+#### 4. Follow Standard Error Response Format
+```json
+{
+  "error": {
+    "code": "ERROR_CODE",
+    "status": 422,
+    "message": "Human-readable message",
+    "details": { "field": "error message" },
+    "correlationId": "req-12345",
+    "timestamp": "2025-09-15T10:32:45.123Z",
+    "path": "/api/v1/endpoint"
+  }
+}
+```
+
+#### 5. Pre-Save Validation Pattern
+```typescript
+// Collect ALL validation errors before throwing
+const validationErrors: Record<string, string> = {};
+
+// Entity validation
+const entityValidation = entity.validateBeforeSave();
+if (!entityValidation.valid) {
+  // Add entity errors to validationErrors
+}
+
+// Database uniqueness checks
+if (await this.checkEmailExists(email)) {
+  validationErrors['email'] = 'Email already exists';
+}
+
+// Business rule validation
+if (dateOfBirth > new Date()) {
+  validationErrors['date_of_birth'] = 'Date cannot be in future';
+}
+
+// Throw ALL errors at once
+if (Object.keys(validationErrors).length > 0) {
+  throw ValidationException.withMultipleErrors(validationErrors);
+}
+```
+
+### Available Error Codes by Category
+
+#### Validation Errors (422)
+- `VALIDATION_ERROR`, `DUPLICATE_EMAIL`, `DUPLICATE_ID_NUMBER`
+- `INVALID_FORMAT`, `REQUIRED_FIELD_MISSING`, `FIELD_TOO_LONG`
+- `INVALID_DATE`, `FUTURE_DATE_NOT_ALLOWED`, `INVALID_PHONE_NUMBER`
+
+#### Client Errors (400)  
+- `MALFORMED_REQUEST`, `INVALID_JSON`, `MISSING_REQUIRED_HEADERS`
+
+#### Authentication Errors (401)
+- `AUTHENTICATION_ERROR`, `INVALID_API_KEY`, `MISSING_API_KEY`
+
+#### Authorization Errors (403)
+- `AUTHORIZATION_ERROR`, `INSUFFICIENT_PERMISSIONS`
+
+#### Not Found Errors (404)
+- `NOT_FOUND`, `CUSTOMER_NOT_FOUND`, `PARTNER_NOT_FOUND`
+
+#### Server Errors (500)
+- `INTERNAL_SERVER_ERROR`, `DATABASE_ERROR`, `EXTERNAL_SERVICE_ERROR`
+
+### Required Imports
+```typescript
+import { ValidationException } from '../exceptions/validation.exception';
+import { ErrorCodes } from '../enums/error-codes.enum';
+```
+
+### Documentation Requirements
+- Update `docs/development/error-handling-guide.md` with new error scenarios
+- Add new error codes to the enum documentation
+- Include error handling examples in endpoint documentation
+
+## Database Standards
+
+### Schema Updates
+- Use nullable fields with unique constraints when appropriate
+- Add compound unique constraints for business rules
+- Always run migrations: `npm exec prisma db push`
+
+### Entity Validation
+- Implement `validateBeforeSave()` method in all entities
+- Return field-specific error messages
+- Check business rules before database operations
+
+## API Standards
+
+### Response Format
+- Use consistent response structure across all endpoints
+- Include correlation IDs in all responses
+- Use appropriate HTTP status codes
+- Follow RESTful conventions
+
+### Documentation
+- Update Swagger documentation for new endpoints
+- Include error response examples
+- Document all possible error codes
+
+## Testing Standards
+
+### Error Testing
+- Test all validation error scenarios
+- Verify multiple field errors are returned together
+- Test error response format consistency
+- Include error code validation in tests
+
+### Integration Testing
+- Test error responses with proper headers
+- Verify correlation IDs are included
+- Test environment-specific behavior (stack traces in dev only)
+
+## Code Review Checklist
+
+Before submitting code, verify:
+- [ ] Uses existing error codes from ErrorCodes enum
+- [ ] Uses ValidationException for validation errors
+- [ ] Uses "status" field (not "statusCode")
+- [ ] Follows standard error response format
+- [ ] Implements pre-save validation pattern
+- [ ] Includes proper error handling tests
+- [ ] Updates documentation if needed
+
+## Related Files
+- `src/enums/error-codes.enum.ts` - Error code definitions
+- `src/exceptions/validation.exception.ts` - Validation exception class
+- `src/filters/global-exception.filter.ts` - Global error handling
+- `docs/development/error-handling-guide.md` - Complete developer guide
+- `docs/architecture/decisions/004-standardized-error-handling.md` - Architecture decision

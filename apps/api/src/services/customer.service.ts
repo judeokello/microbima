@@ -1,5 +1,6 @@
 import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
 import { ValidationException } from '../exceptions/validation.exception';
+import { ErrorCodes } from '../enums/error-codes.enum';
 import { PrismaService } from '../prisma/prisma.service';
 import { Customer, CustomerData } from '../entities/customer.entity';
 import { PartnerCustomer, PartnerCustomerData } from '../entities/partner-customer.entity';
@@ -77,10 +78,22 @@ export class CustomerService {
         Number(partnerId)
       );
 
+      // Collect all validation errors
+      const validationErrors: Record<string, string> = {};
+
       // Validate customer entity
       const validationResult = customerEntity.validateBeforeSave();
       if (!validationResult.valid) {
-        throw new ValidationException(validationResult.errors.join(', '));
+        // Add entity validation errors
+        validationResult.errors.forEach(error => {
+          // Extract field name from error message if possible
+          const fieldMatch = error.match(/^(\w+)\s+(.+)$/);
+          if (fieldMatch) {
+            validationErrors[fieldMatch[1]] = fieldMatch[2];
+          } else {
+            validationErrors['general'] = error;
+          }
+        });
       }
 
       // Pre-save validation: Check for email uniqueness
@@ -89,7 +102,7 @@ export class CustomerService {
           where: { email: customerEntity.email },
         });
         if (existingCustomerWithEmail) {
-          throw new ValidationException('Email address already exists');
+          validationErrors['email'] = 'Email address already exists';
         }
       }
 
@@ -101,7 +114,12 @@ export class CustomerService {
         },
       });
       if (existingCustomerWithId) {
-        throw new ValidationException('ID number already exists for this ID type');
+        validationErrors['id_number'] = 'ID number already exists for this ID type';
+      }
+
+      // If there are any validation errors, throw exception with all errors
+      if (Object.keys(validationErrors).length > 0) {
+        throw ValidationException.withMultipleErrors(validationErrors, ErrorCodes.VALIDATION_ERROR);
       }
 
       // Create customer in database

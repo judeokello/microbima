@@ -23,7 +23,7 @@ async function bootstrap() {
     transform: true,
   }));
 
-  // Global exception filter
+  // Global exception filter - must be registered BEFORE built-in filters
   const externalIntegrationsService = app.get(ExternalIntegrationsService);
   app.useGlobalFilters(new GlobalExceptionFilter(externalIntegrationsService));
 
