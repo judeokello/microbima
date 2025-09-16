@@ -15,6 +15,14 @@ services:
           - DELETE
         strip_path: false
         preserve_host: true
+      - name: public-partner-management
+        paths:
+          - /api/v1/partner-management
+        methods:
+          - POST
+          - DELETE
+        strip_path: false
+        preserve_host: true
     plugins:
       - name: cors
         config:
