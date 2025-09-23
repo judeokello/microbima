@@ -109,40 +109,58 @@ The Customer Onboarding module is a core component of the MicroBima microinsuran
   - [x] **5.2.2.7.3** Correlation ID inclusion in error responses
   - [x] **5.2.2.7.4** Request context logging
   - [x] **5.2.2.7.5** External integrations service for async calls
-  - [x] **5.2.2.7.6** Proper Sentry SDK integration (Deferred to 5.2.4.1)
+  - [x] **5.2.2.7.6** Proper Sentry SDK integration (COMPLETED)
 - [x] **5.2.2.8** Implement Customer Service with business logic
   - [x] **5.2.2.8.1** Create PartnerApiKey entity and database schema
   - [x] **5.2.2.8.2** Update API key validation middleware to use database
   - [x] **5.2.2.8.3** Implement Customer Service with partner scoping
+  - [x] **5.2.2.8.4** Implement Dependant Management (add/get dependants)
+  - [x] **5.2.2.8.5** Implement Beneficiary Management (add/get beneficiaries)
 - [x] **5.2.2.9** Implement Customer Controller with CRUD endpoints
   - [x] **5.2.2.9.1** Implement Customer Controller with CRUD operations
+  - [x] **5.2.2.9.2** Implement Dependant endpoints (POST/GET /customers/:id/dependants)
+  - [x] **5.2.2.9.3** Implement Beneficiary endpoints (POST/GET /customers/:id/beneficiaries)
 - [x] **5.2.2.10** Update database schema and run migrations
 
-##### **5.2.2.11: Partner Management API**
-- [x] **5.2.2.11.1** Partner Management Service (consolidated)
-  - [x] **5.2.2.11.1.1** Partner operations (create, get, update)
-  - [x] **5.2.2.11.1.2** API Key operations (generate, validate, deactivate)
-  - [x] **5.2.2.11.1.3** Business logic and validation
-- [x] **5.2.2.11.2** Internal API Controller
-  - [x] **5.2.2.11.2.1** Partner Management Controller (internal)
-  - [x] **5.2.2.11.2.2** Create partner endpoint
-  - [x] **5.2.2.11.2.3** Generate API key endpoint
-- [x] **5.2.2.11.3** Public API Controller
-  - [x] **5.2.2.11.3.1** Partner Management Controller (public)
-  - [x] **5.2.2.11.3.2** Generate API key endpoint (with auth)
-  - [x] **5.2.2.11.3.3** Rate limiting handled by Kong
-- [x] **5.2.2.11.4** API Key Management Infrastructure
-  - [x] **5.2.2.11.4.1** API key generation utilities (crypto, validation)
-  - [x] **5.2.2.11.4.2** Standard response format with correlation IDs
-  - [ ] **5.2.2.11.4.3** Internal API rate limiting (Post-MVP)
+##### **5.2.2.11: SOS Emergency Contacts API**
+- [x] **5.2.2.11.1** SOS Service Implementation
+  - [x] **5.2.2.11.1.1** Emergency contacts data generation
+  - [x] **5.2.2.11.1.2** In-memory caching for performance
+  - [x] **5.2.2.11.1.3** Standardized response format
+- [x] **5.2.2.11.2** SOS Controller Implementation
+  - [x] **5.2.2.11.2.1** GET /v1/sos endpoint
+  - [x] **5.2.2.11.2.2** API key authentication
+  - [x] **5.2.2.11.2.3** Swagger documentation
+- [x] **5.2.2.11.3** SOS DTOs and Response Models
+  - [x] **5.2.2.11.3.1** SosContactDto for contact information
+  - [x] **5.2.2.11.3.2** SosResponseDto for API responses
+  - [x] **5.2.2.11.3.3** Validation and documentation
+
+##### **5.2.2.12: Partner Management API**
+- [x] **5.2.2.12.1** Partner Management Service (consolidated)
+  - [x] **5.2.2.12.1.1** Partner operations (create, get, update)
+  - [x] **5.2.2.12.1.2** API Key operations (generate, validate, deactivate)
+  - [x] **5.2.2.12.1.3** Business logic and validation
+- [x] **5.2.2.12.2** Internal API Controller
+  - [x] **5.2.2.12.2.1** Partner Management Controller (internal)
+  - [x] **5.2.2.12.2.2** Create partner endpoint
+  - [x] **5.2.2.12.2.3** Generate API key endpoint
+- [x] **5.2.2.12.3** Public API Controller
+  - [x] **5.2.2.12.3.1** Partner Management Controller (public)
+  - [x] **5.2.2.12.3.2** Generate API key endpoint (with auth)
+  - [x] **5.2.2.12.3.3** Rate limiting handled by Kong
+- [x] **5.2.2.12.4** API Key Management Infrastructure
+  - [x] **5.2.2.12.4.1** API key generation utilities (crypto, validation)
+  - [x] **5.2.2.12.4.2** Standard response format with correlation IDs
+  - [ ] **5.2.2.12.4.3** Internal API rate limiting (Post-MVP)
 
 ##### **5.2.4 Deployment Preparation (Post-CRUD Implementation)**
-- [ ] **5.2.4.1** Implement proper Sentry integration using official SDK
-  - [ ] **5.2.4.1.1** Install @sentry/nestjs package
-  - [ ] **5.2.4.1.2** Create instrument.ts file for Sentry initialization
-  - [ ] **5.2.4.1.3** Add SentryModule to app.module.ts
-  - [ ] **5.2.4.1.4** Update GlobalExceptionFilter with @SentryExceptionCaptured decorator
-  - [ ] **5.2.4.1.5** Configure source maps for readable stack traces
+- [x] **5.2.4.1** Implement proper Sentry integration using official SDK
+  - [x] **5.2.4.1.1** Install @sentry/nestjs package
+  - [x] **5.2.4.1.2** Create instrument.ts file for Sentry initialization
+  - [x] **5.2.4.1.3** Add SentryModule to app.module.ts
+  - [x] **5.2.4.1.4** Update GlobalExceptionFilter with @SentryExceptionCaptured decorator
+  - [x] **5.2.4.1.5** Configure source maps for readable stack traces
 - [ ] **5.2.4.2** Deploy staging environment to Fly.io
   - [ ] **5.2.4.2.1** Configure staging environment variables
   - [ ] **5.2.4.2.2** Deploy internal-api to staging
@@ -295,23 +313,38 @@ The Customer Onboarding module is a core component of the MicroBima microinsuran
 
 #### **5.7 Phase 7: Testing & Validation (Week 7)**
 
-##### **5.7.1 API Testing**
-- [ ] **5.7.1.1** Create unit tests for all services
-- [ ] **5.7.1.2** Implement integration tests for API endpoints
-- [ ] **5.7.1.3** Set up end-to-end testing for onboarding flows
-- [ ] **5.7.1.4** Configure test coverage reporting
+##### **5.7.1 Testing Infrastructure Setup**
+- [ ] **5.7.1.1** Set up test database (microbima_test in local Supabase)
+- [ ] **5.7.1.2** Configure Jest for unit/integration/e2e tests
+- [ ] **5.7.1.3** Create test utilities and database cleanup
+- [ ] **5.7.1.4** Mock external services (Sentry, PostHog)
+- [ ] **5.7.1.5** Set up CI/CD test automation
 
-##### **5.7.2 SDK Testing**
-- [ ] **5.7.2.1** Test SDK generation and build process
-- [ ] **5.7.2.2** Validate type safety and error handling
-- [ ] **5.7.2.3** Test authentication and authorization flows
-- [ ] **5.7.2.4** Verify API contract compliance
+##### **5.7.2 API Testing**
+- [ ] **5.7.2.1** Create unit tests for all services
+  - [ ] **5.7.2.1.1** CustomerService unit tests (business logic, validation)
+  - [ ] **5.7.2.1.2** PartnerManagementService unit tests
+  - [ ] **5.7.2.1.3** SosService unit tests
+  - [ ] **5.7.2.1.4** Entity validation tests
+- [ ] **5.7.2.2** Implement integration tests for API endpoints
+  - [ ] **5.7.2.2.1** Customer CRUD endpoints integration tests
+  - [ ] **5.7.2.2.2** Dependant/Beneficiary endpoints integration tests
+  - [ ] **5.7.2.2.3** SOS endpoints integration tests
+  - [ ] **5.7.2.2.4** Partner management endpoints integration tests
+- [ ] **5.7.2.3** Set up end-to-end testing for onboarding flows
+- [ ] **5.7.2.4** Configure test coverage reporting
 
-##### **5.7.3 Performance and Security Testing**
-- [ ] **5.7.3.1** Load test API endpoints
-- [ ] **5.7.3.2** Security audit of authentication and authorization
-- [ ] **5.7.3.3** Validate rate limiting and CORS policies
-- [ ] **5.7.3.4** Test error handling and edge cases
+##### **5.7.3 SDK Testing**
+- [ ] **5.7.3.1** Test SDK generation and build process
+- [ ] **5.7.3.2** Validate type safety and error handling
+- [ ] **5.7.3.3** Test authentication and authorization flows
+- [ ] **5.7.3.4** Verify API contract compliance
+
+##### **5.7.4 Performance and Security Testing**
+- [ ] **5.7.4.1** Load test API endpoints
+- [ ] **5.7.4.2** Security audit of authentication and authorization
+- [ ] **5.7.4.3** Validate rate limiting and CORS policies
+- [ ] **5.7.4.4** Test error handling and edge cases
 
 #### **5.8 Phase 8: Monitoring & Analytics (Week 8)**
 
