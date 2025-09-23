@@ -105,7 +105,6 @@ model Customer {
   status          CustomerStatus @default(PENDING_KYC)
   onboardingStep  OnboardingStep @default(BASIC_INFO)
   createdByPartnerId Int // Partner who created this customer
-  hasMissingRequirements Boolean @default(false)
   
   // Address information
   address         Address?
@@ -127,10 +126,6 @@ model Customer {
   
   // Relations
   partnerCustomers PartnerCustomer[]
-  
-  // Agent Registration relations
-  registrations         AgentRegistration[]
-  missingRequirements   MissingRequirement[]
   
   // Audit fields
   createdAt       DateTime @default(now())
@@ -340,150 +335,4 @@ enum PaymentFrequency {
   QUARTERLY
   ANNUALLY
   CUSTOM
-}
-
-// New enums for Agent Registration module
-enum RegistrationEntityKind {
-  CUSTOMER
-  SPOUSE
-  CHILD
-  BENEFICIARY
-}
-
-enum RegistrationStatus {
-  IN_PROGRESS
-  COMPLETED
-  CANCELLED
-}
-
-enum RegistrationMissingStatus {
-  PENDING
-  RESOLVED
-  EXPIRED
-}
-
-enum BAPayoutStatus {
-  PENDING
-  PROCESSING
-  COMPLETED
-  FAILED
-}
-
-// Agent Registration Models
-model BrandAmbassador {
-  id                    String   @id @default(uuid()) @db.Uuid
-  userId                String   @unique @db.Uuid // Supabase user ID
-  partnerId             Int
-  partner               Partner  @relation(fields: [partnerId], references: [id])
-  
-  displayName           String
-  phoneNumber           String?  @db.VarChar(20)
-  perRegistrationRateCents Int   // Rate in cents (e.g., 500 = 5.00 KES)
-  isActive              Boolean  @default(true)
-  
-  // Relations
-  registrations         AgentRegistration[]
-  payouts              BAPayout[]
-  
-  // Audit fields
-  createdAt            DateTime @default(now())
-  updatedAt            DateTime @updatedAt
-  createdBy            String?  // User ID who created
-  updatedBy            String?  // User ID who last updated
-
-  @@map("brand_ambassadors")
-}
-
-model AgentRegistration {
-  id                    String   @id @default(uuid()) @db.Uuid
-  baId                  String   @db.Uuid
-  customerId            String   @db.Uuid
-  partnerId             Int
-  
-  ba                    BrandAmbassador @relation(fields: [baId], references: [id])
-  customer              Customer @relation(fields: [customerId], references: [id])
-  partner               Partner @relation(fields: [partnerId], references: [id])
-  
-  registrationStatus    RegistrationStatus @default(IN_PROGRESS)
-  completedAt           DateTime?
-  
-  // Relations
-  missingRequirements   MissingRequirement[]
-  payouts              BAPayout[]
-  
-  // Audit fields
-  createdAt            DateTime @default(now())
-  updatedAt            DateTime @updatedAt
-
-  @@map("agent_registrations")
-}
-
-model MissingRequirement {
-  id                    String   @id @default(uuid()) @db.Uuid
-  registrationId        String   @db.Uuid
-  customerId            String   @db.Uuid
-  partnerId             Int
-  
-  entityKind            RegistrationEntityKind
-  entityId              String?  // ID of spouse/child/beneficiary if applicable
-  fieldPath             String   // e.g., "firstName", "gender", "idNumber"
-  status                RegistrationMissingStatus @default(PENDING)
-  
-  registration          AgentRegistration @relation(fields: [registrationId], references: [id])
-  customer              Customer @relation(fields: [customerId], references: [id])
-  partner               Partner @relation(fields: [partnerId], references: [id])
-  
-  resolvedAt            DateTime?
-  resolvedBy            String?  // User ID who resolved
-  
-  // Audit fields
-  createdAt            DateTime @default(now())
-  updatedAt            DateTime @updatedAt
-
-  @@map("missing_requirements")
-}
-
-model BAPayout {
-  id                    String   @id @default(uuid()) @db.Uuid
-  baId                  String   @db.Uuid
-  registrationId        String?  @db.Uuid // Optional - can be general payout
-  partnerId             Int
-  
-  amountCents           Int      // Amount in cents
-  status                BAPayoutStatus @default(PENDING)
-  payoutDate            DateTime?
-  reference             String?  // Payment reference
-  
-  ba                    BrandAmbassador @relation(fields: [baId], references: [id])
-  registration          AgentRegistration? @relation(fields: [registrationId], references: [id])
-  partner               Partner @relation(fields: [partnerId], references: [id])
-  
-  // Audit fields
-  createdAt            DateTime @default(now())
-  updatedAt            DateTime @updatedAt
-
-  @@map("ba_payouts")
-}
-
-model DeferredRequirementDefault {
-  id                    Int      @id @default(autoincrement())
-  entityKind            RegistrationEntityKind
-  fieldPath             String
-  isRequired            Boolean  @default(true)
-
-  @@unique([entityKind, fieldPath])
-  @@map("deferred_requirements_default")
-}
-
-model DeferredRequirementPartner {
-  id                    Int      @id @default(autoincrement())
-  partnerId             Int
-  entityKind            RegistrationEntityKind
-  fieldPath             String
-  isRequired            Boolean  @default(true)
-
-  partner               Partner @relation(fields: [partnerId], references: [id])
-
-  @@unique([partnerId, entityKind, fieldPath])
-  @@map("deferred_requirements_partner")
 }

@@ -95,19 +95,19 @@ The Agent Registration module enables Brand Ambassadors (BAs) to register custom
 
 #### **5.2 Phase 2: Database Schema & Backend API (Week 2)**
 
-##### **5.2.1 Prisma Schema Updates**
-- [ ] **5.2.1.1** Add new enums (RegistrationEntityKind, RegistrationMissingStatus, BAPayoutStatus)
-- [ ] **5.2.1.2** Create BrandAmbassador model with partner relations
-- [ ] **5.2.1.3** Create AgentRegistration model with customer relations
-- [ ] **5.2.1.4** Create MissingRequirement model with entity tracking
-- [ ] **5.2.1.5** Create BAPayout model for earnings tracking
-- [ ] **5.2.1.6** Create DeferredRequirement models (Default/Partner)
-- [ ] **5.2.1.7** Update Customer model (hasMissingRequirements field)
-- [ ] **5.2.1.8** Update Partner model (new relations)
-- [ ] **5.2.1.9** Run database migration
+##### **5.2.1 Prisma Schema Updates ✅ COMPLETED**
+- [x] **5.2.1.1** Add new enums (RegistrationEntityKind, RegistrationMissingStatus, BAPayoutStatus)
+- [x] **5.2.1.2** Create BrandAmbassador model with partner relations
+- [x] **5.2.1.3** Create AgentRegistration model with customer relations
+- [x] **5.2.1.4** Create MissingRequirement model with entity tracking
+- [x] **5.2.1.5** Create BAPayout model for earnings tracking
+- [x] **5.2.1.6** Create DeferredRequirement models (Default/Partner)
+- [x] **5.2.1.7** Update Customer model (hasMissingRequirements field)
+- [x] **5.2.1.8** Update Partner model (new relations)
+- [x] **5.2.1.9** Run database migration
 
-##### **5.2.2 Seed Data Setup**
-- [ ] **5.2.2.1** Create seed data for DeferredRequirementDefault
+##### **5.2.2 Seed Data Setup ✅ COMPLETED**
+- [x] **5.2.2.1** Create seed data for DeferredRequirementDefault
 - [ ] **5.2.2.2** Implement partner creation with requirement inheritance
 - [ ] **5.2.2.3** Set up development data for testing
 
