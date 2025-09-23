@@ -60,6 +60,12 @@ export default function DashboardLayout({
             Dashboard
           </Link>
           <Link 
+            href="/register" 
+            className="block px-3 py-2 rounded-md hover:bg-gray-700 transition-colors bg-blue-600 hover:bg-blue-700"
+          >
+            Register Customer
+          </Link>
+          <Link 
             href="/dashboard/registrations" 
             className="block px-3 py-2 rounded-md hover:bg-gray-700 transition-colors"
           >
