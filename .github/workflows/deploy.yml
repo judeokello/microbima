@@ -44,6 +44,10 @@ jobs:
         run: |
           flyctl deploy -a microbima-staging-internal-api -c infra/fly/internal-api/staging/fly.toml
 
+      - name: Deploy Agent Registration to Staging
+        run: |
+          flyctl deploy -a maishapoa-staging-agent-registration -c infra/fly/agent-registration/staging/fly.toml
+
       # TODO: Enable when web-admin app is created
       # - name: Deploy Web Admin to Staging
       #   run: |
@@ -104,6 +108,7 @@ jobs:
         if: github.ref == 'refs/heads/staging'
         run: |
           curl -f https://microbima-staging-internal-api.fly.dev/api/health || exit 1
+          curl -f https://maishapoa-staging-agent-registration.fly.dev/ || exit 1
           # TODO: Add health checks when web-admin and public-api are deployed
           # curl -f https://microbima-staging-web-admin.fly.dev/ || exit 1
           # curl -f https://microbima-staging-public-api.fly.dev/ || exit 1
