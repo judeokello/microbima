@@ -15,6 +15,9 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
+# Install pnpm in builder stage
+RUN npm install -g pnpm
+
 # Build the agent registration app
 WORKDIR /app/apps/agent-registration
 RUN pnpm build
