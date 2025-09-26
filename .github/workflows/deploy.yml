@@ -58,36 +58,36 @@ jobs:
       #   run: |
       #     flyctl deploy -a microbima-staging-public-api -c infra/fly/public-api/staging/fly.toml
 
-  deploy-production:
-    if: github.ref == 'refs/heads/production'
-    runs-on: ubuntu-latest
-    environment: production
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+  # deploy-production:
+  #   if: github.ref == 'refs/heads/production'
+  #   runs-on: ubuntu-latest
+  #   environment: production
+  #   steps:
+  #     - name: Checkout code
+  #       uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
+  #     - name: Setup Node.js
+  #       uses: actions/setup-node@v4
+  #       with:
+  #         node-version: '22'
 
-      - name: Install pnpm
-        run: npm install -g pnpm
+  #     - name: Install pnpm
+  #       run: npm install -g pnpm
 
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+  #     - name: Install dependencies
+  #       run: pnpm install --frozen-lockfile
 
-      - name: Run tests
-        run: pnpm test
+  #     - name: Run tests
+  #       run: pnpm test
 
-      - name: Install Fly.io CLI
-        run: |
-          curl -L https://fly.io/install.sh | sh
-          echo "$HOME/.fly/bin" >> $GITHUB_PATH
+  #     - name: Install Fly.io CLI
+  #       run: |
+  #         curl -L https://fly.io/install.sh | sh
+  #         echo "$HOME/.fly/bin" >> $GITHUB_PATH
 
-      - name: Deploy Internal API to Production
-        run: |
-          flyctl deploy -a microbima-production-internal-api -c infra/fly/internal-api/production/fly.toml
+  #     - name: Deploy Internal API to Production
+  #       run: |
+  #         flyctl deploy -a microbima-production-internal-api -c infra/fly/internal-api/production/fly.toml
 
       # TODO: Enable when web-admin app is created
       # - name: Deploy Web Admin to Production
@@ -100,7 +100,8 @@ jobs:
       #     flyctl deploy -a microbima-production-public-api -c infra/fly/public-api/production/fly.toml
 
   health-check:
-    needs: [deploy-staging, deploy-production]
+   # needs: [deploy-staging, deploy-production]
+    needs: [deploy-staging]
     if: always()
     runs-on: ubuntu-latest
     steps:
