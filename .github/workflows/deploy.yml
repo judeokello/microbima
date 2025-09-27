@@ -17,6 +17,8 @@ jobs:
   deploy-staging:
     if: github.ref == 'refs/heads/staging'
     runs-on: ubuntu-latest
+    env:
+      DEPLOY_INTERNAL_API: false
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -41,6 +43,7 @@ jobs:
           echo "$HOME/.fly/bin" >> $GITHUB_PATH
 
       - name: Deploy Internal API to Staging
+        if: env.DEPLOY_INTERNAL_API != 'false'
         run: |
           flyctl deploy -a microbima-staging-internal-api -c infra/fly/internal-api/staging/fly.toml
 
@@ -110,8 +113,12 @@ jobs:
         run: |
           # Check agent registration app (should work)
           curl -f https://maishapoa-staging-agent-registration.fly.dev/ || exit 1
-          # Internal API health check - allow failure for now due to database issues
-          curl -f https://microbima-staging-internal-api.fly.dev/api/health || echo "⚠️ Internal API health check failed - database connection issue"
+          # Internal API health check - only if deployed
+          if [ "$DEPLOY_INTERNAL_API" != "false" ]; then
+            curl -f https://microbima-staging-internal-api.fly.dev/api/health || echo "⚠️ Internal API health check failed"
+          else
+            echo "⏭️ Skipping Internal API health check (not deployed)"
+          fi
           # TODO: Add health checks when web-admin and public-api are deployed
           # curl -f https://microbima-staging-web-admin.fly.dev/ || exit 1
           # curl -f https://microbima-staging-public-api.fly.dev/ || exit 1

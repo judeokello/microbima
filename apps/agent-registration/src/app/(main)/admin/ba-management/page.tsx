@@ -28,8 +28,8 @@ export default function BAManagementPage() {
         getBrandAmbassadors(),
         // TODO: Add getPartners() when implemented
         Promise.resolve([
-          { id: 1, partnerName: 'Sample Partner 1' },
-          { id: 2, partnerName: 'Sample Partner 2' }
+          { id: 1, partnerName: 'Sample Partner 1', isActive: true },
+          { id: 2, partnerName: 'Sample Partner 2', isActive: true }
         ])
       ])
       
