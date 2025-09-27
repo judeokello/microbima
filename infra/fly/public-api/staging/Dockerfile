@@ -1,4 +1,7 @@
-FROM kong:latest
+FROM kong:3.4-alpine
+
+# Install additional security tools
+RUN apk add --no-cache dumb-init curl
 
 # Copy Kong configuration
 COPY kong.yml /etc/kong/kong.yml
@@ -13,6 +16,9 @@ EXPOSE 8000 8001
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
   CMD kong health || exit 1
+
+# Use dumb-init for proper signal handling
+ENTRYPOINT ["dumb-init", "--"]
 
 # Start Kong
 CMD ["kong", "docker-start"]

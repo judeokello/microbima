@@ -2,7 +2,7 @@ app = "microbima-staging-internal-api"
 primary_region = "nrt"
 
 [build]
-  dockerfile = "../../../../apps/api/Dockerfile"
+  dockerfile = "Dockerfile"
 
 [env]
   NODE_ENV = "staging"
