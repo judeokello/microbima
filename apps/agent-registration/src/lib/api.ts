@@ -1,7 +1,7 @@
 import { supabaseAdmin, UserMetadata, BrandAmbassador, Partner, ROLES } from './supabase'
 
-// Re-export ROLES for convenience
-export { ROLES }
+// Re-export types and constants for convenience
+export { ROLES, BrandAmbassador, Partner, UserMetadata }
 
 export interface CreateBARequest {
   email: string
