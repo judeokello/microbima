@@ -31,7 +31,7 @@ export default function BARegistrationPage() {
     phone: '',
     partnerId: '',
     perRegistrationRateCents: '',
-    roles: [ROLES.BRAND_AMBASSADOR] // Default to BA role
+    roles: [ROLES.BRAND_AMBASSADOR] as string[] // Default to BA role
   })
 
   const [partners, setPartners] = useState<Partner[]>([])

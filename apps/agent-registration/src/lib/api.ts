@@ -1,7 +1,35 @@
-import { supabaseAdmin, UserMetadata, BrandAmbassador, Partner, ROLES } from './supabase'
+import { supabaseAdmin, ROLES } from './supabase'
 
-// Re-export types and constants for convenience
-export { ROLES, BrandAmbassador, Partner, UserMetadata }
+// Re-export constants for convenience
+export { ROLES }
+
+// Define types directly to avoid import issues
+export interface UserMetadata {
+  roles: string[]  // ['brand_ambassador', 'registration_admin']
+  partnerId?: number
+  displayName?: string
+  phone?: string
+  perRegistrationRateCents?: number
+}
+
+export interface BrandAmbassador {
+  id: string
+  partnerId: number
+  userId: string
+  displayName?: string
+  phone?: string
+  perRegistrationRateCents?: number
+  isActive: boolean
+  createdAt: string
+}
+
+export interface Partner {
+  id: number
+  partnerName: string
+  website?: string
+  officeLocation?: string
+  isActive: boolean
+}
 
 export interface CreateBARequest {
   email: string

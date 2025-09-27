@@ -54,17 +54,17 @@ export async function middleware(request: NextRequest) {
     }
 
     // Get user metadata for role checking
-    const userMetadata = session.user.user_metadata as { roles?: string[] }
+    const userMetadata = session?.user?.user_metadata as { roles?: string[] }
     console.log('✅ User authenticated:', { 
-      email: session.user.email, 
-      roles: userMetadata.roles,
-      userId: session.user.id,
+      email: session?.user?.email, 
+      roles: userMetadata?.roles,
+      userId: session?.user?.id,
       userMetadata: userMetadata
     })
 
     // Check admin routes
     if (pathname.startsWith('/admin')) {
-      const hasAdminRole = userMetadata.roles?.includes('registration_admin')
+      const hasAdminRole = userMetadata?.roles?.includes('registration_admin')
       console.log('🔐 Checking admin role:', hasAdminRole, 'for path:', pathname)
       
       if (!hasAdminRole) {
@@ -75,11 +75,11 @@ export async function middleware(request: NextRequest) {
 
     // Check dashboard routes
     if (pathname.startsWith('/dashboard')) {
-      const hasBARole = userMetadata.roles?.includes('brand_ambassador')
+      const hasBARole = userMetadata?.roles?.includes('brand_ambassador')
       
       if (!hasBARole) {
         // If user has admin role but not BA role, redirect to admin
-        const hasAdminRole = userMetadata.roles?.includes('registration_admin')
+        const hasAdminRole = userMetadata?.roles?.includes('registration_admin')
         if (hasAdminRole) {
           return NextResponse.redirect(new URL('/admin', request.url))
         } else {
@@ -91,8 +91,8 @@ export async function middleware(request: NextRequest) {
 
     // Add user data to headers for use in components
     const requestHeaders = new Headers(request.headers)
-    requestHeaders.set('x-user-id', session.user.id)
-    requestHeaders.set('x-user-roles', JSON.stringify(userMetadata.roles || []))
+    requestHeaders.set('x-user-id', session?.user?.id || '')
+    requestHeaders.set('x-user-roles', JSON.stringify(userMetadata?.roles || []))
 
     console.log('✅ Access granted to:', pathname)
     return NextResponse.next({
