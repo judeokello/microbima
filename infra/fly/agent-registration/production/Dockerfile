@@ -7,7 +7,8 @@ RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
 # Install dependencies based on the preferred package manager
-COPY package.json pnpm-lock.yaml* ./
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY apps/agent-registration/package.json ./apps/agent-registration/
 RUN npm install -g pnpm@10.17.1 && pnpm install --frozen-lockfile
 
 # Rebuild the source code only when needed
