@@ -17,7 +17,7 @@ export class SosResponseDataDto {
 
 /**
  * SOS Response DTO
- * 
+ *
  * Response format for emergency contacts endpoint
  */
 export class SosResponseDto {

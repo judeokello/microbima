@@ -3,10 +3,10 @@ import { Request, Response, NextFunction } from 'express';
 
 /**
  * Correlation ID Middleware
- * 
+ *
  * Extracts correlation IDs from client requests for request tracing
  * This middleware should be applied to all routes for consistent tracing
- * 
+ *
  * Expected header: x-correlation-id: <correlation-id-value>
  * Required for all public API endpoints
  */
@@ -18,15 +18,15 @@ export class CorrelationIdMiddleware implements NestMiddleware {
     const path = req.path || '';
     const originalUrl = req.originalUrl || '';
     const url = req.url || '';
-    
-    const isInternalRoute = 
-      path.includes('/internal') || 
-      originalUrl.includes('/internal') || 
+
+    const isInternalRoute =
+      path.includes('/internal') ||
+      originalUrl.includes('/internal') ||
       url.includes('/internal') ||
-      path.includes('/api/internal') || 
-      originalUrl.includes('/api/internal') || 
+      path.includes('/api/internal') ||
+      originalUrl.includes('/api/internal') ||
       url.includes('/api/internal');
-    
+
     if (isInternalRoute) {
       return next();
     }
@@ -43,8 +43,8 @@ export class CorrelationIdMiddleware implements NestMiddleware {
 
     // Extract correlation ID from header
     const correlationIdHeader = req.headers['x-correlation-id'];
-    let correlationId = Array.isArray(correlationIdHeader) 
-      ? correlationIdHeader[0] 
+    let correlationId = Array.isArray(correlationIdHeader)
+      ? correlationIdHeader[0]
       : correlationIdHeader as string;
 
     // For internal routes, set a default correlation ID if none provided
@@ -72,15 +72,14 @@ export class CorrelationIdMiddleware implements NestMiddleware {
         path: req.path,
       });
     }
-    
+
     // Add correlation ID to request object for access throughout the request lifecycle
     req['correlationId'] = correlationId;
-    
+
     // Note: Correlation ID is set in response body by mappers, not in headers
     // to avoid duplication issues
-    
+
     next();
   }
-
 
 }

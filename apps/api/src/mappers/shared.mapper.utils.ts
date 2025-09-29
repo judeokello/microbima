@@ -28,7 +28,7 @@ export class SharedMapperUtils {
    */
   static mapGenderToDto(gender: Gender | null | undefined): string {
     if (!gender) return 'male'; // Default value
-    
+
     switch (gender) {
       case Gender.MALE:
         return 'male';

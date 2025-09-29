@@ -4,15 +4,16 @@ import { Partner, PartnerData } from '../entities/partner.entity';
 import { PartnerApiKey, PartnerApiKeyData } from '../entities/partner-api-key.entity';
 import { PartnerMapper } from '../mappers/partner.mapper';
 import { PartnerApiKeyMapper } from '../mappers/partner-api-key.mapper';
+import * as crypto from 'crypto';
 
 /**
  * Partner Management Service
- * 
+ *
  * Consolidated service for all partner-related operations including:
  * - Partner CRUD operations
  * - API key generation and management
  * - Partner validation and business logic
- * 
+ *
  * Features:
  * - Partner creation and management
  * - API key generation with automatic deactivation
@@ -96,7 +97,6 @@ export class PartnerManagementService {
       throw error;
     }
   }
-
 
   /**
    * Get partner by ID
@@ -384,10 +384,9 @@ export class PartnerManagementService {
    * @returns Generated API key string
    */
   private generateSecureApiKey(): string {
-    const crypto = require('crypto');
     const randomBytes = crypto.randomBytes(32);
     const apiKey = randomBytes.toString('hex');
-    
+
     // Add prefix for identification
     return `mb_${apiKey}`;
   }

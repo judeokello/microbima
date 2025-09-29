@@ -1,22 +1,22 @@
-import { 
-  Controller, 
-  Post, 
-  Get, 
-  Body, 
-  Param, 
-  Query, 
-  HttpCode, 
-  HttpStatus, 
-  UsePipes, 
-  ValidationPipe, 
-  Logger 
+import {
+  Controller,
+  Post,
+  Get,
+  Body,
+  Param,
+  Query,
+  HttpCode,
+  HttpStatus,
+  UsePipes,
+  ValidationPipe,
+  Logger
 } from '@nestjs/common';
-import { 
-  ApiTags, 
-  ApiOperation, 
-  ApiResponse, 
-  ApiParam, 
-  ApiQuery 
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiParam,
+  ApiQuery
 } from '@nestjs/swagger';
 import { PartnerManagementService } from '../../services/partner-management.service';
 import { PartnerMapper } from '../../mappers/partner.mapper';
@@ -32,10 +32,10 @@ import {
 
 /**
  * Internal Partner Management Controller
- * 
+ *
  * Provides internal API endpoints for partner management operations.
  * These endpoints are used by internal admin operations and do not require API key authentication.
- * 
+ *
  * Endpoints:
  * - POST /internal/partner-management/partners - Create new partner
  * - GET /internal/partner-management/partners - List all partners (paginated)
@@ -57,27 +57,27 @@ export class InternalPartnerManagementController {
    * POST /internal/partner-management/partners
    */
   @Post('partners')
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Create a new partner (Internal API)',
     description: 'Creates a new partner in the system. If a partner with the same name already exists, returns the existing partner with status 200. This endpoint is for internal admin use only.'
   })
-  @ApiResponse({ 
-    status: HttpStatus.CREATED, 
-    description: 'Partner created successfully', 
-    type: CreatePartnerResponseDto 
+  @ApiResponse({
+    status: HttpStatus.CREATED,
+    description: 'Partner created successfully',
+    type: CreatePartnerResponseDto
   })
-  @ApiResponse({ 
-    status: HttpStatus.OK, 
-    description: 'Partner already exists', 
-    type: CreatePartnerResponseDto 
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Partner already exists',
+    type: CreatePartnerResponseDto
   })
-  @ApiResponse({ 
-    status: HttpStatus.BAD_REQUEST, 
-    description: 'Invalid input data' 
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description: 'Invalid input data'
   })
-  @ApiResponse({ 
-    status: HttpStatus.INTERNAL_SERVER_ERROR, 
-    description: 'Internal server error' 
+  @ApiResponse({
+    status: HttpStatus.INTERNAL_SERVER_ERROR,
+    description: 'Internal server error'
   })
   async createPartner(
     @Body() createRequest: CreatePartnerRequestDto,
@@ -115,36 +115,36 @@ export class InternalPartnerManagementController {
    */
   @Get('partners')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Get all partners (Internal API)',
     description: 'Retrieves a paginated list of all partners in the system. This endpoint is for internal admin use only.'
   })
-  @ApiQuery({ 
-    name: 'page', 
-    required: false, 
-    type: Number, 
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    type: Number,
     description: 'Page number (default: 1)',
     example: 1
   })
-  @ApiQuery({ 
-    name: 'limit', 
-    required: false, 
-    type: Number, 
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    type: Number,
     description: 'Items per page (default: 10, max: 100)',
     example: 10
   })
-  @ApiResponse({ 
-    status: HttpStatus.OK, 
-    description: 'Partners retrieved successfully', 
-    type: PartnerListResponseDto 
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Partners retrieved successfully',
+    type: PartnerListResponseDto
   })
-  @ApiResponse({ 
-    status: HttpStatus.BAD_REQUEST, 
-    description: 'Invalid pagination parameters' 
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description: 'Invalid pagination parameters'
   })
-  @ApiResponse({ 
-    status: HttpStatus.INTERNAL_SERVER_ERROR, 
-    description: 'Internal server error' 
+  @ApiResponse({
+    status: HttpStatus.INTERNAL_SERVER_ERROR,
+    description: 'Internal server error'
   })
   async getPartners(
     @Query('page') page?: number,
@@ -186,27 +186,27 @@ export class InternalPartnerManagementController {
    */
   @Get('partners/:id')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Get partner by ID (Internal API)',
     description: 'Retrieves a specific partner by their ID. This endpoint is for internal admin use only.'
   })
-  @ApiParam({ 
-    name: 'id', 
+  @ApiParam({
+    name: 'id',
     description: 'Partner ID',
     example: 'partner_123456789'
   })
-  @ApiResponse({ 
-    status: HttpStatus.OK, 
-    description: 'Partner retrieved successfully', 
-    type: CreatePartnerResponseDto 
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Partner retrieved successfully',
+    type: CreatePartnerResponseDto
   })
-  @ApiResponse({ 
-    status: HttpStatus.NOT_FOUND, 
-    description: 'Partner not found' 
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: 'Partner not found'
   })
-  @ApiResponse({ 
-    status: HttpStatus.INTERNAL_SERVER_ERROR, 
-    description: 'Internal server error' 
+  @ApiResponse({
+    status: HttpStatus.INTERNAL_SERVER_ERROR,
+    description: 'Internal server error'
   })
   async getPartnerById(
     @Param('id') partnerId: string,
@@ -240,22 +240,22 @@ export class InternalPartnerManagementController {
    */
   @Post('api-keys')
   @HttpCode(HttpStatus.CREATED)
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Generate API key for partner (Internal API)',
     description: 'Generates a new API key for the specified partner. This endpoint is for internal admin use only.'
   })
-  @ApiResponse({ 
-    status: HttpStatus.CREATED, 
-    description: 'API key generated successfully', 
-    type: GenerateApiKeyResponseDto 
+  @ApiResponse({
+    status: HttpStatus.CREATED,
+    description: 'API key generated successfully',
+    type: GenerateApiKeyResponseDto
   })
-  @ApiResponse({ 
-    status: HttpStatus.BAD_REQUEST, 
-    description: 'Invalid partner ID or partner not found' 
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description: 'Invalid partner ID or partner not found'
   })
-  @ApiResponse({ 
-    status: HttpStatus.INTERNAL_SERVER_ERROR, 
-    description: 'Internal server error' 
+  @ApiResponse({
+    status: HttpStatus.INTERNAL_SERVER_ERROR,
+    description: 'Internal server error'
   })
   async generateApiKey(
     @Body() generateRequest: GenerateApiKeyRequestDto,

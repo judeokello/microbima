@@ -1,10 +1,10 @@
 /**
  * Mappers for converting between DTOs and Entities
- * 
+ *
  * This module provides a centralized way to transform data between:
  * - External API DTOs (what customers see)
  * - Internal Entity objects (what the system uses)
- * 
+ *
  * Key Benefits:
  * - Separation of concerns between API contracts and internal domain
  * - Type safety during transformations

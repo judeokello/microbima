@@ -1,6 +1,6 @@
 /**
  * Error Codes Enum
- * 
+ *
  * Comprehensive list of error codes for consistent error handling across the API.
  * These codes enable programmatic error handling and provide clear error categorization.
  */
@@ -64,7 +64,7 @@ export enum ErrorCodes {
 
 /**
  * Error Code to HTTP Status Mapping
- * 
+ *
  * Maps error codes to their appropriate HTTP status codes
  */
 export const ERROR_CODE_STATUS_MAP: Record<ErrorCodes, number> = {

@@ -3,15 +3,15 @@ import { ConfigurationService } from '../config/configuration.service';
 
 /**
  * External Integrations Service
- * 
+ *
  * Handles all external service calls asynchronously to avoid blocking
  * the main request flow. In the future, this could be enhanced with
  * message queues for better reliability.
- * 
+ *
  * Current integrations:
  * - Sentry error reporting
  * - PostHog analytics
- * 
+ *
  * Future enhancements:
  * - Message queue integration (Redis/RabbitMQ)
  * - Retry mechanisms

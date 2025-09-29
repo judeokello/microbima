@@ -14,10 +14,10 @@ import { ValidationException } from '../exceptions/validation.exception';
 
 /**
  * Global Exception Filter
- * 
+ *
  * Catches all unhandled exceptions and formats them consistently
  * Prepares for Sentry integration for error monitoring
- * 
+ *
  * Features:
  * - Consistent error response format
  * - Correlation ID inclusion
@@ -35,13 +35,13 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse<Response>();
     const request = ctx.getRequest<Request>();
-    
+
     // Extract correlation ID from request
     const correlationId = request.correlationId || 'unknown';
-    
+
     // Determine HTTP status code
     const status = this.getHttpStatus(exception);
-    
+
     // Create consistent error response using new format
     const errorResponse = {
       error: {
@@ -83,22 +83,22 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     if (exception instanceof ValidationException) {
       return exception.getStatus();
     }
-    
+
     if (exception instanceof HttpException) {
       return exception.getStatus();
     }
-    
+
     if (exception instanceof Error) {
       // Handle Prisma database errors with appropriate status codes
       if (exception.message.includes('Unique constraint failed')) {
         return HttpStatus.UNPROCESSABLE_ENTITY; // 422 for validation errors
       }
-      
+
       if (exception.message.includes('Foreign key constraint failed')) {
         return HttpStatus.BAD_REQUEST; // 400 for invalid references
       }
     }
-    
+
     // Default to 500 for unknown exceptions
     return HttpStatus.INTERNAL_SERVER_ERROR;
   }
@@ -110,7 +110,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     if (exception instanceof ValidationException) {
       return exception.errorCode;
     }
-    
+
     if (exception instanceof HttpException) {
       const response = exception.getResponse();
       if (typeof response === 'object' && response !== null) {
@@ -120,7 +120,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
         }
       }
     }
-    
+
     if (exception instanceof Error) {
       // Handle Prisma database errors
       if (exception.message.includes('Unique constraint failed')) {
@@ -132,16 +132,16 @@ export class GlobalExceptionFilter implements ExceptionFilter {
         }
         return ErrorCodes.RESOURCE_CONFLICT;
       }
-      
+
       if (exception.message.includes('Foreign key constraint failed')) {
         return ErrorCodes.MALFORMED_REQUEST;
       }
-      
+
       if (exception.message.includes('Invalid `this.prismaService')) {
         return ErrorCodes.DATABASE_ERROR;
       }
     }
-    
+
     return ErrorCodes.INTERNAL_SERVER_ERROR;
   }
 
@@ -152,7 +152,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     if (exception instanceof ValidationException) {
       return exception.message;
     }
-    
+
     if (exception instanceof HttpException) {
       const response = exception.getResponse();
       if (typeof response === 'object' && response !== null) {
@@ -164,7 +164,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       }
       return exception.message;
     }
-    
+
     if (exception instanceof Error) {
       // Handle Prisma database errors
       if (exception.message.includes('Unique constraint failed')) {
@@ -176,23 +176,23 @@ export class GlobalExceptionFilter implements ExceptionFilter {
         }
         return 'A record with this information already exists';
       }
-      
+
       if (exception.message.includes('Foreign key constraint failed')) {
         return 'Invalid reference to related data';
       }
-      
+
       if (exception.message.includes('Invalid `this.prismaService')) {
         return 'An error occurred while saving the data';
       }
-      
+
       // For other database errors, return generic message in production
       if (process.env.NODE_ENV === 'production') {
         return 'An error occurred while processing your request';
       }
-      
+
       return exception.message;
     }
-    
+
     return 'Internal server error';
   }
 
@@ -210,7 +210,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       }
       return 'Internal Server Error';
     }
-    
+
     return 'Internal Server Error';
   }
 
@@ -221,7 +221,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     if (exception instanceof ValidationException) {
       return exception.errorDetails;
     }
-    
+
     if (exception instanceof HttpException) {
       const response = exception.getResponse();
       if (typeof response === 'object' && response !== null) {
@@ -232,7 +232,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
         return undefined;
       }
     }
-    
+
     return undefined;
   }
 
@@ -242,13 +242,12 @@ export class GlobalExceptionFilter implements ExceptionFilter {
   private logError(exception: unknown, request: Request, correlationId: string) {
     const errorMessage = this.getErrorMessage(exception);
     const status = this.getHttpStatus(exception);
-    
+
     this.logger.error(
       `[${correlationId}] ${request.method} ${request.url} - ${status}: ${errorMessage}`,
       exception instanceof Error ? exception.stack : undefined,
       'GlobalExceptionFilter',
     );
   }
-
 
 }

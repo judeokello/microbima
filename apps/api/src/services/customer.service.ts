@@ -18,10 +18,10 @@ import { GetBeneficiariesResponseDto } from '../dto/beneficiaries/get-beneficiar
 
 /**
  * Customer Service
- * 
+ *
  * Handles all customer-related business logic with proper partner scoping
  * Ensures that partners can only access their own customers
- * 
+ *
  * Features:
  * - Customer creation with partner relationship
  * - Customer retrieval scoped to partner
@@ -199,7 +199,7 @@ export class CustomerService {
 
         // Get created children with IDs
         createdChildren = await this.prismaService.dependant.findMany({
-          where: { 
+          where: {
             customerId: createdCustomer.id,
             relationship: 'CHILD'
           },
@@ -228,7 +228,7 @@ export class CustomerService {
 
         // Get created spouses with IDs
         createdSpouses = await this.prismaService.dependant.findMany({
-          where: { 
+          where: {
             customerId: createdCustomer.id,
             relationship: 'SPOUSE'
           },
@@ -470,7 +470,7 @@ export class CustomerService {
 
     try {
       // Validate that at least one dependant is provided
-      if ((!addRequest.children || addRequest.children.length === 0) && 
+      if ((!addRequest.children || addRequest.children.length === 0) &&
           (!addRequest.spouses || addRequest.spouses.length === 0)) {
         throw ValidationException.forField('dependants', 'At least one child or spouse must be provided', ErrorCodes.NO_DEPENDANTS_PROVIDED);
       }
@@ -592,7 +592,7 @@ export class CustomerService {
             dateOfBirth: spouse.dateOfBirth.toISOString().split('T')[0],
             gender: spouse.gender,
             email: spouse.email,
-            idType: spouse.idType.toUpperCase() as any,
+            idType: spouse.idType.toUpperCase(),
             idNumber: spouse.idNumber,
           })));
         }
@@ -677,14 +677,14 @@ export class CustomerService {
       // Get children and spouses in parallel
       const [children, spouses] = await Promise.all([
         this.prismaService.dependant.findMany({
-          where: { 
+          where: {
             customerId: customerId,
             relationship: 'CHILD'
           },
           orderBy: { createdAt: 'asc' },
         }),
         this.prismaService.dependant.findMany({
-          where: { 
+          where: {
             customerId: customerId,
             relationship: 'SPOUSE'
           },

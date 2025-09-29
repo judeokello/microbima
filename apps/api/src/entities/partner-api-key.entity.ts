@@ -1,4 +1,5 @@
 import { ValidationResult } from './partner.entity';
+import * as crypto from 'crypto';
 
 export interface PartnerApiKeyData {
   id: number;
@@ -113,15 +114,10 @@ export class PartnerApiKey {
   // Static utility methods
   static hashApiKey(apiKey: string): string {
     // Simple SHA-256 hash (in production, use crypto module)
-    const crypto = require('crypto');
     return crypto.createHash('sha256').update(apiKey).digest('hex');
   }
 
   static validateApiKeyFormat(apiKey: string): boolean {
-    // Basic validation for API key format (alphanumeric with hyphens/underscores, min 16 chars)
-    if (!apiKey || typeof apiKey !== 'string') {
-      return false;
-    }
 
     if (apiKey.length < 16) {
       return false;

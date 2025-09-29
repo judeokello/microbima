@@ -6,7 +6,7 @@ export class SwaggerConfig {
   static setupSwagger(app: INestApplication, configService: ConfigurationService) {
     // Internal API Documentation
     this.setupInternalSwagger(app, configService);
-    
+
     // Public API Documentation
     this.setupPublicSwagger(app, configService);
   }

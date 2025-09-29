@@ -69,8 +69,6 @@ export class BeneficiaryMapper {
     };
   }
 
-
-
   /**
    * Map relationship from entity string to DTO enum value
    * @param relationship - Relationship string from entity
@@ -78,14 +76,14 @@ export class BeneficiaryMapper {
    */
   private static mapRelationshipToDto(relationship: string | null | undefined): string {
     if (!relationship) return 'other';
-    
+
     const lowerRel = relationship.toLowerCase();
-    
+
     // Check if it's a standard relationship
     if (['spouse', 'child', 'parent', 'sibling', 'friend'].includes(lowerRel)) {
       return lowerRel;
     }
-    
+
     // If it's a custom relationship, return 'other'
     return 'other';
   }
@@ -97,14 +95,14 @@ export class BeneficiaryMapper {
    */
   private static getRelationshipDescription(relationship: string | null | undefined): string | undefined {
     if (!relationship) return undefined;
-    
+
     const lowerRel = relationship.toLowerCase();
-    
+
     // If it's a standard relationship, don't include description
     if (['spouse', 'child', 'parent', 'sibling', 'friend'].includes(lowerRel)) {
       return undefined;
     }
-    
+
     // If it's a custom relationship, return the description
     return relationship;
   }

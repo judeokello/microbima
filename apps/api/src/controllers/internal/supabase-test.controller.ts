@@ -9,12 +9,12 @@ export class SupabaseTestController {
   constructor(private readonly supabaseService: SupabaseService) {}
 
   @Get('connection')
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Test Supabase Connection',
     description: 'Test if Supabase client can connect to the database'
   })
-  @ApiResponse({ 
-    status: 200, 
+  @ApiResponse({
+    status: 200,
     description: 'Connection test result',
     schema: {
       type: 'object',
@@ -26,7 +26,7 @@ export class SupabaseTestController {
   })
   async testConnection() {
     const result = await this.supabaseService.testConnection();
-    
+
     if (!result.success) {
       throw new HttpException(
         {
@@ -47,12 +47,12 @@ export class SupabaseTestController {
   }
 
   @Post('partners')
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Create Partner (Supabase Client)',
     description: 'Create a new partner using Supabase client instead of Prisma'
   })
-  @ApiResponse({ 
-    status: 201, 
+  @ApiResponse({
+    status: 201,
     description: 'Partner created successfully',
     schema: {
       type: 'object',
@@ -64,8 +64,8 @@ export class SupabaseTestController {
       }
     }
   })
-  @ApiResponse({ 
-    status: 503, 
+  @ApiResponse({
+    status: 503,
     description: 'Supabase connection failed',
     schema: {
       type: 'object',

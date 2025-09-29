@@ -4,7 +4,7 @@ import { PrismaService } from '../prisma/prisma.service';
 
 /**
  * API Key Service
- * 
+ *
  * Handles API key validation and management
  * This service will be used for database-based API key validation
  */
@@ -27,7 +27,7 @@ export class ApiKeyService {
     // 2. Checking if it's active and not expired
     // 3. Validating permissions/scopes
     // 4. Updating last used timestamp
-    
+
     try {
       // Placeholder implementation
       // In production, this would query the database
@@ -55,7 +55,7 @@ export class ApiKeyService {
     // 1. Decoding the API key to extract partner ID
     // 2. Looking up partner information from database
     // 3. Returning partner context
-    
+
     try {
       // Placeholder implementation
       return {
@@ -98,7 +98,7 @@ export class ApiKeyService {
     // 1. Logging the API key usage to database
     // 2. Updating rate limiting counters
     // 3. Storing audit trail
-    
+
     try {
       // Placeholder implementation
       console.log(`API Key usage logged: ${apiKey} -> ${endpoint} at ${timestamp}`);
@@ -118,7 +118,7 @@ export class ApiKeyService {
     // 1. Querying the API keys table
     // 2. Checking expiration and status
     // 3. Validating against partner records
-    
+
     // For now, return true for any valid format
     if (!apiKey || typeof apiKey !== 'string') {
       return false;

@@ -35,7 +35,7 @@ export class PartnerCustomerMapper {
    * @param customerId - Customer ID
    * @param partnerId - Partner ID
    * @returns Promise<string> - Partner's customer ID reference
-   * 
+   *
    * Note: This method would typically require a database lookup to find the PartnerCustomer record
    * For now, it's a placeholder that would need to be implemented with actual database access
    */
@@ -54,7 +54,7 @@ export class PartnerCustomerMapper {
    * @param partnerId - Partner ID
    * @param partnerCustomerId - Partner's customer ID reference
    * @returns boolean - True if unique, false if already exists
-   * 
+   *
    * Note: This method would typically require a database lookup
    * For now, it's a placeholder that would need to be implemented with actual database access
    */

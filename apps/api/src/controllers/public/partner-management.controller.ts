@@ -1,18 +1,18 @@
-import { 
-  Controller, 
-  Post, 
-  Delete, 
-  Body, 
-  HttpCode, 
-  HttpStatus, 
-  UsePipes, 
-  ValidationPipe, 
-  Logger 
+import {
+  Controller,
+  Post,
+  Delete,
+  Body,
+  HttpCode,
+  HttpStatus,
+  UsePipes,
+  ValidationPipe,
+  Logger
 } from '@nestjs/common';
-import { 
-  ApiTags, 
-  ApiOperation, 
-  ApiResponse 
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse
 } from '@nestjs/swagger';
 import { PartnerManagementService } from '../../services/partner-management.service';
 import { PartnerApiKeyMapper } from '../../mappers/partner-api-key.mapper';
@@ -27,10 +27,10 @@ import {
 
 /**
  * Public Partner Management Controller
- * 
+ *
  * Provides public API endpoints for partner management operations.
  * These endpoints require API key authentication and are used by partners to manage their API keys.
- * 
+ *
  * Endpoints:
  * - POST /v1/partner-management/api-keys - Generate new API key for authenticated partner
  * - POST /v1/partner-management/api-keys/validate - Validate API key
@@ -52,26 +52,26 @@ export class PublicPartnerManagementController {
    */
   @Post('api-keys')
   @HttpCode(HttpStatus.CREATED)
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Reset API key for authenticated partner',
     description: 'Generates a new API key for the partner making the request, deactivating the previous one. Requires valid API key authentication.'
   })
-  @ApiResponse({ 
-    status: HttpStatus.CREATED, 
-    description: 'API key generated successfully', 
-    type: GenerateApiKeyResponseDto 
+  @ApiResponse({
+    status: HttpStatus.CREATED,
+    description: 'API key generated successfully',
+    type: GenerateApiKeyResponseDto
   })
-  @ApiResponse({ 
-    status: HttpStatus.UNAUTHORIZED, 
-    description: 'Invalid or missing API key' 
+  @ApiResponse({
+    status: HttpStatus.UNAUTHORIZED,
+    description: 'Invalid or missing API key'
   })
-  @ApiResponse({ 
-    status: HttpStatus.BAD_REQUEST, 
-    description: 'Invalid partner or partner inactive' 
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description: 'Invalid partner or partner inactive'
   })
-  @ApiResponse({ 
-    status: HttpStatus.INTERNAL_SERVER_ERROR, 
-    description: 'Internal server error' 
+  @ApiResponse({
+    status: HttpStatus.INTERNAL_SERVER_ERROR,
+    description: 'Internal server error'
   })
   async generateApiKey(
     @ApiKey() apiKey: string,
@@ -99,33 +99,32 @@ export class PublicPartnerManagementController {
     }
   }
 
-
   /**
    * Deactivate an API key
    * DELETE /v1/partner-management/api-keys
    */
   @Delete('api-keys')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Deactivate API key',
     description: 'Deactivates the authenticated API key. Requires valid API key authentication.'
   })
-  @ApiResponse({ 
-    status: HttpStatus.OK, 
-    description: 'API key deactivated successfully', 
-    type: DeactivateApiKeyResponseDto 
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'API key deactivated successfully',
+    type: DeactivateApiKeyResponseDto
   })
-  @ApiResponse({ 
-    status: HttpStatus.UNAUTHORIZED, 
-    description: 'Invalid or missing API key' 
+  @ApiResponse({
+    status: HttpStatus.UNAUTHORIZED,
+    description: 'Invalid or missing API key'
   })
-  @ApiResponse({ 
-    status: HttpStatus.BAD_REQUEST, 
-    description: 'Invalid API key format' 
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description: 'Invalid API key format'
   })
-  @ApiResponse({ 
-    status: HttpStatus.INTERNAL_SERVER_ERROR, 
-    description: 'Internal server error' 
+  @ApiResponse({
+    status: HttpStatus.INTERNAL_SERVER_ERROR,
+    description: 'Internal server error'
   })
   async deactivateApiKey(
     @ApiKey() apiKey: string,

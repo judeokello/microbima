@@ -86,7 +86,7 @@ export class ErrorDetailsDto {
 
 /**
  * Standard Error Response DTO
- * 
+ *
  * Provides a consistent error response format across all API endpoints.
  * Supports multiple validation errors, error codes, and environment-specific details.
  */

@@ -56,7 +56,7 @@ export class ConfigurationService extends BaseConfigurationService implements On
 
   private loadConfiguration(): AppConfig {
     const baseConfig = this.loadBaseConfiguration();
-    
+
     return {
       ...baseConfig,
       database: getDatabaseConfig(),

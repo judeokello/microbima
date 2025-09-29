@@ -17,7 +17,7 @@ export class CustomerMapper {
    * @returns Customer entity for internal use
    */
   static fromPrincipalMemberDto(
-    dto: PrincipalMemberDto, 
+    dto: PrincipalMemberDto,
     partnerId: number
   ): Customer {
     const customerData: CustomerData = {
@@ -160,8 +160,6 @@ export class CustomerMapper {
       partnerCustomerId: '', // This would need to be retrieved from PartnerCustomer table
     };
   }
-
-
 
   /**
    * Map customer status from Prisma enum to DTO string

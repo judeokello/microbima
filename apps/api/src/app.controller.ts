@@ -15,12 +15,12 @@ export class AppController {
   ) {}
 
   @Get('health')
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Root Health Check',
     description: 'Basic health check endpoint accessible without authentication'
   })
-  @ApiResponse({ 
-    status: 200, 
+  @ApiResponse({
+    status: 200,
     description: 'Application is healthy',
     schema: {
       type: 'string',
@@ -33,12 +33,12 @@ export class AppController {
 
   @Get('api/internal/health')
   @ApiTags('Health')
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Internal Health Check',
     description: 'Health check for internal API endpoints'
   })
-  @ApiResponse({ 
-    status: 200, 
+  @ApiResponse({
+    status: 200,
     description: 'Internal API is healthy',
     schema: {
       type: 'string',
@@ -51,12 +51,12 @@ export class AppController {
 
   @Get('api/v1/health')
   @ApiTags('Public Health')
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Public Health Check',
     description: 'Health check for public API endpoints'
   })
-  @ApiResponse({ 
-    status: 200, 
+  @ApiResponse({
+    status: 200,
     description: 'Public API is healthy',
     schema: {
       type: 'string',
@@ -69,12 +69,12 @@ export class AppController {
 
   @Get('api/internal/config/health')
   @ApiTags('Configuration')
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Configuration Health Check',
     description: 'Get current application configuration and environment information'
   })
-  @ApiResponse({ 
-    status: 200, 
+  @ApiResponse({
+    status: 200,
     description: 'Configuration information retrieved successfully',
     schema: {
       type: 'object',
@@ -152,12 +152,12 @@ export class AppController {
 
   @Get('api/internal/db/health')
   @ApiTags('Database')
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Database Health Check',
     description: 'Check database connectivity and get connection information'
   })
-  @ApiResponse({ 
-    status: 200, 
+  @ApiResponse({
+    status: 200,
     description: 'Database is healthy and connection info retrieved',
     schema: {
       type: 'object',
@@ -176,8 +176,8 @@ export class AppController {
       }
     }
   })
-  @ApiResponse({ 
-    status: 503, 
+  @ApiResponse({
+    status: 503,
     description: 'Database is unhealthy',
     schema: {
       type: 'object',
@@ -191,7 +191,7 @@ export class AppController {
     try {
       const isHealthy = await this.prismaService.isHealthy();
       const connectionInfo = await this.prismaService.getConnectionInfo();
-      
+
       return {
         healthy: isHealthy,
         connectionInfo: (connectionInfo as any[])[0],
@@ -206,12 +206,12 @@ export class AppController {
 
   @Get('internal/debug-sentry')
   @ApiTags('Debug')
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Sentry Debug Endpoint',
     description: 'Test endpoint to verify Sentry error monitoring is working correctly'
   })
-  @ApiResponse({ 
-    status: 500, 
+  @ApiResponse({
+    status: 500,
     description: 'Intentionally throws an error for Sentry testing',
     schema: {
       type: 'object',
@@ -222,17 +222,17 @@ export class AppController {
   })
   getSentryError() {
     // Simple error for testing
-    throw new Error("My first Sentry error!");
+    throw new Error('My first Sentry error!');
   }
 
   @Get('internal/debug-sentry-simple')
   @ApiTags('Debug')
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Simple Sentry Debug Endpoint',
     description: 'Simple test endpoint that immediately throws an error for Sentry testing'
   })
-  @ApiResponse({ 
-    status: 500, 
+  @ApiResponse({
+    status: 500,
     description: 'Intentionally throws an error for Sentry testing',
     schema: {
       type: 'object',
@@ -242,6 +242,6 @@ export class AppController {
     }
   })
   getSimpleSentryError() {
-    throw new Error("Simple Sentry test error!");
+    throw new Error('Simple Sentry test error!');
   }
 }

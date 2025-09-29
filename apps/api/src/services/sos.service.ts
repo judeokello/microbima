@@ -3,10 +3,10 @@ import { SosResponseDto, SosResponseDataDto, SosContactDto } from '../dto/sos/so
 
 /**
  * SOS Service
- * 
+ *
  * Provides emergency contact information for insurance customers.
  * Uses in-memory caching for static emergency contact data.
- * 
+ *
  * Features:
  * - Static emergency contact data
  * - In-memory caching for performance
@@ -15,7 +15,7 @@ import { SosResponseDto, SosResponseDataDto, SosContactDto } from '../dto/sos/so
 @Injectable()
 export class SosService {
   private readonly logger = new Logger(SosService.name);
-  
+
   // In-memory cache for emergency contacts
   private emergencyContactsCache: SosResponseDto | null = null;
   private readonly CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
@@ -39,7 +39,7 @@ export class SosService {
       // Generate fresh data
       this.logger.log(`[${correlationId}] Generating fresh emergency contacts data`);
       const emergencyContacts = this.generateEmergencyContacts();
-      
+
       // Cache the data
       this.emergencyContactsCache = emergencyContacts;
       this.cacheTimestamp = Date.now();
@@ -93,7 +93,7 @@ export class SosService {
 
     const now = Date.now();
     const cacheAge = now - this.cacheTimestamp;
-    
+
     return cacheAge < this.CACHE_TTL;
   }
 

@@ -32,10 +32,10 @@ import { PartnerId } from '../decorators/api-key.decorator';
 
 /**
  * Customer Controller
- * 
+ *
  * Handles HTTP requests for customer CRUD operations
  * All endpoints are scoped to the authenticated partner via API key
- * 
+ *
  * Features:
  * - Customer creation with partner relationship
  * - Customer retrieval (single and list) scoped to partner

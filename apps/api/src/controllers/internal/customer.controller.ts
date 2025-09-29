@@ -24,10 +24,10 @@ import { PartnerId } from '../../decorators/api-key.decorator';
 
 /**
  * Internal Customer Controller
- * 
+ *
  * Handles internal HTTP requests for customer management operations.
  * These endpoints are NOT exposed through the public Kong gateway.
- * 
+ *
  * Features:
  * - Customer updates (internal only)
  * - Customer deletion (internal only)

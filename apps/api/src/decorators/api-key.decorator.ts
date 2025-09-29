@@ -2,10 +2,10 @@ import { createParamDecorator, ExecutionContext } from '@nestjs/common';
 
 /**
  * API Key Decorator
- * 
+ *
  * Extracts the validated API key from the request
  * Can be used in controller methods to access the API key
- * 
+ *
  * Usage: @ApiKey() apiKey: string
  */
 export const ApiKey = createParamDecorator(
@@ -17,12 +17,12 @@ export const ApiKey = createParamDecorator(
 
 /**
  * Partner ID Decorator
- * 
+ *
  * Extracts the partner ID from the API key
  * Can be used in controller methods to access the partner ID
- * 
+ *
  * Usage: @PartnerId() partnerId: string
- * 
+ *
  * Note: This will be enhanced to extract real partner ID from API key
  * when the ApiKeyService is fully implemented
  */

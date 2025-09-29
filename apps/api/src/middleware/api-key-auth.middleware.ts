@@ -6,10 +6,10 @@ import { PartnerApiKey } from '../entities/partner-api-key.entity';
 
 /**
  * API Key Authentication Middleware
- * 
+ *
  * Validates the x-api-key header for public API endpoints
  * This middleware should be applied to all public API routes
- * 
+ *
  * Expected header: x-api-key: <api-key-value>
  */
 @Injectable()
@@ -24,7 +24,7 @@ export class ApiKeyAuthMiddleware implements NestMiddleware {
     console.log('API Key Middleware - Request method:', req.method);
     console.log('API Key Middleware - Request URL:', req.url);
     console.log('API Key Middleware - Request originalUrl:', req.originalUrl);
-    
+
     // Skip authentication for internal API routes
     if (req.path.startsWith('/api/internal') || req.originalUrl.startsWith('/api/internal')) {
       console.log('Skipping API key auth for internal route:', req.path);
@@ -59,7 +59,7 @@ export class ApiKeyAuthMiddleware implements NestMiddleware {
 
     // Validate the API key against database
     const validationResult = await this.validateApiKey(apiKey);
-    
+
     if (!validationResult.valid) {
       throw new UnauthorizedException({
         status: 401,
@@ -73,7 +73,7 @@ export class ApiKeyAuthMiddleware implements NestMiddleware {
     // Add the validated API key and partner ID to the request for later use
     req['apiKey'] = apiKey;
     req['partnerId'] = validationResult.partnerId;
-    
+
     next();
   }
 
@@ -148,6 +148,5 @@ export class ApiKeyAuthMiddleware implements NestMiddleware {
       };
     }
   }
-
 
 }

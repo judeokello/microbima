@@ -1,5 +1,5 @@
 // Import this first!
-import "../instrument";
+import '../instrument';
 
 // Now import other modules
 import { NestFactory } from '@nestjs/core';
@@ -12,10 +12,10 @@ import { ExternalIntegrationsService } from './services/external-integrations.se
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
-  
+
   // Get configuration service
   const configService = app.get(ConfigurationService);
-  
+
   // Global validation pipe
   app.useGlobalPipes(new ValidationPipe({
     whitelist: true,
@@ -41,7 +41,7 @@ async function bootstrap() {
 
   const port = configService.port;
   await app.listen(port);
-  
+
   console.log(`🚀 MicroBima API running on port ${port}`);
   console.log(`🌍 Environment: ${configService.environment}`);
   console.log(`🔧 API Prefix: ${configService.apiPrefix}`);

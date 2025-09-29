@@ -2,7 +2,7 @@ import { ApiProperty } from '@nestjs/swagger';
 
 /**
  * SOS Contact DTO
- * 
+ *
  * Represents emergency contact information for insurance customers
  */
 export class SosContactDto {

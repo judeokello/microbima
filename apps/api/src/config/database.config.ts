@@ -10,7 +10,7 @@ export interface DatabaseConfig {
 
 export const getDatabaseConfig = (): DatabaseConfig => {
   const env = EnvironmentConfig.getEnvironment();
-  
+
   switch (env) {
     case 'staging':
       return {
@@ -43,11 +43,11 @@ export const validateDatabaseConfig = (config: DatabaseConfig): void => {
   if (!config.url) {
     throw new Error('DATABASE_URL is required');
   }
-  
+
   if (config.poolSize <= 0) {
     throw new Error('Database pool size must be greater than 0');
   }
-  
+
   if (config.timeout <= 0) {
     throw new Error('Database timeout must be greater than 0');
   }

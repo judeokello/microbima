@@ -22,7 +22,7 @@ import { SosController } from './controllers/sos.controller';
 @Module({
   imports: [
     SentryModule.forRoot(),
-    ConfigurationModule, 
+    ConfigurationModule,
     PrismaModule
   ],
   controllers: [AppController, CustomerController, InternalCustomerController, InternalPartnerManagementController, PublicPartnerManagementController, SupabaseTestController, ConnectionMonitorController, SosController],
@@ -34,7 +34,7 @@ export class AppModule implements NestModule {
     consumer
       .apply(CorrelationIdMiddleware)
       .forRoutes('*'); // Apply correlation ID to all routes
-    
+
     consumer
       .apply(ApiKeyAuthMiddleware)
       .forRoutes('*'); // Apply API key auth to all routes

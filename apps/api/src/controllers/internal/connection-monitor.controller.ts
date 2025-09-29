@@ -52,7 +52,7 @@ export class ConnectionMonitorController {
         connections: connectionInfo[0] || {},
         limits: limitInfo[0] || {},
         recommendations: this.getRecommendations(
-          connectionInfo[0]?.total_connections || 0, 
+          connectionInfo[0]?.total_connections || 0,
           parseInt(limitInfo[0]?.max_connections || '0')
         )
       };
@@ -67,7 +67,7 @@ export class ConnectionMonitorController {
 
   private getRecommendations(currentConnections: number, maxConnections: number) {
     const usagePercentage = (currentConnections / maxConnections) * 100;
-    
+
     if (usagePercentage > 80) {
       return {
         status: 'CRITICAL',

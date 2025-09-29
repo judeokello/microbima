@@ -1,6 +1,6 @@
 /**
  * Middleware exports
- * 
+ *
  * Centralized exports for all middleware components
  */
 

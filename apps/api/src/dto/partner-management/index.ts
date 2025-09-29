@@ -1,6 +1,6 @@
 /**
  * Partner Management DTOs
- * 
+ *
  * Data Transfer Objects for Partner Management API endpoints
  * Used by both internal and public API controllers
  */

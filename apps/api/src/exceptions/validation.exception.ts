@@ -13,13 +13,13 @@ export class ValidationException extends HttpException {
     details?: Record<string, string>
   ) {
     const status = ERROR_CODE_STATUS_MAP[code];
-    
+
     // Enhance the message to include error code for better debugging
     const enhancedMessage = `${code}: ${message}`;
-    
+
     // Work with NestJS built-in format
     super(enhancedMessage, status);
-    
+
     // Store the error details for potential future use
     this.errorCode = code;
     this.errorDetails = details;
@@ -36,13 +36,13 @@ export class ValidationException extends HttpException {
     code: ErrorCodes = ErrorCodes.VALIDATION_ERROR
   ): ValidationException {
     const errorCount = Object.keys(errors).length;
-    const message = errorCount === 1 
+    const message = errorCount === 1
       ? 'One field failed validation'
       : `${errorCount} fields failed validation`;
 
     // Enhance the message to include error code and details
     const enhancedMessage = `${code}: ${message}`;
-    
+
     return new ValidationException(code, enhancedMessage, errors);
   }
 

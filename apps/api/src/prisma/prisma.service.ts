@@ -9,7 +9,7 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
 
   constructor(private configService: ConfigurationService) {
     const dbConfig = configService.database;
-    
+
     super({
       log: ['error', 'warn'],
       datasources: {

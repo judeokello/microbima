@@ -1,22 +1,13 @@
-import { FlatCompat } from "@eslint/eslintrc";
 import tseslint from "typescript-eslint";
-
-const compat = new FlatCompat({
-  baseDirectory: import.meta.dirname,
-});
 
 /** @type {import('eslint').Linter.Config[]} */
 export default [
   {
-    ignores: ["node_modules/**", ".next/**", "out/**", "build/**", "next-env.d.ts"]
+    ignores: ["node_modules/**", "dist/**", "coverage/**", "*.config.ts", "*.config.js"]
   },
   { 
     files: ["**/*.{js,mjs,cjs,ts,jsx,tsx}"] 
   },
-  {
-    ignores: [".github/", ".husky/", ".next/", "src/components/ui", "*.config.ts", "*.mjs"]
-  },
-  ...compat.extends("next/core-web-vitals"),
   ...tseslint.configs.recommended,
   {
     languageOptions: {
@@ -26,23 +17,23 @@ export default [
       },
     },
     rules: {
-      // Basic Next.js-specific overrides
-      "@next/next/no-img-element": "off",
-      
-      // React rules - disable strict entity escaping
-      "react/no-unescaped-entities": "off",
-      
-      // TypeScript rules (basic ones that don't require type info)
+      // TypeScript rules
       "@typescript-eslint/no-unused-vars": "warn",
       "@typescript-eslint/no-explicit-any": "warn",
-      
-      // TypeScript rules that require type info
       "@typescript-eslint/prefer-nullish-coalescing": "warn",
       "@typescript-eslint/no-unnecessary-type-assertion": "warn",
+      
+      // NestJS specific rules
+      "@typescript-eslint/interface-name-prefix": "off",
+      "@typescript-eslint/explicit-function-return-type": "off",
+      "@typescript-eslint/explicit-module-boundary-types": "off",
+      "@typescript-eslint/no-explicit-any": "warn",
       
       // Basic style rules
       "no-trailing-spaces": "error",
       "no-multiple-empty-lines": ["error", { max: 1 }],
+      "semi": ["error", "always"],
+      "quotes": ["error", "single"],
     },
   },
 ];

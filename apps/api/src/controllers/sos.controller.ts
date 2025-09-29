@@ -16,10 +16,10 @@ import { CorrelationId } from '../decorators/correlation-id.decorator';
 
 /**
  * SOS Controller
- * 
+ *
  * Handles HTTP requests for emergency contact information.
  * Provides access to ambulance and rescue service contacts for insurance customers.
- * 
+ *
  * Features:
  * - Emergency contact retrieval
  * - API key authentication
