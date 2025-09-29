@@ -38,8 +38,8 @@ RUN adduser --system --uid 1001 nodejs
 
 # Copy built application from agent-registration
 COPY --from=builder /app/apps/agent-registration/.next/standalone ./
-COPY --from=builder /app/apps/agent-registration/.next/static ./.next/static
-COPY --from=builder /app/apps/agent-registration/public ./public
+COPY --from=builder /app/apps/agent-registration/.next/static ./apps/agent-registration/.next/static
+COPY --from=builder /app/apps/agent-registration/public ./apps/agent-registration/public
 
 USER nodejs
 
@@ -51,4 +51,4 @@ ENV HOSTNAME="0.0.0.0"
 # Use dumb-init for proper signal handling
 ENTRYPOINT ["dumb-init", "--"]
 
-CMD ["node", "server.js"]
+CMD ["node", "apps/agent-registration/server.js"]
