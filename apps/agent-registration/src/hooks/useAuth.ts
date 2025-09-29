@@ -38,7 +38,7 @@ export function useAuth() {
     const getInitialSession = async () => {
       try {
         const { data: { session }, error } = await supabase.auth.getSession()
-        
+
         if (error) {
           setAuthState(prev => ({ ...prev, error: error.message, loading: false }))
           return
@@ -56,10 +56,10 @@ export function useAuth() {
           setAuthState(prev => ({ ...prev, loading: false }))
         }
       } catch (error) {
-        setAuthState(prev => ({ 
-          ...prev, 
+        setAuthState(prev => ({
+          ...prev,
           error: error instanceof Error ? error.message : 'Unknown error',
-          loading: false 
+          loading: false
         }))
       }
     }

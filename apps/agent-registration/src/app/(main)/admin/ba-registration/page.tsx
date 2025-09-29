@@ -22,7 +22,7 @@ export default function BARegistrationPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
-  
+
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -95,7 +95,7 @@ export default function BARegistrationPage() {
   const handleRoleToggle = (role: string, checked: boolean) => {
     setFormData(prev => ({
       ...prev,
-      roles: checked 
+      roles: checked
         ? [...prev.roles, role]
         : prev.roles.filter(r => r !== role)
     }))

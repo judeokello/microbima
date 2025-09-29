@@ -53,8 +53,8 @@ export default function WizardLayout({ children }: WizardLayoutProps) {
                       )}
                       <div className="ml-3">
                         <p className={`text-sm font-medium ${
-                          isCompleted ? 'text-green-600' : 
-                          isCurrent ? 'text-blue-600' : 
+                          isCompleted ? 'text-green-600' :
+                          isCurrent ? 'text-blue-600' :
                           'text-gray-500'
                         }`}>
                           {step.title}

@@ -53,35 +53,35 @@ export default function DashboardLayout({
         </div>
 
         <nav className="space-y-2">
-          <Link 
-            href="/dashboard" 
+          <Link
+            href="/dashboard"
             className="block px-3 py-2 rounded-md hover:bg-gray-700 transition-colors"
           >
             Dashboard
           </Link>
-          <Link 
-            href="/register" 
+          <Link
+            href="/register"
             className="block px-3 py-2 rounded-md hover:bg-gray-700 transition-colors bg-blue-600 hover:bg-blue-700"
           >
             Register Customer
           </Link>
-          <Link 
-            href="/dashboard/registrations" 
+          <Link
+            href="/dashboard/registrations"
             className="block px-3 py-2 rounded-md hover:bg-gray-700 transition-colors"
           >
             My Registrations
           </Link>
-          <Link 
-            href="/dashboard/earnings" 
+          <Link
+            href="/dashboard/earnings"
             className="block px-3 py-2 rounded-md hover:bg-gray-700 transition-colors"
           >
             Earnings
           </Link>
-          
+
           {/* Admin link - only visible if user has registration_admin role */}
           {isAdmin && (
-            <Link 
-              href="/admin" 
+            <Link
+              href="/admin"
               className="block px-3 py-2 rounded-md hover:bg-gray-700 transition-colors bg-gray-700"
             >
               <Settings className="h-4 w-4 inline mr-2" />
@@ -91,9 +91,9 @@ export default function DashboardLayout({
         </nav>
 
         <div className="mt-auto pt-6">
-          <Button 
-            variant="outline" 
-            size="sm" 
+          <Button
+            variant="outline"
+            size="sm"
             onClick={signOut}
             className="w-full bg-transparent border-gray-600 text-white hover:bg-gray-700"
           >

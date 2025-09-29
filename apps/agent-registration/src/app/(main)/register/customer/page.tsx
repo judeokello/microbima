@@ -22,14 +22,14 @@ interface CustomerFormData {
   gender: string;
   idType: string;
   idNumber: string;
-  
+
   // Address Information
   street: string;
   city: string;
   state: string;
   postalCode: string;
   country: string;
-  
+
   // Dependants (Spouse & Children)
   spouse: {
     firstName: string;
@@ -121,7 +121,7 @@ export default function CustomerStep() {
   const handleChildChange = (index: number, field: keyof CustomerFormData['children'][0], value: string) => {
     setFormData(prev => ({
       ...prev,
-      children: prev.children.map((child, i) => 
+      children: prev.children.map((child, i) =>
         i === index ? { ...child, [field]: value } : child
       )
     }));
@@ -316,7 +316,7 @@ export default function CustomerStep() {
                 {showSpouse ? 'Remove Spouse' : 'Add Spouse'}
               </Button>
             </div>
-            
+
             {showSpouse && (
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 border rounded-lg">
                 <div>
@@ -348,8 +348,8 @@ export default function CustomerStep() {
                 </div>
                 <div>
                   <Label htmlFor="spouseGender">Gender</Label>
-                  <Select 
-                    value={formData.spouse?.gender || 'FEMALE'} 
+                  <Select
+                    value={formData.spouse?.gender || 'FEMALE'}
                     onValueChange={(value) => handleSpouseChange('gender', value)}
                   >
                     <SelectTrigger>
@@ -400,7 +400,7 @@ export default function CustomerStep() {
                 Add Child
               </Button>
             </div>
-            
+
             {formData.children.map((child, index) => (
               <div key={index} className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 border rounded-lg mb-4">
                 <div>
@@ -432,8 +432,8 @@ export default function CustomerStep() {
                 </div>
                 <div>
                   <Label htmlFor={`childGender${index}`}>Gender</Label>
-                  <Select 
-                    value={child.gender} 
+                  <Select
+                    value={child.gender}
                     onValueChange={(value) => handleChildChange(index, 'gender', value)}
                   >
                     <SelectTrigger>

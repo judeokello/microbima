@@ -32,7 +32,7 @@ export default function BAManagementPage() {
           { id: 2, partnerName: 'Sample Partner 2', isActive: true }
         ])
       ])
-      
+
       setBrandAmbassadors(baData)
       setPartners(partnersData)
     } catch (err) {

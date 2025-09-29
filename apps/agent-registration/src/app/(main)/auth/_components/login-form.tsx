@@ -31,7 +31,7 @@ export function LoginForm() {
 
   const onSubmit = async (data: z.infer<typeof FormSchema>) => {
     console.log('Login attempt started with:', data.email)
-    
+
     try {
       const { data: authData, error } = await supabase.auth.signInWithPassword({
         email: data.email,
@@ -67,7 +67,7 @@ export function LoginForm() {
             console.log('Router object:', router)
             router.push('/admin')
             console.log('Router.push called for /admin')
-            
+
             // Fallback: use window.location if router doesn't work
             setTimeout(() => {
               console.log('Using window.location fallback for /admin')
@@ -77,7 +77,7 @@ export function LoginForm() {
             console.log('Redirecting to /dashboard')
             router.push('/dashboard')
             console.log('Router.push called for /dashboard')
-            
+
             // Fallback: use window.location if router doesn't work
             setTimeout(() => {
               console.log('Using window.location fallback for /dashboard')
@@ -87,7 +87,7 @@ export function LoginForm() {
             console.log('No roles found, redirecting to /dashboard')
             router.push('/dashboard') // Default fallback
             console.log('Router.push called for /dashboard (fallback)')
-            
+
             // Fallback: use window.location if router doesn't work
             setTimeout(() => {
               console.log('Using window.location fallback for /dashboard (fallback)')

@@ -24,7 +24,7 @@ export default function Page() {
           </Button>
         </Link>
       </div>
-      
+
       <SectionCards />
       <ChartAreaInteractive />
       <DataTable data={data} />

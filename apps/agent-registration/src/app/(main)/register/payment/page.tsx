@@ -83,7 +83,7 @@ export default function PaymentStep() {
 
   const handleSubmit = async () => {
     setIsSubmitting(true);
-    
+
     try {
       // Mock submission - in real implementation, this would call the API
       console.log('Submitting registration:', {
@@ -146,7 +146,7 @@ export default function PaymentStep() {
                 <p className="text-lg font-bold text-blue-900">900 KES</p>
               </div>
             </div>
-            
+
             <div className="text-sm text-gray-600">
               <p>• Daily payment: 150 KES</p>
               <p>• Weekly payment: 900 KES (recommended)</p>
@@ -206,7 +206,7 @@ export default function PaymentStep() {
                 )}
               </div>
             )}
-            
+
             {childrenCount > 0 && (
               <div className="p-4 bg-blue-50 rounded-lg">
                 <h4 className="font-semibold text-blue-900">Children ({childrenCount})</h4>
@@ -243,8 +243,8 @@ export default function PaymentStep() {
               <div>
                 <p className="text-sm font-medium text-gray-700">Relationship</p>
                 <p className="text-lg">
-                  {beneficiaryData.relationship === 'OTHER' && beneficiaryData.customRelationship 
-                    ? beneficiaryData.customRelationship 
+                  {beneficiaryData.relationship === 'OTHER' && beneficiaryData.customRelationship
+                    ? beneficiaryData.customRelationship
                     : beneficiaryData.relationship}
                 </p>
               </div>
@@ -284,7 +284,7 @@ export default function PaymentStep() {
                 This phone number will receive the MPESA payment request
               </p>
             </div>
-            
+
             <div className="p-4 bg-yellow-50 rounded-lg">
               <h4 className="font-semibold text-yellow-900 mb-2">Payment Instructions</h4>
               <ol className="text-sm text-yellow-800 space-y-1">
@@ -303,8 +303,8 @@ export default function PaymentStep() {
         <Button variant="outline" onClick={handleBack}>
           Back: Beneficiary
         </Button>
-        <Button 
-          onClick={handleSubmit} 
+        <Button
+          onClick={handleSubmit}
           disabled={isSubmitting || !paymentPhone}
           className="bg-green-600 hover:bg-green-700"
         >

@@ -22,7 +22,7 @@ export default function AddRolePage() {
     try {
       // Get the current user
       const { data: { user }, error: userError } = await supabase.auth.getUser();
-      
+
       if (userError || !user) {
         throw new Error('Not authenticated. Please log in first.');
       }
@@ -43,7 +43,7 @@ export default function AddRolePage() {
 
       // Add the new role
       const newRoles = [...currentRoles, role];
-      
+
       // Update user metadata
       const { error: updateError } = await supabase.auth.updateUser({
         data: {
@@ -101,8 +101,8 @@ export default function AddRolePage() {
             />
           </div>
 
-          <Button 
-            onClick={addRole} 
+          <Button
+            onClick={addRole}
             disabled={loading}
             className="w-full"
           >

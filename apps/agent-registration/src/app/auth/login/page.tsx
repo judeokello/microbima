@@ -19,7 +19,7 @@ export default function LoginPage() {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  
+
   const [formData, setFormData] = useState({
     email: '',
     password: ''

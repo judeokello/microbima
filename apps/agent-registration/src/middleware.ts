@@ -55,8 +55,8 @@ export async function middleware(request: NextRequest) {
 
     // Get user metadata for role checking
     const userMetadata = session?.user?.user_metadata as { roles?: string[] }
-    console.log('✅ User authenticated:', { 
-      email: session?.user?.email, 
+    console.log('✅ User authenticated:', {
+      email: session?.user?.email,
       roles: userMetadata?.roles,
       userId: session?.user?.id,
       userMetadata: userMetadata
@@ -66,7 +66,7 @@ export async function middleware(request: NextRequest) {
     if (pathname.startsWith('/admin')) {
       const hasAdminRole = userMetadata?.roles?.includes('registration_admin')
       console.log('🔐 Checking admin role:', hasAdminRole, 'for path:', pathname)
-      
+
       if (!hasAdminRole) {
         console.log('❌ No admin role, redirecting to dashboard')
         return NextResponse.redirect(new URL('/dashboard', request.url))
@@ -76,7 +76,7 @@ export async function middleware(request: NextRequest) {
     // Check dashboard routes
     if (pathname.startsWith('/dashboard')) {
       const hasBARole = userMetadata?.roles?.includes('brand_ambassador')
-      
+
       if (!hasBARole) {
         // If user has admin role but not BA role, redirect to admin
         const hasAdminRole = userMetadata?.roles?.includes('registration_admin')

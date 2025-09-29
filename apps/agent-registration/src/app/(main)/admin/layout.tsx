@@ -51,20 +51,20 @@ export default function AdminLayout({
         </div>
 
         <nav className="space-y-2">
-          <Link 
-            href="/admin" 
+          <Link
+            href="/admin"
             className="block px-3 py-2 rounded-md hover:bg-gray-700 transition-colors"
           >
             Dashboard
           </Link>
-          <Link 
-            href="/admin/ba-registration" 
+          <Link
+            href="/admin/ba-registration"
             className="block px-3 py-2 rounded-md hover:bg-gray-700 transition-colors"
           >
             Register BA
           </Link>
-          <Link 
-            href="/admin/ba-management" 
+          <Link
+            href="/admin/ba-management"
             className="block px-3 py-2 rounded-md hover:bg-gray-700 transition-colors"
           >
             Manage BAs
@@ -72,9 +72,9 @@ export default function AdminLayout({
         </nav>
 
         <div className="mt-auto pt-6">
-          <Button 
-            variant="outline" 
-            size="sm" 
+          <Button
+            variant="outline"
+            size="sm"
             onClick={signOut}
             className="w-full bg-transparent border-gray-600 text-white hover:bg-gray-700"
           >
