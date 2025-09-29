@@ -1,18 +1,24 @@
 import { createClient } from '@supabase/supabase-js'
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
-if (!supabaseUrl || !supabaseAnonKey) {
+// Only check environment variables on server side
+if (typeof window === 'undefined' && (!supabaseUrl || !supabaseAnonKey)) {
   throw new Error('Missing Supabase environment variables. Please check your .env.local file.')
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey)
+// Provide fallback values for client-side rendering
+const safeSupabaseUrl = supabaseUrl || 'https://yowgqzgqxvkqyyzhxvej.supabase.co'
+const safeSupabaseAnonKey = supabaseAnonKey || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0'
+
+export const supabase = createClient(safeSupabaseUrl, safeSupabaseAnonKey)
 
 // Admin client for server-side operations (user creation, etc.)
 const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
-if (!supabaseServiceRoleKey) {
+// Only check service role key on server side
+if (typeof window === 'undefined' && !supabaseServiceRoleKey) {
   console.warn('⚠️ SUPABASE_SERVICE_ROLE_KEY not found. Admin operations will not work.')
   console.warn('Environment variables:', {
     NEXT_PUBLIC_SUPABASE_URL: !!process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -22,7 +28,7 @@ if (!supabaseServiceRoleKey) {
   })
 }
 
-export const supabaseAdmin = supabaseServiceRoleKey ? createClient(supabaseUrl, supabaseServiceRoleKey, {
+export const supabaseAdmin = supabaseServiceRoleKey ? createClient(safeSupabaseUrl, supabaseServiceRoleKey, {
   auth: {
     autoRefreshToken: false,
     persistSession: false
