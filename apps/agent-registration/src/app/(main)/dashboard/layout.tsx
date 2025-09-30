@@ -24,6 +24,13 @@ export default function DashboardLayout({
     );
   }
 
+  // If user is not authenticated, redirect to login
+  if (!user) {
+    window.location.href = '/auth/login';
+    return null;
+  }
+
+  // If user is authenticated but not authorized for dashboard
   if (!isBrandAmbassador) {
     return (
       <div className="min-h-screen flex items-center justify-center">
