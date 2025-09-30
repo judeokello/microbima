@@ -2,15 +2,15 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 
-// Use environment variables
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-
-if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error('Missing required Supabase environment variables in middleware')
-}
-
 export async function middleware(request: NextRequest) {
+  // Use environment variables - check inside function for Edge Runtime compatibility
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+
+  if (!supabaseUrl || !supabaseAnonKey) {
+    console.error('Missing required Supabase environment variables in middleware')
+    return NextResponse.redirect(new URL('/auth/login', request.url))
+  }
   console.log('🚀 MIDDLEWARE EXECUTING for path:', request.nextUrl.pathname)
   const { pathname } = request.nextUrl
 
@@ -39,7 +39,7 @@ export async function middleware(request: NextRequest) {
 
   try {
     // Create Supabase client
-    const supabase = createClient(supabaseUrl!, supabaseAnonKey!)
+    const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
     // Get the session from cookies
     const { data: { session }, error } = await supabase.auth.getSession()
