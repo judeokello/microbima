@@ -39,7 +39,7 @@ export async function middleware(request: NextRequest) {
 
   try {
     // Create Supabase client
-    const supabase = createClient(supabaseUrl, supabaseAnonKey)
+    const supabase = createClient(supabaseUrl!, supabaseAnonKey!)
 
     // Get the session from cookies
     const { data: { session }, error } = await supabase.auth.getSession()
