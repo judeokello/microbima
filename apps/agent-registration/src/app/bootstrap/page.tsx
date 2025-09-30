@@ -40,8 +40,10 @@ export default function BootstrapPage() {
       }
 
       // Check if bootstrap is enabled via environment variable
+      console.log('Bootstrap env var:', process.env.NEXT_PUBLIC_ENABLE_BOOTSTRAP)
+      console.log('Type:', typeof process.env.NEXT_PUBLIC_ENABLE_BOOTSTRAP)
       if (process.env.NEXT_PUBLIC_ENABLE_BOOTSTRAP !== 'true') {
-        throw new Error('Bootstrap is not enabled. Set NEXT_PUBLIC_ENABLE_BOOTSTRAP=true to enable.')
+        throw new Error(`Bootstrap is not enabled. Set NEXT_PUBLIC_ENABLE_BOOTSTRAP=true to enable. Current value: "${process.env.NEXT_PUBLIC_ENABLE_BOOTSTRAP}" (type: ${typeof process.env.NEXT_PUBLIC_ENABLE_BOOTSTRAP})`)
       }
 
       // Create first admin user
