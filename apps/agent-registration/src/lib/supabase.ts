@@ -8,12 +8,11 @@ if (typeof window === 'undefined' && (!supabaseUrl || !supabaseAnonKey)) {
   throw new Error('Missing Supabase environment variables. Please check your .env.local file.')
 }
 
-// Ensure environment variables are available
-if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error('Missing required Supabase environment variables. Please check your deployment configuration.')
-}
+// For client-side, provide fallback values to prevent crashes
+const safeSupabaseUrl = supabaseUrl || 'https://placeholder.supabase.co'
+const safeSupabaseAnonKey = supabaseAnonKey || 'placeholder-key'
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey)
+export const supabase = createClient(safeSupabaseUrl, safeSupabaseAnonKey)
 
 // Admin client for server-side operations (user creation, etc.)
 const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -29,7 +28,7 @@ if (typeof window === 'undefined' && !supabaseServiceRoleKey) {
   })
 }
 
-export const supabaseAdmin = supabaseServiceRoleKey ? createClient(supabaseUrl, supabaseServiceRoleKey, {
+export const supabaseAdmin = supabaseServiceRoleKey ? createClient(safeSupabaseUrl, supabaseServiceRoleKey, {
   auth: {
     autoRefreshToken: false,
     persistSession: false
