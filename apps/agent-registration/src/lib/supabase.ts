@@ -8,11 +8,12 @@ if (typeof window === 'undefined' && (!supabaseUrl || !supabaseAnonKey)) {
   throw new Error('Missing Supabase environment variables. Please check your .env.local file.')
 }
 
-// Provide fallback values for client-side rendering
-const safeSupabaseUrl = supabaseUrl || 'https://yowgqzgqxvkqyyzhxvej.supabase.co'
-const safeSupabaseAnonKey = supabaseAnonKey || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0'
+// Ensure environment variables are available
+if (!supabaseUrl || !supabaseAnonKey) {
+  throw new Error('Missing required Supabase environment variables. Please check your deployment configuration.')
+}
 
-export const supabase = createClient(safeSupabaseUrl, safeSupabaseAnonKey)
+export const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
 // Admin client for server-side operations (user creation, etc.)
 const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
