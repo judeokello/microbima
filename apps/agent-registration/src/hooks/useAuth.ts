@@ -1,14 +1,8 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { createClient } from '@supabase/supabase-js'
 import { User } from '@supabase/supabase-js'
-import { ROLES, UserRole, hasRole, hasAnyRole, hasAllRoles } from '@/lib/supabase'
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-
-const supabase = createClient(supabaseUrl, supabaseAnonKey)
+import { supabase, ROLES, UserRole, hasRole, hasAnyRole, hasAllRoles } from '@/lib/supabase'
 
 interface UserMetadata {
   roles: string[]
