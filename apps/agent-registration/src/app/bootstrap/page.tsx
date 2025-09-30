@@ -8,7 +8,6 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Loader2, Shield } from 'lucide-react'
-import { createClient } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase'
 
 export default function BootstrapPage() {

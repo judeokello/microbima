@@ -29,7 +29,7 @@ if (typeof window === 'undefined' && !supabaseServiceRoleKey) {
   })
 }
 
-export const supabaseAdmin = supabaseServiceRoleKey ? createClient(safeSupabaseUrl, supabaseServiceRoleKey, {
+export const supabaseAdmin = supabaseServiceRoleKey ? createClient(supabaseUrl, supabaseServiceRoleKey, {
   auth: {
     autoRefreshToken: false,
     persistSession: false
