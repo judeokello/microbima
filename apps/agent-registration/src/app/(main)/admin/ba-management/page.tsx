@@ -44,7 +44,7 @@ export default function BAManagementPage() {
 
   const getPartnerName = (partnerId: number) => {
     const partner = partners.find(p => p.id === partnerId)
-    return partner?.partnerName || `Partner ${partnerId}`
+    return partner?.partnerName ?? `Partner ${partnerId}`
   }
 
   const formatRate = (cents: number) => {
@@ -123,13 +123,13 @@ export default function BAManagementPage() {
                   {brandAmbassadors.map((ba) => (
                     <TableRow key={ba.id}>
                       <TableCell className="font-medium">
-                        {ba.displayName || 'N/A'}
+                        {ba.displayName ?? 'N/A'}
                       </TableCell>
                       <TableCell>
                         {getPartnerName(ba.partnerId)}
                       </TableCell>
                       <TableCell>
-                        {ba.phone || 'N/A'}
+                        {ba.phone ?? 'N/A'}
                       </TableCell>
                       <TableCell>
                         {ba.perRegistrationRateCents ? formatRate(ba.perRegistrationRateCents) : 'N/A'}

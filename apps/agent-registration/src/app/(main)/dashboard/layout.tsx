@@ -55,7 +55,7 @@ export default function DashboardLayout({
           <h2 className="text-xl font-bold mb-2">BA Dashboard</h2>
           <div className="flex items-center space-x-2 text-sm text-gray-300">
             <User className="h-4 w-4" />
-            <span>{userMetadata?.displayName || user?.email}</span>
+            <span>{userMetadata?.displayName ?? user?.email}</span>
           </div>
         </div>
 

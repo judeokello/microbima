@@ -29,7 +29,7 @@ export default function AddRolePage() {
 
       // Get current user metadata
       const currentMetadata = user.user_metadata as { roles?: string[] };
-      const currentRoles = currentMetadata.roles || [];
+      const currentRoles = currentMetadata.roles ?? [];
 
       // Check if role already exists
       if (currentRoles.includes(role)) {

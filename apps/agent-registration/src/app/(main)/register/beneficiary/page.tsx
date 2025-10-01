@@ -60,16 +60,16 @@ export default function BeneficiaryStep() {
         const parsedData = JSON.parse(savedData);
         // Ensure all fields have proper defaults to avoid controlled/uncontrolled error
         setFormData({
-          firstName: parsedData.firstName || '',
-          middleName: parsedData.middleName || '',
-          lastName: parsedData.lastName || '',
-          idType: parsedData.idType || 'NATIONAL_ID',
-          idNumber: parsedData.idNumber || '',
-          phoneNumber: parsedData.phoneNumber || '',
-          email: parsedData.email || '',
-          relationship: parsedData.relationship || '',
-          customRelationship: parsedData.customRelationship || '',
-          dateOfBirth: parsedData.dateOfBirth || '',
+          firstName: parsedData.firstName ?? '',
+          middleName: parsedData.middleName ?? '',
+          lastName: parsedData.lastName ?? '',
+          idType: parsedData.idType ?? 'NATIONAL_ID',
+          idNumber: parsedData.idNumber ?? '',
+          phoneNumber: parsedData.phoneNumber ?? '',
+          email: parsedData.email ?? '',
+          relationship: parsedData.relationship ?? '',
+          customRelationship: parsedData.customRelationship ?? '',
+          dateOfBirth: parsedData.dateOfBirth ?? '',
         });
       } catch (error) {
         console.error('Error parsing saved beneficiary data:', error);

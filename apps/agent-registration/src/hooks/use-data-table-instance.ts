@@ -51,7 +51,8 @@ export function useDataTableInstance<TData, TValue>({
       pagination,
     },
     enableRowSelection,
-    getRowId: getRowId ?? ((row) => (row as any).id.toString()),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    getRowId: getRowId ?? ((row: TData) => (row as any).id?.toString() ?? ''),
     onRowSelectionChange: setRowSelection,
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,

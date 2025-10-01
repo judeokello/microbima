@@ -65,8 +65,9 @@ export default function BootstrapPage() {
           router.push('/auth/login')
         }, 2000)
       }
-    } catch (err: any) {
-      setError(err.message || 'An unexpected error occurred')
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : 'An unexpected error occurred'
+      setError(errorMessage)
     } finally {
       setLoading(false)
     }

@@ -29,9 +29,9 @@ export function LayoutControls(props: LayoutControlsProps) {
   const themePreset = usePreferencesStore((s) => s.themePreset);
   const setThemePreset = usePreferencesStore((s) => s.setThemePreset);
 
-  const handleValueChange = async (key: string, value: any) => {
+  const handleValueChange = async (key: string, value: string) => {
     if (key === "theme_mode") {
-      updateThemeMode(value);
+      updateThemeMode(value as "light" | "dark");
       setThemeMode(value as ThemeMode);
     }
 
@@ -41,11 +41,11 @@ export function LayoutControls(props: LayoutControlsProps) {
     }
 
     if (key === "content_layout") {
-      updateContentLayout(value);
+      updateContentLayout(value as "centered" | "full-width");
     }
 
     if (key === "navbar_style") {
-      updateNavbarStyle(value);
+      updateNavbarStyle(value as "sticky" | "scroll");
     }
     await setValueToCookie(key, value);
   };

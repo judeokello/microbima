@@ -51,7 +51,7 @@ export function LoginForm() {
       if (authData.user) {
         // Get user roles from metadata
         const userMetadata = authData.user.user_metadata as { roles?: string[] }
-        const roles = userMetadata.roles || []
+        const roles = userMetadata.roles ?? []
 
         console.log('User metadata:', userMetadata)
         console.log('Roles:', roles)
@@ -96,9 +96,10 @@ export function LoginForm() {
           }
         }, 500) // Wait 500ms for session to be set
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : 'Please try again'
       toast.error("An unexpected error occurred", {
-        description: err.message || 'Please try again'
+        description: errorMessage
       })
     }
   };

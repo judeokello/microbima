@@ -52,7 +52,7 @@ export default function AdminLayout({
           <h2 className="text-xl font-bold mb-2">Admin Panel</h2>
           <div className="flex items-center space-x-2 text-sm text-gray-300">
             <User className="h-4 w-4" />
-            <span>{userMetadata?.displayName || user?.email}</span>
+            <span>{userMetadata?.displayName ?? user?.email}</span>
           </div>
         </div>
 

@@ -9,8 +9,8 @@ if (typeof window === 'undefined' && (!supabaseUrl || !supabaseAnonKey)) {
 }
 
 // For client-side, provide fallback values to prevent crashes
-const safeSupabaseUrl = supabaseUrl || 'https://placeholder.supabase.co'
-const safeSupabaseAnonKey = supabaseAnonKey || 'placeholder-key'
+const safeSupabaseUrl = supabaseUrl ?? 'https://placeholder.supabase.co'
+const safeSupabaseAnonKey = supabaseAnonKey ?? 'placeholder-key'
 
 export const supabase = createClient(safeSupabaseUrl, safeSupabaseAnonKey)
 

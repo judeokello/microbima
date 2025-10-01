@@ -323,7 +323,7 @@ export default function CustomerStep() {
                   <Label htmlFor="spouseFirstName">First Name</Label>
                   <Input
                     id="spouseFirstName"
-                    value={formData.spouse?.firstName || ''}
+                    value={formData.spouse?.firstName ?? ''}
                     onChange={(e) => handleSpouseChange('firstName', e.target.value)}
                     placeholder="Enter spouse first name"
                   />
@@ -332,7 +332,7 @@ export default function CustomerStep() {
                   <Label htmlFor="spouseMiddleName">Middle Name</Label>
                   <Input
                     id="spouseMiddleName"
-                    value={formData.spouse?.middleName || ''}
+                    value={formData.spouse?.middleName ?? ''}
                     onChange={(e) => handleSpouseChange('middleName', e.target.value)}
                     placeholder="Enter spouse middle name"
                   />
@@ -341,7 +341,7 @@ export default function CustomerStep() {
                   <Label htmlFor="spouseLastName">Last Name</Label>
                   <Input
                     id="spouseLastName"
-                    value={formData.spouse?.lastName || ''}
+                    value={formData.spouse?.lastName ?? ''}
                     onChange={(e) => handleSpouseChange('lastName', e.target.value)}
                     placeholder="Enter spouse last name"
                   />
@@ -349,7 +349,7 @@ export default function CustomerStep() {
                 <div>
                   <Label htmlFor="spouseGender">Gender</Label>
                   <Select
-                    value={formData.spouse?.gender || 'FEMALE'}
+                    value={formData.spouse?.gender ?? 'FEMALE'}
                     onValueChange={(value) => handleSpouseChange('gender', value)}
                   >
                     <SelectTrigger>
@@ -368,7 +368,7 @@ export default function CustomerStep() {
                   <Input
                     id="spouseDateOfBirth"
                     type="date"
-                    value={formData.spouse?.dateOfBirth || ''}
+                    value={formData.spouse?.dateOfBirth ?? ''}
                     onChange={(e) => handleSpouseChange('dateOfBirth', e.target.value)}
                   />
                 </div>
@@ -376,7 +376,7 @@ export default function CustomerStep() {
                   <Label htmlFor="spousePhoneNumber">Phone Number</Label>
                   <Input
                     id="spousePhoneNumber"
-                    value={formData.spouse?.phoneNumber || ''}
+                    value={formData.spouse?.phoneNumber ?? ''}
                     onChange={(e) => handleSpouseChange('phoneNumber', e.target.value)}
                     placeholder="Enter spouse phone number"
                   />

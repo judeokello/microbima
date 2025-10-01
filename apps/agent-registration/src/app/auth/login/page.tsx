@@ -39,7 +39,7 @@ export default function LoginPage() {
       if (data.user) {
         // Redirect based on user roles
         const userMetadata = data.user.user_metadata as { roles?: string[] }
-        const roles = userMetadata.roles || []
+        const roles = userMetadata.roles ?? []
 
         if (roles.includes('registration_admin')) {
           router.push('/admin')
@@ -49,8 +49,9 @@ export default function LoginPage() {
           router.push('/')
         }
       }
-    } catch (err: any) {
-      setError(err.message || 'An unexpected error occurred')
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : 'An unexpected error occurred'
+      setError(errorMessage)
     } finally {
       setLoading(false)
     }
