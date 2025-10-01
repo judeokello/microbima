@@ -3,6 +3,14 @@ primary_region = "nrt"
 
 [build]
   dockerfile = "Dockerfile"
+  # Build arguments for NEXT_PUBLIC_* variables (from Fly secrets)
+  [build.args]
+    NEXT_PUBLIC_SUPABASE_URL = "https://yowgqzgqxvkqyyzhxvej.supabase.co"
+    NEXT_PUBLIC_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inlvd2dxemdxeHZrcXl5emh4dmVqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzU1NjQ4MDAsImV4cCI6MjA1MTE0MDgwMH0.SiSp0nKpULE-FoiWUFvzKXIlCZeVj0hTxz67p-eF2Zw"
+    NEXT_PUBLIC_APP_NAME = "MicroBima Agent Registration"
+    NEXT_PUBLIC_API_BASE_URL = "https://microbima-staging-internal-api.fly.dev"
+    NEXT_PUBLIC_INTERNAL_API_BASE_URL = "https://microbima-staging-internal-api.fly.dev"
+    NEXT_PUBLIC_ENABLE_BOOTSTRAP = "true"
 
 [env]
   NODE_ENV = "staging"
@@ -10,9 +18,6 @@ primary_region = "nrt"
   # Staging-specific environment variables
   NEXT_PUBLIC_API_URL = "https://microbima-staging-internal-api.fly.dev"
   NEXT_PUBLIC_ENVIRONMENT = "staging"
-  NEXT_PUBLIC_SUPABASE_URL = "https://your-supabase-project.supabase.co"
-  NEXT_PUBLIC_SUPABASE_ANON_KEY = "your-supabase-anon-key"
-  SUPABASE_SERVICE_ROLE_KEY = "your-supabase-service-role-key"
 
 [[services]]
   internal_port = 3001
