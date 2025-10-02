@@ -129,7 +129,7 @@ The Agent Registration module enables Brand Ambassadors (BAs) to register custom
 - [x] **5.3.1.4** Create wizard routing and step navigation
 - [x] **5.3.1.5** Add "Register New Customer" button to dashboard
 
-##### **5.3.2 Registration Steps (3-Step MVP)** ✅ **COMPLETED**
+##### **5.3.2 Registration Steps (3-Step MVP with Mock Data)** ✅ **COMPLETED**
 - [x] **5.3.2.1** Implement StepCustomer (Full customer form with all fields)
 - [x] **5.3.2.2** Implement StepBeneficiary (Optional next of kin)
 - [x] **5.3.2.3** Implement StepPayment (Review + MPESA payment)
@@ -142,6 +142,14 @@ The Agent Registration module enables Brand Ambassadors (BAs) to register custom
 - [ ] **5.3.3.2** Implement DateRangePicker for period selection
 - [ ] **5.3.3.3** Create StatCard component for dashboard metrics
 - [ ] **5.3.3.4** Build validation helpers and error handling
+
+##### **5.3.4 API Integration & Real Data** 🚧 **IN PROGRESS**
+- [ ] **5.3.4.1** Replace mock data in StepCustomer with real API calls
+- [ ] **5.3.4.2** Integrate StepBeneficiary with MissingRequirement API
+- [ ] **5.3.4.3** Connect StepPayment with real payment processing
+- [ ] **5.3.4.4** Implement proper error handling for API failures
+- [ ] **5.3.4.5** Add loading states and user feedback
+- [ ] **5.3.4.6** Test end-to-end wizard flow with real data
 
 #### **5.4 Phase 4: BA Dashboard & Analytics (Week 4)**
 

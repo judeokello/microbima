@@ -8,7 +8,9 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
-import { Plus, Trash2 } from 'lucide-react';
+import { Plus, Trash2, Loader2 } from 'lucide-react';
+import { createCustomer, createAgentRegistration, CustomerRegistrationRequest } from '@/lib/api';
+import { useAuth } from '@/hooks/useAuth';
 
 // Mock data for form state
 interface CustomerFormData {
@@ -87,6 +89,9 @@ const initialFormData: CustomerFormData = {
 
 export default function CustomerStep() {
   const router = useRouter();
+  const { user, userMetadata, loading: authLoading } = useAuth();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [formData, setFormData] = useState<CustomerFormData>(initialFormData);
   const [showSpouse, setShowSpouse] = useState(false);
 
@@ -127,10 +132,90 @@ export default function CustomerStep() {
     }));
   };
 
-  const handleNext = () => {
-    // Save form data to localStorage for now (mock data approach)
-    localStorage.setItem('customerFormData', JSON.stringify(formData));
-    router.push('/register/beneficiary');
+  const handleNext = async () => {
+    if (!user || !userMetadata?.partnerId) {
+      setError('Authentication required. Please log in again.');
+      return;
+    }
+
+    setIsSubmitting(true);
+    setError(null);
+
+    try {
+      // Transform form data to API format
+      const customerRequest: CustomerRegistrationRequest = {
+        principalMember: {
+          firstName: formData.firstName,
+          lastName: formData.lastName,
+          middleName: formData.middleName || undefined,
+          dateOfBirth: formData.dateOfBirth,
+          gender: formData.gender.toLowerCase(),
+          email: formData.email || undefined,
+          phoneNumber: formData.phoneNumber || undefined,
+          idType: formData.idType,
+          idNumber: formData.idNumber,
+          partnerCustomerId: `BA-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          address: {
+            street: formData.street,
+            city: formData.city,
+            state: formData.state,
+            postalCode: formData.postalCode,
+            country: formData.country,
+          },
+        },
+        product: {
+          productId: 'default-product', // TODO: Get from product selection
+          planId: 'default-plan', // TODO: Get from plan selection
+        },
+        spouses: formData.spouse ? [{
+          firstName: formData.spouse.firstName,
+          lastName: formData.spouse.lastName,
+          middleName: formData.spouse.middleName || undefined,
+          dateOfBirth: formData.spouse.dateOfBirth,
+          gender: formData.spouse.gender.toLowerCase(),
+          phoneNumber: formData.spouse.phoneNumber || undefined,
+        }] : undefined,
+        children: formData.children.length > 0 ? formData.children.map(child => ({
+          firstName: child.firstName,
+          lastName: child.lastName,
+          middleName: child.middleName || undefined,
+          dateOfBirth: child.dateOfBirth,
+          gender: child.gender.toLowerCase(),
+        })) : undefined,
+      };
+
+      // Step 1: Create customer
+      const customerResult = await createCustomer(customerRequest);
+      if (!customerResult.success || !customerResult.customerId) {
+        throw new Error(customerResult.error ?? 'Failed to create customer');
+      }
+
+      // Step 2: Create agent registration
+      const registrationResult = await createAgentRegistration({
+        customerId: customerResult.customerId,
+        baId: user.id, // Using user ID as BA ID for now
+        partnerId: userMetadata.partnerId.toString(),
+        registrationStatus: 'IN_PROGRESS',
+      });
+
+      if (!registrationResult.success) {
+        throw new Error(registrationResult.error ?? 'Failed to create agent registration');
+      }
+
+      // Save form data to localStorage for next steps
+      localStorage.setItem('customerFormData', JSON.stringify(formData));
+      localStorage.setItem('customerId', customerResult.customerId);
+      localStorage.setItem('registrationId', registrationResult.registrationId ?? '');
+
+      // Navigate to next step
+      router.push('/register/beneficiary');
+
+    } catch (error) {
+      console.error('Error creating customer registration:', error);
+      setError(error instanceof Error ? error.message : 'An unexpected error occurred');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -472,13 +557,45 @@ export default function CustomerStep() {
         </CardContent>
       </Card>
 
+      {/* Error Display */}
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-md p-4">
+          <div className="flex">
+            <div className="flex-shrink-0">
+              <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+              </svg>
+            </div>
+            <div className="ml-3">
+              <h3 className="text-sm font-medium text-red-800">
+                Registration Failed
+              </h3>
+              <div className="mt-2 text-sm text-red-700">
+                {error}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Navigation */}
       <div className="flex justify-between">
         <Button variant="outline" onClick={() => router.push('/dashboard')}>
           Cancel
         </Button>
-        <Button onClick={handleNext} className="bg-blue-600 hover:bg-blue-700">
-          Next: Beneficiary
+        <Button
+          onClick={handleNext}
+          disabled={isSubmitting || authLoading}
+          className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50"
+        >
+          {isSubmitting ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Creating Customer...
+            </>
+          ) : (
+            'Next: Beneficiary'
+          )}
         </Button>
       </div>
     </div>

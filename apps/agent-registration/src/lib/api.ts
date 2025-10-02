@@ -1,4 +1,4 @@
-import { supabaseAdmin, ROLES } from './supabase'
+import { supabase, supabaseAdmin, ROLES } from './supabase'
 
 // Re-export constants for convenience
 export { ROLES }
@@ -200,5 +200,158 @@ export async function deactivateBrandAmbassador(id: string): Promise<boolean> {
   } catch (error) {
     console.error('Error deactivating brand ambassador:', error)
     return false
+  }
+}
+
+// Customer Registration API Types and Functions
+export interface CustomerRegistrationRequest {
+  principalMember: {
+    firstName: string
+    lastName: string
+    middleName?: string
+    dateOfBirth: string
+    gender: string
+    email?: string
+    phoneNumber?: string
+    idType: string
+    idNumber: string
+    partnerCustomerId: string
+    address: {
+      street: string
+      city: string
+      state: string
+      postalCode: string
+      country: string
+    }
+  }
+  product: {
+    productId: string
+    planId: string
+  }
+  spouses?: Array<{
+    firstName: string
+    lastName: string
+    middleName?: string
+    dateOfBirth: string
+    gender: string
+    phoneNumber?: string
+  }>
+  children?: Array<{
+    firstName: string
+    lastName: string
+    middleName?: string
+    dateOfBirth: string
+    gender: string
+  }>
+  beneficiaries?: Array<{
+    firstName: string
+    lastName: string
+    middleName?: string
+    dateOfBirth: string
+    gender: string
+    idType: string
+    idNumber: string
+    phoneNumber?: string
+    email?: string
+    relationship: string
+    customRelationship?: string
+  }>
+}
+
+export interface CustomerRegistrationResponse {
+  success: boolean
+  customerId?: string
+  error?: string
+}
+
+export interface AgentRegistrationRequest {
+  customerId: string
+  baId: string
+  partnerId: string
+  registrationStatus?: string
+}
+
+export interface AgentRegistrationResponse {
+  success: boolean
+  registrationId?: string
+  error?: string
+}
+
+export async function createCustomer(data: CustomerRegistrationRequest): Promise<CustomerRegistrationResponse> {
+  try {
+    const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/v1/customers`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-API-Key': process.env.NEXT_PUBLIC_API_KEY ?? '',
+        'X-Correlation-ID': `req-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+      },
+      body: JSON.stringify({
+        correlationId: `req-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        ...data
+      })
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json()
+      throw new Error(errorData.error?.message ?? `HTTP ${response.status}: ${response.statusText}`)
+    }
+
+    const result = await response.json()
+    return {
+      success: true,
+      customerId: result.customerId
+    }
+  } catch (error) {
+    console.error('Error creating customer:', error)
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error occurred'
+    }
+  }
+}
+
+export async function createAgentRegistration(data: AgentRegistrationRequest): Promise<AgentRegistrationResponse> {
+  try {
+    const response = await fetch(`${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/agent-registrations`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${await getSupabaseToken()}`,
+        'X-Correlation-ID': `req-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+      },
+      body: JSON.stringify(data)
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json()
+      throw new Error(errorData.error?.message ?? `HTTP ${response.status}: ${response.statusText}`)
+    }
+
+    const result = await response.json()
+    return {
+      success: true,
+      registrationId: result.id
+    }
+  } catch (error) {
+    console.error('Error creating agent registration:', error)
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error occurred'
+    }
+  }
+}
+
+async function getSupabaseToken(): Promise<string> {
+  try {
+    // Get the current session from the client-side supabase instance
+    const { data: { session }, error } = await supabase.auth.getSession()
+    if (error || !session?.access_token) {
+      throw new Error('No valid session found')
+    }
+    return session.access_token
+  } catch (error) {
+    console.error('Error getting Supabase token:', error)
+    throw new Error('Authentication failed')
   }
 }
