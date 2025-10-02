@@ -11,6 +11,7 @@ import {
   HttpCode,
   UseGuards,
   UseInterceptors,
+  Req,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -91,9 +92,10 @@ export class AgentRegistrationController {
   async createRegistration(
     @Body() dto: CreateAgentRegistrationDto,
     @CorrelationId() correlationId: string,
+    @Req() req: any, // Add request object to access authenticated user
   ): Promise<AgentRegistrationResponseDto> {
-    // TODO: Extract user ID from JWT token
-    const userId = 'system'; // Placeholder until auth is implemented
+    // Extract user ID from authenticated user
+    const userId = req.user?.id || 'system';
     
     return this.agentRegistrationService.createRegistration(dto, userId);
   }

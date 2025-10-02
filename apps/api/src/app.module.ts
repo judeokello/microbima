@@ -6,6 +6,7 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { ApiKeyAuthMiddleware } from './middleware/api-key-auth.middleware';
 import { CorrelationIdMiddleware } from './middleware/correlation-id.middleware';
+import { SupabaseAuthMiddleware } from './middleware/supabase-auth.middleware';
 import { ExternalIntegrationsService } from './services/external-integrations.service';
 import { CustomerService } from './services/customer.service';
 import { PartnerManagementService } from './services/partner-management.service';
@@ -41,5 +42,9 @@ export class AppModule implements NestModule {
     consumer
       .apply(ApiKeyAuthMiddleware)
       .forRoutes('*'); // Apply API key auth to all routes
+
+    consumer
+      .apply(SupabaseAuthMiddleware)
+      .forRoutes('/api/internal/*'); // Apply Supabase auth to internal routes only
   }
 }

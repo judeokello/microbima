@@ -306,7 +306,7 @@ export async function createCustomer(data: CustomerRegistrationRequest): Promise
     const result = await response.json()
     return {
       success: true,
-      customerId: result.customerId
+      customerId: result.data.principalId
     }
   } catch (error) {
     console.error('Error creating customer:', error)
