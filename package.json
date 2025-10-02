@@ -9,6 +9,11 @@
   ],
   "scripts": {
     "dev": "turbo run dev",
+    "dev:all": "./start-dev.sh",
+    "dev:api": "./start-api.sh",
+    "dev:agent": "./start-agent.sh",
+    "stop": "./stop-dev.sh",
+    "status": "./check-status.sh",
     "build": "turbo run build",
     "test": "turbo run test",
     "lint": "turbo run lint",

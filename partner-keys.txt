@@ -1,0 +1,41 @@
+# MicroBima Partner API Keys Reference
+# This file contains partner IDs and their corresponding API keys for development and testing
+# 
+# IMPORTANT: These keys are for development/testing only. Do NOT commit real production keys.
+# Add this file to .gitignore to prevent accidental commits.
+
+# Partner ID: 1 (Default Test Partner)
+# API Key: mb_0dcf0acf0562ad7e49e2ed4452e651fd6db23b3f8ca50a8b12c63b5d702573ef
+# Generated: 2025-10-02
+# Usage: Customer registration, agent registration, etc.
+
+PARTNER_1_ID=1
+PARTNER_1_API_KEY=mb_0dcf0acf0562ad7e49e2ed4452e651fd6db23b3f8ca50a8b12c63b5d702573ef
+PARTNER_1_NAME="Default Test Partner"
+PARTNER_1_STATUS=ACTIVE
+
+# Partner ID: 2 (Future partner)
+# API Key: [To be generated]
+# Usage: [To be defined]
+
+# Partner ID: 3 (Future partner)  
+# API Key: [To be generated]
+# Usage: [To be defined]
+
+# ========================================
+# QUICK REFERENCE FOR DEVELOPMENT
+# ========================================
+# 
+# To use in agent-registration .env.local:
+# NEXT_PUBLIC_API_BASE_URL=http://localhost:3001/api
+# NEXT_PUBLIC_API_KEY=mb_0dcf0acf0562ad7e49e2ed4452e651fd6db23b3f8ca50a8b12c63b5d702573ef
+#
+# To use in curl commands:
+# -H "X-API-Key: mb_0dcf0acf0562ad7e49e2ed4452e651fd6db23b3f8ca50a8b12c63b5d702573ef"
+#
+# To generate new API keys:
+# POST http://localhost:3001/api/internal/partner-management/api-keys
+# Body: {"partnerId": 1, "keyName": "Development Key"}
+#
+# To list existing API keys:
+# GET http://localhost:3001/api/internal/partner-management/api-keys?partnerId=1

@@ -18,7 +18,7 @@ export default function Page() {
           </p>
         </div>
         <Link href="/register">
-          <Button size="lg" className="bg-blue-600 hover:bg-blue-700">
+          <Button size="lg">
             <PlusCircle className="mr-2 h-5 w-5" />
             Register New Customer
           </Button>

@@ -4,7 +4,7 @@ import React from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
-import { LogOut, User } from 'lucide-react';
+import { LogOut, User, LayoutDashboard } from 'lucide-react';
 
 export default function AdminLayout({
   children,
@@ -74,6 +74,13 @@ export default function AdminLayout({
             className="block px-3 py-2 rounded-md hover:bg-gray-700 transition-colors"
           >
             Manage BAs
+          </Link>
+          <Link
+            href="/dashboard"
+            className="block px-3 py-2 rounded-md hover:bg-gray-700 transition-colors flex items-center"
+          >
+            <LayoutDashboard className="h-4 w-4 mr-2" />
+            BA Dashboard
           </Link>
         </nav>
 

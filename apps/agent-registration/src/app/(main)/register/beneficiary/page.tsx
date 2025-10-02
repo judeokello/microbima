@@ -8,6 +8,9 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Loader2 } from 'lucide-react';
+import { addBeneficiaries, BeneficiaryData } from '@/lib/api';
+import { useAuth } from '@/hooks/useAuth';
 
 // Helper functions for date validation
 const getMinDateForAdults = () => {
@@ -49,6 +52,9 @@ const initialFormData: BeneficiaryFormData = {
 
 export default function BeneficiaryStep() {
   const router = useRouter();
+  const { user, userMetadata, loading: authLoading } = useAuth();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [formData, setFormData] = useState<BeneficiaryFormData>(initialFormData);
   const [skipBeneficiary, setSkipBeneficiary] = useState(false);
 
@@ -91,15 +97,67 @@ export default function BeneficiaryStep() {
     router.push('/register/customer');
   };
 
-  const handleNext = () => {
-    if (!skipBeneficiary) {
-      // Save form data
-      localStorage.setItem('beneficiaryFormData', JSON.stringify(formData));
-    } else {
-      // Clear saved data if skipping
-      localStorage.removeItem('beneficiaryFormData');
+  const handleNext = async () => {
+    if (!user || !userMetadata?.partnerId) {
+      setError('Authentication required. Please log in again.');
+      return;
     }
-    router.push('/register/payment');
+
+    setIsSubmitting(true);
+    setError(null);
+
+    try {
+      const customerId = localStorage.getItem('customerId');
+      const registrationId = localStorage.getItem('registrationId');
+
+      if (!customerId || !registrationId) {
+        throw new Error('Customer registration not found. Please start from the beginning.');
+      }
+
+      if (!skipBeneficiary && formData.firstName.trim()) {
+        // Transform form data to API format
+        const beneficiaryData: BeneficiaryData = {
+          firstName: formData.firstName,
+          lastName: formData.lastName,
+          middleName: formData.middleName || undefined,
+          dateOfBirth: formData.dateOfBirth,
+          gender: 'other', // Default gender since beneficiary form doesn't collect this
+          email: formData.email || undefined,
+          phoneNumber: formData.phoneNumber || undefined,
+          idType: formData.idType,
+          idNumber: formData.idNumber,
+          relationship: formData.relationship,
+          relationshipDescription: formData.relationship === 'other' ? formData.customRelationship : undefined,
+          percentage: 100, // Default to 100% if only one beneficiary
+        };
+
+        // Step 1: Add beneficiary to customer
+        const beneficiaryResult = await addBeneficiaries(customerId, [beneficiaryData]);
+        if (!beneficiaryResult.success || !beneficiaryResult.beneficiaryIds?.length) {
+          throw new Error(beneficiaryResult.error ?? 'Failed to add beneficiary');
+        }
+
+        // Step 2: Create missing requirements for beneficiary if needed
+        // This would typically be done based on partner configuration
+        // For now, we'll skip this as it's handled by the backend when creating the registration
+      }
+
+      // Save form data for next steps
+      if (!skipBeneficiary) {
+        localStorage.setItem('beneficiaryFormData', JSON.stringify(formData));
+      } else {
+        localStorage.removeItem('beneficiaryFormData');
+      }
+
+      // Navigate to next step
+      router.push('/register/payment');
+
+    } catch (error) {
+      console.error('Error processing beneficiary:', error);
+      setError(error instanceof Error ? error.message : 'An unexpected error occurred');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -244,13 +302,45 @@ export default function BeneficiaryStep() {
         </CardContent>
       </Card>
 
+      {/* Error Display */}
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-md p-4">
+          <div className="flex">
+            <div className="flex-shrink-0">
+              <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+              </svg>
+            </div>
+            <div className="ml-3">
+              <h3 className="text-sm font-medium text-red-800">
+                Beneficiary Processing Failed
+              </h3>
+              <div className="mt-2 text-sm text-red-700">
+                {error}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Navigation */}
       <div className="flex justify-between">
         <Button variant="outline" onClick={handleBack}>
           Back: Customer Details
         </Button>
-        <Button onClick={handleNext} className="bg-blue-600 hover:bg-blue-700">
-          Next: Payment & Review
+        <Button
+          onClick={handleNext}
+          disabled={isSubmitting || authLoading}
+          className="disabled:opacity-50"
+        >
+          {isSubmitting ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              {skipBeneficiary ? 'Skipping...' : 'Adding Beneficiary...'}
+            </>
+          ) : (
+            'Next: Payment & Review'
+          )}
         </Button>
       </div>
     </div>

@@ -9,6 +9,8 @@ async function seedAgentRegistrationData() {
   const deferredRequirements = [
     // Spouse requirements
     { entityKind: 'SPOUSE', fieldPath: 'gender', isRequired: true },
+    { entityKind: 'SPOUSE', fieldPath: 'idType', isRequired: true },
+    { entityKind: 'SPOUSE', fieldPath: 'idNumber', isRequired: true },
     
     // Child requirements  
     { entityKind: 'CHILD', fieldPath: 'gender', isRequired: true },

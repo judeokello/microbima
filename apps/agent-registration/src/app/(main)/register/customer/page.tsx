@@ -25,12 +25,7 @@ interface CustomerFormData {
   idType: string;
   idNumber: string;
 
-  // Address Information
-  street: string;
-  city: string;
-  state: string;
-  postalCode: string;
-  country: string;
+  // Address Information - Removed as not required by API
 
   // Dependants (Spouse & Children)
   spouse: {
@@ -40,6 +35,8 @@ interface CustomerFormData {
     gender: string;
     dateOfBirth: string;
     phoneNumber: string;
+    idType: string;
+    idNumber: string;
   } | null;
   children: Array<{
     firstName: string;
@@ -47,6 +44,8 @@ interface CustomerFormData {
     lastName: string;
     gender: string;
     dateOfBirth: string;
+    idType: string;
+    idNumber: string;
   }>;
 }
 
@@ -55,6 +54,18 @@ const getMinDateForAdults = () => {
   const today = new Date();
   const minDate = new Date(today.getFullYear() - 18, today.getMonth(), today.getDate());
   return minDate.toISOString().split('T')[0];
+};
+
+// Helper function to map frontend ID types to backend values
+const mapIdTypeToBackend = (frontendIdType: string): string => {
+  const mapping: Record<string, string> = {
+    'NATIONAL_ID': 'national',
+    'PASSPORT': 'passport',
+    'ALIEN': 'alien',
+    'BIRTH_CERTIFICATE': 'national', // Map birth certificate to national for now
+    'MILITARY': 'national', // Map military to national for now
+  };
+  return mapping[frontendIdType] || 'national';
 };
 
 const getMaxDate = () => {
@@ -78,11 +89,6 @@ const initialFormData: CustomerFormData = {
   gender: 'MALE', // Default to Male
   idType: 'NATIONAL_ID', // Default to National ID
   idNumber: '',
-  street: '',
-  city: '',
-  state: '',
-  postalCode: '',
-  country: 'KE',
   spouse: null,
   children: [],
 };
@@ -105,14 +111,14 @@ export default function CustomerStep() {
   const handleSpouseChange = (field: keyof NonNullable<CustomerFormData['spouse']>, value: string) => {
     setFormData(prev => ({
       ...prev,
-      spouse: prev.spouse ? { ...prev.spouse, [field]: value } : { firstName: '', middleName: '', lastName: '', gender: 'FEMALE', dateOfBirth: '', phoneNumber: '' }
+      spouse: prev.spouse ? { ...prev.spouse, [field]: value } : { firstName: '', middleName: '', lastName: '', gender: 'FEMALE', dateOfBirth: '', phoneNumber: '', idType: 'NATIONAL_ID', idNumber: '' }
     }));
   };
 
   const addChild = () => {
     setFormData(prev => ({
       ...prev,
-      children: [...prev.children, { firstName: '', middleName: '', lastName: '', gender: '', dateOfBirth: '' }]
+      children: [...prev.children, { firstName: '', middleName: '', lastName: '', gender: 'MALE', dateOfBirth: '', idType: 'BIRTH_CERTIFICATE', idNumber: '' }]
     }));
   };
 
@@ -133,35 +139,66 @@ export default function CustomerStep() {
   };
 
   const handleNext = async () => {
-    if (!user || !userMetadata?.partnerId) {
+    console.log('🔍 Debug - User:', user);
+    console.log('🔍 Debug - UserMetadata:', userMetadata);
+    console.log('🔍 Debug - AuthLoading:', authLoading);
+    if (!user) {
+      console.log('❌ Auth check failed - no user');
       setError('Authentication required. Please log in again.');
       return;
     }
+
+    // For now, use a default partner ID if not available
+    // TODO: Implement proper partner ID management
+    const partnerId = userMetadata?.partnerId ?? 1; // Default to partner 1 for testing
+    console.log('🔍 Using partnerId:', partnerId);
 
     setIsSubmitting(true);
     setError(null);
 
     try {
+      // Validate required fields
+      const requiredFields = [
+        { field: 'firstName', label: 'First Name' },
+        { field: 'lastName', label: 'Last Name' },
+        { field: 'phoneNumber', label: 'Phone Number' },
+        { field: 'dateOfBirth', label: 'Date of Birth' },
+        { field: 'idType', label: 'ID Type' },
+        { field: 'idNumber', label: 'ID Number' },
+      ];
+
+      for (const { field, label } of requiredFields) {
+        if (!formData[field as keyof CustomerFormData]?.toString().trim()) {
+          setError(`${label} is required`);
+          setIsSubmitting(false);
+          return;
+        }
+      }
+
+      // Validate date of birth is not in the future
+      if (formData.dateOfBirth) {
+        const selectedDate = new Date(formData.dateOfBirth);
+        const today = new Date();
+        if (selectedDate > today) {
+          setError('Date of birth cannot be in the future');
+          setIsSubmitting(false);
+          return;
+        }
+      }
+
       // Transform form data to API format
       const customerRequest: CustomerRegistrationRequest = {
         principalMember: {
           firstName: formData.firstName,
           lastName: formData.lastName,
           middleName: formData.middleName || undefined,
-          dateOfBirth: formData.dateOfBirth,
+          dateOfBirth: formData.dateOfBirth || new Date().toISOString().split('T')[0], // Ensure valid date
           gender: formData.gender.toLowerCase(),
           email: formData.email || undefined,
           phoneNumber: formData.phoneNumber || undefined,
-          idType: formData.idType,
+          idType: mapIdTypeToBackend(formData.idType),
           idNumber: formData.idNumber,
-          partnerCustomerId: `BA-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-          address: {
-            street: formData.street,
-            city: formData.city,
-            state: formData.state,
-            postalCode: formData.postalCode,
-            country: formData.country,
-          },
+          partnerCustomerId: `BA-${Date.now()}-${Math.random().toString(36).substr(2, 9)}-${Math.floor(Math.random() * 10000)}`,
         },
         product: {
           productId: 'default-product', // TODO: Get from product selection
@@ -171,16 +208,20 @@ export default function CustomerStep() {
           firstName: formData.spouse.firstName,
           lastName: formData.spouse.lastName,
           middleName: formData.spouse.middleName || undefined,
-          dateOfBirth: formData.spouse.dateOfBirth,
+          ...(formData.spouse.dateOfBirth && { dateOfBirth: formData.spouse.dateOfBirth }),
           gender: formData.spouse.gender.toLowerCase(),
           phoneNumber: formData.spouse.phoneNumber || undefined,
+          idType: mapIdTypeToBackend(formData.spouse.idType),
+          idNumber: formData.spouse.idNumber,
         }] : undefined,
         children: formData.children.length > 0 ? formData.children.map(child => ({
           firstName: child.firstName,
           lastName: child.lastName,
           middleName: child.middleName || undefined,
-          dateOfBirth: child.dateOfBirth,
+          ...(child.dateOfBirth && { dateOfBirth: child.dateOfBirth }),
           gender: child.gender.toLowerCase(),
+          idType: mapIdTypeToBackend(child.idType),
+          idNumber: child.idNumber,
         })) : undefined,
       };
 
@@ -194,7 +235,7 @@ export default function CustomerStep() {
       const registrationResult = await createAgentRegistration({
         customerId: customerResult.customerId,
         baId: user.id, // Using user ID as BA ID for now
-        partnerId: userMetadata.partnerId.toString(),
+        partnerId: partnerId.toString(),
         registrationStatus: 'IN_PROGRESS',
       });
 
@@ -228,7 +269,7 @@ export default function CustomerStep() {
       {/* Personal Information */}
       <Card>
         <CardHeader>
-          <CardTitle>Personal Information</CardTitle>
+          <CardTitle>Principal Member Information</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -285,12 +326,13 @@ export default function CustomerStep() {
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
-              <Label htmlFor="dateOfBirth">Date of Birth</Label>
+              <Label htmlFor="dateOfBirth">Date of Birth *</Label>
               <Input
                 id="dateOfBirth"
                 type="date"
                 value={formData.dateOfBirth}
                 onChange={(e) => handleInputChange('dateOfBirth', e.target.value)}
+                max={getMaxDate()}
               />
             </div>
             <div>
@@ -403,7 +445,8 @@ export default function CustomerStep() {
             </div>
 
             {showSpouse && (
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 border rounded-lg">
+              <>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 border rounded-lg">
                 <div>
                   <Label htmlFor="spouseFirstName">First Name</Label>
                   <Input
@@ -467,6 +510,35 @@ export default function CustomerStep() {
                   />
                 </div>
               </div>
+
+              {/* Spouse ID Information */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="spouseIdType">ID Type *</Label>
+                  <Select value={formData.spouse?.idType ?? 'NATIONAL_ID'} onValueChange={(value) => handleSpouseChange('idType', value)}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select ID type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="NATIONAL_ID">National ID</SelectItem>
+                      <SelectItem value="PASSPORT">Passport</SelectItem>
+                      <SelectItem value="ALIEN">Alien ID</SelectItem>
+                      <SelectItem value="BIRTH_CERTIFICATE">Birth Certificate</SelectItem>
+                      <SelectItem value="MILITARY">Military ID</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label htmlFor="spouseIdNumber">ID Number *</Label>
+                  <Input
+                    id="spouseIdNumber"
+                    value={formData.spouse?.idNumber ?? ''}
+                    onChange={(e) => handleSpouseChange('idNumber', e.target.value)}
+                    placeholder="Enter spouse ID number"
+                  />
+                </div>
+              </div>
+              </>
             )}
           </div>
 
@@ -487,7 +559,8 @@ export default function CustomerStep() {
             </div>
 
             {formData.children.map((child, index) => (
-              <div key={index} className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 border rounded-lg mb-4">
+              <div key={index} className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 border rounded-lg">
                 <div>
                   <Label htmlFor={`childFirstName${index}`}>First Name</Label>
                   <Input
@@ -552,6 +625,35 @@ export default function CustomerStep() {
                   </Button>
                 </div>
               </div>
+
+              {/* Child ID Information */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor={`childIdType${index}`}>ID Type *</Label>
+                  <Select value={child.idType} onValueChange={(value) => handleChildChange(index, 'idType', value)}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select ID type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="NATIONAL_ID">National ID</SelectItem>
+                      <SelectItem value="PASSPORT">Passport</SelectItem>
+                      <SelectItem value="ALIEN">Alien ID</SelectItem>
+                      <SelectItem value="BIRTH_CERTIFICATE">Birth Certificate</SelectItem>
+                      <SelectItem value="MILITARY">Military ID</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label htmlFor={`childIdNumber${index}`}>ID Number *</Label>
+                  <Input
+                    id={`childIdNumber${index}`}
+                    value={child.idNumber}
+                    onChange={(e) => handleChildChange(index, 'idNumber', e.target.value)}
+                    placeholder="Enter child ID number"
+                  />
+                </div>
+              </div>
+              </div>
             ))}
           </div>
         </CardContent>
@@ -586,7 +688,7 @@ export default function CustomerStep() {
         <Button
           onClick={handleNext}
           disabled={isSubmitting || authLoading}
-          className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50"
+          className="disabled:opacity-50"
         >
           {isSubmitting ? (
             <>

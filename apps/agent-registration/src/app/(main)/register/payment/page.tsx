@@ -7,7 +7,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
-import { CheckCircle, CreditCard, Users, User } from 'lucide-react';
+import { CheckCircle, CreditCard, Users, User, Loader2 } from 'lucide-react';
+import { processPayment, PaymentRequest } from '@/lib/api';
+import { useAuth } from '@/hooks/useAuth';
 
 interface CustomerFormData {
   firstName: string;
@@ -56,10 +58,12 @@ interface BeneficiaryFormData {
 
 export default function PaymentStep() {
   const router = useRouter();
+  const { user, userMetadata, loading: authLoading } = useAuth();
   const [customerData, setCustomerData] = useState<CustomerFormData | null>(null);
   const [beneficiaryData, setBeneficiaryData] = useState<BeneficiaryFormData | null>(null);
   const [paymentPhone, setPaymentPhone] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     // Load saved form data
@@ -82,27 +86,57 @@ export default function PaymentStep() {
   };
 
   const handleSubmit = async () => {
+    if (!user || !userMetadata?.partnerId) {
+      setError('Authentication required. Please log in again.');
+      return;
+    }
+
     setIsSubmitting(true);
+    setError(null);
 
     try {
-      // Mock submission - in real implementation, this would call the API
-      console.log('Submitting registration:', {
-        customer: customerData,
-        beneficiary: beneficiaryData,
-        paymentPhone
-      });
+      // Validate required data
+      if (!customerData) {
+        throw new Error('Customer data not found. Please start over.');
+      }
 
-      // Simulate API call delay
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      const customerId = localStorage.getItem('customerId');
+      const registrationId = localStorage.getItem('registrationId');
+
+      if (!customerId || !registrationId) {
+        throw new Error('Registration data not found. Please start over.');
+      }
+
+      // Process payment
+      const paymentRequest: PaymentRequest = {
+        customerId,
+        registrationId,
+        phoneNumber: paymentPhone,
+        amount: 900, // Weekly payment amount in cents
+        currency: 'KES'
+      };
+
+      console.log('Processing payment:', paymentRequest);
+
+      const paymentResult = await processPayment(paymentRequest);
+      if (!paymentResult.success) {
+        throw new Error(paymentResult.error ?? 'Payment processing failed');
+      }
+
+      console.log('Payment successful:', paymentResult);
 
       // Clear saved data
       localStorage.removeItem('customerFormData');
       localStorage.removeItem('beneficiaryFormData');
+      localStorage.removeItem('customerId');
+      localStorage.removeItem('registrationId');
 
       // Redirect to success page or dashboard
-      router.push('/dashboard?success=true');
+      router.push('/dashboard?success=true&paymentId=' + paymentResult.paymentId);
+
     } catch (error) {
-      console.error('Registration failed:', error);
+      console.error('Registration submission failed:', error);
+      setError(error instanceof Error ? error.message : 'Registration failed. Please try again.');
     } finally {
       setIsSubmitting(false);
     }
@@ -298,6 +332,27 @@ export default function PaymentStep() {
         </CardContent>
       </Card>
 
+      {/* Error Display */}
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-md p-4">
+          <div className="flex">
+            <div className="flex-shrink-0">
+              <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+              </svg>
+            </div>
+            <div className="ml-3">
+              <h3 className="text-sm font-medium text-red-800">
+                Payment Failed
+              </h3>
+              <div className="mt-2 text-sm text-red-700">
+                {error}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Navigation */}
       <div className="flex justify-between">
         <Button variant="outline" onClick={handleBack}>
@@ -305,10 +360,17 @@ export default function PaymentStep() {
         </Button>
         <Button
           onClick={handleSubmit}
-          disabled={isSubmitting || !paymentPhone}
-          className="bg-green-600 hover:bg-green-700"
+          disabled={isSubmitting || !paymentPhone || authLoading}
+          className="bg-green-600 hover:bg-green-700 disabled:opacity-50"
         >
-          {isSubmitting ? 'Processing...' : 'Submit Payment'}
+          {isSubmitting ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Processing Payment...
+            </>
+          ) : (
+            'Submit Payment'
+          )}
         </Button>
       </div>
     </div>

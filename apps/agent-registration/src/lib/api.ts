@@ -216,13 +216,6 @@ export interface CustomerRegistrationRequest {
     idType: string
     idNumber: string
     partnerCustomerId: string
-    address: {
-      street: string
-      city: string
-      state: string
-      postalCode: string
-      country: string
-    }
   }
   product: {
     productId: string
@@ -232,16 +225,20 @@ export interface CustomerRegistrationRequest {
     firstName: string
     lastName: string
     middleName?: string
-    dateOfBirth: string
+    dateOfBirth?: string
     gender: string
     phoneNumber?: string
+    idType: string
+    idNumber: string
   }>
   children?: Array<{
     firstName: string
     lastName: string
     middleName?: string
-    dateOfBirth: string
+    dateOfBirth?: string
     gender: string
+    idType: string
+    idNumber: string
   }>
   beneficiaries?: Array<{
     firstName: string
@@ -284,7 +281,7 @@ export async function createCustomer(data: CustomerRegistrationRequest): Promise
       headers: {
         'Content-Type': 'application/json',
         'X-API-Key': process.env.NEXT_PUBLIC_API_KEY ?? '',
-        'X-Correlation-ID': `req-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+        'x-correlation-id': `req-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
       },
       body: JSON.stringify({
         correlationId: `req-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
@@ -294,6 +291,15 @@ export async function createCustomer(data: CustomerRegistrationRequest): Promise
 
     if (!response.ok) {
       const errorData = await response.json()
+      
+      // Handle detailed validation errors
+      if (errorData.error?.details && typeof errorData.error.details === 'object') {
+        const fieldErrors = Object.entries(errorData.error.details)
+          .map(([field, message]) => `${field}: ${message}`)
+          .join(', ')
+        throw new Error(`Validation failed: ${fieldErrors}`)
+      }
+      
       throw new Error(errorData.error?.message ?? `HTTP ${response.status}: ${response.statusText}`)
     }
 
@@ -318,7 +324,7 @@ export async function createAgentRegistration(data: AgentRegistrationRequest): P
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${await getSupabaseToken()}`,
-        'X-Correlation-ID': `req-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+        'x-correlation-id': `req-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
       },
       body: JSON.stringify(data)
     })
@@ -338,6 +344,163 @@ export async function createAgentRegistration(data: AgentRegistrationRequest): P
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error occurred'
+    }
+  }
+}
+
+// Beneficiary API Types and Functions
+export interface BeneficiaryData {
+  firstName: string
+  lastName: string
+  middleName?: string
+  dateOfBirth: string
+  gender: string
+  email?: string
+  phoneNumber?: string
+  idType: string
+  idNumber: string
+  relationship: string
+  relationshipDescription?: string
+  percentage: number
+}
+
+export interface AddBeneficiariesRequest {
+  correlationId: string
+  beneficiaries: BeneficiaryData[]
+}
+
+export interface AddBeneficiariesResponse {
+  success: boolean
+  beneficiaryIds?: string[]
+  error?: string
+}
+
+export interface CreateMissingRequirementRequest {
+  registrationId: string
+  customerId: string
+  partnerId: string
+  entityKind: string
+  entityId?: string
+  fieldPath: string
+  status?: string
+}
+
+export interface CreateMissingRequirementResponse {
+  success: boolean
+  missingRequirementId?: string
+  error?: string
+}
+
+export async function addBeneficiaries(customerId: string, beneficiaries: BeneficiaryData[]): Promise<AddBeneficiariesResponse> {
+  try {
+    const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/v1/customers/${customerId}/beneficiaries`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-API-Key': process.env.NEXT_PUBLIC_API_KEY ?? '',
+        'x-correlation-id': `req-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+      },
+      body: JSON.stringify({
+        correlationId: `req-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        beneficiaries
+      })
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json()
+      throw new Error(errorData.error?.message ?? `HTTP ${response.status}: ${response.statusText}`)
+    }
+
+    const result = await response.json()
+    return {
+      success: true,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      beneficiaryIds: result.beneficiaries?.map((b: any) => b.beneficiaryId) ?? []
+    }
+  } catch (error) {
+    console.error('Error adding beneficiaries:', error)
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error occurred'
+    }
+  }
+}
+
+export async function createMissingRequirement(data: CreateMissingRequirementRequest): Promise<CreateMissingRequirementResponse> {
+  try {
+    const response = await fetch(`${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/agent-registrations/missing-requirements`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${await getSupabaseToken()}`,
+        'x-correlation-id': `req-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+      },
+      body: JSON.stringify(data)
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json()
+      throw new Error(errorData.error?.message ?? `HTTP ${response.status}: ${response.statusText}`)
+    }
+
+    const result = await response.json()
+    return {
+      success: true,
+      missingRequirementId: result.id
+    }
+  } catch (error) {
+    console.error('Error creating missing requirement:', error)
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error occurred'
+    }
+  }
+}
+
+// Payment API Types and Functions (Mock Implementation)
+export interface PaymentRequest {
+  customerId: string
+  registrationId: string
+  phoneNumber: string
+  amount: number
+  currency: string
+}
+
+export interface PaymentResponse {
+  success: boolean
+  paymentId?: string
+  transactionId?: string
+  error?: string
+}
+
+export async function processPayment(data: PaymentRequest): Promise<PaymentResponse> {
+  try {
+    // Mock payment processing - simulate MPESA STK push
+    console.log('Processing payment:', data)
+
+    // Simulate API call delay
+    await new Promise(resolve => setTimeout(resolve, 2000))
+
+    // Mock successful payment response
+    const mockPaymentId = `pay_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+    const mockTransactionId = `TXN${Date.now()}`
+
+    // Simulate 90% success rate for demo purposes
+    if (Math.random() > 0.1) {
+      return {
+        success: true,
+        paymentId: mockPaymentId,
+        transactionId: mockTransactionId
+      }
+    } else {
+      // Simulate payment failure
+      throw new Error('Payment failed. Please try again or use a different payment method.')
+    }
+  } catch (error) {
+    console.error('Error processing payment:', error)
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Payment processing failed'
     }
   }
 }

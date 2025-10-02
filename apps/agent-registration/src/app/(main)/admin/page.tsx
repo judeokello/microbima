@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Users, UserPlus, Settings, BarChart3 } from 'lucide-react'
+import { Users, UserPlus, Settings, BarChart3, LayoutDashboard } from 'lucide-react'
 
 export default function AdminDashboardPage() {
   return (
@@ -76,6 +76,12 @@ export default function AdminDashboardPage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
+            <Link href="/dashboard">
+              <Button variant="outline" className="w-full justify-start">
+                <LayoutDashboard className="mr-2 h-4 w-4" />
+                BA Dashboard
+              </Button>
+            </Link>
             <Link href="/admin/ba-registration">
               <Button className="w-full justify-start">
                 <UserPlus className="mr-2 h-4 w-4" />

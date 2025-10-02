@@ -10,7 +10,12 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "prepare": "husky",
-    "generate:presets": "ts-node --compiler-options '{\"module\":\"CommonJS\"}' src/scripts/generate-theme-presets.ts"
+    "generate:presets": "ts-node --compiler-options '{\"module\":\"CommonJS\"}' src/scripts/generate-theme-presets.ts",
+    "dev:all": "../../start-dev.sh",
+    "dev:api": "../../start-api.sh",
+    "dev:agent": "../../start-agent.sh",
+    "stop": "../../stop-dev.sh",
+    "status": "../../check-status.sh"
   },
   "lint-staged": {
     "*.{js,ts,jsx,tsx}": [
