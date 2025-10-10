@@ -420,4 +420,65 @@ export class PartnerManagementService {
       },
     });
   }
+
+  // ==================== BRAND AMBASSADOR OPERATIONS ====================
+
+  /**
+   * Create a new Brand Ambassador for a partner
+   * @param partnerId - Partner ID
+   * @param brandAmbassadorData - Brand Ambassador data
+   * @returns Created Brand Ambassador
+   */
+  async createBrandAmbassador(
+    partnerId: number,
+    brandAmbassadorData: {
+      userId: string;
+      displayName: string;
+      phoneNumber?: string;
+      perRegistrationRateCents: number;
+      isActive?: boolean;
+    }
+  ) {
+    this.logger.log(`Creating Brand Ambassador for partner ${partnerId}`);
+
+    // Validate that partner exists and is active
+    const partner = await this.prismaService.partner.findFirst({
+      where: {
+        id: partnerId,
+        isActive: true,
+      },
+    });
+
+    if (!partner) {
+      throw new NotFoundException(`Partner with ID ${partnerId} not found or inactive`);
+    }
+
+    // Check if Brand Ambassador already exists for this user
+    const existingBA = await this.prismaService.brandAmbassador.findFirst({
+      where: {
+        userId: brandAmbassadorData.userId,
+      },
+    });
+
+    if (existingBA) {
+      throw new BadRequestException('Brand Ambassador already exists for this user');
+    }
+
+    // Create the Brand Ambassador
+    const brandAmbassador = await this.prismaService.brandAmbassador.create({
+      data: {
+        userId: brandAmbassadorData.userId,
+        partnerId: partnerId,
+        displayName: brandAmbassadorData.displayName,
+        phoneNumber: brandAmbassadorData.phoneNumber,
+        perRegistrationRateCents: brandAmbassadorData.perRegistrationRateCents,
+        isActive: brandAmbassadorData.isActive ?? true,
+        createdBy: brandAmbassadorData.userId,
+        updatedBy: brandAmbassadorData.userId,
+      },
+    });
+
+    this.logger.log(`✅ Brand Ambassador created successfully: ${brandAmbassador.id}`);
+    return brandAmbassador;
+  }
 }

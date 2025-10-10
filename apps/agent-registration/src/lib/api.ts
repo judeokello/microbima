@@ -319,28 +319,39 @@ export async function createCustomer(data: CustomerRegistrationRequest): Promise
 
 export async function createAgentRegistration(data: AgentRegistrationRequest): Promise<AgentRegistrationResponse> {
   try {
+    console.log('🔍 DEBUG: createAgentRegistration called with:', data);
+    console.log('🔍 DEBUG: API URL:', `${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/agent-registrations`);
+    
+    const token = await getSupabaseToken();
+    console.log('🔍 DEBUG: Supabase token obtained:', token ? 'YES' : 'NO');
+    
     const response = await fetch(`${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/agent-registrations`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${await getSupabaseToken()}`,
+        'Authorization': `Bearer ${token}`,
         'x-correlation-id': `req-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
       },
       body: JSON.stringify(data)
     })
 
+    console.log('🔍 DEBUG: Response status:', response.status);
+    console.log('🔍 DEBUG: Response ok:', response.ok);
+
     if (!response.ok) {
       const errorData = await response.json()
+      console.error('❌ API Error Response:', errorData);
       throw new Error(errorData.error?.message ?? `HTTP ${response.status}: ${response.statusText}`)
     }
 
     const result = await response.json()
+    console.log('✅ API Success Response:', result);
     return {
       success: true,
       registrationId: result.id
     }
   } catch (error) {
-    console.error('Error creating agent registration:', error)
+    console.error('❌ Error creating agent registration:', error)
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error occurred'

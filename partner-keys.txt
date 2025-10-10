@@ -28,6 +28,7 @@ PARTNER_1_STATUS=ACTIVE
 # 
 # To use in agent-registration .env.local:
 # NEXT_PUBLIC_API_BASE_URL=http://localhost:3001/api
+# NEXT_PUBLIC_INTERNAL_API_BASE_URL=http://localhost:3001/api
 # NEXT_PUBLIC_API_KEY=mb_0dcf0acf0562ad7e49e2ed4452e651fd6db23b3f8ca50a8b12c63b5d702573ef
 #
 # To use in curl commands:

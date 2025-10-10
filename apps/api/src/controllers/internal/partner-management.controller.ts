@@ -25,6 +25,8 @@ import { CorrelationId } from '../../decorators/correlation-id.decorator';
 import {
   CreatePartnerRequestDto,
   CreatePartnerResponseDto,
+  CreateBrandAmbassadorRequestDto,
+  CreateBrandAmbassadorResponseDto,
   GenerateApiKeyRequestDto,
   GenerateApiKeyResponseDto,
   PartnerListResponseDto,
@@ -279,6 +281,72 @@ export class InternalPartnerManagementController {
       return response;
     } catch (error) {
       this.logger.error(`[internal] Error generating API key: ${error instanceof Error ? error.message : 'Unknown error'}`, error instanceof Error ? error.stack : undefined);
+      throw error;
+    }
+  }
+
+  /**
+   * Create a new Brand Ambassador for a partner
+   */
+  @Post('partners/:partnerId/brand-ambassadors')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({
+    summary: 'Create Brand Ambassador',
+    description: 'Create a new Brand Ambassador for a specific partner.',
+  })
+  @ApiParam({
+    name: 'partnerId',
+    description: 'Partner ID',
+    type: 'number',
+    example: 1,
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'Brand Ambassador created successfully',
+    type: CreateBrandAmbassadorResponseDto,
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Bad request - validation failed',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Partner not found',
+  })
+  @ApiResponse({
+    status: 409,
+    description: 'Brand Ambassador already exists for this user',
+  })
+  @ApiResponse({
+    status: 500,
+    description: 'Internal server error',
+  })
+  async createBrandAmbassador(
+    @Param('partnerId') partnerId: number,
+    @Body() dto: CreateBrandAmbassadorRequestDto,
+    @CorrelationId() correlationId: string,
+  ): Promise<CreateBrandAmbassadorResponseDto> {
+    try {
+      this.logger.log(`[${correlationId}] Creating Brand Ambassador for partner ${partnerId}`);
+
+      const brandAmbassador = await this.partnerManagementService.createBrandAmbassador(partnerId, dto);
+
+      const response: CreateBrandAmbassadorResponseDto = {
+        id: brandAmbassador.id,
+        userId: brandAmbassador.userId,
+        partnerId: brandAmbassador.partnerId,
+        displayName: brandAmbassador.displayName,
+        phoneNumber: brandAmbassador.phoneNumber || undefined,
+        perRegistrationRateCents: brandAmbassador.perRegistrationRateCents,
+        isActive: brandAmbassador.isActive,
+        createdAt: brandAmbassador.createdAt,
+        updatedAt: brandAmbassador.updatedAt,
+      };
+
+      this.logger.log(`[${correlationId}] ✅ Brand Ambassador created successfully: ${brandAmbassador.id}`);
+      return response;
+    } catch (error) {
+      this.logger.error(`[${correlationId}] Error creating Brand Ambassador: ${error instanceof Error ? error.message : 'Unknown error'}`, error instanceof Error ? error.stack : undefined);
       throw error;
     }
   }

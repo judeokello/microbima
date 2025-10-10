@@ -45,6 +45,6 @@ export class AppModule implements NestModule {
 
     consumer
       .apply(SupabaseAuthMiddleware)
-      .forRoutes('/api/internal/*'); // Apply Supabase auth to internal routes only
+      .forRoutes({ path: 'internal/*', method: RequestMethod.ALL }); // Apply Supabase auth to internal routes only
   }
 }

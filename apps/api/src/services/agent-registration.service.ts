@@ -14,8 +14,8 @@ export class AgentRegistrationService {
    */
   async createRegistration(dto: CreateAgentRegistrationDto, userId: string): Promise<AgentRegistrationResponseDto> {
     try {
-      // Validate that BA exists and is active
-      const ba = await this.prisma.brandAmbassador.findFirst({
+      // First, try to find Brand Ambassador by ID (if baId is a UUID)
+      let ba = await this.prisma.brandAmbassador.findFirst({
         where: {
           id: dto.baId,
           isActive: true,
@@ -24,6 +24,19 @@ export class AgentRegistrationService {
           partner: true,
         },
       });
+
+      // If not found by ID, try to find by userId (if baId is actually a user ID)
+      if (!ba) {
+        ba = await this.prisma.brandAmbassador.findFirst({
+          where: {
+            userId: dto.baId,
+            isActive: true,
+          },
+          include: {
+            partner: true,
+          },
+        });
+      }
 
       if (!ba) {
         throw new BadRequestException('Brand Ambassador not found or inactive');
@@ -46,7 +59,7 @@ export class AgentRegistrationService {
       // Create the registration
       const registration = await this.prisma.agentRegistration.create({
         data: {
-          baId: dto.baId,
+          baId: ba.id, // Use the actual Brand Ambassador ID
           customerId: dto.customerId,
           partnerId: parseInt(dto.partnerId),
           registrationStatus: dto.registrationStatus || RegistrationStatus.IN_PROGRESS,

@@ -49,7 +49,7 @@ export default function BootstrapPage() {
         password: formData.password,
         options: {
           data: {
-            roles: ['registration_admin'],
+            roles: ['registration_admin', 'brand_ambassador'],
             displayName: formData.displayName
           }
         }
@@ -60,6 +60,33 @@ export default function BootstrapPage() {
       }
 
       if (authData.user) {
+        // Create Brand Ambassador record in the database
+        try {
+          const baResponse = await fetch(`${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/partner-management/partners/1/brand-ambassadors`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${authData.session?.access_token}`,
+              'x-correlation-id': `bootstrap-${Date.now()}`
+            },
+            body: JSON.stringify({
+              userId: authData.user.id,
+              displayName: formData.displayName,
+              phoneNumber: '+254700000000', // Default phone number
+              perRegistrationRateCents: 500, // 5.00 KES per registration
+              isActive: true
+            })
+          })
+
+          if (!baResponse.ok) {
+            console.warn('Failed to create Brand Ambassador record:', await baResponse.text())
+            // Don't fail the entire process if BA creation fails
+          }
+        } catch (baError) {
+          console.warn('Error creating Brand Ambassador record:', baError)
+          // Don't fail the entire process if BA creation fails
+        }
+
         setSuccess(true)
         setTimeout(() => {
           router.push('/auth/login')
