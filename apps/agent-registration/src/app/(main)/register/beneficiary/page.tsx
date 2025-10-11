@@ -251,7 +251,7 @@ export default function BeneficiaryStep() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-bold">Beneficiary Information</h2>
+        <h2 className="text-2xl font-bold">Next of Kin Information</h2>
         <p className="text-gray-600">Enter the next of kin details (optional)</p>
       </div>
 
@@ -436,34 +436,6 @@ export default function BeneficiaryStep() {
       <div className="flex justify-between">
         <Button variant="outline" onClick={handleBack}>
           Back: Customer Details
-        </Button>
-
-        {/* DEBUG: Test Session Button */}
-        <Button
-          type="button"
-          variant="outline"
-          onClick={() => {
-            console.log('🧪 ========== SESSION DEBUG ==========');
-            console.log('🧪 User:', user);
-            console.log('🧪 User email:', user?.email);
-            console.log('🧪 User ID:', user?.id);
-            console.log('🧪 User metadata:', userMetadata);
-            console.log('🧪 BA info:', baInfo);
-            console.log('🧪 Partner ID from BA:', baInfo?.partnerId);
-            console.log('🧪 BA Display Name:', baInfo?.displayName);
-            console.log('🧪 Roles:', userMetadata?.roles);
-            console.log('🧪 Auth loading:', authLoading);
-            console.log('🧪 BA loading:', baLoading);
-            console.log('🧪 BA error:', baError);
-            console.log('🧪 localStorage - customerId:', localStorage.getItem('customerId'));
-            console.log('🧪 localStorage - registrationId:', localStorage.getItem('registrationId'));
-            console.log('🧪 ========== SESSION DEBUG COMPLETE ==========');
-
-            alert(`Session Status:\n\nUser: ${user ? 'LOGGED IN' : 'NOT LOGGED IN'}\nEmail: ${user?.email ?? 'N/A'}\nBA Name: ${baInfo?.displayName ?? 'NOT FOUND'}\nPartner ID: ${baInfo?.partnerId ?? 'NOT FOUND'}\nBA Loading: ${baLoading}\nBA Error: ${baError ?? 'None'}\n\nCheck console for full details.`);
-          }}
-          className="bg-purple-500 hover:bg-purple-600 text-white"
-        >
-          🧪 Check Session
         </Button>
 
         <Button

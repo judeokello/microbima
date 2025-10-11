@@ -412,11 +412,19 @@ export interface CreateMissingRequirementResponse {
 
 export async function addBeneficiaries(customerId: string, beneficiaries: BeneficiaryData[]): Promise<AddBeneficiariesResponse> {
   try {
-    const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/v1/customers/${customerId}/beneficiaries`, {
+    // Get Supabase session token for internal API
+    const { data: session } = await supabase.auth.getSession();
+    const token = session.session?.access_token;
+
+    if (!token) {
+      throw new Error('No Supabase session token found');
+    }
+
+    const response = await fetch(`${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/customers/${customerId}/beneficiaries`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'X-API-Key': process.env.NEXT_PUBLIC_API_KEY ?? '',
+        'Authorization': `Bearer ${token}`,
         'x-correlation-id': `req-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
       },
       body: JSON.stringify({

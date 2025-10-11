@@ -25,6 +25,8 @@ import { PartnerManagementService } from '../../services/partner-management.serv
 import { PrincipalMemberDto } from '../../dto/principal-member/principal-member.dto';
 import { CreatePrincipalMemberRequestDto } from '../../dto/principal-member/create-principal-member-request.dto';
 import { CreatePrincipalMemberResponseDto } from '../../dto/principal-member/create-principal-member-response.dto';
+import { AddBeneficiariesRequestDto } from '../../dto/beneficiaries/add-beneficiaries-request.dto';
+import { AddBeneficiariesResponseDto } from '../../dto/beneficiaries/add-beneficiaries-response.dto';
 import { CorrelationId } from '../../decorators/correlation-id.decorator';
 import { PartnerId } from '../../decorators/api-key.decorator';
 
@@ -94,6 +96,62 @@ export class InternalCustomerController {
       correlationId,
       true, // Skip redundant partner validation
       userId
+    );
+  }
+
+  /**
+   * Add beneficiaries to an existing customer (Internal)
+   * @param customerId - Customer ID
+   * @param addRequest - Beneficiaries addition request
+   * @param correlationId - Correlation ID from request header
+   * @returns Beneficiaries addition response
+   */
+  @Post(':customerId/beneficiaries')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({
+    summary: 'Add beneficiaries to customer (Internal)',
+    description: 'Add one or more beneficiaries to an existing customer in a single transaction. At least one beneficiary must be provided. This endpoint is for internal use only.',
+  })
+  @ApiParam({
+    name: 'customerId',
+    description: 'Customer ID',
+    example: 'cust_1234567890',
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'Beneficiaries added successfully',
+    type: AddBeneficiariesResponseDto,
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Bad request - validation errors or no beneficiaries provided',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Customer not found or not accessible to this partner',
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Unauthorized - invalid authentication',
+  })
+  async addBeneficiaries(
+    @Param('customerId') customerId: string,
+    @Body() addRequest: AddBeneficiariesRequestDto,
+    @CorrelationId() correlationId: string,
+    @Req() req: any, // Add request object to access authenticated user
+  ): Promise<AddBeneficiariesResponseDto> {
+    // Extract user ID from authenticated user
+    const userId = req.user?.id || 'system';
+    
+    // Get Brand Ambassador info to derive partnerId
+    const baInfo = await this.partnerManagementService.getBrandAmbassadorByUserId(userId);
+    const partnerId = baInfo.partnerId;
+    
+    return this.customerService.addBeneficiaries(
+      customerId,
+      addRequest,
+      partnerId,
+      correlationId
     );
   }
 

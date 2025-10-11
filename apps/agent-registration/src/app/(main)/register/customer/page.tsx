@@ -754,61 +754,6 @@ export default function CustomerStep() {
           Cancel
         </Button>
 
-        {/* DEBUG: Test Agent Registration Button */}
-        <Button
-          type="button"
-          variant="outline"
-          onClick={async () => {
-            console.log('🧪 ========== AGENT REGISTRATION TEST ==========');
-            console.log('🧪 Step 1: Checking user session...');
-            console.log('🧪 User object:', user);
-            console.log('🧪 User metadata:', userMetadata);
-            console.log('🧪 Auth loading:', authLoading);
-            console.log('🧪 Partner ID:', userMetadata?.partnerId ?? 'NOT FOUND');
-
-            if (!user) {
-              alert('❌ NO USER SESSION FOUND!\n\nThe user is not logged in or the session is not available on this page.');
-              console.error('❌ No user session found');
-              return;
-            }
-
-            console.log('✅ User session found:', {
-              userId: user.id,
-              email: user.email,
-              roles: userMetadata?.roles,
-              partnerId: userMetadata?.partnerId,
-            });
-
-            console.log('🧪 Step 2: Testing agent registration API call...');
-            console.log('🧪 API Base URL:', process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL);
-            console.log('🧪 Full URL:', `${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/agent-registrations`);
-
-           try {
-             const testResult = await createAgentRegistration({
-               customerId: '78535281-db92-42e8-893c-410e18448333', // Real customer ID from DB
-               baId: user.id,
-               // partnerId will be derived from BA record in the backend
-               registrationStatus: 'IN_PROGRESS',
-             });
-              console.log('🧪 Test result:', testResult);
-
-              if (testResult.success) {
-                alert(`✅ SUCCESS!\n\nAgent registration created successfully.\nRegistration ID: ${testResult.registrationId}`);
-              } else {
-                alert(`❌ FAILED!\n\nError: ${testResult.error ?? 'Unknown error'}\n\nCheck console for details.`);
-              }
-            } catch (error) {
-              console.error('🧪 Test error:', error);
-              alert(`❌ EXCEPTION!\n\n${error}\n\nCheck console for details.`);
-            }
-
-            console.log('🧪 ========== TEST COMPLETE ==========');
-          }}
-          className="bg-yellow-500 hover:bg-yellow-600 text-white"
-        >
-          🧪 Test Agent Registration
-        </Button>
-
         <Button
           onClick={handleNext}
           disabled={isSubmitting || authLoading}

@@ -13,7 +13,7 @@ interface WizardStep {
 
 const steps: WizardStep[] = [
   { id: 'customer', title: 'Customer Details', path: '/register/customer' },
-  { id: 'beneficiary', title: 'Beneficiary', path: '/register/beneficiary' },
+  { id: 'beneficiary', title: 'Next of Kin', path: '/register/beneficiary' },
   { id: 'payment', title: 'Payment & Review', path: '/register/payment' },
 ];
 
