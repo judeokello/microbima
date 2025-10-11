@@ -331,7 +331,7 @@ export class InternalPartnerManagementController {
     try {
       this.logger.log(`[${correlationId}] Creating Brand Ambassador for partner ${partnerId}`);
 
-      const brandAmbassador = await this.partnerManagementService.createBrandAmbassador(partnerId, dto);
+      const brandAmbassador = await this.partnerManagementService.createBrandAmbassador(partnerId, dto, correlationId);
 
       const response: CreateBrandAmbassadorResponseDto = {
         id: brandAmbassador.id,

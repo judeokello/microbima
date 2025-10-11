@@ -1,5 +1,6 @@
 import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { SupabaseService } from './supabase.service';
 import { Partner, PartnerData } from '../entities/partner.entity';
 import { PartnerApiKey, PartnerApiKeyData } from '../entities/partner-api-key.entity';
 import { PartnerMapper } from '../mappers/partner.mapper';
@@ -24,7 +25,10 @@ import * as crypto from 'crypto';
 export class PartnerManagementService {
   private readonly logger = new Logger(PartnerManagementService.name);
 
-  constructor(private readonly prismaService: PrismaService) {}
+  constructor(
+    private readonly prismaService: PrismaService,
+    private readonly supabaseService: SupabaseService
+  ) {}
 
   // ==================== PARTNER OPERATIONS ====================
 
@@ -426,21 +430,26 @@ export class PartnerManagementService {
   /**
    * Create a new Brand Ambassador for a partner
    * @param partnerId - Partner ID
-   * @param brandAmbassadorData - Brand Ambassador data
+   * @param brandAmbassadorData - Brand Ambassador data including user creation info
+   * @param correlationId - Correlation ID for tracing
    * @returns Created Brand Ambassador
    */
   async createBrandAmbassador(
     partnerId: number,
     brandAmbassadorData: {
-      userId: string;
-      displayName: string;
+      email: string;
+      password: string;
+      firstName: string;
+      lastName: string;
+      roles: string[];
       phoneNumber?: string;
       perRegistrationRateCents: number;
       isActive?: boolean;
       createdBy?: string;
-    }
+    },
+    correlationId: string
   ) {
-    this.logger.log(`Creating Brand Ambassador for partner ${partnerId}`);
+    this.logger.log(`[${correlationId}] Creating Brand Ambassador for partner ${partnerId}`);
 
     // Validate that partner exists and is active
     const partner = await this.prismaService.partner.findFirst({
@@ -454,10 +463,32 @@ export class PartnerManagementService {
       throw new NotFoundException(`Partner with ID ${partnerId} not found or inactive`);
     }
 
-    // Check if Brand Ambassador already exists for this user
+    // Combine first and last name into displayName
+    const displayName = `${brandAmbassadorData.firstName} ${brandAmbassadorData.lastName}`.trim();
+
+    // Step 1: Create Supabase user
+    const userResult = await this.supabaseService.createUser({
+      email: brandAmbassadorData.email,
+      password: brandAmbassadorData.password,
+      userMetadata: {
+        roles: brandAmbassadorData.roles,
+        partnerId: partnerId,
+        displayName: displayName,
+        phone: brandAmbassadorData.phoneNumber,
+        perRegistrationRateCents: brandAmbassadorData.perRegistrationRateCents
+      }
+    });
+
+    if (!userResult.success) {
+      throw new BadRequestException(`Failed to create user: ${userResult.error}`);
+    }
+
+    const userId = userResult.data.id;
+
+    // Check if Brand Ambassador already exists for this user (shouldn't happen, but safety check)
     const existingBA = await this.prismaService.brandAmbassador.findFirst({
       where: {
-        userId: brandAmbassadorData.userId,
+        userId: userId,
       },
     });
 
@@ -466,14 +497,14 @@ export class PartnerManagementService {
     }
 
     // Use createdBy from request if provided, otherwise use the new BA's userId
-    const createdByUserId = brandAmbassadorData.createdBy || brandAmbassadorData.userId;
+    const createdByUserId = brandAmbassadorData.createdBy || userId;
 
-    // Create the Brand Ambassador
+    // Step 2: Create the Brand Ambassador record
     const brandAmbassador = await this.prismaService.brandAmbassador.create({
       data: {
-        userId: brandAmbassadorData.userId,
+        userId: userId,
         partnerId: partnerId,
-        displayName: brandAmbassadorData.displayName,
+        displayName: displayName,
         phoneNumber: brandAmbassadorData.phoneNumber,
         perRegistrationRateCents: brandAmbassadorData.perRegistrationRateCents,
         isActive: brandAmbassadorData.isActive ?? true,

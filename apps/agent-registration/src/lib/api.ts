@@ -1,4 +1,4 @@
-import { supabase, supabaseAdmin, ROLES } from './supabase'
+import { supabase, ROLES } from './supabase'
 
 // Re-export constants for convenience
 export { ROLES }
@@ -57,43 +57,17 @@ export interface CreateBAResponse {
 
 export async function createBrandAmbassador(data: CreateBARequest): Promise<CreateBAResponse> {
   try {
-    if (!supabaseAdmin) {
-      throw new Error('Supabase admin client not available. Check SUPABASE_SERVICE_ROLE_KEY environment variable.')
-    }
-
-    // Combine first and last name into displayName
-    const displayName = `${data.firstName} ${data.lastName}`.trim()
-
     // Get current user session for createdBy
     const { data: { session } } = await supabase.auth.getSession()
     const currentUserId = session?.user?.id
 
-    // Step 1: Create Supabase user with email verification
-    const { data: userData, error: userError } = await supabaseAdmin.auth.admin.createUser({
+    // Prepare data for backend API (backend will handle user creation)
+    const baData = {
       email: data.email,
       password: data.password,
-      email_confirm: true, // Verify email automatically
-      user_metadata: {
-        roles: data.roles,
-        partnerId: data.partnerId,
-        displayName: displayName,
-        phone: data.phone,
-        perRegistrationRateCents: data.perRegistrationRateCents
-      } as UserMetadata
-    })
-
-    if (userError) {
-      throw new Error(`Failed to create user: ${userError.message}`)
-    }
-
-    if (!userData.user) {
-      throw new Error('User creation failed - no user data returned')
-    }
-
-    // Step 2: Create BrandAmbassador record in database via API
-    const baData = {
-      userId: userData.user.id,
-      displayName: displayName,
+      firstName: data.firstName,
+      lastName: data.lastName,
+      roles: data.roles,
       phoneNumber: data.phone,
       perRegistrationRateCents: data.perRegistrationRateCents,
       isActive: true,
@@ -125,7 +99,7 @@ export async function createBrandAmbassador(data: CreateBARequest): Promise<Crea
 
     return {
       success: true,
-      userId: userData.user.id,
+      userId: result.userId,
       baId: result.id
     }
 

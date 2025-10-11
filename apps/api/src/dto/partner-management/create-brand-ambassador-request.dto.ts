@@ -1,14 +1,43 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsString, IsUUID, IsInt, IsOptional, IsBoolean, Min } from 'class-validator';
+import { IsString, IsUUID, IsInt, IsOptional, IsBoolean, Min, IsEmail, IsArray } from 'class-validator';
 
 export class CreateBrandAmbassadorRequestDto {
   @ApiProperty({
-    description: 'Supabase User ID',
-    example: '123e4567-e89b-12d3-a456-426614174000',
+    description: 'Email address for the new user',
+    example: 'john.doe@example.com',
+  })
+  @IsEmail()
+  email: string;
+
+  @ApiProperty({
+    description: 'Password for the new user',
+    example: 'securePassword123',
   })
   @IsString()
-  @IsUUID()
-  userId: string;
+  password: string;
+
+  @ApiProperty({
+    description: 'First name',
+    example: 'John',
+  })
+  @IsString()
+  firstName: string;
+
+  @ApiProperty({
+    description: 'Last name',
+    example: 'Doe',
+  })
+  @IsString()
+  lastName: string;
+
+  @ApiProperty({
+    description: 'User roles',
+    example: ['brand_ambassador'],
+    type: [String],
+  })
+  @IsArray()
+  @IsString({ each: true })
+  roles: string[];
 
   @ApiProperty({
     description: 'Brand Ambassador display name',

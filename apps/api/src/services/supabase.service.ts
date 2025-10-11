@@ -57,6 +57,43 @@ export class SupabaseService {
   }
 
   /**
+   * Create a user using Supabase admin client
+   */
+  async createUser(userData: {
+    email: string;
+    password: string;
+    userMetadata?: {
+      roles?: string[];
+      partnerId?: number;
+      displayName?: string;
+      phone?: string;
+      perRegistrationRateCents?: number;
+    };
+  }): Promise<{ success: boolean; data?: any; error?: string }> {
+    try {
+      this.logger.log(`Creating user: ${userData.email}`);
+
+      const { data: user, error } = await this.supabase.auth.admin.createUser({
+        email: userData.email,
+        password: userData.password,
+        email_confirm: true, // Verify email automatically
+        user_metadata: userData.userMetadata
+      });
+
+      if (error) {
+        this.logger.error('Error creating user', error);
+        return { success: false, error: error.message };
+      }
+
+      this.logger.log(`✅ User created successfully: ${user.user.id}`);
+      return { success: true, data: user.user };
+    } catch (error: any) {
+      this.logger.error('Unexpected error creating user', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
    * Create a partner using Supabase client
    */
   async createPartner(partnerData: {
