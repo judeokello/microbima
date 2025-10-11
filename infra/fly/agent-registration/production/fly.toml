@@ -9,7 +9,7 @@ primary_region = "nrt"
     NEXT_PUBLIC_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inlvd2dxemdxeHZrcXl5emh4dmVqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTczMzM3NDQsImV4cCI6MjA3MjkwOTc0NH0.Jsau2Oqa3XZbJkHZVZUwzpCQAatMnODq6T_rCXhwdpQ"
     NEXT_PUBLIC_APP_NAME = "MicroBima Agent Registration"
     NEXT_PUBLIC_API_BASE_URL = "https://microbima-production-internal-api.fly.dev"
-    NEXT_PUBLIC_INTERNAL_API_BASE_URL = "https://microbima-production-internal-api.fly.dev"
+    NEXT_PUBLIC_INTERNAL_API_BASE_URL = "https://microbima-production-internal-api.fly.dev/api"
     NEXT_PUBLIC_ENABLE_BOOTSTRAP = "true"
 
 [env]
