@@ -86,7 +86,7 @@ const mapIdTypeToBackend = (frontendIdType: string): string => {
     'BIRTH_CERTIFICATE': 'passport', // Map birth certificate to passport for now
     'MILITARY': 'national', // Map military to national for now
   };
-  return mapping[frontendIdType] || 'national';
+  return mapping[frontendIdType] ?? 'national';
 };
 
 const getMaxDate = () => {
@@ -237,9 +237,9 @@ export default function CustomerStep() {
           firstName: toTitleCase(formData.firstName),
           lastName: toTitleCase(formData.lastName),
           middleName: formData.middleName ? toTitleCase(formData.middleName) : undefined,
-          dateOfBirth: formData.dateOfBirth || new Date().toISOString().split('T')[0], // Ensure valid date
+          dateOfBirth: formData.dateOfBirth ?? new Date().toISOString().split('T')[0], // Ensure valid date
           gender: formData.gender.toLowerCase(),
-          email: formData.email || undefined,
+          email: formData.email ?? undefined,
           phoneNumber: formData.phoneNumber ? formatPhoneNumber(formData.phoneNumber) : undefined,
           idType: mapIdTypeToBackend(formData.idType),
           idNumber: formData.idNumber,

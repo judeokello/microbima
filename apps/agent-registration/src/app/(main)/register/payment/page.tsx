@@ -226,7 +226,7 @@ export default function PaymentStep() {
               </div>
               <div>
                 <p className="text-sm font-medium text-gray-700">Email</p>
-                <p className="text-lg">{customerData.email || 'Not provided'}</p>
+                <p className="text-lg">{customerData.email ?? 'Not provided'}</p>
               </div>
               <div>
                 <p className="text-sm font-medium text-gray-700">ID</p>
@@ -300,11 +300,11 @@ export default function PaymentStep() {
               </div>
               <div>
                 <p className="text-sm font-medium text-gray-700">Phone</p>
-                <p className="text-lg">{beneficiaryData.phoneNumber || 'Not provided'}</p>
+                <p className="text-lg">{beneficiaryData.phoneNumber ?? 'Not provided'}</p>
               </div>
               <div>
                 <p className="text-sm font-medium text-gray-700">Date of Birth</p>
-                <p className="text-lg">{beneficiaryData.dateOfBirth || 'Not provided'}</p>
+                <p className="text-lg">{beneficiaryData.dateOfBirth ?? 'Not provided'}</p>
               </div>
               <div>
                 <p className="text-sm font-medium text-gray-700">ID</p>

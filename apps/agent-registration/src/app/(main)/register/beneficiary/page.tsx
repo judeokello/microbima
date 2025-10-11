@@ -53,7 +53,7 @@ const mapIdTypeToBackend = (frontendIdType: string): string => {
     'BIRTH_CERTIFICATE': 'passport', // Map birth certificate to passport for now
     'MILITARY': 'national', // Map military to national for now
   };
-  return mapping[frontendIdType] || 'national';
+  return mapping[frontendIdType] ?? 'national';
 };
 
 const mapGenderToBackend = (frontendGender: string): string => {
@@ -192,7 +192,7 @@ export default function BeneficiaryStep() {
           middleName: formData.middleName ? toTitleCase(formData.middleName) : undefined,
           dateOfBirth: formData.dateOfBirth,
           gender: mapGenderToBackend(formData.gender),
-          email: formData.email || undefined,
+          email: formData.email ?? undefined,
           phoneNumber: formData.phoneNumber ? formatPhoneNumber(formData.phoneNumber) : undefined,
           idType: mapIdTypeToBackend(formData.idType),
           idNumber: formData.idNumber,

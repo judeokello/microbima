@@ -46,9 +46,9 @@ export default [
       "@typescript-eslint/no-unused-vars": "warn",
       "@typescript-eslint/no-explicit-any": "warn",
       
-      // TypeScript rules that require type info - disabled to prevent build failures
-      "@typescript-eslint/prefer-nullish-coalescing": "off",
-      "@typescript-eslint/no-unnecessary-type-assertion": "off",
+      // TypeScript rules that require type info
+      "@typescript-eslint/prefer-nullish-coalescing": "warn",
+      "@typescript-eslint/no-unnecessary-type-assertion": "warn",
       
       // Basic style rules
       "no-trailing-spaces": "error",
