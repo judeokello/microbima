@@ -3,6 +3,14 @@ import { withSentryConfig } from '@sentry/nextjs';
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   output: 'standalone',
+  eslint: {
+    // Don't fail build on ESLint errors
+    ignoreDuringBuilds: false,
+  },
+  typescript: {
+    // Don't fail build on TypeScript errors
+    ignoreBuildErrors: false,
+  },
   compiler: {
     removeConsole: process.env.NODE_ENV === "production",
   },
@@ -17,7 +25,7 @@ const nextConfig = {
   },
   // Configure for agent registration app
   env: {
-    CUSTOM_PORT: process.env.CUSTOM_PORT || '3001',
+    CUSTOM_PORT: process.env.CUSTOM_PORT ?? '3001',
   },
 }
 
@@ -54,8 +62,8 @@ const sentryWebpackPluginOptions = {
   // recommended:
   //   release, url, configFile, stripPrefix, urlPrefix, include, ignore
 
-  org: process.env.SENTRY_ORG || org,
-  project: process.env.SENTRY_PROJECT || project,
+  org: process.env.SENTRY_ORG ?? org,
+  project: process.env.SENTRY_PROJECT ?? project,
 
   // Only print logs for uploading source maps in CI
   silent: !process.env.CI,

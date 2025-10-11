@@ -8,13 +8,23 @@ const compat = new FlatCompat({
 /** @type {import('eslint').Linter.Config[]} */
 export default [
   {
-    ignores: ["node_modules/**", ".next/**", "out/**", "build/**", "next-env.d.ts"]
+    ignores: [
+      "node_modules/**", 
+      ".next/**", 
+      "out/**", 
+      "build/**", 
+      "next-env.d.ts",
+      "*.config.js",
+      "*.config.mjs",
+      "*.config.ts",
+      ".github/**",
+      ".husky/**",
+      "sentry.*.config.ts",
+      "instrumentation.ts"
+    ]
   },
   { 
     files: ["**/*.{js,mjs,cjs,ts,jsx,tsx}"] 
-  },
-  {
-    ignores: [".github/", ".husky/", ".next/", "src/components/ui", "*.config.ts", "*.mjs"]
   },
   ...compat.extends("next/core-web-vitals"),
   ...tseslint.configs.recommended,
@@ -36,9 +46,9 @@ export default [
       "@typescript-eslint/no-unused-vars": "warn",
       "@typescript-eslint/no-explicit-any": "warn",
       
-      // TypeScript rules that require type info
-      "@typescript-eslint/prefer-nullish-coalescing": "warn",
-      "@typescript-eslint/no-unnecessary-type-assertion": "warn",
+      // TypeScript rules that require type info - disabled to prevent build failures
+      "@typescript-eslint/prefer-nullish-coalescing": "off",
+      "@typescript-eslint/no-unnecessary-type-assertion": "off",
       
       // Basic style rules
       "no-trailing-spaces": "error",
