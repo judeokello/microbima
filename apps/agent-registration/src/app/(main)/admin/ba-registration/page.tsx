@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Checkbox } from '@/components/ui/checkbox'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Loader2 } from 'lucide-react'
-import { createBrandAmbassador, getPartners, ROLES } from '@/lib/api'
+import { createBrandAmbassador, ROLES } from '@/lib/api'
 import { useAuth } from '@/hooks/useAuth'
 
 interface Partner {
@@ -21,7 +21,7 @@ interface Partner {
 
 export default function BARegistrationPage() {
   const router = useRouter()
-  const { user, loading: authLoading } = useAuth()
+  const { loading: authLoading } = useAuth()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
@@ -38,25 +38,28 @@ export default function BARegistrationPage() {
     roles: [ROLES.BRAND_AMBASSADOR] as string[] // Default to BA role
   })
 
-  const [partners, setPartners] = useState<Partner[]>([])
-  const [loadingPartners, setLoadingPartners] = useState(true)
+  // TEMPORARY: Hardcoded partners until API issue is resolved
+  const [partners] = useState<Partner[]>([
+    { id: 1, partnerName: 'Maisha Poa', isActive: true }
+  ])
+  const [loadingPartners] = useState(false)
 
-  // Load partners when user is authenticated
-  useEffect(() => {
-    async function loadPartners() {
-      if (!user) return // Wait for authentication
-      try {
-        const partnersData = await getPartners()
-        setPartners(partnersData)
-      } catch (err) {
-        console.error('Failed to load partners:', err)
-        setError('Failed to load partners')
-      } finally {
-        setLoadingPartners(false)
-      }
-    }
-    loadPartners()
-  }, [user]) // Depend on user authentication
+  // TODO: Re-enable API call once authentication issue is fixed
+  // useEffect(() => {
+  //   async function loadPartners() {
+  //     if (!user) return // Wait for authentication
+  //     try {
+  //       const partnersData = await getPartners()
+  //       setPartners(partnersData)
+  //     } catch (err) {
+  //       console.error('Failed to load partners:', err)
+  //       setError('Failed to load partners')
+  //     } finally {
+  //       setLoadingPartners(false)
+  //     }
+  //   }
+  //   loadPartners()
+  // }, [user]) // Depend on user authentication
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
