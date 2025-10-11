@@ -11,6 +11,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Loader2 } from 'lucide-react'
 import { createBrandAmbassador, getPartners, ROLES } from '@/lib/api'
+import { useAuth } from '@/hooks/useAuth'
 
 interface Partner {
   id: number
@@ -20,6 +21,7 @@ interface Partner {
 
 export default function BARegistrationPage() {
   const router = useRouter()
+  const { user, loading: authLoading } = useAuth()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
@@ -39,9 +41,10 @@ export default function BARegistrationPage() {
   const [partners, setPartners] = useState<Partner[]>([])
   const [loadingPartners, setLoadingPartners] = useState(true)
 
-  // Load partners on component mount
+  // Load partners when user is authenticated
   useEffect(() => {
     async function loadPartners() {
+      if (!user) return // Wait for authentication
       try {
         const partnersData = await getPartners()
         setPartners(partnersData)
@@ -53,7 +56,7 @@ export default function BARegistrationPage() {
       }
     }
     loadPartners()
-  }, [])
+  }, [user]) // Depend on user authentication
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -83,12 +86,12 @@ export default function BARegistrationPage() {
         lastName: formData.lastName,
         phone: formData.phone,
         partnerId: parseInt(formData.partnerId),
-        perRegistrationRateCents: parseInt(formData.perRegistrationRateCents) || 0,
+        perRegistrationRateCents: parseInt(formData.perRegistrationRateCents) ?? 0,
         roles: formData.roles
       })
 
       if (!result.success) {
-        throw new Error(result.error || 'Failed to create Brand Ambassador')
+        throw new Error(result.error ?? 'Failed to create Brand Ambassador')
       }
 
       setSuccess(true)
@@ -114,6 +117,14 @@ export default function BARegistrationPage() {
         ? [...prev.roles, role]
         : prev.roles.filter(r => r !== role)
     }))
+  }
+
+  if (authLoading) {
+    return (
+      <div className="flex justify-center items-center min-h-screen">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    )
   }
 
   if (success) {

@@ -63,7 +63,7 @@ PROJECT_ROOT="$SCRIPT_DIR"
 if [ "$API_RUNNING" = false ]; then
     echo "🔧 Starting API server..."
     cd "$PROJECT_ROOT/apps/api"
-    pnpm start:dev &
+    PORT=3001 pnpm start:dev &
     API_PID=$!
     cd "$PROJECT_ROOT"
 else

@@ -59,7 +59,7 @@ interface BeneficiaryFormData {
 
 export default function PaymentStep() {
   const router = useRouter();
-  const { user, userMetadata, loading: authLoading } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const [customerData, setCustomerData] = useState<CustomerFormData | null>(null);
   const [beneficiaryData, setBeneficiaryData] = useState<BeneficiaryFormData | null>(null);
   const [paymentType, setPaymentType] = useState('MPESA');
@@ -101,7 +101,7 @@ export default function PaymentStep() {
   };
 
   const handleSubmit = async () => {
-    if (!user || !userMetadata?.partnerId) {
+    if (!user) {
       setError('Authentication required. Please log in again.');
       return;
     }

@@ -95,7 +95,7 @@ const initialFormData: BeneficiaryFormData = {
 export default function BeneficiaryStep() {
   const router = useRouter();
   const { user, userMetadata, loading: authLoading } = useAuth();
-  const { baInfo, loading: baLoading, error: baError } = useBrandAmbassador();
+  const { baInfo, loading: baLoading } = useBrandAmbassador();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [formData, setFormData] = useState<BeneficiaryFormData>(initialFormData);

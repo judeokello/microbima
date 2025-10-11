@@ -20,7 +20,7 @@ PROJECT_ROOT="$SCRIPT_DIR"
 
 # Start API server in background
 cd "$PROJECT_ROOT/apps/api"
-pnpm start:dev > "$PROJECT_ROOT/.api.log" 2>&1 &
+PORT=3001 pnpm start:dev > "$PROJECT_ROOT/.api.log" 2>&1 &
 API_PID=$!
 
 echo "⏳ Waiting for API to start..."
