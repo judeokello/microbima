@@ -481,4 +481,45 @@ export class PartnerManagementService {
     this.logger.log(`✅ Brand Ambassador created successfully: ${brandAmbassador.id}`);
     return brandAmbassador;
   }
+
+  /**
+   * Get Brand Ambassador by User ID
+   * @param userId - Supabase User ID
+   * @returns Brand Ambassador information
+   */
+  async getBrandAmbassadorByUserId(userId: string) {
+    this.logger.log(`Getting Brand Ambassador for user: ${userId}`);
+
+    const brandAmbassador = await this.prismaService.brandAmbassador.findFirst({
+      where: {
+        userId: userId,
+        isActive: true,
+      },
+      include: {
+        partner: {
+          select: {
+            id: true,
+            partnerName: true,
+            isActive: true,
+          },
+        },
+      },
+    });
+
+    if (!brandAmbassador) {
+      throw new NotFoundException('Brand Ambassador not found or inactive');
+    }
+
+    this.logger.log(`✅ Brand Ambassador found: ${brandAmbassador.id}`);
+    return {
+      id: brandAmbassador.id,
+      userId: brandAmbassador.userId,
+      partnerId: brandAmbassador.partnerId,
+      displayName: brandAmbassador.displayName,
+      phoneNumber: brandAmbassador.phoneNumber,
+      perRegistrationRateCents: brandAmbassador.perRegistrationRateCents,
+      isActive: brandAmbassador.isActive,
+      partner: brandAmbassador.partner,
+    };
+  }
 }

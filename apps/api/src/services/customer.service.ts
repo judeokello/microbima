@@ -15,6 +15,7 @@ import { GetDependantsResponseDto } from '../dto/dependants/get-dependants-respo
 import { AddBeneficiariesRequestDto } from '../dto/beneficiaries/add-beneficiaries-request.dto';
 import { AddBeneficiariesResponseDto } from '../dto/beneficiaries/add-beneficiaries-response.dto';
 import { GetBeneficiariesResponseDto } from '../dto/beneficiaries/get-beneficiaries-response.dto';
+import { SharedMapperUtils } from '../mappers/shared.mapper.utils';
 
 /**
  * Customer Service
@@ -46,7 +47,8 @@ export class CustomerService {
     createRequest: CreatePrincipalMemberRequestDto,
     partnerId: number,
     correlationId: string,
-    skipPartnerValidation: boolean = false
+    skipPartnerValidation: boolean = false,
+    userId?: string
   ): Promise<CreatePrincipalMemberResponseDto> {
     this.logger.log(`[${correlationId}] Creating customer for partner ${partnerId}`);
 
@@ -143,6 +145,7 @@ export class CustomerService {
           status: customerEntity.status,
           onboardingStep: customerEntity.onboardingStep,
           createdByPartnerId: partnerId,
+          createdBy: userId || null, // User ID who created the customer
         },
       });
 
@@ -187,7 +190,7 @@ export class CustomerService {
           lastName: child.lastName,
           dateOfBirth: new Date(child.dateOfBirth),
           gender: child.gender.toUpperCase() as any,
-          idType: child.idType ? child.idType.toUpperCase() as any : null,
+          idType: child.idType ? SharedMapperUtils.mapIdTypeFromDto(child.idType) as any : null,
           idNumber: child.idNumber || null,
           relationship: 'CHILD' as const,
           createdByPartnerId: partnerId,
@@ -216,7 +219,7 @@ export class CustomerService {
           lastName: spouse.lastName,
           dateOfBirth: new Date(spouse.dateOfBirth),
           gender: spouse.gender.toUpperCase() as any,
-          idType: spouse.idType.toUpperCase() as any,
+          idType: SharedMapperUtils.mapIdTypeFromDto(spouse.idType) as any,
           idNumber: spouse.idNumber,
           relationship: 'SPOUSE' as const,
           createdByPartnerId: partnerId,
@@ -245,7 +248,7 @@ export class CustomerService {
           lastName: beneficiary.lastName,
           dateOfBirth: new Date(beneficiary.dateOfBirth),
           gender: beneficiary.gender.toUpperCase() as any,
-          idType: beneficiary.idType.toUpperCase() as any,
+          idType: SharedMapperUtils.mapIdTypeFromDto(beneficiary.idType) as any,
           idNumber: beneficiary.idNumber,
           relationship: beneficiary.relationship,
           percentage: beneficiary.percentage,
@@ -519,7 +522,7 @@ export class CustomerService {
             lastName: child.lastName,
             dateOfBirth: new Date(child.dateOfBirth),
             gender: child.gender.toUpperCase() as any,
-            idType: child.idType ? child.idType.toUpperCase() as any : null,
+            idType: child.idType ? SharedMapperUtils.mapIdTypeFromDto(child.idType) as any : null,
             idNumber: child.idNumber || null,
             relationship: 'CHILD' as const,
             createdByPartnerId: partnerId,
@@ -561,7 +564,7 @@ export class CustomerService {
             lastName: spouse.lastName,
             dateOfBirth: new Date(spouse.dateOfBirth),
             gender: spouse.gender.toUpperCase() as any,
-            idType: spouse.idType.toUpperCase() as any,
+            idType: SharedMapperUtils.mapIdTypeFromDto(spouse.idType) as any,
             idNumber: spouse.idNumber,
             relationship: 'SPOUSE' as const,
             createdByPartnerId: partnerId,
@@ -592,7 +595,7 @@ export class CustomerService {
             dateOfBirth: spouse.dateOfBirth.toISOString().split('T')[0],
             gender: spouse.gender,
             email: spouse.email,
-            idType: spouse.idType.toUpperCase(),
+            idType: SharedMapperUtils.mapIdTypeFromDto(spouse.idType),
             idNumber: spouse.idNumber,
           })));
         }
@@ -815,7 +818,7 @@ export class CustomerService {
           gender: beneficiary.gender.toUpperCase() as any,
           email: beneficiary.email || null,
           phoneNumber: beneficiary.phoneNumber || null,
-          idType: beneficiary.idType.toUpperCase() as any,
+          idType: SharedMapperUtils.mapIdTypeFromDto(beneficiary.idType) as any,
           idNumber: beneficiary.idNumber,
           relationship: beneficiary.relationship,
           relationshipDescription: beneficiary.relationshipDescription || null,

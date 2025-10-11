@@ -11,6 +11,7 @@ import { Separator } from '@/components/ui/separator';
 import { Plus, Trash2, Loader2 } from 'lucide-react';
 import { createCustomer, createAgentRegistration, CustomerRegistrationRequest } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
+import { useBrandAmbassador } from '@/hooks/useBrandAmbassador';
 
 // Mock data for form state
 interface CustomerFormData {
@@ -44,16 +45,36 @@ interface CustomerFormData {
     lastName: string;
     gender: string;
     dateOfBirth: string;
+    phoneNumber: string;
     idType: string;
     idNumber: string;
   }>;
 }
 
-// Helper functions for date validation
-const getMinDateForAdults = () => {
-  const today = new Date();
-  const minDate = new Date(today.getFullYear() - 18, today.getMonth(), today.getDate());
-  return minDate.toISOString().split('T')[0];
+// Helper functions for date validation (currently unused but kept for future use)
+// const getMinDateForAdults = () => {
+//   const today = new Date();
+//   const minDate = new Date(today.getFullYear() - 18, today.getMonth(), today.getDate());
+//   return minDate.toISOString().split('T')[0];
+// };
+
+// Helper functions
+const toTitleCase = (str: string): string => {
+  return str.replace(/\w\S*/g, (txt) =>
+    txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase()
+  );
+};
+
+const validatePhoneNumber = (phone: string): boolean => {
+  // Remove any non-digit characters
+  const cleanPhone = phone.replace(/\D/g, '');
+  // Check if it starts with 01 or 07 and is exactly 10 digits
+  return /^(01|07)\d{8}$/.test(cleanPhone);
+};
+
+const formatPhoneNumber = (phone: string): string => {
+  // Remove any non-digit characters and limit to 10 digits
+  return phone.replace(/\D/g, '').substring(0, 10);
 };
 
 // Helper function to map frontend ID types to backend values
@@ -62,7 +83,7 @@ const mapIdTypeToBackend = (frontendIdType: string): string => {
     'NATIONAL_ID': 'national',
     'PASSPORT': 'passport',
     'ALIEN': 'alien',
-    'BIRTH_CERTIFICATE': 'national', // Map birth certificate to national for now
+    'BIRTH_CERTIFICATE': 'passport', // Map birth certificate to passport for now
     'MILITARY': 'national', // Map military to national for now
   };
   return mapping[frontendIdType] || 'national';
@@ -73,11 +94,11 @@ const getMaxDate = () => {
   return today.toISOString().split('T')[0];
 };
 
-// For children - no validation, allow any date
-const getMinDateForChildren = () => {
-  // Set to a very old date to allow any reasonable birth date
-  return '1900-01-01';
-};
+// For children - no validation, allow any date (currently unused but kept for future use)
+// const getMinDateForChildren = () => {
+//   // Set to a very old date to allow any reasonable birth date
+//   return '1900-01-01';
+// };
 
 const initialFormData: CustomerFormData = {
   firstName: '',
@@ -96,6 +117,7 @@ const initialFormData: CustomerFormData = {
 export default function CustomerStep() {
   const router = useRouter();
   const { user, userMetadata, loading: authLoading } = useAuth();
+  const { baInfo } = useBrandAmbassador();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [formData, setFormData] = useState<CustomerFormData>(initialFormData);
@@ -118,7 +140,7 @@ export default function CustomerStep() {
   const addChild = () => {
     setFormData(prev => ({
       ...prev,
-      children: [...prev.children, { firstName: '', middleName: '', lastName: '', gender: 'MALE', dateOfBirth: '', idType: 'BIRTH_CERTIFICATE', idNumber: '' }]
+      children: [...prev.children, { firstName: '', middleName: '', lastName: '', gender: 'MALE', dateOfBirth: '', phoneNumber: '', idType: 'BIRTH_CERTIFICATE', idNumber: '' }]
     }));
   };
 
@@ -148,10 +170,10 @@ export default function CustomerStep() {
       return;
     }
 
-    // For now, use a default partner ID if not available
-    // TODO: Implement proper partner ID management
-    const partnerId = userMetadata?.partnerId ?? 1; // Default to partner 1 for testing
-    console.log('🔍 Using partnerId:', partnerId);
+    // Get partner ID from Brand Ambassador info (cached)
+    const partnerId = baInfo?.partnerId ?? 1; // Fallback to partner 1 if BA info not loaded
+    console.log('🔍 Using partnerId from BA info:', partnerId);
+    console.log('🔍 BA info:', baInfo);
 
     setIsSubmitting(true);
     setError(null);
@@ -186,16 +208,39 @@ export default function CustomerStep() {
         }
       }
 
+      // Validate phone numbers if provided
+      if (formData.phoneNumber && !validatePhoneNumber(formData.phoneNumber)) {
+        setError('Principal member phone number must be 10 digits starting with 01 or 07');
+        setIsSubmitting(false);
+        return;
+      }
+
+      if (formData.spouse?.phoneNumber && !validatePhoneNumber(formData.spouse.phoneNumber)) {
+        setError('Spouse phone number must be 10 digits starting with 01 or 07');
+        setIsSubmitting(false);
+        return;
+      }
+
+      // Validate children phone numbers
+      for (let i = 0; i < formData.children.length; i++) {
+        const child = formData.children[i];
+        if (child.phoneNumber && !validatePhoneNumber(child.phoneNumber)) {
+          setError(`Child ${i + 1} phone number must be 10 digits starting with 01 or 07`);
+          setIsSubmitting(false);
+          return;
+        }
+      }
+
       // Transform form data to API format
       const customerRequest: CustomerRegistrationRequest = {
         principalMember: {
-          firstName: formData.firstName,
-          lastName: formData.lastName,
-          middleName: formData.middleName || undefined,
+          firstName: toTitleCase(formData.firstName),
+          lastName: toTitleCase(formData.lastName),
+          middleName: formData.middleName ? toTitleCase(formData.middleName) : undefined,
           dateOfBirth: formData.dateOfBirth || new Date().toISOString().split('T')[0], // Ensure valid date
           gender: formData.gender.toLowerCase(),
           email: formData.email || undefined,
-          phoneNumber: formData.phoneNumber || undefined,
+          phoneNumber: formData.phoneNumber ? formatPhoneNumber(formData.phoneNumber) : undefined,
           idType: mapIdTypeToBackend(formData.idType),
           idNumber: formData.idNumber,
           partnerCustomerId: `BA-${Date.now()}-${Math.random().toString(36).substr(2, 9)}-${Math.floor(Math.random() * 10000)}`,
@@ -205,21 +250,22 @@ export default function CustomerStep() {
           planId: 'default-plan', // TODO: Get from plan selection
         },
         spouses: formData.spouse ? [{
-          firstName: formData.spouse.firstName,
-          lastName: formData.spouse.lastName,
-          middleName: formData.spouse.middleName || undefined,
+          firstName: toTitleCase(formData.spouse.firstName),
+          lastName: toTitleCase(formData.spouse.lastName),
+          middleName: formData.spouse.middleName ? toTitleCase(formData.spouse.middleName) : undefined,
           ...(formData.spouse.dateOfBirth && { dateOfBirth: formData.spouse.dateOfBirth }),
           gender: formData.spouse.gender.toLowerCase(),
-          phoneNumber: formData.spouse.phoneNumber || undefined,
+          phoneNumber: formData.spouse.phoneNumber ? formatPhoneNumber(formData.spouse.phoneNumber) : undefined,
           idType: mapIdTypeToBackend(formData.spouse.idType),
           idNumber: formData.spouse.idNumber,
         }] : undefined,
         children: formData.children.length > 0 ? formData.children.map(child => ({
-          firstName: child.firstName,
-          lastName: child.lastName,
-          middleName: child.middleName || undefined,
+          firstName: toTitleCase(child.firstName),
+          lastName: toTitleCase(child.lastName),
+          middleName: child.middleName ? toTitleCase(child.middleName) : undefined,
           ...(child.dateOfBirth && { dateOfBirth: child.dateOfBirth }),
           gender: child.gender.toLowerCase(),
+          phoneNumber: child.phoneNumber ? formatPhoneNumber(child.phoneNumber) : undefined,
           idType: mapIdTypeToBackend(child.idType),
           idNumber: child.idNumber,
         })) : undefined,
@@ -235,14 +281,14 @@ export default function CustomerStep() {
       console.log('🔍 DEBUG: Attempting agent registration with:', {
         customerId: customerResult.customerId,
         baId: user.id,
-        partnerId: partnerId.toString(),
+        // partnerId will be derived from BA record in the backend
         registrationStatus: 'IN_PROGRESS',
       });
 
       const registrationResult = await createAgentRegistration({
         customerId: customerResult.customerId,
         baId: user.id, // Using user ID as BA ID for now
-        partnerId: partnerId.toString(),
+        // partnerId will be derived from BA record in the backend
         registrationStatus: 'IN_PROGRESS',
       });
 
@@ -254,12 +300,12 @@ export default function CustomerStep() {
       }
 
       // Save form data to localStorage for next steps
-      localStorage.setItem('customerFormData', JSON.stringify(formData));
+    localStorage.setItem('customerFormData', JSON.stringify(formData));
       localStorage.setItem('customerId', customerResult.customerId);
       localStorage.setItem('registrationId', registrationResult.registrationId ?? '');
 
       // Navigate to next step
-      router.push('/register/beneficiary');
+    router.push('/register/beneficiary');
 
     } catch (error) {
       console.error('Error creating customer registration:', error);
@@ -328,8 +374,14 @@ export default function CustomerStep() {
               <Input
                 id="phoneNumber"
                 value={formData.phoneNumber}
-                onChange={(e) => handleInputChange('phoneNumber', e.target.value)}
-                placeholder="Enter phone number"
+                onChange={(e) => {
+                  const formatted = formatPhoneNumber(e.target.value);
+                  handleInputChange('phoneNumber', formatted);
+                }}
+                placeholder="Enter phone number (01xxxxxxxx or 07xxxxxxxx)"
+                maxLength={10}
+                inputMode="numeric"
+                pattern="[0-9]*"
               />
             </div>
           </div>
@@ -456,7 +508,7 @@ export default function CustomerStep() {
 
             {showSpouse && (
               <>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 border rounded-lg">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 border rounded-lg">
                 <div>
                   <Label htmlFor="spouseFirstName">First Name</Label>
                   <Input
@@ -515,8 +567,14 @@ export default function CustomerStep() {
                   <Input
                     id="spousePhoneNumber"
                     value={formData.spouse?.phoneNumber ?? ''}
-                    onChange={(e) => handleSpouseChange('phoneNumber', e.target.value)}
-                    placeholder="Enter spouse phone number"
+                    onChange={(e) => {
+                      const formatted = formatPhoneNumber(e.target.value);
+                      handleSpouseChange('phoneNumber', formatted);
+                    }}
+                    placeholder="Enter spouse phone number (01xxxxxxxx or 07xxxxxxxx)"
+                    maxLength={10}
+                    inputMode="numeric"
+                    pattern="[0-9]*"
                   />
                 </div>
               </div>
@@ -662,7 +720,7 @@ export default function CustomerStep() {
                     placeholder="Enter child ID number"
                   />
                 </div>
-              </div>
+                </div>
               </div>
             ))}
           </div>
@@ -695,7 +753,7 @@ export default function CustomerStep() {
         <Button variant="outline" onClick={() => router.push('/dashboard')}>
           Cancel
         </Button>
-        
+
         {/* DEBUG: Test Agent Registration Button */}
         <Button
           type="button"
@@ -706,51 +764,51 @@ export default function CustomerStep() {
             console.log('🧪 User object:', user);
             console.log('🧪 User metadata:', userMetadata);
             console.log('🧪 Auth loading:', authLoading);
-            console.log('🧪 Partner ID:', userMetadata?.partnerId || 'NOT FOUND');
-            
+            console.log('🧪 Partner ID:', userMetadata?.partnerId ?? 'NOT FOUND');
+
             if (!user) {
               alert('❌ NO USER SESSION FOUND!\n\nThe user is not logged in or the session is not available on this page.');
               console.error('❌ No user session found');
               return;
             }
-            
+
             console.log('✅ User session found:', {
               userId: user.id,
               email: user.email,
               roles: userMetadata?.roles,
               partnerId: userMetadata?.partnerId,
             });
-            
+
             console.log('🧪 Step 2: Testing agent registration API call...');
             console.log('🧪 API Base URL:', process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL);
             console.log('🧪 Full URL:', `${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/agent-registrations`);
-            
-            try {
-              const testResult = await createAgentRegistration({
-                customerId: '78535281-db92-42e8-893c-410e18448333', // Real customer ID from DB
-                baId: user.id,
-                partnerId: '1',
-                registrationStatus: 'IN_PROGRESS',
-              });
+
+           try {
+             const testResult = await createAgentRegistration({
+               customerId: '78535281-db92-42e8-893c-410e18448333', // Real customer ID from DB
+               baId: user.id,
+               // partnerId will be derived from BA record in the backend
+               registrationStatus: 'IN_PROGRESS',
+             });
               console.log('🧪 Test result:', testResult);
-              
+
               if (testResult.success) {
                 alert(`✅ SUCCESS!\n\nAgent registration created successfully.\nRegistration ID: ${testResult.registrationId}`);
               } else {
-                alert(`❌ FAILED!\n\nError: ${testResult.error || 'Unknown error'}\n\nCheck console for details.`);
+                alert(`❌ FAILED!\n\nError: ${testResult.error ?? 'Unknown error'}\n\nCheck console for details.`);
               }
             } catch (error) {
               console.error('🧪 Test error:', error);
               alert(`❌ EXCEPTION!\n\n${error}\n\nCheck console for details.`);
             }
-            
+
             console.log('🧪 ========== TEST COMPLETE ==========');
           }}
           className="bg-yellow-500 hover:bg-yellow-600 text-white"
         >
           🧪 Test Agent Registration
         </Button>
-        
+
         <Button
           onClick={handleNext}
           disabled={isSubmitting || authLoading}

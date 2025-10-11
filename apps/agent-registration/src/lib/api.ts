@@ -76,14 +76,14 @@ export async function createBrandAmbassador(data: CreateBARequest): Promise<Crea
     }
 
     // Step 2: Create BrandAmbassador record in your database
-    const baData = {
-      userId: userData.user.id,
-      partnerId: data.partnerId,
-      displayName: data.displayName,
-      phone: data.phone,
-      perRegistrationRateCents: data.perRegistrationRateCents,
-      isActive: true
-    }
+    // const baData = {
+    //   userId: userData.user.id,
+    //   partnerId: data.partnerId,
+    //   displayName: data.displayName,
+    //   phone: data.phone,
+    //   perRegistrationRateCents: data.perRegistrationRateCents,
+    //   isActive: true
+    // }
 
     // TODO: Call your NestJS API to create the BrandAmbassador record
     // const response = await fetch(`${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/brand-ambassadors`, {
@@ -264,7 +264,7 @@ export interface CustomerRegistrationResponse {
 export interface AgentRegistrationRequest {
   customerId: string
   baId: string
-  partnerId: string
+  partnerId?: string // Optional - will be derived from BA record if not provided
   registrationStatus?: string
 }
 
@@ -276,11 +276,19 @@ export interface AgentRegistrationResponse {
 
 export async function createCustomer(data: CustomerRegistrationRequest): Promise<CustomerRegistrationResponse> {
   try {
-    const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/v1/customers`, {
+    // Get Supabase session token for internal API
+    const { data: session } = await supabase.auth.getSession();
+    const token = session.session?.access_token;
+
+    if (!token) {
+      throw new Error('No Supabase session token found');
+    }
+
+    const response = await fetch(`${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/customers`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'X-API-Key': process.env.NEXT_PUBLIC_API_KEY ?? '',
+        'Authorization': `Bearer ${token}`,
         'x-correlation-id': `req-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
       },
       body: JSON.stringify({
@@ -291,7 +299,7 @@ export async function createCustomer(data: CustomerRegistrationRequest): Promise
 
     if (!response.ok) {
       const errorData = await response.json()
-      
+
       // Handle detailed validation errors
       if (errorData.error?.details && typeof errorData.error.details === 'object') {
         const fieldErrors = Object.entries(errorData.error.details)
@@ -299,7 +307,7 @@ export async function createCustomer(data: CustomerRegistrationRequest): Promise
           .join(', ')
         throw new Error(`Validation failed: ${fieldErrors}`)
       }
-      
+
       throw new Error(errorData.error?.message ?? `HTTP ${response.status}: ${response.statusText}`)
     }
 
@@ -321,10 +329,10 @@ export async function createAgentRegistration(data: AgentRegistrationRequest): P
   try {
     console.log('🔍 DEBUG: createAgentRegistration called with:', data);
     console.log('🔍 DEBUG: API URL:', `${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/agent-registrations`);
-    
+
     const token = await getSupabaseToken();
     console.log('🔍 DEBUG: Supabase token obtained:', token ? 'YES' : 'NO');
-    
+
     const response = await fetch(`${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/agent-registrations`, {
       method: 'POST',
       headers: {
@@ -426,7 +434,7 @@ export async function addBeneficiaries(customerId: string, beneficiaries: Benefi
     return {
       success: true,
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      beneficiaryIds: result.beneficiaries?.map((b: any) => b.beneficiaryId) ?? []
+      beneficiaryIds: result.data?.beneficiaries?.addedBeneficiaries?.map((b: any) => b.beneficiaryId) ?? []
     }
   } catch (error) {
     console.error('Error adding beneficiaries:', error)

@@ -6,7 +6,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Separator } from '@/components/ui/separator';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+// import { Separator } from '@/components/ui/separator';
 import { CheckCircle, CreditCard, Users, User, Loader2 } from 'lucide-react';
 import { processPayment, PaymentRequest } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
@@ -61,9 +62,23 @@ export default function PaymentStep() {
   const { user, userMetadata, loading: authLoading } = useAuth();
   const [customerData, setCustomerData] = useState<CustomerFormData | null>(null);
   const [beneficiaryData, setBeneficiaryData] = useState<BeneficiaryFormData | null>(null);
+  const [paymentType, setPaymentType] = useState('MPESA');
   const [paymentPhone, setPaymentPhone] = useState('');
+  const [transactionReference, setTransactionReference] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Calculate payment end date (276 days from now)
+  const calculatePaymentEndDate = () => {
+    const currentDate = new Date();
+    const endDate = new Date(currentDate);
+    endDate.setDate(endDate.getDate() + 276);
+    return endDate.toLocaleDateString('en-GB', { 
+      year: 'numeric', 
+      month: 'long', 
+      day: 'numeric' 
+    });
+  };
 
   useEffect(() => {
     // Load saved form data
@@ -184,6 +199,7 @@ export default function PaymentStep() {
             <div className="text-sm text-gray-600">
               <p>• Daily payment: 150 KES</p>
               <p>• Weekly payment: 900 KES (recommended)</p>
+              <p>• Payment end date: {calculatePaymentEndDate()}</p>
             </div>
           </div>
         </CardContent>
@@ -307,19 +323,47 @@ export default function PaymentStep() {
         <CardContent>
           <div className="space-y-4">
             <div>
-              <Label htmlFor="paymentPhone">Payment Phone Number</Label>
+              <Label htmlFor="paymentType">Payment Type</Label>
+              <Select value={paymentType} onValueChange={setPaymentType}>
+                <SelectTrigger id="paymentType">
+                  <SelectValue placeholder="Select payment type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="MPESA">MPESA</SelectItem>
+                  <SelectItem value="SasaPay">SasaPay</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label htmlFor="paymentPhone">Payment Phone Number <span className="text-red-500">*</span></Label>
               <Input
                 id="paymentPhone"
                 value={paymentPhone}
                 onChange={(e) => setPaymentPhone(e.target.value)}
-                placeholder="Enter phone number for MPESA payment"
+                placeholder="Enter phone number for payment"
+                required
               />
               <p className="text-sm text-gray-600 mt-1">
-                This phone number will receive the MPESA payment request
+                This phone number will receive the payment request
               </p>
             </div>
 
-            <div className="p-4 bg-yellow-50 rounded-lg">
+            <div>
+              <Label htmlFor="transactionReference">Transaction Reference <span className="text-red-500">*</span></Label>
+              <Input
+                id="transactionReference"
+                value={transactionReference}
+                onChange={(e) => setTransactionReference(e.target.value)}
+                placeholder="Enter transaction reference"
+                required
+              />
+              <p className="text-sm text-gray-600 mt-1">
+                Enter the transaction reference for this payment
+              </p>
+            </div>
+
+            {/* <div className="p-4 bg-yellow-50 rounded-lg">
               <h4 className="font-semibold text-yellow-900 mb-2">Payment Instructions</h4>
               <ol className="text-sm text-yellow-800 space-y-1">
                 <li>1. Click "Submit Payment" below</li>
@@ -327,7 +371,7 @@ export default function PaymentStep() {
                 <li>3. Enter your MPESA PIN to complete payment</li>
                 <li>4. Registration will be confirmed after successful payment</li>
               </ol>
-            </div>
+            </div> */}
           </div>
         </CardContent>
       </Card>
@@ -360,7 +404,7 @@ export default function PaymentStep() {
         </Button>
         <Button
           onClick={handleSubmit}
-          disabled={isSubmitting || !paymentPhone || authLoading}
+          disabled={isSubmitting || !paymentPhone || !transactionReference || authLoading}
           className="bg-green-600 hover:bg-green-700 disabled:opacity-50"
         >
           {isSubmitting ? (

@@ -101,11 +101,21 @@ else
     echo "❌ API server failed to start on port 3001"
 fi
 
-# Check Agent Registration
-if curl -s -f http://localhost:3000 > /dev/null; then
-    echo "✅ Agent Registration app is running on port 3000"
-else
-    echo "❌ Agent Registration app failed to start on port 3000"
+# Check Agent Registration - Ping to trigger Next.js compilation
+echo "🔄 Triggering Next.js initial compilation..."
+AGENT_READY=false
+for i in {1..30}; do
+    if curl -s -f http://localhost:3000 > /dev/null 2>&1; then
+        echo "✅ Agent Registration app is running on port 3000"
+        AGENT_READY=true
+        break
+    fi
+    sleep 1
+done
+
+if [ "$AGENT_READY" = false ]; then
+    echo "⚠️  Agent Registration app started but not responding yet"
+    echo "   It may still be compiling. Try accessing http://localhost:3000"
 fi
 
 echo ""

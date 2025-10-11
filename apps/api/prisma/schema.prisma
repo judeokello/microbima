@@ -193,9 +193,12 @@ model Beneficiary {
   lastName    String   @db.VarChar(50)
   dateOfBirth DateTime? @db.Date // Optional date of birth, date only
   gender      Gender?  // Optional field
+  email       String?  @db.VarChar(100) // Optional email
+  phoneNumber String?  @db.VarChar(20) // Optional phone number
   idType      IdType
   idNumber    String   @db.VarChar(20) // Max 20 characters
   relationship String? // Relationship to principal member
+  relationshipDescription String? // Optional description for "other" relationship
   percentage  Int?     // Percentage of benefits (1-100)
   isVerified  Boolean  @default(false) // Verification status
   verifiedAt  DateTime? // When verification was completed

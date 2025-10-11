@@ -18,6 +18,40 @@ fi
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$SCRIPT_DIR"
 
-# Start API server
+# Start API server in background
 cd "$PROJECT_ROOT/apps/api"
-pnpm start:dev
+pnpm start:dev > "$PROJECT_ROOT/.api.log" 2>&1 &
+API_PID=$!
+
+echo "⏳ Waiting for API to start..."
+sleep 8
+
+# Check if API is ready
+echo "🔄 Checking API health..."
+for i in {1..20}; do
+    if curl -s http://localhost:3001/api/health >/dev/null 2>&1; then
+        echo "✅ API server is running on port 3001"
+        echo "🎉 Ready at http://localhost:3001"
+        echo ""
+        echo "📚 Internal API docs: http://localhost:3001/api/internal/docs"
+        echo "📚 Public API docs: http://localhost:3001/api/v1/docs"
+        echo "📋 View logs: tail -f $PROJECT_ROOT/.api.log"
+        echo "🛑 Stop: pnpm stop or Ctrl+C"
+        echo ""
+        echo "Press Ctrl+C to stop the application"
+        
+        # Keep the script running and wait for the background process
+        wait $API_PID
+        exit 0
+    fi
+    sleep 1
+done
+
+echo "⚠️  API server started but not responding to health checks"
+echo "📋 Check logs: tail -f $PROJECT_ROOT/.api.log"
+echo "🛑 Stop: pnpm stop or Ctrl+C"
+echo ""
+echo "Press Ctrl+C to stop the application"
+
+# Keep the script running
+wait $API_PID

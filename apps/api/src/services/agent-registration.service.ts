@@ -51,9 +51,12 @@ export class AgentRegistrationService {
         throw new BadRequestException('Customer not found');
       }
 
-      // Validate that partner matches
-      if (ba.partnerId !== parseInt(dto.partnerId)) {
-        throw new BadRequestException('Partner mismatch');
+      // Derive partner ID from BA record (Option A implementation)
+      const partnerId = ba.partnerId;
+      
+      // If partnerId is provided, validate it matches the BA's partner
+      if (dto.partnerId && ba.partnerId !== parseInt(dto.partnerId)) {
+        throw new BadRequestException('Partner mismatch - provided partnerId does not match BA record');
       }
 
       // Create the registration
@@ -61,7 +64,7 @@ export class AgentRegistrationService {
         data: {
           baId: ba.id, // Use the actual Brand Ambassador ID
           customerId: dto.customerId,
-          partnerId: parseInt(dto.partnerId),
+          partnerId: partnerId, // Use partner ID from BA record
           registrationStatus: dto.registrationStatus || RegistrationStatus.IN_PROGRESS,
           completedAt: dto.completedAt ? new Date(dto.completedAt) : null,
         },
@@ -97,7 +100,7 @@ export class AgentRegistrationService {
       });
 
       // Create missing requirements based on deferred requirements
-      await this.createMissingRequirements(registration.id, dto.customerId, parseInt(dto.partnerId));
+      await this.createMissingRequirements(registration.id, dto.customerId, partnerId);
 
       return this.mapToResponseDto(registration);
     } catch (error) {

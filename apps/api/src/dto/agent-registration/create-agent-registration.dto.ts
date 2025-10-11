@@ -19,12 +19,13 @@ export class CreateAgentRegistrationDto {
   @IsUUID()
   customerId: string;
 
-  @ApiProperty({
-    description: 'Partner ID for the registration',
+  @ApiPropertyOptional({
+    description: 'Partner ID for the registration (will be derived from BA if not provided)',
     example: 1,
   })
+  @IsOptional()
   @IsString()
-  partnerId: string;
+  partnerId?: string;
 
   @ApiPropertyOptional({
     description: 'Registration status',

@@ -16,7 +16,8 @@ import {
   ApiOperation,
   ApiResponse,
   ApiParam,
-  ApiQuery
+  ApiQuery,
+  ApiBearerAuth
 } from '@nestjs/swagger';
 import { PartnerManagementService } from '../../services/partner-management.service';
 import { PartnerMapper } from '../../mappers/partner.mapper';
@@ -45,6 +46,7 @@ import {
  * - POST /internal/partner-management/api-keys - Generate API key for partner
  */
 @ApiTags('Internal - Partner Management')
+@ApiBearerAuth()
 @Controller('internal/partner-management')
 @UsePipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }))
 export class InternalPartnerManagementController {
@@ -347,6 +349,45 @@ export class InternalPartnerManagementController {
       return response;
     } catch (error) {
       this.logger.error(`[${correlationId}] Error creating Brand Ambassador: ${error instanceof Error ? error.message : 'Unknown error'}`, error instanceof Error ? error.stack : undefined);
+      throw error;
+    }
+  }
+
+  /**
+   * Get Brand Ambassador by User ID
+   */
+  @Get('brand-ambassadors/by-user/:userId')
+  @ApiOperation({
+    summary: 'Get Brand Ambassador by User ID',
+    description: 'Get Brand Ambassador information for a specific user.',
+  })
+  @ApiParam({
+    name: 'userId',
+    description: 'Supabase User ID',
+    type: 'string',
+    example: '123e4567-e89b-12d3-a456-426614174000',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Brand Ambassador found successfully',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Brand Ambassador not found',
+  })
+  async getBrandAmbassadorByUserId(
+    @Param('userId') userId: string,
+    @CorrelationId() correlationId: string,
+  ) {
+    try {
+      this.logger.log(`[${correlationId}] Getting Brand Ambassador for user: ${userId}`);
+
+      const brandAmbassador = await this.partnerManagementService.getBrandAmbassadorByUserId(userId);
+
+      this.logger.log(`[${correlationId}] ✅ Brand Ambassador found: ${brandAmbassador.id}`);
+      return brandAmbassador;
+    } catch (error) {
+      this.logger.error(`[${correlationId}] Error getting Brand Ambassador: ${error instanceof Error ? error.message : 'Unknown error'}`, error instanceof Error ? error.stack : undefined);
       throw error;
     }
   }

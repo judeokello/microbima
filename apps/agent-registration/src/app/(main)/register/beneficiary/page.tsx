@@ -6,22 +6,62 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Loader2 } from 'lucide-react';
 import { addBeneficiaries, BeneficiaryData } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
+import { useBrandAmbassador } from '@/hooks/useBrandAmbassador';
 
-// Helper functions for date validation
-const getMinDateForAdults = () => {
-  const today = new Date();
-  const minDate = new Date(today.getFullYear() - 18, today.getMonth(), today.getDate());
-  return minDate.toISOString().split('T')[0];
+// Helper functions for date validation (currently unused but kept for future use)
+// const getMinDateForAdults = () => {
+//   const today = new Date();
+//   const minDate = new Date(today.getFullYear() - 18, today.getMonth(), today.getDate());
+//   return minDate.toISOString().split('T')[0];
+// };
+
+// const getMaxDate = () => {
+//   const today = new Date();
+//   return today.toISOString().split('T')[0];
+// };
+
+// Helper functions
+const toTitleCase = (str: string): string => {
+  return str.replace(/\w\S*/g, (txt) =>
+    txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase()
+  );
 };
 
-const getMaxDate = () => {
-  const today = new Date();
-  return today.toISOString().split('T')[0];
+const validatePhoneNumber = (phone: string): boolean => {
+  // Remove any non-digit characters
+  const cleanPhone = phone.replace(/\D/g, '');
+  // Check if it starts with 01 or 07 and is exactly 10 digits
+  return /^(01|07)\d{8}$/.test(cleanPhone);
+};
+
+const formatPhoneNumber = (phone: string): string => {
+  // Remove any non-digit characters and limit to 10 digits
+  return phone.replace(/\D/g, '').substring(0, 10);
+};
+
+// Helper functions for mapping frontend values to backend values
+const mapIdTypeToBackend = (frontendIdType: string): string => {
+  const mapping: Record<string, string> = {
+    'NATIONAL_ID': 'national',
+    'PASSPORT': 'passport',
+    'ALIEN': 'alien',
+    'BIRTH_CERTIFICATE': 'passport', // Map birth certificate to passport for now
+    'MILITARY': 'national', // Map military to national for now
+  };
+  return mapping[frontendIdType] || 'national';
+};
+
+const mapGenderToBackend = (frontendGender: string): string => {
+  return frontendGender.toLowerCase();
+};
+
+const mapRelationshipToBackend = (frontendRelationship: string): string => {
+  return frontendRelationship.toLowerCase();
 };
 
 interface BeneficiaryFormData {
@@ -35,6 +75,7 @@ interface BeneficiaryFormData {
   relationship: string;
   customRelationship: string;
   dateOfBirth: string;
+  gender: string;
 }
 
 const initialFormData: BeneficiaryFormData = {
@@ -48,11 +89,13 @@ const initialFormData: BeneficiaryFormData = {
   relationship: '',
   customRelationship: '',
   dateOfBirth: '',
+  gender: 'MALE', // Default gender
 };
 
 export default function BeneficiaryStep() {
   const router = useRouter();
   const { user, userMetadata, loading: authLoading } = useAuth();
+  const { baInfo, loading: baLoading, error: baError } = useBrandAmbassador();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [formData, setFormData] = useState<BeneficiaryFormData>(initialFormData);
@@ -76,6 +119,7 @@ export default function BeneficiaryStep() {
           relationship: parsedData.relationship ?? '',
           customRelationship: parsedData.customRelationship ?? '',
           dateOfBirth: parsedData.dateOfBirth ?? '',
+          gender: parsedData.gender ?? 'MALE',
         });
       } catch (error) {
         console.error('Error parsing saved beneficiary data:', error);
@@ -98,11 +142,24 @@ export default function BeneficiaryStep() {
   };
 
   const handleNext = async () => {
-    if (!user || !userMetadata?.partnerId) {
+    console.log('🔍 ========== BENEFICIARY SUBMISSION DEBUG ==========');
+    console.log('🔍 Step 1: Checking user session...');
+    console.log('🔍 User:', user);
+    console.log('🔍 User email:', user?.email);
+    console.log('🔍 User metadata:', userMetadata);
+    console.log('🔍 BA info:', baInfo);
+    console.log('🔍 Partner ID from BA info:', baInfo?.partnerId);
+    console.log('🔍 Auth loading:', authLoading);
+    console.log('🔍 BA loading:', baLoading);
+
+    // Remove the partnerId check - we don't actually need it for beneficiaries
+    if (!user) {
+      console.error('❌ No user session found');
       setError('Authentication required. Please log in again.');
       return;
     }
 
+    console.log('✅ User session found');
     setIsSubmitting(true);
     setError(null);
 
@@ -110,32 +167,58 @@ export default function BeneficiaryStep() {
       const customerId = localStorage.getItem('customerId');
       const registrationId = localStorage.getItem('registrationId');
 
+      console.log('🔍 Step 2: Checking localStorage data...');
+      console.log('🔍 Customer ID from localStorage:', customerId);
+      console.log('🔍 Registration ID from localStorage:', registrationId);
+
       if (!customerId || !registrationId) {
         throw new Error('Customer registration not found. Please start from the beginning.');
       }
 
+      console.log('🔍 Step 3: Processing beneficiary data...');
+      console.log('🔍 Skip beneficiary:', skipBeneficiary);
+      console.log('🔍 Form data:', formData);
+
       if (!skipBeneficiary && formData.firstName.trim()) {
+        // Validate phone number if provided
+        if (formData.phoneNumber && !validatePhoneNumber(formData.phoneNumber)) {
+          throw new Error('Phone number must be 10 digits starting with 01 or 07');
+        }
+
         // Transform form data to API format
         const beneficiaryData: BeneficiaryData = {
-          firstName: formData.firstName,
-          lastName: formData.lastName,
-          middleName: formData.middleName || undefined,
+          firstName: toTitleCase(formData.firstName),
+          lastName: toTitleCase(formData.lastName),
+          middleName: formData.middleName ? toTitleCase(formData.middleName) : undefined,
           dateOfBirth: formData.dateOfBirth,
-          gender: 'other', // Default gender since beneficiary form doesn't collect this
+          gender: mapGenderToBackend(formData.gender),
           email: formData.email || undefined,
-          phoneNumber: formData.phoneNumber || undefined,
-          idType: formData.idType,
+          phoneNumber: formData.phoneNumber ? formatPhoneNumber(formData.phoneNumber) : undefined,
+          idType: mapIdTypeToBackend(formData.idType),
           idNumber: formData.idNumber,
-          relationship: formData.relationship,
-          relationshipDescription: formData.relationship === 'other' ? formData.customRelationship : undefined,
+          relationship: mapRelationshipToBackend(formData.relationship),
+          relationshipDescription: formData.relationship === 'OTHER' ? formData.customRelationship : undefined,
           percentage: 100, // Default to 100% if only one beneficiary
         };
 
+        console.log('🔍 Step 4: Calling addBeneficiaries API...');
+        console.log('🔍 Raw form data:', {
+          idType: formData.idType,
+          gender: formData.gender,
+          relationship: formData.relationship,
+        });
+        console.log('🔍 Mapped beneficiary data:', beneficiaryData);
+
         // Step 1: Add beneficiary to customer
         const beneficiaryResult = await addBeneficiaries(customerId, [beneficiaryData]);
+        console.log('🔍 Beneficiary result:', beneficiaryResult);
+
         if (!beneficiaryResult.success || !beneficiaryResult.beneficiaryIds?.length) {
+          console.error('❌ Failed to add beneficiary:', beneficiaryResult.error);
           throw new Error(beneficiaryResult.error ?? 'Failed to add beneficiary');
         }
+
+        console.log('✅ Beneficiary added successfully');
 
         // Step 2: Create missing requirements for beneficiary if needed
         // This would typically be done based on partner configuration
@@ -145,9 +228,14 @@ export default function BeneficiaryStep() {
       // Save form data for next steps
       if (!skipBeneficiary) {
         localStorage.setItem('beneficiaryFormData', JSON.stringify(formData));
+        console.log('✅ Beneficiary form data saved to localStorage');
       } else {
         localStorage.removeItem('beneficiaryFormData');
+        console.log('✅ Skipped beneficiary - removed from localStorage');
       }
+
+      console.log('🔍 Step 5: Navigating to payment page...');
+      console.log('🔍 ========== BENEFICIARY SUBMISSION COMPLETE ==========');
 
       // Navigate to next step
       router.push('/register/payment');
@@ -245,8 +333,14 @@ export default function BeneficiaryStep() {
                   <Input
                     id="phoneNumber"
                     value={formData.phoneNumber}
-                    onChange={(e) => handleInputChange('phoneNumber', e.target.value)}
-                    placeholder="Enter phone number"
+                    onChange={(e) => {
+                      const formatted = formatPhoneNumber(e.target.value);
+                      handleInputChange('phoneNumber', formatted);
+                    }}
+                    placeholder="Enter phone number (01xxxxxxxx or 07xxxxxxxx)"
+                    maxLength={10}
+                    inputMode="numeric"
+                    pattern="[0-9]*"
                   />
                 </div>
                 <div>
@@ -268,6 +362,21 @@ export default function BeneficiaryStep() {
                     onChange={(e) => handleInputChange('dateOfBirth', e.target.value)}
                   />
                 </div>
+              </div>
+
+              <div>
+                <Label htmlFor="gender">Gender</Label>
+                <Select value={formData.gender} onValueChange={(value) => handleInputChange('gender', value)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select gender" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="MALE">Male</SelectItem>
+                    <SelectItem value="FEMALE">Female</SelectItem>
+                    <SelectItem value="OTHER">Other</SelectItem>
+                    <SelectItem value="PREFER_NOT_TO_SAY">Prefer not to say</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
 
               <div>
@@ -328,6 +437,35 @@ export default function BeneficiaryStep() {
         <Button variant="outline" onClick={handleBack}>
           Back: Customer Details
         </Button>
+
+        {/* DEBUG: Test Session Button */}
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => {
+            console.log('🧪 ========== SESSION DEBUG ==========');
+            console.log('🧪 User:', user);
+            console.log('🧪 User email:', user?.email);
+            console.log('🧪 User ID:', user?.id);
+            console.log('🧪 User metadata:', userMetadata);
+            console.log('🧪 BA info:', baInfo);
+            console.log('🧪 Partner ID from BA:', baInfo?.partnerId);
+            console.log('🧪 BA Display Name:', baInfo?.displayName);
+            console.log('🧪 Roles:', userMetadata?.roles);
+            console.log('🧪 Auth loading:', authLoading);
+            console.log('🧪 BA loading:', baLoading);
+            console.log('🧪 BA error:', baError);
+            console.log('🧪 localStorage - customerId:', localStorage.getItem('customerId'));
+            console.log('🧪 localStorage - registrationId:', localStorage.getItem('registrationId'));
+            console.log('🧪 ========== SESSION DEBUG COMPLETE ==========');
+
+            alert(`Session Status:\n\nUser: ${user ? 'LOGGED IN' : 'NOT LOGGED IN'}\nEmail: ${user?.email ?? 'N/A'}\nBA Name: ${baInfo?.displayName ?? 'NOT FOUND'}\nPartner ID: ${baInfo?.partnerId ?? 'NOT FOUND'}\nBA Loading: ${baLoading}\nBA Error: ${baError ?? 'None'}\n\nCheck console for full details.`);
+          }}
+          className="bg-purple-500 hover:bg-purple-600 text-white"
+        >
+          🧪 Check Session
+        </Button>
+
         <Button
           onClick={handleNext}
           disabled={isSubmitting || authLoading}

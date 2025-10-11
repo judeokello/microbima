@@ -41,7 +41,7 @@ export default function WizardLayout({ children }: WizardLayoutProps) {
               {steps.map((step, index) => {
                 const isCompleted = index < currentStepIndex;
                 const isCurrent = index === currentStepIndex;
-                const isUpcoming = index > currentStepIndex;
+                // const isUpcoming = index > currentStepIndex;
 
                 return (
                   <div key={step.id} className="flex items-center">

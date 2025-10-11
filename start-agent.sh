@@ -18,6 +18,38 @@ fi
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$SCRIPT_DIR"
 
-# Start Agent Registration app
+# Start Agent Registration app in background
 cd "$PROJECT_ROOT/apps/agent-registration"
-pnpm dev
+pnpm dev > "$PROJECT_ROOT/.agent-registration.log" 2>&1 &
+AGENT_PID=$!
+
+echo "⏳ Waiting for Next.js to start..."
+sleep 5
+
+# Ping the app to trigger initial compilation (this makes Next.js bind to the port)
+echo "🔄 Triggering initial page compilation..."
+for i in {1..30}; do
+    if curl -s http://localhost:3000 >/dev/null 2>&1; then
+        echo "✅ Agent Registration app is running on port 3000"
+        echo "🎉 Ready at http://localhost:3000"
+        echo ""
+        echo "📋 View logs: tail -f $PROJECT_ROOT/.agent-registration.log"
+        echo "🛑 Stop: pnpm stop or Ctrl+C"
+        echo ""
+        echo "Press Ctrl+C to stop the application"
+        
+        # Keep the script running and wait for the background process
+        wait $AGENT_PID
+        exit 0
+    fi
+    sleep 1
+done
+
+echo "⚠️  Agent Registration app started but not responding yet"
+echo "📋 Check logs: tail -f $PROJECT_ROOT/.agent-registration.log"
+echo "🛑 Stop: pnpm stop or Ctrl+C"
+echo ""
+echo "Press Ctrl+C to stop the application"
+
+# Keep the script running
+wait $AGENT_PID

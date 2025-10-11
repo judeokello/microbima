@@ -12,9 +12,15 @@ check_port_status() {
     local port=$1
     local service_name=$2
     
-    if lsof -i:$port >/dev/null 2>&1; then
+    # Check using netstat (more reliable for IPv6) first, then fall back to lsof
+    if netstat -tln 2>/dev/null | grep -q ":$port " || lsof -i:$port >/dev/null 2>&1; then
         echo "✅ $service_name (Port $port): RUNNING"
-        echo "   Process: $(lsof -i:$port | tail -n +2 | awk '{print $1, $2}' | head -1)"
+        
+        # Try to get process info
+        local process_info=$(lsof -i:$port 2>/dev/null | tail -n +2 | awk '{print $1, $2}' | head -1)
+        if [ -n "$process_info" ]; then
+            echo "   Process: $process_info"
+        fi
         echo "   URL: http://localhost:$port"
         
         # Test if the service is responding
@@ -45,8 +51,9 @@ check_port_status 3000 "Agent Registration"
 
 # Summary
 echo "📊 Summary:"
-API_RUNNING=$(lsof -i:3001 >/dev/null 2>&1 && echo "true" || echo "false")
-AGENT_RUNNING=$(lsof -i:3000 >/dev/null 2>&1 && echo "true" || echo "false")
+# Check using netstat first (more reliable for IPv6), then fall back to lsof
+API_RUNNING=$(netstat -tln 2>/dev/null | grep -q ":3001 " && echo "true" || (lsof -i:3001 >/dev/null 2>&1 && echo "true" || echo "false"))
+AGENT_RUNNING=$(netstat -tln 2>/dev/null | grep -q ":3000 " && echo "true" || (lsof -i:3000 >/dev/null 2>&1 && echo "true" || echo "false"))
 
 if [ "$API_RUNNING" = "true" ] && [ "$AGENT_RUNNING" = "true" ]; then
     echo "🎉 Both applications are running!"

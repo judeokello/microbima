@@ -1,5 +1,6 @@
 import {
   Controller,
+  Post,
   Put,
   Delete,
   Body,
@@ -7,6 +8,7 @@ import {
   HttpStatus,
   HttpCode,
   UseGuards,
+  Req,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -14,11 +16,15 @@ import {
   ApiResponse,
   ApiParam,
   ApiSecurity,
+  ApiBearerAuth,
 } from '@nestjs/swagger';
 import { CustomerService } from '../../services/customer.service';
+import { PartnerManagementService } from '../../services/partner-management.service';
 // TODO: Create UpdatePrincipalMemberRequestDto when implementing update functionality
 // import { UpdatePrincipalMemberRequestDto } from '../../dto/principal-member/update-principal-member-request.dto';
 import { PrincipalMemberDto } from '../../dto/principal-member/principal-member.dto';
+import { CreatePrincipalMemberRequestDto } from '../../dto/principal-member/create-principal-member-request.dto';
+import { CreatePrincipalMemberResponseDto } from '../../dto/principal-member/create-principal-member-response.dto';
 import { CorrelationId } from '../../decorators/correlation-id.decorator';
 import { PartnerId } from '../../decorators/api-key.decorator';
 
@@ -36,10 +42,60 @@ import { PartnerId } from '../../decorators/api-key.decorator';
  * - Correlation ID tracking
  */
 @ApiTags('Internal - Customer Management')
-@ApiSecurity('api-key')
+@ApiBearerAuth()
 @Controller('internal/customers')
 export class InternalCustomerController {
-  constructor(private readonly customerService: CustomerService) {}
+  constructor(
+    private readonly customerService: CustomerService,
+    private readonly partnerManagementService: PartnerManagementService,
+  ) {}
+
+  /**
+   * Create a new customer (Internal with userId support)
+   */
+  @Post()
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({
+    summary: 'Create customer (Internal)',
+    description: 'Create a new customer with userId tracking for internal use.',
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'Customer created successfully',
+    type: CreatePrincipalMemberResponseDto,
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Bad request - validation failed',
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Unauthorized - invalid authentication',
+  })
+  @ApiResponse({
+    status: 500,
+    description: 'Internal server error',
+  })
+  async createCustomer(
+    @Body() createRequest: CreatePrincipalMemberRequestDto,
+    @CorrelationId() correlationId: string,
+    @Req() req: any, // Add request object to access authenticated user
+  ): Promise<CreatePrincipalMemberResponseDto> {
+    // Extract user ID from authenticated user
+    const userId = req.user?.id || 'system';
+    
+    // Get Brand Ambassador info to derive partnerId
+    const baInfo = await this.partnerManagementService.getBrandAmbassadorByUserId(userId);
+    const partnerId = baInfo.partnerId;
+    
+    return this.customerService.createCustomer(
+      createRequest,
+      partnerId,
+      correlationId,
+      true, // Skip redundant partner validation
+      userId
+    );
+  }
 
   /**
    * Update an existing customer
