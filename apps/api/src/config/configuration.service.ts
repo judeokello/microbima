@@ -42,7 +42,7 @@ export class ConfigurationService extends BaseConfigurationService implements On
   }
 
   protected getDefaultPort(): number {
-    return parseInt(process.env.PORT || '3001', 10);
+    return parseInt(process.env.PORT ?? '3000', 10);
   }
 
   protected getDefaultApiPrefix(): string {
@@ -120,7 +120,7 @@ export class ConfigurationService extends BaseConfigurationService implements On
   }
 
   get port(): number {
-    return this.config?.port || 3001;
+    return this.config?.port ?? 3000;
   }
 
   get apiPrefix(): string {
