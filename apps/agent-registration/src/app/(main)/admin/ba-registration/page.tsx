@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -10,11 +10,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Checkbox } from '@/components/ui/checkbox'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Loader2 } from 'lucide-react'
-import { createBrandAmbassador, ROLES } from '@/lib/api'
+import { createBrandAmbassador, getPartners, ROLES } from '@/lib/api'
 
 interface Partner {
   id: number
   partnerName: string
+  isActive: boolean
 }
 
 export default function BARegistrationPage() {
@@ -27,7 +28,8 @@ export default function BARegistrationPage() {
     email: '',
     password: '',
     confirmPassword: '',
-    displayName: '',
+    firstName: '',
+    lastName: '',
     phone: '',
     partnerId: '',
     perRegistrationRateCents: '',
@@ -35,15 +37,23 @@ export default function BARegistrationPage() {
   })
 
   const [partners, setPartners] = useState<Partner[]>([])
+  const [loadingPartners, setLoadingPartners] = useState(true)
 
   // Load partners on component mount
-  useState(() => {
-    // TODO: Load partners from API
-    setPartners([
-      { id: 1, partnerName: 'Sample Partner 1' },
-      { id: 2, partnerName: 'Sample Partner 2' }
-    ])
-  })
+  useEffect(() => {
+    async function loadPartners() {
+      try {
+        const partnersData = await getPartners()
+        setPartners(partnersData)
+      } catch (err) {
+        console.error('Failed to load partners:', err)
+        setError('Failed to load partners')
+      } finally {
+        setLoadingPartners(false)
+      }
+    }
+    loadPartners()
+  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -56,7 +66,7 @@ export default function BARegistrationPage() {
         throw new Error('Passwords do not match')
       }
 
-      if (!formData.email || !formData.password || !formData.displayName || !formData.partnerId) {
+      if (!formData.email || !formData.password || !formData.firstName || !formData.lastName || !formData.partnerId) {
         throw new Error('Please fill in all required fields')
       }
 
@@ -65,16 +75,21 @@ export default function BARegistrationPage() {
         throw new Error('Please select at least one role')
       }
 
-      // Create BA
-      await createBrandAmbassador({
+      // Create BA - combine firstName and lastName into displayName
+      const result = await createBrandAmbassador({
         email: formData.email,
         password: formData.password,
-        displayName: formData.displayName,
+        firstName: formData.firstName,
+        lastName: formData.lastName,
         phone: formData.phone,
         partnerId: parseInt(formData.partnerId),
         perRegistrationRateCents: parseInt(formData.perRegistrationRateCents) || 0,
         roles: formData.roles
       })
+
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to create Brand Ambassador')
+      }
 
       setSuccess(true)
       setTimeout(() => {
@@ -138,27 +153,38 @@ export default function BARegistrationPage() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="email">Email Address *</Label>
+                <Label htmlFor="firstName">First Name *</Label>
                 <Input
-                  id="email"
-                  type="email"
-                  value={formData.email}
-                  onChange={(e) => handleInputChange('email', e.target.value)}
-                  placeholder="ba@example.com"
+                  id="firstName"
+                  value={formData.firstName}
+                  onChange={(e) => handleInputChange('firstName', e.target.value)}
+                  placeholder="John"
                   required
                 />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="displayName">Display Name *</Label>
+                <Label htmlFor="lastName">Last Name *</Label>
                 <Input
-                  id="displayName"
-                  value={formData.displayName}
-                  onChange={(e) => handleInputChange('displayName', e.target.value)}
-                  placeholder="John Doe"
+                  id="lastName"
+                  value={formData.lastName}
+                  onChange={(e) => handleInputChange('lastName', e.target.value)}
+                  placeholder="Doe"
                   required
                 />
               </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="email">Email Address *</Label>
+              <Input
+                id="email"
+                type="email"
+                value={formData.email}
+                onChange={(e) => handleInputChange('email', e.target.value)}
+                placeholder="ba@example.com"
+                required
+              />
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -200,12 +226,16 @@ export default function BARegistrationPage() {
 
               <div className="space-y-2">
                 <Label htmlFor="partnerId">Partner *</Label>
-                <Select value={formData.partnerId} onValueChange={(value) => handleInputChange('partnerId', value)}>
+                <Select
+                  value={formData.partnerId}
+                  onValueChange={(value) => handleInputChange('partnerId', value)}
+                  disabled={loadingPartners}
+                >
                   <SelectTrigger>
-                    <SelectValue placeholder="Select a partner" />
+                    <SelectValue placeholder={loadingPartners ? "Loading partners..." : "Select a partner"} />
                   </SelectTrigger>
                   <SelectContent>
-                    {partners.map((partner) => (
+                    {partners.filter(p => p.isActive).map((partner) => (
                       <SelectItem key={partner.id} value={partner.id.toString()}>
                         {partner.partnerName}
                       </SelectItem>

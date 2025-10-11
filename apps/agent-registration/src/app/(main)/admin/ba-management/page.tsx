@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Loader2, Plus, Edit, Eye, UserX } from 'lucide-react'
-import { getBrandAmbassadors, BrandAmbassador, Partner } from '@/lib/api'
+import { getBrandAmbassadors, getPartners, BrandAmbassador, Partner } from '@/lib/api'
 
 export default function BAManagementPage() {
   const router = useRouter()
@@ -26,11 +26,7 @@ export default function BAManagementPage() {
       setLoading(true)
       const [baData, partnersData] = await Promise.all([
         getBrandAmbassadors(),
-        // TODO: Add getPartners() when implemented
-        Promise.resolve([
-          { id: 1, partnerName: 'Sample Partner 1', isActive: true },
-          { id: 2, partnerName: 'Sample Partner 2', isActive: true }
-        ])
+        getPartners()
       ])
 
       setBrandAmbassadors(baData)
@@ -42,9 +38,13 @@ export default function BAManagementPage() {
     }
   }
 
-  const getPartnerName = (partnerId: number) => {
-    const partner = partners.find(p => p.id === partnerId)
-    return partner?.partnerName ?? `Partner ${partnerId}`
+  const getPartnerName = (ba: BrandAmbassador) => {
+    // Use partner data from BA record if available, otherwise fallback to partners list
+    if (ba.partner) {
+      return ba.partner.partnerName
+    }
+    const partner = partners.find(p => p.id === ba.partnerId)
+    return partner?.partnerName ?? `Partner ${ba.partnerId}`
   }
 
   const formatRate = (cents: number) => {
@@ -126,10 +126,10 @@ export default function BAManagementPage() {
                         {ba.displayName ?? 'N/A'}
                       </TableCell>
                       <TableCell>
-                        {getPartnerName(ba.partnerId)}
+                        {getPartnerName(ba)}
                       </TableCell>
                       <TableCell>
-                        {ba.phone ?? 'N/A'}
+                        {ba.phoneNumber ?? 'N/A'}
                       </TableCell>
                       <TableCell>
                         {ba.perRegistrationRateCents ? formatRate(ba.perRegistrationRateCents) : 'N/A'}

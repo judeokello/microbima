@@ -437,6 +437,7 @@ export class PartnerManagementService {
       phoneNumber?: string;
       perRegistrationRateCents: number;
       isActive?: boolean;
+      createdBy?: string;
     }
   ) {
     this.logger.log(`Creating Brand Ambassador for partner ${partnerId}`);
@@ -464,6 +465,9 @@ export class PartnerManagementService {
       throw new BadRequestException('Brand Ambassador already exists for this user');
     }
 
+    // Use createdBy from request if provided, otherwise use the new BA's userId
+    const createdByUserId = brandAmbassadorData.createdBy || brandAmbassadorData.userId;
+
     // Create the Brand Ambassador
     const brandAmbassador = await this.prismaService.brandAmbassador.create({
       data: {
@@ -473,13 +477,92 @@ export class PartnerManagementService {
         phoneNumber: brandAmbassadorData.phoneNumber,
         perRegistrationRateCents: brandAmbassadorData.perRegistrationRateCents,
         isActive: brandAmbassadorData.isActive ?? true,
-        createdBy: brandAmbassadorData.userId,
-        updatedBy: brandAmbassadorData.userId,
+        createdBy: createdByUserId,
+        updatedBy: createdByUserId,
       },
     });
 
     this.logger.log(`✅ Brand Ambassador created successfully: ${brandAmbassador.id}`);
     return brandAmbassador;
+  }
+
+  /**
+   * Get all Brand Ambassadors
+   * @param correlationId - Correlation ID for tracing
+   * @param page - Page number (default: 1)
+   * @param limit - Items per page (default: 10, max: 100)
+   * @returns Paginated brand ambassadors list
+   */
+  async getAllBrandAmbassadors(
+    correlationId: string,
+    page: number = 1,
+    limit: number = 10
+  ): Promise<{
+    brandAmbassadors: any[];
+    pagination: {
+      page: number;
+      limit: number;
+      total: number;
+      totalPages: number;
+    };
+  }> {
+    this.logger.log(`[${correlationId}] Getting all Brand Ambassadors, page ${page}, limit ${limit}`);
+
+    try {
+      // Validate pagination parameters
+      const validatedPage = Math.max(1, page);
+      const validatedLimit = Math.min(100, Math.max(1, limit));
+      const skip = (validatedPage - 1) * validatedLimit;
+
+      // Get brand ambassadors with partner information
+      const [brandAmbassadors, total] = await Promise.all([
+        this.prismaService.brandAmbassador.findMany({
+          skip,
+          take: validatedLimit,
+          include: {
+            partner: {
+              select: {
+                id: true,
+                partnerName: true,
+                isActive: true,
+              },
+            },
+          },
+          orderBy: {
+            createdAt: 'desc',
+          },
+        }),
+        this.prismaService.brandAmbassador.count(),
+      ]);
+
+      const totalPages = Math.ceil(total / validatedLimit);
+
+      this.logger.log(`[${correlationId}] Retrieved ${brandAmbassadors.length} brand ambassadors`);
+
+      return {
+        brandAmbassadors: brandAmbassadors.map(ba => ({
+          id: ba.id,
+          userId: ba.userId,
+          partnerId: ba.partnerId,
+          displayName: ba.displayName,
+          phoneNumber: ba.phoneNumber,
+          perRegistrationRateCents: ba.perRegistrationRateCents,
+          isActive: ba.isActive,
+          createdAt: ba.createdAt,
+          updatedAt: ba.updatedAt,
+          partner: ba.partner,
+        })),
+        pagination: {
+          page: validatedPage,
+          limit: validatedLimit,
+          total,
+          totalPages,
+        },
+      };
+    } catch (error) {
+      this.logger.error(`[${correlationId}] Error getting brand ambassadors: ${error instanceof Error ? error.message : 'Unknown error'}`, error instanceof Error ? error.stack : undefined);
+      throw error;
+    }
   }
 
   /**

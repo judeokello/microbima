@@ -17,10 +17,16 @@ export interface BrandAmbassador {
   partnerId: number
   userId: string
   displayName?: string
-  phone?: string
+  phoneNumber?: string
   perRegistrationRateCents?: number
   isActive: boolean
   createdAt: string
+  updatedAt?: string
+  partner?: {
+    id: number
+    partnerName: string
+    isActive: boolean
+  }
 }
 
 export interface Partner {
@@ -34,7 +40,8 @@ export interface Partner {
 export interface CreateBARequest {
   email: string
   password: string
-  displayName: string
+  firstName: string
+  lastName: string
   phone?: string
   partnerId: number
   perRegistrationRateCents: number
@@ -54,14 +61,22 @@ export async function createBrandAmbassador(data: CreateBARequest): Promise<Crea
       throw new Error('Supabase admin client not available. Check SUPABASE_SERVICE_ROLE_KEY environment variable.')
     }
 
-    // Step 1: Create Supabase user
+    // Combine first and last name into displayName
+    const displayName = `${data.firstName} ${data.lastName}`.trim()
+
+    // Get current user session for createdBy
+    const { data: { session } } = await supabase.auth.getSession()
+    const currentUserId = session?.user?.id
+
+    // Step 1: Create Supabase user with email verification
     const { data: userData, error: userError } = await supabaseAdmin.auth.admin.createUser({
       email: data.email,
       password: data.password,
+      email_confirm: true, // Verify email automatically
       user_metadata: {
         roles: data.roles,
         partnerId: data.partnerId,
-        displayName: data.displayName,
+        displayName: displayName,
         phone: data.phone,
         perRegistrationRateCents: data.perRegistrationRateCents
       } as UserMetadata
@@ -75,31 +90,43 @@ export async function createBrandAmbassador(data: CreateBARequest): Promise<Crea
       throw new Error('User creation failed - no user data returned')
     }
 
-    // Step 2: Create BrandAmbassador record in your database
-    // const baData = {
-    //   userId: userData.user.id,
-    //   partnerId: data.partnerId,
-    //   displayName: data.displayName,
-    //   phone: data.phone,
-    //   perRegistrationRateCents: data.perRegistrationRateCents,
-    //   isActive: true
-    // }
+    // Step 2: Create BrandAmbassador record in database via API
+    const baData = {
+      userId: userData.user.id,
+      displayName: displayName,
+      phoneNumber: data.phone,
+      perRegistrationRateCents: data.perRegistrationRateCents,
+      isActive: true,
+      createdBy: currentUserId
+    }
 
-    // TODO: Call your NestJS API to create the BrandAmbassador record
-    // const response = await fetch(`${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/brand-ambassadors`, {
-    //   method: 'POST',
-    //   headers: {
-    //     'Content-Type': 'application/json',
-    //     'Authorization': `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`
-    //   },
-    //   body: JSON.stringify(baData)
-    // })
+    // Get admin token for API call
+    const token = await getSupabaseToken()
 
-    // For now, return success (we'll implement the actual API call later)
+    const response = await fetch(
+      `${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/partner-management/partners/${data.partnerId}/brand-ambassadors`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+          'x-correlation-id': `ba-create-${Date.now()}`
+        },
+        body: JSON.stringify(baData)
+      }
+    )
+
+    if (!response.ok) {
+      const errorData = await response.json()
+      throw new Error(errorData.error?.message || `Failed to create BA record: ${response.statusText}`)
+    }
+
+    const result = await response.json()
+
     return {
       success: true,
       userId: userData.user.id,
-      baId: 'temp-ba-id' // This will come from the API response
+      baId: result.id
     }
 
   } catch (error) {
@@ -113,70 +140,58 @@ export async function createBrandAmbassador(data: CreateBARequest): Promise<Crea
 
 export async function getBrandAmbassadors(): Promise<BrandAmbassador[]> {
   try {
-    // TODO: Call your NestJS API to get brand ambassadors
-    // const response = await fetch(`${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/brand-ambassadors`, {
-    //   headers: {
-    //     'Authorization': `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`
-    //   }
-    // })
+    const token = await getSupabaseToken()
 
-    // For now, return mock data
-    return [
+    const response = await fetch(
+      `${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/partner-management/brand-ambassadors?limit=100`,
       {
-        id: '1',
-        partnerId: 1,
-        userId: 'user-1',
-        displayName: 'John Doe',
-        phone: '+254700000001',
-        perRegistrationRateCents: 500,
-        isActive: true,
-        createdAt: new Date().toISOString()
-      },
-      {
-        id: '2',
-        partnerId: 2,
-        userId: 'user-2',
-        displayName: 'Jane Smith',
-        phone: '+254700000002',
-        perRegistrationRateCents: 750,
-        isActive: true,
-        createdAt: new Date().toISOString()
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'x-correlation-id': `ba-list-${Date.now()}`
+        }
       }
-    ]
+    )
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch brand ambassadors: ${response.statusText}`)
+    }
+
+    const result = await response.json()
+
+    // Return the brand ambassadors array from the response
+    return result.brandAmbassadors || []
   } catch (error) {
     console.error('Error fetching brand ambassadors:', error)
+    // Return empty array on error to prevent UI breaking
     return []
   }
 }
 
 export async function getPartners(): Promise<Partner[]> {
   try {
-    // TODO: Call your NestJS API to get partners
-    // const response = await fetch(`${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/partners`, {
-    //   headers: {
-    //     'Authorization': `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`
-    //   }
-    // })
+    const token = await getSupabaseToken()
 
-    // For now, return mock data
-    return [
+    const response = await fetch(
+      `${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/partner-management/partners?limit=100`,
       {
-        id: 1,
-        partnerName: 'Sample Partner 1',
-        website: 'https://partner1.com',
-        officeLocation: 'Nairobi, Kenya',
-        isActive: true
-      },
-      {
-        id: 2,
-        partnerName: 'Sample Partner 2',
-        website: 'https://partner2.com',
-        officeLocation: 'Mombasa, Kenya',
-        isActive: true
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'x-correlation-id': `partners-list-${Date.now()}`
+        }
       }
-    ]
+    )
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch partners: ${response.statusText}`)
+    }
+
+    const result = await response.json()
+
+    // Return the partners array from the response
+    return result.partners || []
   } catch (error) {
     console.error('Error fetching partners:', error)
+    // Return empty array on error to prevent UI breaking
     return []
   }
 }

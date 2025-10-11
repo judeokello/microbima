@@ -354,6 +354,102 @@ export class InternalPartnerManagementController {
   }
 
   /**
+   * Get all Brand Ambassadors (paginated)
+   */
+  @Get('brand-ambassadors')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Get all Brand Ambassadors (Internal API)',
+    description: 'Retrieves a paginated list of all Brand Ambassadors in the system. This endpoint is for internal admin use only.'
+  })
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    type: Number,
+    description: 'Page number (default: 1)',
+    example: 1
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    type: Number,
+    description: 'Items per page (default: 10, max: 100)',
+    example: 10
+  })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Brand Ambassadors retrieved successfully',
+    schema: {
+      type: 'object',
+      properties: {
+        brandAmbassadors: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              id: { type: 'string', example: '123e4567-e89b-12d3-a456-426614174000' },
+              userId: { type: 'string', example: '123e4567-e89b-12d3-a456-426614174001' },
+              partnerId: { type: 'number', example: 1 },
+              displayName: { type: 'string', example: 'John Doe' },
+              phoneNumber: { type: 'string', example: '+254700000000' },
+              perRegistrationRateCents: { type: 'number', example: 500 },
+              isActive: { type: 'boolean', example: true },
+              createdAt: { type: 'string', format: 'date-time' },
+              updatedAt: { type: 'string', format: 'date-time' },
+              partner: {
+                type: 'object',
+                properties: {
+                  id: { type: 'number', example: 1 },
+                  partnerName: { type: 'string', example: 'Sample Partner' },
+                  isActive: { type: 'boolean', example: true }
+                }
+              }
+            }
+          }
+        },
+        pagination: {
+          type: 'object',
+          properties: {
+            page: { type: 'number', example: 1 },
+            limit: { type: 'number', example: 10 },
+            total: { type: 'number', example: 25 },
+            totalPages: { type: 'number', example: 3 }
+          }
+        }
+      }
+    }
+  })
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description: 'Invalid pagination parameters'
+  })
+  @ApiResponse({
+    status: HttpStatus.INTERNAL_SERVER_ERROR,
+    description: 'Internal server error'
+  })
+  async getAllBrandAmbassadors(
+    @CorrelationId() correlationId: string,
+    @Query('page') page?: number,
+    @Query('limit') limit?: number,
+  ) {
+    try {
+      this.logger.log(`[${correlationId}] Getting all Brand Ambassadors, page: ${page}, limit: ${limit}`);
+
+      const result = await this.partnerManagementService.getAllBrandAmbassadors(
+        correlationId,
+        page || 1,
+        limit || 10
+      );
+
+      this.logger.log(`[${correlationId}] ✅ Retrieved ${result.brandAmbassadors.length} brand ambassadors`);
+      return result;
+    } catch (error) {
+      this.logger.error(`[${correlationId}] Error getting brand ambassadors: ${error instanceof Error ? error.message : 'Unknown error'}`, error instanceof Error ? error.stack : undefined);
+      throw error;
+    }
+  }
+
+  /**
    * Get Brand Ambassador by User ID
    */
   @Get('brand-ambassadors/by-user/:userId')

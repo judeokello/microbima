@@ -42,6 +42,16 @@ export class CreateBrandAmbassadorRequestDto {
   @IsOptional()
   @IsBoolean()
   isActive?: boolean;
+
+  @ApiProperty({
+    description: 'User ID of the admin who created this Brand Ambassador',
+    example: '123e4567-e89b-12d3-a456-426614174001',
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  @IsUUID()
+  createdBy?: string;
 }
 
 
