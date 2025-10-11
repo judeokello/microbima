@@ -30,10 +30,12 @@ async function bootstrap() {
   // Set global prefix
   app.setGlobalPrefix(configService.apiPrefix);
 
-  // CORS configuration
+  // CORS configuration - completely permissive for debugging
   app.enableCors({
-    origin: configService.cors.origin,
-    credentials: configService.cors.credentials,
+    origin: '*',
+    credentials: false,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'HEAD', 'PATCH'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'x-api-key', 'x-correlation-id'],
   });
 
   // Setup Swagger documentation for both APIs
