@@ -1,14 +1,15 @@
 'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
-import { Plus, Trash2, Loader2 } from 'lucide-react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Plus, Trash2, Loader2, CheckCircle } from 'lucide-react';
 import { createCustomer, createAgentRegistration, CustomerRegistrationRequest } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
 import { useBrandAmbassador } from '@/hooks/useBrandAmbassador';
@@ -116,12 +117,28 @@ const initialFormData: CustomerFormData = {
 
 export default function CustomerStep() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { user, userMetadata, loading: authLoading } = useAuth();
   const { baInfo } = useBrandAmbassador();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [formData, setFormData] = useState<CustomerFormData>(initialFormData);
   const [showSpouse, setShowSpouse] = useState(false);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+  // Handle success notification from payment page
+  useEffect(() => {
+    const success = searchParams.get('success');
+    const customerName = searchParams.get('customerName');
+
+    if (success === 'true' && customerName) {
+      setSuccessMessage(`The customer ${customerName} was registered successfully`);
+      // Clear form data for next registration
+      setFormData(initialFormData);
+      // Clear URL parameters after showing message
+      router.replace('/register/customer');
+    }
+  }, [searchParams, router]);
 
   const handleInputChange = (field: keyof CustomerFormData, value: string) => {
     setFormData(prev => ({
@@ -183,6 +200,7 @@ export default function CustomerStep() {
       const requiredFields = [
         { field: 'firstName', label: 'First Name' },
         { field: 'lastName', label: 'Last Name' },
+        { field: 'email', label: 'Email' },
         { field: 'phoneNumber', label: 'Phone Number' },
         { field: 'dateOfBirth', label: 'Date of Birth' },
         { field: 'idType', label: 'ID Type' },
@@ -195,6 +213,13 @@ export default function CustomerStep() {
           setIsSubmitting(false);
           return;
         }
+      }
+
+      // Validate email format
+      if (formData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+        setError('Please enter a valid email address');
+        setIsSubmitting(false);
+        return;
       }
 
       // Validate date of birth is not in the future
@@ -299,13 +324,16 @@ export default function CustomerStep() {
         throw new Error(registrationResult.error ?? 'Failed to create agent registration');
       }
 
+      // Clear any previous beneficiary form data
+      localStorage.removeItem('beneficiaryFormData');
+
       // Save form data to localStorage for next steps
-    localStorage.setItem('customerFormData', JSON.stringify(formData));
+      localStorage.setItem('customerFormData', JSON.stringify(formData));
       localStorage.setItem('customerId', customerResult.customerId);
       localStorage.setItem('registrationId', registrationResult.registrationId ?? '');
 
       // Navigate to next step
-    router.push('/register/beneficiary');
+      router.push('/register/beneficiary');
 
     } catch (error) {
       console.error('Error creating customer registration:', error);
@@ -360,13 +388,14 @@ export default function CustomerStep() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="email">Email *</Label>
               <Input
                 id="email"
                 type="email"
                 value={formData.email}
                 onChange={(e) => handleInputChange('email', e.target.value)}
                 placeholder="Enter email address"
+                required
               />
             </div>
             <div>
@@ -726,6 +755,16 @@ export default function CustomerStep() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Success Display */}
+      {successMessage && (
+        <Alert className="bg-green-50 border-green-200">
+          <CheckCircle className="h-4 w-4 text-green-600" />
+          <AlertDescription className="text-green-800">
+            {successMessage}
+          </AlertDescription>
+        </Alert>
+      )}
 
       {/* Error Display */}
       {error && (

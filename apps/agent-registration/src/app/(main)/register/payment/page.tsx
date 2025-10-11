@@ -146,8 +146,11 @@ export default function PaymentStep() {
       localStorage.removeItem('customerId');
       localStorage.removeItem('registrationId');
 
-      // Redirect to success page or dashboard
-      router.push('/dashboard?success=true&paymentId=' + paymentResult.paymentId);
+      // Get customer name for success message
+      const customerName = customerData ? `${customerData.firstName} ${customerData.lastName}` : 'Customer';
+
+      // Redirect to first page with success notification
+      router.push(`/register/customer?success=true&customerName=${encodeURIComponent(customerName)}&paymentId=${paymentResult.paymentId}`);
 
     } catch (error) {
       console.error('Registration submission failed:', error);

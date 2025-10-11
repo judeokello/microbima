@@ -129,6 +129,11 @@ export default function BeneficiaryStep() {
   }, []);
 
   const handleInputChange = (field: keyof BeneficiaryFormData, value: string) => {
+    // Special handling for ID number - only allow digits
+    if (field === 'idNumber') {
+      value = value.replace(/\D/g, ''); // Remove non-digit characters
+    }
+
     setFormData(prev => ({
       ...prev,
       [field]: value
@@ -185,6 +190,14 @@ export default function BeneficiaryStep() {
           throw new Error('Phone number must be 10 digits starting with 01 or 07');
         }
 
+        // Validate date of birth if provided
+        if (formData.dateOfBirth && !formData.dateOfBirth.trim()) {
+          throw new Error('Invalid date of birth');
+        }
+        if (formData.dateOfBirth && isNaN(Date.parse(formData.dateOfBirth))) {
+          throw new Error('Invalid date of birth');
+        }
+
         // Transform form data to API format
         const beneficiaryData: BeneficiaryData = {
           firstName: toTitleCase(formData.firstName),
@@ -192,7 +205,7 @@ export default function BeneficiaryStep() {
           middleName: formData.middleName ? toTitleCase(formData.middleName) : undefined,
           dateOfBirth: formData.dateOfBirth,
           gender: mapGenderToBackend(formData.gender),
-          email: formData.email ?? undefined,
+          email: formData.email?.trim() || undefined,
           phoneNumber: formData.phoneNumber ? formatPhoneNumber(formData.phoneNumber) : undefined,
           idType: mapIdTypeToBackend(formData.idType),
           idNumber: formData.idNumber,
@@ -323,6 +336,8 @@ export default function BeneficiaryStep() {
                     value={formData.idNumber}
                     onChange={(e) => handleInputChange('idNumber', e.target.value)}
                     placeholder="Enter ID number"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
                   />
                 </div>
               </div>
