@@ -7,10 +7,34 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Checkbox } from '@/components/ui/checkbox';
 // import { Separator } from '@/components/ui/separator';
 import { CheckCircle, CreditCard, Users, User, Loader2 } from 'lucide-react';
 import { processPayment, PaymentRequest } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
+
+interface InsurancePricing {
+  plans: {
+    silver: {
+      name: string;
+      categories: {
+        member_only: { display: string; daily: number; weekly: number };
+        up_to_5: { display: string; daily: number; weekly: number };
+        up_to_8: { display: string; daily: number; weekly: number };
+      };
+      additional_spouse: { daily: number; weekly: number };
+    };
+    gold: {
+      name: string;
+      categories: {
+        member_only: { display: string; daily: number; weekly: number };
+        up_to_5: { display: string; daily: number; weekly: number };
+        up_to_8: { display: string; daily: number; weekly: number };
+      };
+      additional_spouse: { daily: number; weekly: number };
+    };
+  };
+}
 
 interface CustomerFormData {
   firstName: string;
@@ -68,6 +92,18 @@ export default function PaymentStep() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Insurance pricing state
+  const [pricingData, setPricingData] = useState<InsurancePricing | null>(null);
+  const [selectedPlan, setSelectedPlan] = useState<string>('');
+  const [selectedCategory, setSelectedCategory] = useState<string>('');
+  const [additionalSpouse, setAdditionalSpouse] = useState(false);
+  const [calculatedPricing, setCalculatedPricing] = useState({
+    daily: 0,
+    weekly: 0,
+    totalDaily: 0,
+    totalWeekly: 0
+  });
+
   // Calculate payment end date (276 days from now)
   const calculatePaymentEndDate = () => {
     const currentDate = new Date();
@@ -94,7 +130,45 @@ export default function PaymentStep() {
     if (savedBeneficiaryData) {
       setBeneficiaryData(JSON.parse(savedBeneficiaryData));
     }
+
+    // Load pricing data
+    fetch('/insurance-pricing.json')
+      .then(response => response.json())
+      .then(data => setPricingData(data))
+      .catch(error => console.error('Error loading pricing data:', error));
   }, []);
+
+  // Calculate pricing when selections change
+  useEffect(() => {
+    if (!pricingData || !selectedPlan || !selectedCategory) {
+      setCalculatedPricing({ daily: 0, weekly: 0, totalDaily: 0, totalWeekly: 0 });
+      return;
+    }
+
+    const plan = pricingData.plans[selectedPlan as keyof typeof pricingData.plans];
+    const category = plan.categories[selectedCategory as keyof typeof plan.categories];
+    const spousePremium = plan.additional_spouse;
+
+    const baseDaily = category.daily;
+    const baseWeekly = category.weekly;
+    const spouseDaily = additionalSpouse ? spousePremium.daily : 0;
+    const spouseWeekly = additionalSpouse ? spousePremium.weekly : 0;
+
+    setCalculatedPricing({
+      daily: baseDaily,
+      weekly: baseWeekly,
+      totalDaily: baseDaily + spouseDaily,
+      totalWeekly: baseWeekly + spouseWeekly
+    });
+  }, [pricingData, selectedPlan, selectedCategory, additionalSpouse]);
+
+  // Reset category when plan changes
+  useEffect(() => {
+    if (selectedPlan) {
+      setSelectedCategory('');
+      setAdditionalSpouse(false);
+    }
+  }, [selectedPlan]);
 
   const handleBack = () => {
     router.push('/register/beneficiary');
@@ -188,20 +262,78 @@ export default function PaymentStep() {
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
+            {/* Plan Selection */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="planSelection">Insurance Plan</Label>
+                <Select value={selectedPlan} onValueChange={setSelectedPlan}>
+                  <SelectTrigger id="planSelection">
+                    <SelectValue placeholder="Select insurance plan" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {pricingData && (
+                      <>
+                        <SelectItem value="silver">{pricingData.plans.silver.name}</SelectItem>
+                        <SelectItem value="gold">{pricingData.plans.gold.name}</SelectItem>
+                      </>
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label htmlFor="familyCategory">Family Category</Label>
+                <Select value={selectedCategory} onValueChange={setSelectedCategory} disabled={!selectedPlan}>
+                  <SelectTrigger id="familyCategory">
+                    <SelectValue placeholder="Select family category" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {pricingData && selectedPlan && (
+                      <>
+                        {Object.entries(pricingData.plans[selectedPlan as keyof typeof pricingData.plans].categories).map(([key, category]) => (
+                          <SelectItem key={key} value={key}>
+                            {category.display} - {category.daily}d - {category.weekly}w
+                          </SelectItem>
+                        ))}
+                      </>
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {/* Additional Spouse Checkbox */}
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="additionalSpouse"
+                checked={additionalSpouse}
+                onCheckedChange={(checked) => setAdditionalSpouse(checked === true)}
+                disabled={!selectedCategory || selectedCategory === 'member_only'}
+              />
+              <Label htmlFor="additionalSpouse" className="text-sm">
+                Additional Spouse Premium
+                {pricingData && selectedPlan && selectedCategory !== 'member_only' && (
+                  <span className="text-gray-500 ml-1">
+                    (+{pricingData.plans[selectedPlan as keyof typeof pricingData.plans].additional_spouse.daily} KES/day)
+                  </span>
+                )}
+              </Label>
+            </div>
+
             <div className="flex items-center justify-between p-4 bg-blue-50 rounded-lg">
               <div>
                 <h3 className="font-semibold text-blue-900">Mfanisi GO</h3>
                 <p className="text-sm text-blue-700">Comprehensive insurance coverage</p>
               </div>
               <div className="text-right">
-                <p className="text-sm text-blue-700">Weekly Payment</p>
-                <p className="text-lg font-bold text-blue-900">900 KES</p>
+                <p className="text-sm text-blue-700">Daily Payment</p>
+                <p className="text-lg font-bold text-blue-900">{calculatedPricing.totalDaily} KES</p>
               </div>
             </div>
 
             <div className="text-sm text-gray-600">
-              <p>• Daily payment: 150 KES</p>
-              <p>• Weekly payment: 900 KES (recommended)</p>
+              <p>• Daily payment: {calculatedPricing.totalDaily} KES</p>
+              <p>• Weekly payment: {calculatedPricing.totalWeekly} KES (recommended)</p>
               <p>• Payment end date: {calculatePaymentEndDate()}</p>
             </div>
           </div>
@@ -336,6 +468,14 @@ export default function PaymentStep() {
                   <SelectItem value="SasaPay">SasaPay</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+
+            <div>
+              <Label>Total Amount</Label>
+              <div className="flex items-center h-10 px-3 py-2 border border-gray-200 rounded-md bg-gray-50 text-gray-900">
+                {calculatedPricing.totalDaily} KES
+              </div>
+              <p className="text-xs text-gray-500 mt-1">Daily premium amount</p>
             </div>
 
             <div>

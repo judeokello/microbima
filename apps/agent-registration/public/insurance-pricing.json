@@ -1,0 +1,52 @@
+{
+  "plans": {
+    "silver": {
+      "name": "Silver",
+      "categories": {
+        "member_only": {
+          "display": "M",
+          "daily": 63,
+          "weekly": 438
+        },
+        "up_to_5": {
+          "display": "M(5)",
+          "daily": 111,
+          "weekly": 776
+        },
+        "up_to_8": {
+          "display": "M(8)",
+          "daily": 137,
+          "weekly": 960
+        }
+      },
+      "additional_spouse": {
+        "daily": 13,
+        "weekly": 94
+      }
+    },
+    "gold": {
+      "name": "Gold",
+      "categories": {
+        "member_only": {
+          "display": "M",
+          "daily": 84,
+          "weekly": 586
+        },
+        "up_to_5": {
+          "display": "M(5)",
+          "daily": 152,
+          "weekly": 1064
+        },
+        "up_to_8": {
+          "display": "M(8)",
+          "daily": 189,
+          "weekly": 1324
+        }
+      },
+      "additional_spouse": {
+        "daily": 19,
+        "weekly": 133
+      }
+    }
+  }
+}
