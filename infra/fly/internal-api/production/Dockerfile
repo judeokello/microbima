@@ -11,6 +11,9 @@ RUN apk add --no-cache \
 # Set working directory
 WORKDIR /app
 
+# Upgrade npm to latest version
+RUN npm install -g npm@11.6.2
+
 # Install pnpm
 RUN npm install -g pnpm@10.17.1
 

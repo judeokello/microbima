@@ -73,10 +73,10 @@ export default function PaymentStep() {
     const currentDate = new Date();
     const endDate = new Date(currentDate);
     endDate.setDate(endDate.getDate() + 276);
-    return endDate.toLocaleDateString('en-GB', { 
-      year: 'numeric', 
-      month: 'long', 
-      day: 'numeric' 
+    return endDate.toLocaleDateString('en-GB', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
     });
   };
 
