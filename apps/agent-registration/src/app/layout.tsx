@@ -4,6 +4,7 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 
 import { Toaster } from "@/components/ui/sonner";
+import { EnvironmentIndicator } from "@/components/environment-indicator";
 import { APP_CONFIG } from "@/config/app-config";
 import { getPreference } from "@/server/server-actions";
 import { PreferencesStoreProvider } from "@/stores/preferences/preferences-provider";
@@ -31,6 +32,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
     >
       <body className={`${inter.className} min-h-screen antialiased`}>
         <PreferencesStoreProvider themeMode={themeMode} themePreset={themePreset}>
+          <EnvironmentIndicator />
           {children}
           <Toaster />
         </PreferencesStoreProvider>

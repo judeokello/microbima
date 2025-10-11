@@ -350,6 +350,16 @@ export default function CustomerStep() {
         <p className="text-gray-600">Enter the customer's personal details and dependants</p>
       </div>
 
+      {/* Success Display */}
+      {successMessage && (
+        <Alert className="bg-green-50 border-green-200">
+          <CheckCircle className="h-4 w-4 text-green-600" />
+          <AlertDescription className="text-green-800">
+            {successMessage}
+          </AlertDescription>
+        </Alert>
+      )}
+
       {/* Personal Information */}
       <Card>
         <CardHeader>
@@ -755,16 +765,6 @@ export default function CustomerStep() {
           </div>
         </CardContent>
       </Card>
-
-      {/* Success Display */}
-      {successMessage && (
-        <Alert className="bg-green-50 border-green-200">
-          <CheckCircle className="h-4 w-4 text-green-600" />
-          <AlertDescription className="text-green-800">
-            {successMessage}
-          </AlertDescription>
-        </Alert>
-      )}
 
       {/* Error Display */}
       {error && (
