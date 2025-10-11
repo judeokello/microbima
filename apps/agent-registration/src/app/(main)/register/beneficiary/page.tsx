@@ -255,7 +255,21 @@ export default function BeneficiaryStep() {
 
     } catch (error) {
       console.error('Error processing beneficiary:', error);
-      setError(error instanceof Error ? error.message : 'An unexpected error occurred');
+
+      // Transform API validation errors into user-friendly messages
+      let errorMessage = error instanceof Error ? error.message : 'An unexpected error occurred';
+
+      // Handle date of birth validation errors
+      if (errorMessage.includes('dateOfBirth') && errorMessage.includes('ISO 8601')) {
+        errorMessage = 'Invalid date of birth. Please select a valid date.';
+      }
+
+      // Handle relationship validation errors
+      if (errorMessage.includes('relationship must be one of the following values')) {
+        errorMessage = 'Please select a relationship';
+      }
+
+      setError(errorMessage);
     } finally {
       setIsSubmitting(false);
     }
@@ -330,12 +344,12 @@ export default function BeneficiaryStep() {
                   </Select>
                 </div>
                 <div>
-                  <Label htmlFor="idNumber">ID Number *</Label>
+                  <Label htmlFor="idNumber">ID Number</Label>
                   <Input
                     id="idNumber"
                     value={formData.idNumber}
                     onChange={(e) => handleInputChange('idNumber', e.target.value)}
-                    placeholder="Enter ID number"
+                    placeholder="Enter ID number (optional)"
                     inputMode="numeric"
                     pattern="[0-9]*"
                   />
