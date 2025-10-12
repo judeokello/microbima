@@ -30,7 +30,7 @@ interface CustomerFormData {
   // Address Information - Removed as not required by API
 
   // Dependants (Spouse & Children)
-  spouse: {
+  spouses: Array<{
     firstName: string;
     middleName: string;
     lastName: string;
@@ -39,7 +39,7 @@ interface CustomerFormData {
     phoneNumber: string;
     idType: string;
     idNumber: string;
-  } | null;
+  }>;
   children: Array<{
     firstName: string;
     middleName: string;
@@ -111,7 +111,7 @@ const initialFormData: CustomerFormData = {
   gender: 'MALE', // Default to Male
   idType: 'NATIONAL_ID', // Default to National ID
   idNumber: '',
-  spouse: null,
+  spouses: [],
   children: [],
 };
 
@@ -123,7 +123,6 @@ export default function CustomerStep() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [formData, setFormData] = useState<CustomerFormData>(initialFormData);
-  const [showSpouse, setShowSpouse] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   // Handle success notification from payment page
@@ -132,7 +131,7 @@ export default function CustomerStep() {
     const customerName = searchParams.get('customerName');
 
     if (success === 'true' && customerName) {
-      setSuccessMessage(`The customer ${customerName} was registered successfully`);
+      setSuccessMessage(`The customer '${customerName}' was registered successfully`);
       // Clear form data for next registration
       setFormData(initialFormData);
       // Clear URL parameters after showing message
@@ -147,18 +146,38 @@ export default function CustomerStep() {
     }));
   };
 
-  const handleSpouseChange = (field: keyof NonNullable<CustomerFormData['spouse']>, value: string) => {
+  const handleSpouseChange = (spouseIndex: number, field: keyof NonNullable<CustomerFormData['spouses'][0]>, value: string) => {
     setFormData(prev => ({
       ...prev,
-      spouse: prev.spouse ? { ...prev.spouse, [field]: value } : { firstName: '', middleName: '', lastName: '', gender: 'FEMALE', dateOfBirth: '', phoneNumber: '', idType: 'NATIONAL_ID', idNumber: '' }
+      spouses: prev.spouses.map((spouse, index) =>
+        index === spouseIndex ? { ...spouse, [field]: value } : spouse
+      )
+    }));
+  };
+
+  const addSpouse = () => {
+    if (formData.spouses.length < 2) {
+      setFormData(prev => ({
+        ...prev,
+        spouses: [...prev.spouses, { firstName: '', middleName: '', lastName: '', gender: 'FEMALE', dateOfBirth: '', phoneNumber: '', idType: 'NATIONAL_ID', idNumber: '' }]
+      }));
+    }
+  };
+
+  const removeSpouse = (spouseIndex: number) => {
+    setFormData(prev => ({
+      ...prev,
+      spouses: prev.spouses.filter((_, index) => index !== spouseIndex)
     }));
   };
 
   const addChild = () => {
-    setFormData(prev => ({
-      ...prev,
-      children: [...prev.children, { firstName: '', middleName: '', lastName: '', gender: 'MALE', dateOfBirth: '', phoneNumber: '', idType: 'BIRTH_CERTIFICATE', idNumber: '' }]
-    }));
+    if (formData.children.length < 7) {
+      setFormData(prev => ({
+        ...prev,
+        children: [...prev.children, { firstName: '', middleName: '', lastName: '', gender: 'MALE', dateOfBirth: '', phoneNumber: '', idType: 'BIRTH_CERTIFICATE', idNumber: '' }]
+      }));
+    }
   };
 
   const removeChild = (index: number) => {
@@ -240,10 +259,14 @@ export default function CustomerStep() {
         return;
       }
 
-      if (formData.spouse?.phoneNumber && !validatePhoneNumber(formData.spouse.phoneNumber)) {
-        setError('Spouse phone number must be 10 digits starting with 01 or 07');
-        setIsSubmitting(false);
-        return;
+      // Validate spouse phone numbers
+      for (let i = 0; i < formData.spouses.length; i++) {
+        const spouse = formData.spouses[i];
+        if (spouse.phoneNumber && !validatePhoneNumber(spouse.phoneNumber)) {
+          setError(`Spouse ${i + 1} phone number must be 10 digits starting with 01 or 07`);
+          setIsSubmitting(false);
+          return;
+        }
       }
 
       // Validate children phone numbers
@@ -274,16 +297,16 @@ export default function CustomerStep() {
           productId: 'default-product', // TODO: Get from product selection
           planId: 'default-plan', // TODO: Get from plan selection
         },
-        spouses: formData.spouse ? [{
-          firstName: toTitleCase(formData.spouse.firstName),
-          lastName: toTitleCase(formData.spouse.lastName),
-          middleName: formData.spouse.middleName ? toTitleCase(formData.spouse.middleName) : undefined,
-          ...(formData.spouse.dateOfBirth && { dateOfBirth: formData.spouse.dateOfBirth }),
-          gender: formData.spouse.gender.toLowerCase(),
-          phoneNumber: formData.spouse.phoneNumber ? formatPhoneNumber(formData.spouse.phoneNumber) : undefined,
-          idType: mapIdTypeToBackend(formData.spouse.idType),
-          idNumber: formData.spouse.idNumber,
-        }] : undefined,
+        spouses: formData.spouses.length > 0 ? formData.spouses.map(spouse => ({
+          firstName: toTitleCase(spouse.firstName),
+          lastName: toTitleCase(spouse.lastName),
+          middleName: spouse.middleName ? toTitleCase(spouse.middleName) : undefined,
+          ...(spouse.dateOfBirth && { dateOfBirth: spouse.dateOfBirth }),
+          gender: spouse.gender.toLowerCase(),
+          phoneNumber: spouse.phoneNumber ? formatPhoneNumber(spouse.phoneNumber) : undefined,
+          idType: mapIdTypeToBackend(spouse.idType),
+          idNumber: spouse.idNumber,
+        })) : undefined,
         children: formData.children.length > 0 ? formData.children.map(child => ({
           firstName: toTitleCase(child.firstName),
           lastName: toTitleCase(child.lastName),
@@ -417,7 +440,7 @@ export default function CustomerStep() {
                   const formatted = formatPhoneNumber(e.target.value);
                   handleInputChange('phoneNumber', formatted);
                 }}
-                placeholder="Enter phone number (01xxxxxxxx or 07xxxxxxxx)"
+                placeholder="01xxxxxxxx or 07xxxxxxxx"
                 maxLength={10}
                 inputMode="numeric"
                 pattern="[0-9]*"
@@ -532,121 +555,131 @@ export default function CustomerStep() {
           <CardTitle>Dependants</CardTitle>
         </CardHeader>
         <CardContent className="space-y-6">
-          {/* Spouse */}
+          {/* Spouses */}
           <div>
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold">Spouse</h3>
+              <h3 className="text-lg font-semibold">Spouses ({formData.spouses.length}/2)</h3>
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => setShowSpouse(!showSpouse)}
+                onClick={addSpouse}
+                disabled={formData.spouses.length >= 2}
               >
-                {showSpouse ? 'Remove Spouse' : 'Add Spouse'}
+                <Plus className="h-4 w-4 mr-2" />
+                Add Spouse
               </Button>
             </div>
 
-            {showSpouse && (
-              <>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 border rounded-lg">
-                <div>
-                  <Label htmlFor="spouseFirstName">First Name</Label>
-                  <Input
-                    id="spouseFirstName"
-                    value={formData.spouse?.firstName ?? ''}
-                    onChange={(e) => handleSpouseChange('firstName', e.target.value)}
-                    placeholder="Enter spouse first name"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="spouseMiddleName">Middle Name</Label>
-                  <Input
-                    id="spouseMiddleName"
-                    value={formData.spouse?.middleName ?? ''}
-                    onChange={(e) => handleSpouseChange('middleName', e.target.value)}
-                    placeholder="Enter spouse middle name"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="spouseLastName">Last Name</Label>
-                  <Input
-                    id="spouseLastName"
-                    value={formData.spouse?.lastName ?? ''}
-                    onChange={(e) => handleSpouseChange('lastName', e.target.value)}
-                    placeholder="Enter spouse last name"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="spouseGender">Gender</Label>
-                  <Select
-                    value={formData.spouse?.gender ?? 'FEMALE'}
-                    onValueChange={(value) => handleSpouseChange('gender', value)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select gender" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="MALE">Male</SelectItem>
-                      <SelectItem value="FEMALE">Female</SelectItem>
-                      <SelectItem value="OTHER">Other</SelectItem>
-                      <SelectItem value="PREFER_NOT_TO_SAY">Prefer not to say</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label htmlFor="spouseDateOfBirth">Date of Birth</Label>
-                  <Input
-                    id="spouseDateOfBirth"
-                    type="date"
-                    value={formData.spouse?.dateOfBirth ?? ''}
-                    onChange={(e) => handleSpouseChange('dateOfBirth', e.target.value)}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="spousePhoneNumber">Phone Number</Label>
-                  <Input
-                    id="spousePhoneNumber"
-                    value={formData.spouse?.phoneNumber ?? ''}
-                    onChange={(e) => {
-                      const formatted = formatPhoneNumber(e.target.value);
-                      handleSpouseChange('phoneNumber', formatted);
-                    }}
-                    placeholder="Enter spouse phone number (01xxxxxxxx or 07xxxxxxxx)"
-                    maxLength={10}
-                    inputMode="numeric"
-                    pattern="[0-9]*"
-                  />
-                </div>
-              </div>
+            {formData.spouses.map((spouse, spouseIndex) => (
+              <div key={spouseIndex} className="mb-6">
+                <h4 className="text-md font-medium mb-4">Spouse {spouseIndex + 1}</h4>
 
-              {/* Spouse ID Information */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="spouseIdType">ID Type *</Label>
-                  <Select value={formData.spouse?.idType ?? 'NATIONAL_ID'} onValueChange={(value) => handleSpouseChange('idType', value)}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select ID type" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="NATIONAL_ID">National ID</SelectItem>
-                      <SelectItem value="PASSPORT">Passport</SelectItem>
-                      <SelectItem value="ALIEN">Alien ID</SelectItem>
-                      <SelectItem value="BIRTH_CERTIFICATE">Birth Certificate</SelectItem>
-                      <SelectItem value="MILITARY">Military ID</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label htmlFor="spouseIdNumber">ID Number *</Label>
-                  <Input
-                    id="spouseIdNumber"
-                    value={formData.spouse?.idNumber ?? ''}
-                    onChange={(e) => handleSpouseChange('idNumber', e.target.value)}
-                    placeholder="Enter spouse ID number"
-                  />
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 border rounded-lg">
+                  <div>
+                    <Label htmlFor={`spouseFirstName_${spouseIndex}`}>First Name</Label>
+                    <Input
+                      id={`spouseFirstName_${spouseIndex}`}
+                      value={spouse.firstName}
+                      onChange={(e) => handleSpouseChange(spouseIndex, 'firstName', e.target.value)}
+                      placeholder="Enter spouse first name"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor={`spouseMiddleName_${spouseIndex}`}>Middle Name</Label>
+                    <Input
+                      id={`spouseMiddleName_${spouseIndex}`}
+                      value={spouse.middleName}
+                      onChange={(e) => handleSpouseChange(spouseIndex, 'middleName', e.target.value)}
+                      placeholder="Enter spouse middle name"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor={`spouseLastName_${spouseIndex}`}>Last Name</Label>
+                    <Input
+                      id={`spouseLastName_${spouseIndex}`}
+                      value={spouse.lastName}
+                      onChange={(e) => handleSpouseChange(spouseIndex, 'lastName', e.target.value)}
+                      placeholder="Enter spouse last name"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor={`spouseGender_${spouseIndex}`}>Gender</Label>
+                    <Select
+                      value={spouse.gender}
+                      onValueChange={(value) => handleSpouseChange(spouseIndex, 'gender', value)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select gender" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="MALE">Male</SelectItem>
+                        <SelectItem value="FEMALE">Female</SelectItem>
+                        <SelectItem value="OTHER">Other</SelectItem>
+                        <SelectItem value="PREFER_NOT_TO_SAY">Prefer not to say</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label htmlFor={`spouseDateOfBirth_${spouseIndex}`}>Date of Birth</Label>
+                    <Input
+                      id={`spouseDateOfBirth_${spouseIndex}`}
+                      type="date"
+                      value={spouse.dateOfBirth}
+                      onChange={(e) => handleSpouseChange(spouseIndex, 'dateOfBirth', e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor={`spousePhoneNumber_${spouseIndex}`}>Phone Number</Label>
+                    <Input
+                      id={`spousePhoneNumber_${spouseIndex}`}
+                      value={spouse.phoneNumber}
+                      onChange={(e) => {
+                        const formatted = formatPhoneNumber(e.target.value);
+                        handleSpouseChange(spouseIndex, 'phoneNumber', formatted);
+                      }}
+                      placeholder="01xxxxxxxx or 07xxxxxxxx"
+                      maxLength={10}
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor={`spouseIdType_${spouseIndex}`}>ID Type</Label>
+                    <Select value={spouse.idType} onValueChange={(value) => handleSpouseChange(spouseIndex, 'idType', value)}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select ID type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="NATIONAL_ID">National ID</SelectItem>
+                        <SelectItem value="PASSPORT">Passport</SelectItem>
+                        <SelectItem value="ALIEN">Alien ID</SelectItem>
+                        <SelectItem value="BIRTH_CERTIFICATE">Birth Certificate</SelectItem>
+                        <SelectItem value="MILITARY">Military ID</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex items-end">
+                    <div className="flex-1">
+                      <Label htmlFor={`spouseIdNumber_${spouseIndex}`}>ID Number</Label>
+                      <Input
+                        id={`spouseIdNumber_${spouseIndex}`}
+                        value={spouse.idNumber}
+                        onChange={(e) => handleSpouseChange(spouseIndex, 'idNumber', e.target.value)}
+                        placeholder="Enter spouse ID number"
+                      />
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => removeSpouse(spouseIndex)}
+                      className="ml-2"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
               </div>
-              </>
-            )}
+            ))}
           </div>
 
           <Separator />
@@ -654,11 +687,12 @@ export default function CustomerStep() {
           {/* Children */}
           <div>
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold">Children ({formData.children.length})</h3>
+              <h3 className="text-lg font-semibold">Children ({formData.children.length}/7)</h3>
               <Button
                 variant="outline"
                 size="sm"
                 onClick={addChild}
+                disabled={formData.children.length >= 7}
               >
                 <Plus className="h-4 w-4 mr-2" />
                 Add Child
@@ -666,54 +700,54 @@ export default function CustomerStep() {
             </div>
 
             {formData.children.map((child, index) => (
-              <div key={index} className="space-y-4">
+              <div key={index} className="mb-6">
+                <h4 className="text-md font-medium mb-4">Child {index + 1}</h4>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 border rounded-lg">
-                <div>
-                  <Label htmlFor={`childFirstName${index}`}>First Name</Label>
-                  <Input
-                    id={`childFirstName${index}`}
-                    value={child.firstName}
-                    onChange={(e) => handleChildChange(index, 'firstName', e.target.value)}
-                    placeholder="Enter child first name"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor={`childMiddleName${index}`}>Middle Name</Label>
-                  <Input
-                    id={`childMiddleName${index}`}
-                    value={child.middleName}
-                    onChange={(e) => handleChildChange(index, 'middleName', e.target.value)}
-                    placeholder="Enter child middle name"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor={`childLastName${index}`}>Last Name</Label>
-                  <Input
-                    id={`childLastName${index}`}
-                    value={child.lastName}
-                    onChange={(e) => handleChildChange(index, 'lastName', e.target.value)}
-                    placeholder="Enter child last name"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor={`childGender${index}`}>Gender</Label>
-                  <Select
-                    value={child.gender}
-                    onValueChange={(value) => handleChildChange(index, 'gender', value)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select gender" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="MALE">Male</SelectItem>
-                      <SelectItem value="FEMALE">Female</SelectItem>
-                      <SelectItem value="OTHER">Other</SelectItem>
-                      <SelectItem value="PREFER_NOT_TO_SAY">Prefer not to say</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="flex items-end">
-                  <div className="flex-1">
+                  <div>
+                    <Label htmlFor={`childFirstName${index}`}>First Name</Label>
+                    <Input
+                      id={`childFirstName${index}`}
+                      value={child.firstName}
+                      onChange={(e) => handleChildChange(index, 'firstName', e.target.value)}
+                      placeholder="Enter child first name"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor={`childMiddleName${index}`}>Middle Name</Label>
+                    <Input
+                      id={`childMiddleName${index}`}
+                      value={child.middleName}
+                      onChange={(e) => handleChildChange(index, 'middleName', e.target.value)}
+                      placeholder="Enter child middle name"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor={`childLastName${index}`}>Last Name</Label>
+                    <Input
+                      id={`childLastName${index}`}
+                      value={child.lastName}
+                      onChange={(e) => handleChildChange(index, 'lastName', e.target.value)}
+                      placeholder="Enter child last name"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor={`childGender${index}`}>Gender</Label>
+                    <Select
+                      value={child.gender}
+                      onValueChange={(value) => handleChildChange(index, 'gender', value)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select gender" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="MALE">Male</SelectItem>
+                        <SelectItem value="FEMALE">Female</SelectItem>
+                        <SelectItem value="OTHER">Other</SelectItem>
+                        <SelectItem value="PREFER_NOT_TO_SAY">Prefer not to say</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
                     <Label htmlFor={`childDateOfBirth${index}`}>Date of Birth</Label>
                     <Input
                       id={`childDateOfBirth${index}`}
@@ -722,43 +756,40 @@ export default function CustomerStep() {
                       onChange={(e) => handleChildChange(index, 'dateOfBirth', e.target.value)}
                     />
                   </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => removeChild(index)}
-                    className="ml-2"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-
-              {/* Child ID Information */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor={`childIdType${index}`}>ID Type *</Label>
-                  <Select value={child.idType} onValueChange={(value) => handleChildChange(index, 'idType', value)}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select ID type" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="NATIONAL_ID">National ID</SelectItem>
-                      <SelectItem value="PASSPORT">Passport</SelectItem>
-                      <SelectItem value="ALIEN">Alien ID</SelectItem>
-                      <SelectItem value="BIRTH_CERTIFICATE">Birth Certificate</SelectItem>
-                      <SelectItem value="MILITARY">Military ID</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label htmlFor={`childIdNumber${index}`}>ID Number *</Label>
-                  <Input
-                    id={`childIdNumber${index}`}
-                    value={child.idNumber}
-                    onChange={(e) => handleChildChange(index, 'idNumber', e.target.value)}
-                    placeholder="Enter child ID number"
-                  />
-                </div>
+                  <div>
+                    <Label htmlFor={`childIdType${index}`}>ID Type</Label>
+                    <Select value={child.idType} onValueChange={(value) => handleChildChange(index, 'idType', value)}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select ID type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="NATIONAL_ID">National ID</SelectItem>
+                        <SelectItem value="PASSPORT">Passport</SelectItem>
+                        <SelectItem value="ALIEN">Alien ID</SelectItem>
+                        <SelectItem value="BIRTH_CERTIFICATE">Birth Certificate</SelectItem>
+                        <SelectItem value="MILITARY">Military ID</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex items-end">
+                    <div className="flex-1">
+                      <Label htmlFor={`childIdNumber${index}`}>ID Number</Label>
+                      <Input
+                        id={`childIdNumber${index}`}
+                        value={child.idNumber}
+                        onChange={(e) => handleChildChange(index, 'idNumber', e.target.value)}
+                        placeholder="Enter child ID number"
+                      />
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => removeChild(index)}
+                      className="ml-2"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
               </div>
             ))}

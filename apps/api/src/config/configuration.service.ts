@@ -120,7 +120,8 @@ export class ConfigurationService extends BaseConfigurationService implements On
   }
 
   get port(): number {
-    return this.config?.port ?? 3000;
+    // Always read from environment variable to ensure we get the latest value
+    return parseInt(process.env.PORT || '3001', 10);
   }
 
   get apiPrefix(): string {

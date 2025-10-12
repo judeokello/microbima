@@ -314,7 +314,7 @@ export default function PaymentStep() {
                 Additional Spouse Premium
                 {pricingData && selectedPlan && selectedCategory !== 'member_only' && (
                   <span className="text-gray-500 ml-1">
-                    (+{pricingData.plans[selectedPlan as keyof typeof pricingData.plans].additional_spouse.daily} KES/day)
+                    (+{pricingData.plans[selectedPlan as keyof typeof pricingData.plans].additional_spouse.daily} KES/day, +{pricingData.plans[selectedPlan as keyof typeof pricingData.plans].additional_spouse.weekly} KES/week)
                   </span>
                 )}
               </Label>
