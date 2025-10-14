@@ -32,6 +32,7 @@ import {
   GenerateApiKeyResponseDto,
   PartnerListResponseDto,
 } from '../../dto/partner-management';
+import { CreateBrandAmbassadorFromExistingUserRequestDto } from '../../dto/partner-management/create-brand-ambassador-from-existing-user-request.dto';
 
 /**
  * Internal Partner Management Controller
@@ -349,6 +350,72 @@ export class InternalPartnerManagementController {
       return response;
     } catch (error) {
       this.logger.error(`[${correlationId}] Error creating Brand Ambassador: ${error instanceof Error ? error.message : 'Unknown error'}`, error instanceof Error ? error.stack : undefined);
+      throw error;
+    }
+  }
+
+  /**
+   * Create a Brand Ambassador from an existing user
+   */
+  @Post('partners/:partnerId/brand-ambassadors/from-existing-user')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({
+    summary: 'Create Brand Ambassador from existing user',
+    description: 'Create a Brand Ambassador record for an existing user (for bootstrap scenarios).',
+  })
+  @ApiParam({
+    name: 'partnerId',
+    description: 'Partner ID',
+    type: 'number',
+    example: 1,
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'Brand Ambassador created successfully',
+    type: CreateBrandAmbassadorResponseDto,
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Bad request - validation failed',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Partner not found',
+  })
+  @ApiResponse({
+    status: 409,
+    description: 'Brand Ambassador already exists for this user',
+  })
+  @ApiResponse({
+    status: 500,
+    description: 'Internal server error',
+  })
+  async createBrandAmbassadorFromExistingUser(
+    @Param('partnerId') partnerId: number,
+    @Body() dto: CreateBrandAmbassadorFromExistingUserRequestDto,
+    @CorrelationId() correlationId: string,
+  ): Promise<CreateBrandAmbassadorResponseDto> {
+    try {
+      this.logger.log(`[${correlationId}] Creating Brand Ambassador from existing user ${dto.userId} for partner ${partnerId}`);
+
+      const brandAmbassador = await this.partnerManagementService.createBrandAmbassadorFromExistingUser(partnerId, dto, correlationId);
+
+      const response: CreateBrandAmbassadorResponseDto = {
+        id: brandAmbassador.id,
+        userId: brandAmbassador.userId,
+        partnerId: brandAmbassador.partnerId,
+        displayName: brandAmbassador.displayName,
+        phoneNumber: brandAmbassador.phoneNumber || undefined,
+        perRegistrationRateCents: brandAmbassador.perRegistrationRateCents,
+        isActive: brandAmbassador.isActive,
+        createdAt: brandAmbassador.createdAt,
+        updatedAt: brandAmbassador.updatedAt,
+      };
+
+      this.logger.log(`[${correlationId}] ✅ Brand Ambassador created successfully from existing user: ${brandAmbassador.id}`);
+      return response;
+    } catch (error) {
+      this.logger.error(`[${correlationId}] Error creating Brand Ambassador from existing user: ${error instanceof Error ? error.message : 'Unknown error'}`, error instanceof Error ? error.stack : undefined);
       throw error;
     }
   }

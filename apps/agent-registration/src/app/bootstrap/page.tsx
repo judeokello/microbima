@@ -88,7 +88,7 @@ export default function BootstrapPage() {
 
         // Step 2: Create Brand Ambassador record in the database
         try {
-          const baResponse = await fetch(`${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/partner-management/partners/1/brand-ambassadors`, {
+          const baResponse = await fetch(`${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/partner-management/partners/1/brand-ambassadors/from-existing-user`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',

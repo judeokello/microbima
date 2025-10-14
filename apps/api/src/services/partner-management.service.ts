@@ -518,6 +518,85 @@ export class PartnerManagementService {
   }
 
   /**
+   * Create a Brand Ambassador from an existing user
+   * @param partnerId - Partner ID
+   * @param brandAmbassadorData - Brand Ambassador data for existing user
+   * @param correlationId - Correlation ID for tracing
+   * @returns Created Brand Ambassador
+   */
+  async createBrandAmbassadorFromExistingUser(
+    partnerId: number,
+    brandAmbassadorData: {
+      userId: string;
+      displayName: string;
+      phoneNumber?: string;
+      perRegistrationRateCents: number;
+      isActive?: boolean;
+      createdBy?: string;
+    },
+    correlationId: string
+  ) {
+    this.logger.log(`[${correlationId}] Creating Brand Ambassador from existing user ${brandAmbassadorData.userId} for partner ${partnerId}`);
+
+    // Validate that partner exists and is active
+    const partner = await this.prismaService.partner.findFirst({
+      where: {
+        id: partnerId,
+        isActive: true,
+      },
+    });
+
+    if (!partner) {
+      throw new NotFoundException(`Partner with ID ${partnerId} not found or inactive`);
+    }
+
+    // Verify that the user exists in Supabase (optional check)
+    try {
+      const { data: user, error } = await this.supabaseService
+        .getClient()
+        .auth.admin.getUserById(brandAmbassadorData.userId);
+
+      if (error || !user) {
+        throw new BadRequestException(`User with ID ${brandAmbassadorData.userId} not found`);
+      }
+    } catch (error) {
+      this.logger.warn(`[${correlationId}] Could not verify user existence in Supabase: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      // Continue anyway - the user might exist but we can't verify due to permissions
+    }
+
+    // Check if Brand Ambassador already exists for this user
+    const existingBA = await this.prismaService.brandAmbassador.findFirst({
+      where: {
+        userId: brandAmbassadorData.userId,
+      },
+    });
+
+    if (existingBA) {
+      throw new BadRequestException('Brand Ambassador already exists for this user');
+    }
+
+    // Use createdBy from request if provided, otherwise use the user's own ID
+    const createdByUserId = brandAmbassadorData.createdBy || brandAmbassadorData.userId;
+
+    // Create the Brand Ambassador record
+    const brandAmbassador = await this.prismaService.brandAmbassador.create({
+      data: {
+        userId: brandAmbassadorData.userId,
+        partnerId: partnerId,
+        displayName: brandAmbassadorData.displayName,
+        phoneNumber: brandAmbassadorData.phoneNumber,
+        perRegistrationRateCents: brandAmbassadorData.perRegistrationRateCents,
+        isActive: brandAmbassadorData.isActive ?? true,
+        createdBy: createdByUserId,
+        updatedBy: createdByUserId,
+      },
+    });
+
+    this.logger.log(`✅ Brand Ambassador created successfully from existing user: ${brandAmbassador.id}`);
+    return brandAmbassador;
+  }
+
+  /**
    * Get all Brand Ambassadors
    * @param correlationId - Correlation ID for tracing
    * @param page - Page number (default: 1)

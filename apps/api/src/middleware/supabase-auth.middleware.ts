@@ -29,6 +29,12 @@ export class SupabaseAuthMiddleware implements NestMiddleware {
       return next();
     }
 
+    // Skip authentication for bootstrap endpoints (one-time setup before users exist)
+    if (req.path.startsWith('/api/internal/bootstrap')) {
+      console.log('Skipping Supabase auth for bootstrap endpoint:', req.path);
+      return next();
+    }
+
     console.log('Supabase Auth Middleware - Processing:', req.path);
 
     try {

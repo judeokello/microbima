@@ -67,6 +67,7 @@ export async function createBrandAmbassador(data: CreateBARequest): Promise<Crea
       password: data.password,
       firstName: data.firstName,
       lastName: data.lastName,
+      displayName: `${data.firstName} ${data.lastName}`.trim(),
       roles: data.roles,
       phoneNumber: data.phone,
       perRegistrationRateCents: data.perRegistrationRateCents,
@@ -100,7 +101,12 @@ export async function createBrandAmbassador(data: CreateBARequest): Promise<Crea
       }
     }
 
-    return await response.json();
+    const result = await response.json();
+    return {
+      success: true,
+      userId: result.userId,
+      baId: result.id
+    };
 
   } catch (error) {
     console.error('Error creating brand ambassador:', error)
