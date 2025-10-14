@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Plus, Trash2, Loader2, CheckCircle } from 'lucide-react';
+import { Plus, Trash2, Loader2, CheckCircle, LayoutDashboard } from 'lucide-react';
 import { createCustomer, createAgentRegistration, CustomerRegistrationRequest } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
 import { useBrandAmbassador } from '@/hooks/useBrandAmbassador';
@@ -368,9 +368,20 @@ export default function CustomerStep() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold">Customer Information</h2>
-        <p className="text-gray-600">Enter the customer's personal details and dependants</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-bold">Customer Information</h2>
+          <p className="text-gray-600">Enter the customer's personal details and dependants</p>
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => router.push('/dashboard/default')}
+          className="flex items-center gap-2"
+        >
+          <LayoutDashboard className="h-4 w-4" />
+          Dashboard
+        </Button>
       </div>
 
       {/* Success Display */}

@@ -91,17 +91,16 @@ export async function createBrandAmbassador(data: CreateBARequest): Promise<Crea
     )
 
     if (!response.ok) {
-      const errorData = await response.json()
-      throw new Error(errorData.error?.message || `Failed to create BA record: ${response.statusText}`)
+      try {
+        const errorData = await response.json();
+        const errorMessage = errorData.error?.details?.message ?? errorData.error?.message ?? `Failed to create BA record: ${response.statusText}`;
+        throw new Error(errorMessage);
+      } catch {
+        throw new Error(`Failed to create BA record: ${response.statusText}`);
+      }
     }
 
-    const result = await response.json()
-
-    return {
-      success: true,
-      userId: result.userId,
-      baId: result.id
-    }
+    return await response.json();
 
   } catch (error) {
     console.error('Error creating brand ambassador:', error)
@@ -127,13 +126,16 @@ export async function getBrandAmbassadors(): Promise<BrandAmbassador[]> {
     )
 
     if (!response.ok) {
-      throw new Error(`Failed to fetch brand ambassadors: ${response.statusText}`)
+      try {
+        const errorData = await response.json();
+        const errorMessage = errorData.error?.details?.message ?? errorData.error?.message ?? `Failed to fetch brand ambassadors: ${response.statusText}`;
+        throw new Error(errorMessage);
+      } catch {
+        throw new Error(`Failed to fetch brand ambassadors: ${response.statusText}`);
+      }
     }
-
-    const result = await response.json()
-
-    // Return the brand ambassadors array from the response
-    return result.brandAmbassadors || []
+    const data = await response.json();
+    return data.brandAmbassadors ?? [];
   } catch (error) {
     console.error('Error fetching brand ambassadors:', error)
     // Return empty array on error to prevent UI breaking
@@ -156,13 +158,16 @@ export async function getPartners(): Promise<Partner[]> {
     )
 
     if (!response.ok) {
-      throw new Error(`Failed to fetch partners: ${response.statusText}`)
+      try {
+        const errorData = await response.json();
+        const errorMessage = errorData.error?.details?.message ?? errorData.error?.message ?? `Failed to fetch partners: ${response.statusText}`;
+        throw new Error(errorMessage);
+      } catch {
+        throw new Error(`Failed to fetch partners: ${response.statusText}`);
+      }
     }
-
-    const result = await response.json()
-
-    // Return the partners array from the response
-    return result.partners || []
+    const data = await response.json();
+    return data.partners ?? [];
   } catch (error) {
     console.error('Error fetching partners:', error)
     // Return empty array on error to prevent UI breaking

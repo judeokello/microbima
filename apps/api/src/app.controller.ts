@@ -244,4 +244,26 @@ export class AppController {
   getSimpleSentryError() {
     throw new Error('Simple Sentry test error!');
   }
+
+  @Get('debug-sentry-public')
+  @ApiTags('Debug')
+  @ApiOperation({
+    summary: 'Public Sentry Debug Endpoint',
+    description: 'Public test endpoint that throws an error for Sentry testing (no auth required)'
+  })
+  @ApiResponse({
+    status: 500,
+    description: 'Intentionally throws an error for Sentry testing',
+    schema: {
+      type: 'object',
+      properties: {
+        error: { type: 'string', example: 'Public Sentry test error!' }
+      }
+    }
+  })
+  getPublicSentryError() {
+    // Test Sentry error reporting
+    Sentry.captureException(new Error('Public Sentry test error!'));
+    throw new Error('Public Sentry test error!');
+  }
 }

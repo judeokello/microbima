@@ -6,7 +6,7 @@ async function main() {
   console.log('🌱 Starting database seeding...');
 
   // Create Maisha Poa partner
-  const maishaPoaPartner = await prisma.partner.upsert({
+  const maishaPoaPartner = await prisma.partners.upsert({
     where: { id: 1 },
     update: {},
     create: {
@@ -15,7 +15,7 @@ async function main() {
       website: 'https://www.maishapoa.co.ke',
       officeLocation: 'Lotus Plaza, parklands',
       isActive: true,
-      partnerContacts: {
+      partner_contacts: {
         create: [
           {
             contactName: 'John Mwangi',
@@ -37,7 +37,7 @@ async function main() {
   console.log('✅ Created Maisha Poa partner:', maishaPoaPartner.id);
 
   // Create sample customers
-  const customer1 = await prisma.customer.upsert({
+  const customer1 = await prisma.customers.upsert({
     where: { email: 'john.doe@example.com' },
     update: {},
     create: {
@@ -140,7 +140,7 @@ async function main() {
     },
   });
 
-  const customer2 = await prisma.customer.upsert({
+  const customer2 = await prisma.customers.upsert({
     where: { email: 'jane.smith@example.com' },
     update: {},
     create: {
@@ -199,7 +199,7 @@ async function main() {
   });
 
   // Create PartnerCustomer relationships
-  await prisma.partnerCustomer.upsert({
+  await prisma.partner_customers.upsert({
     where: {
       partnerId_partnerCustomerId: {
         partnerId: maishaPoaPartner.id,
@@ -214,7 +214,7 @@ async function main() {
     },
   });
 
-  await prisma.partnerCustomer.upsert({
+  await prisma.partner_customers.upsert({
     where: {
       partnerId_partnerCustomerId: {
         partnerId: maishaPoaPartner.id,
@@ -230,7 +230,7 @@ async function main() {
   });
 
   // Create sample policies with paymentCadence
-  await prisma.policy.upsert({
+  await prisma.policies.upsert({
     where: { policyNumber: 'POL-001-2024' },
     update: {},
     create: {
@@ -247,7 +247,7 @@ async function main() {
     },
   });
 
-  await prisma.policy.upsert({
+  await prisma.policies.upsert({
     where: { policyNumber: 'POL-002-2024' },
     update: {},
     create: {
@@ -264,7 +264,7 @@ async function main() {
     },
   });
 
-  await prisma.policy.upsert({
+  await prisma.policies.upsert({
     where: { policyNumber: 'POL-003-2024' },
     update: {},
     create: {
@@ -282,11 +282,11 @@ async function main() {
   });
 
   console.log('✅ Database seeded successfully!');
-  console.log(`📊 Created ${await prisma.partner.count()} partners`);
-  console.log(`📊 Created ${await prisma.customer.count()} customers`);
-  console.log(`📊 Created ${await prisma.beneficiary.count()} beneficiaries`);
-  console.log(`📊 Created ${await prisma.policy.count()} policies`);
-  console.log(`📊 Created ${await prisma.partnerCustomer.count()} partner-customer relationships`);
+  console.log(`📊 Created ${await prisma.partners.count()} partners`);
+  console.log(`📊 Created ${await prisma.customers.count()} customers`);
+  console.log(`📊 Created ${await prisma.beneficiaries.count()} beneficiaries`);
+  console.log(`📊 Created ${await prisma.policies.count()} policies`);
+  console.log(`📊 Created ${await prisma.partner_customers.count()} partner-customer relationships`);
 }
 
 main()

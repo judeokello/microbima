@@ -60,14 +60,40 @@ export default function BootstrapPage() {
       }
 
       if (authData.user) {
-        // Create Brand Ambassador record in the database
+        // Step 1: Seed initial system data (Maisha Poa partner + MfanisiGo product)
+        try {
+          const seedResponse = await fetch(`${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/bootstrap/seed-initial-data`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-correlation-id': `bootstrap-seed-${Date.now()}`
+            },
+            body: JSON.stringify({
+              userId: authData.user.id
+            })
+          })
+
+          if (!seedResponse.ok) {
+            const errorText = await seedResponse.text()
+            console.warn('Failed to seed initial data:', errorText)
+            throw new Error(`Failed to seed initial data: ${errorText}`)
+          }
+
+          const seedResult = await seedResponse.json()
+          console.log('✅ Initial data seeded:', seedResult)
+        } catch (seedError) {
+          console.error('Error seeding initial data:', seedError)
+          throw new Error(`Failed to seed initial system data. Please contact support.`)
+        }
+
+        // Step 2: Create Brand Ambassador record in the database
         try {
           const baResponse = await fetch(`${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/partner-management/partners/1/brand-ambassadors`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
               'Authorization': `Bearer ${authData.session?.access_token}`,
-              'x-correlation-id': `bootstrap-${Date.now()}`
+              'x-correlation-id': `bootstrap-ba-${Date.now()}`
             },
             body: JSON.stringify({
               userId: authData.user.id,
@@ -79,12 +105,16 @@ export default function BootstrapPage() {
           })
 
           if (!baResponse.ok) {
-            console.warn('Failed to create Brand Ambassador record:', await baResponse.text())
-            // Don't fail the entire process if BA creation fails
+            const errorText = await baResponse.text()
+            console.warn('Failed to create Brand Ambassador record:', errorText)
+            throw new Error(`Failed to create Brand Ambassador: ${errorText}`)
           }
+
+          const baResult = await baResponse.json()
+          console.log('✅ Brand Ambassador created:', baResult)
         } catch (baError) {
-          console.warn('Error creating Brand Ambassador record:', baError)
-          // Don't fail the entire process if BA creation fails
+          console.error('Error creating Brand Ambassador record:', baError)
+          throw new Error(`Failed to create Brand Ambassador. Please contact support.`)
         }
 
         setSuccess(true)

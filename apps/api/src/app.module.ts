@@ -22,6 +22,7 @@ import { SupabaseTestController } from './controllers/internal/supabase-test.con
 import { ConnectionMonitorController } from './controllers/internal/connection-monitor.controller';
 import { SosController } from './controllers/sos.controller';
 import { AgentRegistrationController } from './controllers/internal/agent-registration.controller';
+import { BootstrapController } from './controllers/internal/bootstrap.controller';
 
 @Module({
   imports: [
@@ -29,7 +30,7 @@ import { AgentRegistrationController } from './controllers/internal/agent-regist
     ConfigurationModule,
     PrismaModule
   ],
-  controllers: [AppController, CustomerController, InternalCustomerController, InternalPartnerManagementController, PublicPartnerManagementController, SupabaseTestController, ConnectionMonitorController, SosController, AgentRegistrationController],
+  controllers: [AppController, CustomerController, InternalCustomerController, InternalPartnerManagementController, PublicPartnerManagementController, SupabaseTestController, ConnectionMonitorController, SosController, AgentRegistrationController, BootstrapController],
   providers: [AppService, ExternalIntegrationsService, CustomerService, PartnerManagementService, SupabaseService, SosService, AgentRegistrationService, MissingRequirementService],
   exports: [PrismaModule], // Export PrismaModule so middleware can access PrismaService
 })

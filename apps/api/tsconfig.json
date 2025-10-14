@@ -21,6 +21,9 @@
   ],
   "exclude": [
     "node_modules",
-    "dist"
+    "dist",
+    "prisma/seed.ts",
+    "prisma/seed-simple.ts",
+    "prisma/seed-agent-registration.ts"
   ]
 }

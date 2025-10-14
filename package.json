@@ -34,5 +34,9 @@
     "node": ">=18.0.0",
     "pnpm": ">=8.0.0"
   },
-  "packageManager": "pnpm@8.15.0"
+  "packageManager": "pnpm@8.15.0",
+  "dependencies": {
+    "import-in-the-middle": "^1.14.2",
+    "require-in-the-middle": "^7.5.2"
+  }
 }
