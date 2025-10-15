@@ -103,7 +103,6 @@
     "passWithNoTests": true
   },
   "prisma": {
-    "seed": "ts-node prisma/seed.ts",
-    "seed:ts": "ts-node prisma/seed.ts"
+    "seed": "ts-node prisma/seed-agent-registration.ts"
   }
 }
