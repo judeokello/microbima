@@ -1,13 +1,73 @@
 import { Controller, Post, Body, Headers, Logger } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiHeader } from '@nestjs/swagger';
 import { PrismaService } from '../../prisma/prisma.service';
+import { SupabaseService } from '../../services/supabase.service';
 
 @ApiTags('Bootstrap')
 @Controller('internal/bootstrap')
 export class BootstrapController {
   private readonly logger = new Logger(BootstrapController.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly supabase: SupabaseService,
+  ) {}
+
+  @Post('create-user')
+  @ApiOperation({
+    summary: 'Create bootstrap user with email auto-confirmation',
+    description: 'Creates the first admin user with confirmed email. Returns user ID for subsequent operations.',
+  })
+  @ApiHeader({
+    name: 'x-correlation-id',
+    required: true,
+    description: 'Correlation ID for request tracing',
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'Bootstrap user created successfully',
+    schema: {
+      type: 'object',
+      properties: {
+        success: { type: 'boolean', example: true },
+        userId: { type: 'string', example: 'uuid-here' },
+        email: { type: 'string', example: 'admin@example.com' },
+      },
+    },
+  })
+  async createBootstrapUser(
+    @Body() body: { email: string; password: string; displayName: string },
+    @Headers('x-correlation-id') correlationId: string,
+  ) {
+    try {
+      this.logger.log(`[${correlationId}] Creating bootstrap user: ${body.email}`);
+
+      // Create user with email auto-confirmation
+      const userResult = await this.supabase.createUser({
+        email: body.email,
+        password: body.password,
+        userMetadata: {
+          roles: ['registration_admin', 'brand_ambassador'],
+          displayName: body.displayName,
+        },
+      });
+
+      if (!userResult.success) {
+        throw new Error(userResult.error);
+      }
+
+      this.logger.log(`[${correlationId}] Bootstrap user created: ${userResult.data.id}`);
+
+      return {
+        success: true,
+        userId: userResult.data.id,
+        email: body.email,
+      };
+    } catch (error: any) {
+      this.logger.error(`[${correlationId}] Error creating bootstrap user:`, error.message);
+      throw error;
+    }
+  }
 
   @Post('seed-initial-data')
   @ApiOperation({
