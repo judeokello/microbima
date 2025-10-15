@@ -1,9 +1,7 @@
-import { Controller, Post, Body, Headers, Logger, BadRequestException, ForbiddenException } from '@nestjs/common';
+import { Controller, Post, Body, Headers, Logger } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiHeader } from '@nestjs/swagger';
 import { PrismaService } from '../../prisma/prisma.service';
 import { SupabaseService } from '../../services/supabase.service';
-import { ConfigService } from '@nestjs/config';
-import { randomUUID } from 'crypto';
 
 @ApiTags('Bootstrap')
 @Controller('internal/bootstrap')
@@ -13,13 +11,12 @@ export class BootstrapController {
   constructor(
     private readonly prisma: PrismaService,
     private readonly supabase: SupabaseService,
-    private readonly config: ConfigService,
   ) {}
 
   @Post('create-user')
   @ApiOperation({
-    summary: 'Create the first bootstrap admin user',
-    description: 'Creates the first admin user with registration_admin and brand_ambassador roles. Can only be called once.',
+    summary: 'Create bootstrap user with email auto-confirmation',
+    description: 'Creates the first admin user with confirmed email. Returns user ID for subsequent operations.',
   })
   @ApiHeader({
     name: 'x-correlation-id',
@@ -33,132 +30,41 @@ export class BootstrapController {
       type: 'object',
       properties: {
         success: { type: 'boolean', example: true },
-        message: { type: 'string', example: 'Bootstrap user created successfully' },
-        data: {
-          type: 'object',
-          properties: {
-            userId: { type: 'string', example: 'uuid-here' },
-            email: { type: 'string', example: 'admin@example.com' },
-          },
-        },
+        userId: { type: 'string', example: 'uuid-here' },
+        email: { type: 'string', example: 'admin@example.com' },
       },
     },
-  })
-  @ApiResponse({
-    status: 400,
-    description: 'Bootstrap already completed or invalid request',
-  })
-  @ApiResponse({
-    status: 403,
-    description: 'Bootstrap is not enabled',
   })
   async createBootstrapUser(
     @Body() body: { email: string; password: string; displayName: string },
     @Headers('x-correlation-id') correlationId: string,
   ) {
     try {
-      this.logger.log(`[${correlationId}] Bootstrap user creation requested for: ${body.email}`);
+      this.logger.log(`[${correlationId}] Creating bootstrap user: ${body.email}`);
 
-      // 1. Check if bootstrap is enabled
-      const bootstrapEnabled = this.config.get<string>('ENABLE_BOOTSTRAP') === 'true';
-      if (!bootstrapEnabled) {
-        this.logger.warn(`[${correlationId}] Bootstrap is not enabled`);
-        throw new ForbiddenException('Bootstrap is not enabled. Set ENABLE_BOOTSTRAP=true to enable.');
-      }
-
-      // 2. Check if any users already exist
-      try {
-        const { data: existingUsers, error: listError } = await this.supabase
-          .getClient()
-          .auth.admin.listUsers({ page: 1, perPage: 1 });
-
-        if (listError) {
-          this.logger.error(`[${correlationId}] Error checking existing users:`, listError);
-          throw new BadRequestException('Failed to check existing users');
-        }
-
-        if (existingUsers && existingUsers.users && existingUsers.users.length > 0) {
-          this.logger.warn(`[${correlationId}] Bootstrap already completed - users exist`);
-          throw new BadRequestException(
-            'Bootstrap user creation is not possible because it has already been completed. Users already exist in the system.',
-          );
-        }
-      } catch (error: any) {
-        // If Supabase is not available (e.g., local development), skip user check
-        if (error.message?.includes('Failed to check existing users') || 
-            error.message?.includes('SUPABASE_URL') ||
-            error.message?.includes('SUPABASE_SERVICE_ROLE_KEY')) {
-          this.logger.warn(`[${correlationId}] Supabase not available, skipping user existence check for local development`);
-        } else {
-          throw error;
-        }
-      }
-
-      // 3. Create the bootstrap user
-      let userId: string;
-      try {
-        const userResult = await this.supabase.createUser({
-          email: body.email,
-          password: body.password,
-          userMetadata: {
-            roles: ['registration_admin', 'brand_ambassador'],
-            displayName: body.displayName,
-          },
-        });
-
-        if (!userResult.success) {
-          this.logger.error(`[${correlationId}] Failed to create user:`, userResult.error);
-          throw new BadRequestException(`Failed to create user: ${userResult.error}`);
-        }
-
-        userId = userResult.data.id;
-        this.logger.log(`[${correlationId}] Bootstrap user created: ${userId}`);
-      } catch (error: any) {
-        // If Supabase is not available, create a mock user for local development
-        if (error.message?.includes('SUPABASE_URL') || 
-            error.message?.includes('SUPABASE_SERVICE_ROLE_KEY') ||
-            error.message?.includes('Failed to create user')) {
-          this.logger.warn(`[${correlationId}] Supabase not available, creating mock user for local development`);
-          userId = randomUUID();
-        } else {
-          throw error;
-        }
-      }
-
-      // 4. Seed initial data (Maisha Poa partner + MfanisiGo product)
-      await this.prisma.partner.upsert({
-        where: { id: 1 },
-        update: {},
-        create: {
-          id: 1,
-          partnerName: 'Maisha Poa',
-          website: 'www.maishapoa.co.ke',
-          officeLocation: 'Lotus Plaza, Parklands, Nairobi',
-          isActive: true,
-          createdBy: userId,
+      // Create user with email auto-confirmation
+      const userResult = await this.supabase.createUser({
+        email: body.email,
+        password: body.password,
+        userMetadata: {
+          roles: ['registration_admin', 'brand_ambassador'],
+          displayName: body.displayName,
         },
       });
 
-      await this.prisma.$executeRaw`
-        INSERT INTO "bundled_products" ("name", "description", "created_by")
-        VALUES ('MfanisiGo', 'Owned by the OOD drivers', ${userId}::uuid)
-        ON CONFLICT DO NOTHING
-      `;
+      if (!userResult.success) {
+        throw new Error(userResult.error);
+      }
 
-      this.logger.log(`[${correlationId}] Bootstrap completed successfully`);
+      this.logger.log(`[${correlationId}] Bootstrap user created: ${userResult.data.id}`);
 
       return {
         success: true,
-        message: 'Bootstrap user created successfully',
-        data: {
-          userId: userId,
-          email: body.email,
-          partnerCreated: 'Maisha Poa (partnerId: 1)',
-          productCreated: 'MfanisiGo',
-        },
+        userId: userResult.data.id,
+        email: body.email,
       };
     } catch (error: any) {
-      this.logger.error(`[${correlationId}] Bootstrap error:`, error.message);
+      this.logger.error(`[${correlationId}] Error creating bootstrap user:`, error.message);
       throw error;
     }
   }
