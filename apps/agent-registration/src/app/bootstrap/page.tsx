@@ -43,33 +43,103 @@ export default function BootstrapPage() {
         throw new Error('Bootstrap is not enabled. Set NEXT_PUBLIC_ENABLE_BOOTSTRAP=true to enable.')
       }
 
-      // Use the new bootstrap endpoint that handles everything
-      const bootstrapResponse = await fetch(`${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/bootstrap/create-user`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-correlation-id': `bootstrap-create-${Date.now()}`
-        },
-        body: JSON.stringify({
-          email: formData.email,
-          password: formData.password,
-          displayName: formData.displayName
-        })
+      // Create first admin user
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email: formData.email,
+        password: formData.password,
+        options: {
+          data: {
+            roles: ['registration_admin', 'brand_ambassador'],
+            displayName: formData.displayName
+          }
+        }
       })
 
-      if (!bootstrapResponse.ok) {
-        const errorData = await bootstrapResponse.json()
-        console.error('Bootstrap failed:', errorData)
-        throw new Error(errorData.error?.message || 'Failed to create bootstrap user')
+      if (authError) {
+        throw new Error(authError.message)
       }
 
-      const bootstrapResult = await bootstrapResponse.json()
-      console.log('✅ Bootstrap completed:', bootstrapResult)
+      if (authData.user) {
+        // Sign in the user to get a valid session token
+        const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+          email: formData.email,
+          password: formData.password
+        })
 
-      setSuccess(true)
-      setTimeout(() => {
-        router.push('/auth/login')
-      }, 2000)
+        if (signInError) {
+          throw new Error(`Failed to sign in after user creation: ${signInError.message}`)
+        }
+
+        // Use the signed-in session for API calls
+        const session = signInData.session
+        // Step 1: Seed initial system data (Maisha Poa partner + MfanisiGo product)
+        try {
+          const seedResponse = await fetch(`${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/bootstrap/seed-initial-data`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-correlation-id': `bootstrap-seed-${Date.now()}`
+            },
+            body: JSON.stringify({
+              userId: authData.user.id
+            })
+          })
+
+          if (!seedResponse.ok) {
+            const errorText = await seedResponse.text()
+            console.warn('Failed to seed initial data:', errorText)
+            throw new Error(`Failed to seed initial data: ${errorText}`)
+          }
+
+          const seedResult = await seedResponse.json()
+          console.log('✅ Initial data seeded:', seedResult)
+        } catch (seedError) {
+          console.error('Error seeding initial data:', seedError)
+          throw new Error(`Failed to seed initial system data. Please contact support.`)
+        }
+
+        // Step 2: Create Brand Ambassador record in the database
+        try {
+          console.log('🔍 DEBUG: About to create Brand Ambassador with token:', {
+            hasSession: !!session,
+            hasAccessToken: !!session?.access_token,
+            tokenPreview: session?.access_token?.substring(0, 20) + '...'
+          })
+          
+          const baResponse = await fetch(`${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/partner-management/partners/1/brand-ambassadors/from-existing-user`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${session?.access_token}`,
+              'x-correlation-id': `bootstrap-ba-${Date.now()}`
+            },
+            body: JSON.stringify({
+              userId: authData.user.id,
+              displayName: formData.displayName,
+              phoneNumber: '+254700000000', // Default phone number
+              perRegistrationRateCents: 500, // 5.00 KES per registration
+              isActive: true
+            })
+          })
+
+          if (!baResponse.ok) {
+            const errorText = await baResponse.text()
+            console.warn('Failed to create Brand Ambassador record:', errorText)
+            throw new Error(`Failed to create Brand Ambassador: ${errorText}`)
+          }
+
+          const baResult = await baResponse.json()
+          console.log('✅ Brand Ambassador created:', baResult)
+        } catch (baError) {
+          console.error('Error creating Brand Ambassador record:', baError)
+          throw new Error(`Failed to create Brand Ambassador. Please contact support.`)
+        }
+
+        setSuccess(true)
+        setTimeout(() => {
+          router.push('/auth/login')
+        }, 2000)
+      }
     } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : 'An unexpected error occurred'
       setError(errorMessage)
