@@ -100,6 +100,12 @@ export default function BootstrapPage() {
 
         // Step 2: Create Brand Ambassador record in the database
         try {
+          console.log('🔍 DEBUG: About to create Brand Ambassador with token:', {
+            hasSession: !!session,
+            hasAccessToken: !!session?.access_token,
+            tokenPreview: session?.access_token?.substring(0, 20) + '...'
+          })
+          
           const baResponse = await fetch(`${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/partner-management/partners/1/brand-ambassadors/from-existing-user`, {
             method: 'POST',
             headers: {
