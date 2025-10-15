@@ -60,6 +60,18 @@ export default function BootstrapPage() {
       }
 
       if (authData.user) {
+        // Sign in the user to get a valid session token
+        const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+          email: formData.email,
+          password: formData.password
+        })
+
+        if (signInError) {
+          throw new Error(`Failed to sign in after user creation: ${signInError.message}`)
+        }
+
+        // Use the signed-in session for API calls
+        const session = signInData.session
         // Step 1: Seed initial system data (Maisha Poa partner + MfanisiGo product)
         try {
           const seedResponse = await fetch(`${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/bootstrap/seed-initial-data`, {
@@ -92,7 +104,7 @@ export default function BootstrapPage() {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              'Authorization': `Bearer ${authData.session?.access_token}`,
+              'Authorization': `Bearer ${session?.access_token}`,
               'x-correlation-id': `bootstrap-ba-${Date.now()}`
             },
             body: JSON.stringify({
