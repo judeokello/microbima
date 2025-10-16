@@ -188,7 +188,7 @@ export class CustomerService {
           firstName: child.firstName,
           middleName: child.middleName || null,
           lastName: child.lastName,
-          dateOfBirth: new Date(child.dateOfBirth),
+          dateOfBirth: child.dateOfBirth ? new Date(child.dateOfBirth) : null,
           gender: child.gender.toUpperCase() as any,
           idType: child.idType ? SharedMapperUtils.mapIdTypeFromDto(child.idType) as any : null,
           idNumber: child.idNumber || null,
@@ -217,8 +217,10 @@ export class CustomerService {
           firstName: spouse.firstName,
           middleName: spouse.middleName || null,
           lastName: spouse.lastName,
-          dateOfBirth: new Date(spouse.dateOfBirth),
+          dateOfBirth: spouse.dateOfBirth ? new Date(spouse.dateOfBirth) : null,
           gender: spouse.gender.toUpperCase() as any,
+          email: spouse.email || null,
+          phoneNumber: spouse.phoneNumber || null,
           idType: SharedMapperUtils.mapIdTypeFromDto(spouse.idType) as any,
           idNumber: spouse.idNumber,
           relationship: 'SPOUSE' as const,
@@ -515,18 +517,18 @@ export class CustomerService {
 
         // Add children if provided
         if (addRequest.children && addRequest.children.length > 0) {
-          const childrenData = addRequest.children.map(child => ({
-            customerId: customerId,
-            firstName: child.firstName,
-            middleName: child.middleName || null,
-            lastName: child.lastName,
-            dateOfBirth: new Date(child.dateOfBirth),
-            gender: child.gender.toUpperCase() as any,
-            idType: child.idType ? SharedMapperUtils.mapIdTypeFromDto(child.idType) as any : null,
-            idNumber: child.idNumber || null,
-            relationship: 'CHILD' as const,
-            createdByPartnerId: partnerId,
-          }));
+        const childrenData = addRequest.children.map(child => ({
+          customerId: customerId,
+          firstName: child.firstName,
+          middleName: child.middleName || null,
+          lastName: child.lastName,
+          dateOfBirth: child.dateOfBirth ? new Date(child.dateOfBirth) : null,
+          gender: child.gender.toUpperCase() as any,
+          idType: child.idType ? SharedMapperUtils.mapIdTypeFromDto(child.idType) as any : null,
+          idNumber: child.idNumber || null,
+          relationship: 'CHILD' as const,
+          createdByPartnerId: partnerId,
+        }));
 
           const createdChildren = await tx.dependant.createMany({
             data: childrenData,
@@ -557,18 +559,20 @@ export class CustomerService {
 
         // Add spouses if provided
         if (addRequest.spouses && addRequest.spouses.length > 0) {
-          const spousesData = addRequest.spouses.map(spouse => ({
-            customerId: customerId,
-            firstName: spouse.firstName,
-            middleName: spouse.middleName || null,
-            lastName: spouse.lastName,
-            dateOfBirth: new Date(spouse.dateOfBirth),
-            gender: spouse.gender.toUpperCase() as any,
-            idType: SharedMapperUtils.mapIdTypeFromDto(spouse.idType) as any,
-            idNumber: spouse.idNumber,
-            relationship: 'SPOUSE' as const,
-            createdByPartnerId: partnerId,
-          }));
+        const spousesData = addRequest.spouses.map(spouse => ({
+          customerId: customerId,
+          firstName: spouse.firstName,
+          middleName: spouse.middleName || null,
+          lastName: spouse.lastName,
+          dateOfBirth: spouse.dateOfBirth ? new Date(spouse.dateOfBirth) : null,
+          gender: spouse.gender.toUpperCase() as any,
+          email: spouse.email || null,
+          phoneNumber: spouse.phoneNumber || null,
+          idType: SharedMapperUtils.mapIdTypeFromDto(spouse.idType) as any,
+          idNumber: spouse.idNumber,
+          relationship: 'SPOUSE' as const,
+          createdByPartnerId: partnerId,
+        }));
 
           const createdSpouses = await tx.dependant.createMany({
             data: spousesData,

@@ -1,5 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsString, IsEmail, IsDateString, IsIn, IsOptional } from 'class-validator';
+import { IsString, IsEmail, IsIn, IsOptional } from 'class-validator';
+import { IsDateStringFriendly } from '../../decorators/validators/is-date-string-friendly.decorator';
 
 export class PrincipalMemberDto {
   @ApiProperty({
@@ -29,7 +30,7 @@ export class PrincipalMemberDto {
     description: 'Date of birth in YYYY-MM-DD format',
     example: '1985-06-15'
   })
-  @IsDateString()
+  @IsDateStringFriendly()
   dateOfBirth: string;
 
   @ApiProperty({
@@ -61,9 +62,9 @@ export class PrincipalMemberDto {
   @ApiProperty({
     description: 'Type of identification document',
     example: 'national',
-    enum: ['national', 'alien', 'passport']
+    enum: ['national', 'alien', 'passport', 'birth_certificate', 'military']
   })
-  @IsIn(['national', 'alien', 'passport'])
+  @IsIn(['national', 'alien', 'passport', 'birth_certificate', 'military'])
   idType: string;
 
   @ApiProperty({

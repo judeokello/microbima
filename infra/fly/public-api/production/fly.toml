@@ -1,5 +1,5 @@
-app = "microbima-production-public-api"
-primary_region = "nrt"
+app = "maishapoa-production-public-api"
+primary_region = "fra"
 
 [build]
   dockerfile = "Dockerfile"

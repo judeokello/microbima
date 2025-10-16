@@ -61,72 +61,102 @@ jobs:
       #   run: |
       #     flyctl deploy -a microbima-staging-public-api -c infra/fly/public-api/staging/fly.toml
 
-  # deploy-production:
-  #   if: github.ref == 'refs/heads/production'
-  #   runs-on: ubuntu-latest
-  #   environment: production
-  #   steps:
-  #     - name: Checkout code
-  #       uses: actions/checkout@v4
+  deploy-production:
+    if: github.ref == 'refs/heads/production'
+    runs-on: ubuntu-latest
+    environment: 
+      name: production
+      url: https://maishapoa-production-internal-api.fly.dev
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-  #     - name: Setup Node.js
-  #       uses: actions/setup-node@v4
-  #       with:
-  #         node-version: '22'
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
 
-  #     - name: Install pnpm
-  #       run: npm install -g pnpm
+      - name: Install pnpm
+        run: npm install -g pnpm
 
-  #     - name: Install dependencies
-  #       run: pnpm install --frozen-lockfile
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
 
-  #     - name: Run tests
-  #       run: pnpm test
+      - name: Run tests
+        run: pnpm test
 
-  #     - name: Install Fly.io CLI
-  #       run: |
-  #         curl -L https://fly.io/install.sh | sh
-  #         echo "$HOME/.fly/bin" >> $GITHUB_PATH
+      - name: Install Fly.io CLI
+        run: |
+          curl -L https://fly.io/install.sh | sh
+          echo "$HOME/.fly/bin" >> $GITHUB_PATH
 
-  #     - name: Deploy Internal API to Production
-  #       run: |
-  #         flyctl deploy -a microbima-production-internal-api -c infra/fly/internal-api/production/fly.toml
+      - name: Deploy Internal API to Production
+        run: |
+          flyctl deploy -a maishapoa-production-internal-api -c infra/fly/internal-api/production/fly.toml
+
+      - name: Deploy Agent Registration to Production
+        run: |
+          flyctl deploy -a maishapoa-production-agent-registration -c infra/fly/agent-registration/production/fly.toml
+
+      - name: Deploy Public API to Production
+        run: |
+          flyctl deploy -a maishapoa-production-public-api -c infra/fly/public-api/production/fly.toml
 
       # TODO: Enable when web-admin app is created
       # - name: Deploy Web Admin to Production
       #   run: |
-      #     flyctl deploy -a microbima-production-web-admin -c infra/fly/web-admin/production/fly.toml
-
-      # TODO: Enable when public-api app is created
-      # - name: Deploy Public API to Production
-      #   run: |
-      #     flyctl deploy -a microbima-production-public-api -c infra/fly/public-api/production/fly.toml
+      #     flyctl deploy -a maishapoa-production-web-admin -c infra/fly/web-admin/production/fly.toml
 
   health-check:
-   # needs: [deploy-staging, deploy-production]
-    needs: [deploy-staging]
+    needs: [deploy-staging, deploy-production]
     if: always()
     runs-on: ubuntu-latest
     steps:
       - name: Health Check Staging
         if: github.ref == 'refs/heads/staging'
         run: |
-          # Check agent registration app (should work)
+          echo "🏥 Running health checks for Staging environment..."
+          
+          # Agent Registration App
+          echo "Checking Agent Registration..."
           curl -f https://maishapoa-staging-agent-registration.fly.dev/ || exit 1
-          # Internal API health check - only if deployed
+          echo "✅ Agent Registration is healthy"
+          
+          # Internal API (conditional check)
           if [ "$DEPLOY_INTERNAL_API" != "false" ]; then
+            echo "Checking Internal API..."
             curl -f https://microbima-staging-internal-api.fly.dev/api/health || echo "⚠️ Internal API health check failed"
           else
             echo "⏭️ Skipping Internal API health check (not deployed)"
           fi
+          
           # TODO: Add health checks when web-admin and public-api are deployed
           # curl -f https://microbima-staging-web-admin.fly.dev/ || exit 1
           # curl -f https://microbima-staging-public-api.fly.dev/ || exit 1
+          
+          echo "✅ Staging health checks completed"
 
       - name: Health Check Production
         if: github.ref == 'refs/heads/production'
         run: |
-          curl -f https://microbima-production-internal-api.fly.dev/api/health || exit 1
-          # TODO: Add health checks when web-admin and public-api are deployed
-          # curl -f https://microbima-production-web-admin.fly.dev/ || exit 1
-          # curl -f https://microbima-production-public-api.fly.dev/ || exit 1
+          echo "🏥 Running health checks for Production environment..."
+          
+          # Internal API
+          echo "Checking Internal API..."
+          curl -f https://maishapoa-production-internal-api.fly.dev/api/health || exit 1
+          echo "✅ Internal API is healthy"
+          
+          # Agent Registration App
+          echo "Checking Agent Registration..."
+          curl -f https://maishapoa-production-agent-registration.fly.dev/ || exit 1
+          echo "✅ Agent Registration is healthy"
+          
+          # Public API (Kong Gateway)
+          echo "Checking Public API..."
+          curl -f https://maishapoa-production-public-api.fly.dev/ || exit 1
+          echo "✅ Public API is healthy"
+          
+          # TODO: Add health check when web-admin app is deployed
+          # curl -f https://maishapoa-production-web-admin.fly.dev/ || exit 1
+          
+          echo "✅ All production health checks passed successfully"

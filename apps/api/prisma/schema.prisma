@@ -169,6 +169,8 @@ model Dependant {
   lastName    String   @db.VarChar(50)
   dateOfBirth DateTime? @db.Date // Optional date of birth, date only
   gender      Gender?  // Optional gender field
+  email       String?  @db.VarChar(100) // Optional email
+  phoneNumber String?  @db.VarChar(20) // Optional phone number
   idType      IdType?  // Optional ID type for identification
   idNumber    String?  @db.VarChar(20) // Optional ID number for identification, max 20 characters
   relationship DependantRelationship
