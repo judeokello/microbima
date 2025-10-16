@@ -42,7 +42,8 @@ async function bootstrap() {
   SwaggerConfig.setupSwagger(app, configService);
 
   const port = configService.port;
-  await app.listen(port);
+  // Listen on 0.0.0.0 for Fly.io compatibility (required for the proxy to reach the app)
+  await app.listen(port, '0.0.0.0');
 
   console.log(`🚀 MicroBima API running on port ${port}`);
   console.log(`🌍 Environment: ${configService.environment}`);
