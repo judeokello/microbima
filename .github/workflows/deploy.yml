@@ -18,8 +18,8 @@ jobs:
     if: github.ref == 'refs/heads/staging'
     runs-on: ubuntu-latest
     env:
-      DEPLOY_INTERNAL_API: false
-      AUTO_DEPLOY_DB: false
+      DEPLOY_INTERNAL_API: true
+      AUTO_DEPLOY_DB: true
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
