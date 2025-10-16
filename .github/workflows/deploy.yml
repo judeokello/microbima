@@ -46,7 +46,22 @@ jobs:
       - name: Deploy Internal API to Staging
         if: env.DEPLOY_INTERNAL_API != 'false'
         run: |
-          flyctl deploy -a microbima-staging-internal-api -c infra/fly/internal-api/staging/fly.toml
+          # Retry deployment up to 3 times on failure
+          for i in {1..3}; do
+            echo "Deployment attempt $i..."
+            if flyctl deploy -a microbima-staging-internal-api -c infra/fly/internal-api/staging/fly.toml; then
+              echo "✅ Deployment successful"
+              break
+            else
+              if [ $i -lt 3 ]; then
+                echo "⚠️ Deployment failed, retrying in 30 seconds..."
+                sleep 30
+              else
+                echo "❌ Deployment failed after 3 attempts"
+                exit 1
+              fi
+            fi
+          done
 
       - name: Run Database Migrations on Staging
         if: env.DEPLOY_INTERNAL_API != 'false' && env.AUTO_DEPLOY_DB == 'true'
@@ -117,7 +132,22 @@ jobs:
 
       - name: Deploy Internal API to Production
         run: |
-          flyctl deploy -a maishapoa-production-internal-api -c infra/fly/internal-api/production/fly.toml
+          # Retry deployment up to 3 times on failure
+          for i in {1..3}; do
+            echo "Deployment attempt $i..."
+            if flyctl deploy -a maishapoa-production-internal-api -c infra/fly/internal-api/production/fly.toml; then
+              echo "✅ Deployment successful"
+              break
+            else
+              if [ $i -lt 3 ]; then
+                echo "⚠️ Deployment failed, retrying in 30 seconds..."
+                sleep 30
+              else
+                echo "❌ Deployment failed after 3 attempts"
+                exit 1
+              fi
+            fi
+          done
 
       - name: Run Database Migrations on Production
         if: env.AUTO_DEPLOY_DB == 'true'
@@ -128,11 +158,41 @@ jobs:
 
       - name: Deploy Agent Registration to Production
         run: |
-          flyctl deploy -a maishapoa-production-agent-registration -c infra/fly/agent-registration/production/fly.toml
+          # Retry deployment up to 3 times on failure
+          for i in {1..3}; do
+            echo "Deployment attempt $i..."
+            if flyctl deploy -a maishapoa-production-agent-registration -c infra/fly/agent-registration/production/fly.toml; then
+              echo "✅ Deployment successful"
+              break
+            else
+              if [ $i -lt 3 ]; then
+                echo "⚠️ Deployment failed, retrying in 30 seconds..."
+                sleep 30
+              else
+                echo "❌ Deployment failed after 3 attempts"
+                exit 1
+              fi
+            fi
+          done
 
       - name: Deploy Public API to Production
         run: |
-          flyctl deploy -a maishapoa-production-public-api -c infra/fly/public-api/production/fly.toml
+          # Retry deployment up to 3 times on failure
+          for i in {1..3}; do
+            echo "Deployment attempt $i..."
+            if flyctl deploy -a maishapoa-production-public-api -c infra/fly/public-api/production/fly.toml; then
+              echo "✅ Deployment successful"
+              break
+            else
+              if [ $i -lt 3 ]; then
+                echo "⚠️ Deployment failed, retrying in 30 seconds..."
+                sleep 30
+              else
+                echo "❌ Deployment failed after 3 attempts"
+                exit 1
+              fi
+            fi
+          done
 
       # TODO: Enable when web-admin app is created
       # - name: Deploy Web Admin to Production
