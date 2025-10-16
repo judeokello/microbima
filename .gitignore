@@ -118,3 +118,5 @@ prisma/migrations/
 
 # spec story
 .specstory/
+
+.staging-api-secrets.txt
