@@ -47,6 +47,14 @@ jobs:
         run: |
           flyctl deploy -a microbima-staging-internal-api -c infra/fly/internal-api/staging/fly.toml
 
+      - name: Run Database Migrations on Staging
+        if: env.DEPLOY_INTERNAL_API != 'false'
+        run: |
+          echo "🔄 Running database migrations on staging..."
+          cd apps/api
+          npm exec prisma migrate deploy
+          echo "✅ Database migrations completed"
+
       - name: Deploy Agent Registration to Staging
         run: |
           flyctl deploy -a maishapoa-staging-agent-registration -c infra/fly/agent-registration/staging/fly.toml
@@ -93,6 +101,13 @@ jobs:
       - name: Deploy Internal API to Production
         run: |
           flyctl deploy -a maishapoa-production-internal-api -c infra/fly/internal-api/production/fly.toml
+
+      - name: Run Database Migrations on Production
+        run: |
+          echo "🔄 Running database migrations on production..."
+          cd apps/api
+          npm exec prisma migrate deploy
+          echo "✅ Database migrations completed"
 
       - name: Deploy Agent Registration to Production
         run: |
