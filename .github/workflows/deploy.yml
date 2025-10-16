@@ -19,6 +19,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       DEPLOY_INTERNAL_API: true
+      AUTO_DEPLOY_DB: true
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -48,11 +49,10 @@ jobs:
           flyctl deploy -a microbima-staging-internal-api -c infra/fly/internal-api/staging/fly.toml
 
       - name: Run Database Migrations on Staging
-        if: env.DEPLOY_INTERNAL_API != 'false'
+        if: env.DEPLOY_INTERNAL_API != 'false' && env.AUTO_DEPLOY_DB == 'true'
         run: |
           echo "🔄 Running database migrations on staging..."
-          cd apps/api
-          npm exec prisma migrate deploy
+          flyctl ssh console -a microbima-staging-internal-api -C "cd /app && npm exec prisma migrate deploy"
           echo "✅ Database migrations completed"
 
       - name: Deploy Agent Registration to Staging
@@ -75,6 +75,8 @@ jobs:
     environment: 
       name: production
       url: https://maishapoa-production-internal-api.fly.dev
+    env:
+      AUTO_DEPLOY_DB: true
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -103,10 +105,10 @@ jobs:
           flyctl deploy -a maishapoa-production-internal-api -c infra/fly/internal-api/production/fly.toml
 
       - name: Run Database Migrations on Production
+        if: env.AUTO_DEPLOY_DB == 'true'
         run: |
           echo "🔄 Running database migrations on production..."
-          cd apps/api
-          npm exec prisma migrate deploy
+          flyctl ssh console -a maishapoa-production-internal-api -C "cd /app && npm exec prisma migrate deploy"
           echo "✅ Database migrations completed"
 
       - name: Deploy Agent Registration to Production
