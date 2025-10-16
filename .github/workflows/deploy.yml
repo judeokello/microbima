@@ -18,8 +18,8 @@ jobs:
     if: github.ref == 'refs/heads/staging'
     runs-on: ubuntu-latest
     env:
-      DEPLOY_INTERNAL_API: true
-      AUTO_DEPLOY_DB: true
+      DEPLOY_INTERNAL_API: false
+      AUTO_DEPLOY_DB: false
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -57,7 +57,22 @@ jobs:
 
       - name: Deploy Agent Registration to Staging
         run: |
-          flyctl deploy -a maishapoa-staging-agent-registration -c infra/fly/agent-registration/staging/fly.toml
+          # Retry deployment up to 3 times on failure
+          for i in {1..3}; do
+            echo "Deployment attempt $i..."
+            if flyctl deploy -a maishapoa-staging-agent-registration -c infra/fly/agent-registration/staging/fly.toml; then
+              echo "✅ Deployment successful"
+              break
+            else
+              if [ $i -lt 3 ]; then
+                echo "⚠️ Deployment failed, retrying in 30 seconds..."
+                sleep 30
+              else
+                echo "❌ Deployment failed after 3 attempts"
+                exit 1
+              fi
+            fi
+          done
 
       # TODO: Enable when web-admin app is created
       # - name: Deploy Web Admin to Staging
