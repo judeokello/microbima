@@ -1,5 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsString, IsDateString, IsIn, IsOptional } from 'class-validator';
+import { IsString, IsIn, IsOptional } from 'class-validator';
+import { IsDateStringFriendly } from '../../decorators/validators/is-date-string-friendly.decorator';
 
 export class ChildDto {
   @ApiProperty({
@@ -27,10 +28,12 @@ export class ChildDto {
 
   @ApiProperty({
     description: 'Date of birth in YYYY-MM-DD format',
-    example: '2010-08-12'
+    example: '2010-08-12',
+    required: false
   })
-  @IsDateString()
-  dateOfBirth: string;
+  @IsOptional()
+  @IsDateStringFriendly()
+  dateOfBirth?: string;
 
   @ApiProperty({
     description: 'Gender of the child',
@@ -42,12 +45,12 @@ export class ChildDto {
 
   @ApiProperty({
     description: 'Type of identification document for children - birth certificate numbers or national IDs (for 18+ children)',
-    example: 'birthCertificateNumber',
-    enum: ['birthCertificateNumber', 'national'],
+    example: 'birth_certificate',
+    enum: ['national', 'alien', 'passport', 'birth_certificate', 'military'],
     required: false
   })
   @IsOptional()
-  @IsIn(['birthCertificateNumber', 'national'])
+  @IsIn(['national', 'alien', 'passport', 'birth_certificate', 'military'])
   idType?: string;
 
   @ApiProperty({
@@ -73,7 +76,7 @@ export class ChildDto {
     required: false
   })
   @IsOptional()
-  @IsDateString()
+  @IsDateStringFriendly()
   verifiedAt?: string;
 
   @ApiProperty({

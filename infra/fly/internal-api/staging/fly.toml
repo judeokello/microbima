@@ -1,5 +1,5 @@
 app = "microbima-staging-internal-api"
-primary_region = "nrt"
+primary_region = "fra"
 
 [build]
   dockerfile = "Dockerfile"

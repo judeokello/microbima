@@ -1,5 +1,5 @@
 app = "maishapoa-staging-agent-registration"
-primary_region = "nrt"
+primary_region = "fra"
 
 [build]
   dockerfile = "Dockerfile"
