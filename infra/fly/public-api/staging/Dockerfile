@@ -1,4 +1,4 @@
-FROM kong:3.4
+FROM kong:3.8
 
 # Switch to root user for installing packages (Kong runs as 'kong' user by default)
 USER root
@@ -24,8 +24,10 @@ EXPOSE 8000 8001
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
   CMD kong health || exit 1
 
-# Use dumb-init for proper signal handling
-ENTRYPOINT ["dumb-init", "--"]
+# Use Kong's official entrypoint script
+# Set as kong user for proper permissions
+USER kong
 
-# Start Kong
+# The official Kong entrypoint handles preparation and starts Kong
+ENTRYPOINT ["/docker-entrypoint.sh"]
 CMD ["kong", "docker-start"]

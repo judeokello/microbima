@@ -3,32 +3,33 @@ _transform: true
 
 services:
   - name: microbima-staging-internal-api
-    url: https://microbima-staging-internal-api.fly.dev
+    # Use HTTP to avoid SSL certificate issues (Kong handles TLS at edge)
+    url: http://microbima-staging-internal-api.fly.dev
     routes:
-        - name: public-customers
-          paths:
-            - /api/v1/customers
-          methods:
-            - GET
-            - POST
-          strip_path: false
-          preserve_host: true
-        - name: public-customer-dependants
-          paths:
-            - /api/v1/customers
-          methods:
-            - GET
-            - POST
-          strip_path: false
-          preserve_host: true
-        - name: public-customer-beneficiaries
-          paths:
-            - /api/v1/customers
-          methods:
-            - GET
-            - POST
-          strip_path: false
-          preserve_host: true
+      - name: public-customers
+        paths:
+          - /api/v1/customers
+        methods:
+          - GET
+          - POST
+        strip_path: false
+        preserve_host: true
+      - name: public-customer-dependants
+        paths:
+          - /api/v1/customers
+        methods:
+          - GET
+          - POST
+        strip_path: false
+        preserve_host: true
+      - name: public-customer-beneficiaries
+        paths:
+          - /api/v1/customers
+        methods:
+          - GET
+          - POST
+        strip_path: false
+        preserve_host: true
       - name: public-partner-management
         paths:
           - /api/v1/partner-management

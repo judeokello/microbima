@@ -2,8 +2,9 @@ _format_version: "2.1"
 _transform: true
 
 services:
-  - name: microbima-production-internal-api
-    url: http://microbima-production-internal-api.internal:3000
+  - name: maishapoa-production-internal-api
+    # Use HTTP to avoid SSL certificate issues (Kong handles TLS at edge)
+    url: http://maishapoa-production-internal-api.fly.dev
     routes:
       - name: public-customers
         paths:
