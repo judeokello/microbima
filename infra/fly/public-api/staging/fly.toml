@@ -2,7 +2,7 @@ app = "microbima-staging-public-api"
 primary_region = "fra"
 
 [build]
-  dockerfile = "Dockerfile"
+  dockerfile = "infra/fly/public-api/staging/Dockerfile"
 
 [env]
   NODE_ENV = "staging"
