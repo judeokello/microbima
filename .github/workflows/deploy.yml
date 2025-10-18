@@ -126,9 +126,9 @@ jobs:
       name: production
       url: https://maishapoa-production-internal-api.fly.dev
     env:
-      DEPLOY_INTERNAL_API: false
-      AUTO_DEPLOY_DB: false
-      DEPLOY_AGENT_REGISTRATION: false
+      DEPLOY_INTERNAL_API: true
+      AUTO_DEPLOY_DB: true
+      DEPLOY_AGENT_REGISTRATION: true
       DEPLOY_PUBLIC_API: true
     steps:
       - name: Checkout code
@@ -154,6 +154,7 @@ jobs:
           echo "$HOME/.fly/bin" >> $GITHUB_PATH
 
       - name: Deploy Internal API to Production
+        if: env.DEPLOY_INTERNAL_API != 'false'
         run: |
           # Retry deployment up to 3 times on failure
           for i in {1..3}; do
@@ -173,7 +174,7 @@ jobs:
           done
 
       - name: Run Database Migrations on Production
-        if: env.AUTO_DEPLOY_DB == 'true'
+        if: env.DEPLOY_INTERNAL_API != 'false' && env.AUTO_DEPLOY_DB == 'true'
         run: |
           echo "🔄 Running database migrations on production..."
           flyctl ssh console -a maishapoa-production-internal-api -C "sh -c 'cd /app/apps/api && npx prisma migrate deploy'"
