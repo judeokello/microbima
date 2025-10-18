@@ -1,6 +1,9 @@
 # Production-optimized Kong Dockerfile
 FROM kong:3.4
 
+# Switch to root user for installing packages (Kong runs as 'kong' user by default)
+USER root
+
 # Kong uses Ubuntu, not Alpine
 # Install additional security tools
 RUN apt-get update && apt-get install -y --no-install-recommends \
