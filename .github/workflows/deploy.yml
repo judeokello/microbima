@@ -97,9 +97,10 @@ jobs:
       - name: Deploy Public API to Staging
         run: |
           # Retry deployment up to 3 times on failure
+          cd infra/fly/public-api/staging
           for i in {1..3}; do
             echo "Deployment attempt $i..."
-            if flyctl deploy -a microbima-staging-public-api -c infra/fly/public-api/staging/fly.toml; then
+            if flyctl deploy -a microbima-staging-public-api -c fly.toml; then
               echo "✅ Deployment successful"
               break
             else
@@ -112,6 +113,7 @@ jobs:
               fi
             fi
           done
+          cd -
 
   deploy-production:
     if: github.ref == 'refs/heads/master'
@@ -192,9 +194,10 @@ jobs:
       - name: Deploy Public API to Production
         run: |
           # Retry deployment up to 3 times on failure
+          cd infra/fly/public-api/production
           for i in {1..3}; do
             echo "Deployment attempt $i..."
-            if flyctl deploy -a maishapoa-production-public-api -c infra/fly/public-api/production/fly.toml; then
+            if flyctl deploy -a maishapoa-production-public-api -c fly.toml; then
               echo "✅ Deployment successful"
               break
             else
@@ -207,6 +210,7 @@ jobs:
               fi
             fi
           done
+          cd -
 
       # TODO: Enable when web-admin app is created
       # - name: Deploy Web Admin to Production
