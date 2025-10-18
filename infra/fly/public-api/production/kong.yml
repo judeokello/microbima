@@ -2,9 +2,10 @@ _format_version: "2.1"
 _transform: true
 
 services:
-  - name: microbima-production-internal-api
-    # Use Fly.io internal network on service port (not internal_port)
-    url: http://maishapoa-production-internal-api.internal
+  - name: maishapoa-production-internal-api
+    # TODO: Switch to internal networking once configured  
+    # url: http://maishapoa-production-internal-api.internal
+    url: https://maishapoa-production-internal-api.fly.dev
     routes:
       - name: public-customers
         paths:
