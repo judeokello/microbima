@@ -8,8 +8,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy Kong configuration
-COPY kong.yml /etc/kong/kong.yml
+# Copy Kong configuration from the correct path
+COPY infra/fly/public-api/production/kong.yml /etc/kong/kong.yml
 
 # Set Kong to use declarative configuration
 ENV KONG_DATABASE=off
