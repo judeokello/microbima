@@ -24,8 +24,5 @@ EXPOSE 8000 8001
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
   CMD kong health || exit 1
 
-# Use dumb-init for proper signal handling
-ENTRYPOINT ["dumb-init", "--"]
-
-# Start Kong in foreground mode
-CMD ["kong", "start", "--v"]
+# Prepare Kong and start in foreground
+CMD ["/bin/sh", "-c", "kong prepare && /usr/local/openresty/nginx/sbin/nginx -p /usr/local/kong -c nginx-kong.conf -g 'daemon off;'"]
