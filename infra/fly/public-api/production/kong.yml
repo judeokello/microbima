@@ -19,24 +19,9 @@ services:
     plugins:
       - name: cors
         config:
-          origins: ["https://microbima.com", "https://www.microbima.com"]
+          origins: ["*"]
           methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
           headers: ["Content-Type", "Authorization", "Accept"]
           exposed_headers: ["X-Total-Count"]
           credentials: true
           max_age: 3600
-      - name: rate-limiting
-        config:
-          minute: 100
-          hour: 1000
-          policy: local
-      - name: request-size-limiting
-        config:
-          allowed_payload_size: 10
-      - name: response-ratelimiting
-        config:
-          limits:
-            sms: 10=100
-      - name: ip-restriction
-        config:
-          allow: ["0.0.0.0/0"]  # Kong 3.8+ uses 'allow' instead of 'whitelist'
