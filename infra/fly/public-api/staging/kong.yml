@@ -3,9 +3,8 @@ _transform: true
 
 services:
   - name: microbima-staging-internal-api
-    # TODO: Switch to internal networking once configured
-    # url: http://microbima-staging-internal-api.internal
-    url: https://microbima-staging-internal-api.fly.dev
+    # Use HTTP to avoid SSL certificate issues (Kong handles TLS at edge)
+    url: http://microbima-staging-internal-api.fly.dev
     routes:
       - name: public-customers
         paths:
