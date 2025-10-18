@@ -2,7 +2,8 @@ app = "maishapoa-production-public-api"
 primary_region = "fra"
 
 [build]
-  dockerfile = "infra/fly/public-api/production/Dockerfile"
+  dockerfile = "Dockerfile"
+  ignorefile = ".dockerignore"
 
 [env]
   NODE_ENV = "production"
