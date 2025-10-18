@@ -3,7 +3,8 @@ _transform: true
 
 services:
   - name: microbima-staging-internal-api
-    url: https://microbima-staging-internal-api.fly.dev
+    # Use Fly.io internal network (faster and more reliable)
+    url: http://microbima-staging-internal-api.internal:3000
     routes:
       - name: public-customers
         paths:
