@@ -1,4 +1,4 @@
-FROM kong:3.4
+FROM kong:3.8
 
 # Switch to root user for installing packages (Kong runs as 'kong' user by default)
 USER root
@@ -27,5 +27,5 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
 # Use dumb-init for proper signal handling
 ENTRYPOINT ["dumb-init", "--"]
 
-# Start Kong
-CMD ["kong", "docker-start"]
+# Start Kong in foreground mode
+CMD ["kong", "start", "--v"]
