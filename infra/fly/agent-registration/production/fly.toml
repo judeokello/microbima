@@ -5,9 +5,9 @@ primary_region = "fra"
   dockerfile = "Dockerfile"
   # Build arguments for NEXT_PUBLIC_* variables (from Fly secrets)
   [build.args]
-    NEXT_PUBLIC_SUPABASE_URL = "https://yowgqzgqxvkqyyzhxvej.supabase.co"
-    NEXT_PUBLIC_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inlvd2dxemdxeHZrcXl5emh4dmVqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTczMzM3NDQsImV4cCI6MjA3MjkwOTc0NH0.Jsau2Oqa3XZbJkHZVZUwzpCQAatMnODq6T_rCXhwdpQ"
-    NEXT_PUBLIC_APP_NAME = "MicroBima Agent Registration"
+    NEXT_PUBLIC_SUPABASE_URL = "https://xmkiddtkujaparakqwem.supabase.co"
+    NEXT_PUBLIC_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhta2lkZHRrdWphcGFyYWtxd2VtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjA1NTcwMDAsImV4cCI6MjA3NjEzMzAwMH0.p4EBZP8IRu3LBxqThW2jbDaVq3_otR742NQGTyMtJXQ"
+    NEXT_PUBLIC_APP_NAME = "Maisha Poa Agent Registration"
     NEXT_PUBLIC_API_BASE_URL = "https://maishapoa-production-internal-api.fly.dev"
     NEXT_PUBLIC_INTERNAL_API_BASE_URL = "https://maishapoa-production-internal-api.fly.dev/api"
     NEXT_PUBLIC_ENABLE_BOOTSTRAP = "true"
