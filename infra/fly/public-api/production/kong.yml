@@ -36,9 +36,7 @@ services:
       - name: response-ratelimiting
         config:
           limits:
-            - minute: 100
-              policy: local
-              fault_tolerant: true
+            sms: 10=100
       - name: ip-restriction
         config:
-          whitelist: ["0.0.0.0/0"]  # Configure with actual allowed IPs
+          allow: ["0.0.0.0/0"]  # Kong 3.8+ uses 'allow' instead of 'whitelist'
