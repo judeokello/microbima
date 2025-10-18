@@ -3,7 +3,8 @@ _transform: true
 
 services:
   - name: microbima-production-internal-api
-    url: http://microbima-production-internal-api.internal:3000
+    # Use Fly.io internal network on service port (not internal_port)
+    url: http://maishapoa-production-internal-api.internal
     routes:
       - name: public-customers
         paths:
