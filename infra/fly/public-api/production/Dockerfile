@@ -1,8 +1,12 @@
 # Production-optimized Kong Dockerfile
-FROM kong:3.4-alpine
+FROM kong:3.4
 
+# Kong uses Ubuntu, not Alpine
 # Install additional security tools
-RUN apk add --no-cache dumb-init curl
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    dumb-init \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
 
 # Copy Kong configuration
 COPY kong.yml /etc/kong/kong.yml
