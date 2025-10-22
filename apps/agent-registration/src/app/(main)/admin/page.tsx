@@ -1,17 +1,85 @@
+'use client';
+
 import Link from 'next/link'
+import { useState, useEffect } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Users, UserPlus, Settings, BarChart3, LayoutDashboard } from 'lucide-react'
+import { Users, UserPlus, Settings, BarChart3, LayoutDashboard, RefreshCw } from 'lucide-react'
+import { supabase } from '@/lib/supabase'
+
+interface DashboardStats {
+  totalAgents: number;
+  activeAgents: number;
+  totalCustomers: number;
+  registrationsToday: number;
+  pendingMRs: number;
+  activeAgentRate: number;
+}
 
 export default function AdminDashboardPage() {
+  const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchDashboardStats = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      const { data: session } = await supabase.auth.getSession();
+      if (!session?.session) {
+        throw new Error('No session found');
+      }
+
+      const response = await fetch(`${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/customers/dashboard-stats`, {
+        headers: {
+          'Authorization': `Bearer ${session.session.access_token}`,
+          'x-correlation-id': `req-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      setStats(data);
+    } catch (err) {
+      console.error('Error fetching dashboard stats:', err);
+      setError(err instanceof Error ? err.message : 'Failed to fetch dashboard statistics');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchDashboardStats();
+  }, []);
+
+  const formatNumber = (num: number) => {
+    return num.toLocaleString();
+  };
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold">Admin Dashboard</h2>
-        <p className="text-muted-foreground">
-          Manage Agents and system settings
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-bold">Admin Dashboard</h2>
+          <p className="text-muted-foreground">
+            Manage Agents and system settings
+          </p>
+        </div>
+        <Button onClick={fetchDashboardStats} variant="outline" size="sm" disabled={loading}>
+          <RefreshCw className={`mr-2 h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+          Refresh
+        </Button>
       </div>
+
+      {error && (
+        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
+          <strong className="font-bold">Error:</strong>
+          <span className="block sm:inline"> {error}</span>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <Card>
@@ -20,35 +88,41 @@ export default function AdminDashboardPage() {
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">12</div>
+            <div className="text-2xl font-bold">
+              {loading ? '...' : stats ? formatNumber(stats.totalAgents) : '0'}
+            </div>
             <p className="text-xs text-muted-foreground">
-              +2 from last month
+              {loading ? 'Loading...' : stats ? `${formatNumber(stats.activeAgents)} active` : 'No data'}
             </p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Active Agents</CardTitle>
+            <CardTitle className="text-sm font-medium">Total Customers</CardTitle>
             <UserPlus className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">10</div>
+            <div className="text-2xl font-bold">
+              {loading ? '...' : stats ? formatNumber(stats.totalCustomers) : '0'}
+            </div>
             <p className="text-xs text-muted-foreground">
-              83% active rate
+              {loading ? 'Loading...' : stats ? `${stats.activeAgentRate}% active agents` : 'No data'}
             </p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Registrations</CardTitle>
+            <CardTitle className="text-sm font-medium">Total Registrations Today</CardTitle>
             <BarChart3 className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">1,234</div>
+            <div className="text-2xl font-bold">
+              {loading ? '...' : stats ? formatNumber(stats.registrationsToday) : '0'}
+            </div>
             <p className="text-xs text-muted-foreground">
-              +12% from last month
+              {loading ? 'Loading...' : 'Today\'s registrations'}
             </p>
           </CardContent>
         </Card>
@@ -59,9 +133,11 @@ export default function AdminDashboardPage() {
             <Settings className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">45</div>
+            <div className="text-2xl font-bold">
+              {loading ? '...' : stats ? formatNumber(stats.pendingMRs) : '0'}
+            </div>
             <p className="text-xs text-muted-foreground">
-              Requires attention
+              {loading ? 'Loading...' : 'Requires attention'}
             </p>
           </CardContent>
         </Card>

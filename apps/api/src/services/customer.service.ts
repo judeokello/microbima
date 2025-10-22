@@ -1066,6 +1066,67 @@ export class CustomerService {
   }
 
   /**
+   * Get dashboard statistics
+   */
+  async getDashboardStats(correlationId: string = 'unknown') {
+    try {
+      this.logger.log(`[${correlationId}] Getting dashboard statistics`);
+
+      // Get today's date range (start and end of today)
+      const today = new Date();
+      const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+      const endOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1);
+
+      // Run all queries in parallel for better performance
+      const [
+        totalAgents,
+        activeAgents,
+        totalCustomers,
+        registrationsToday,
+        pendingMRs
+      ] = await Promise.all([
+        // Total agents count
+        this.prismaService.brandAmbassador.count(),
+        
+        // Active agents count
+        this.prismaService.brandAmbassador.count({
+          where: { isActive: true }
+        }),
+        
+        // Total customers count
+        this.prismaService.customer.count(),
+        
+        // Registrations today count
+        this.prismaService.customer.count({
+          where: {
+            createdAt: {
+              gte: startOfToday,
+              lt: endOfToday
+            }
+          }
+        }),
+        
+        // Pending MRs count (customers with missing requirements)
+        this.prismaService.customer.count({
+          where: { hasMissingRequirements: true }
+        })
+      ]);
+
+      return {
+        totalAgents,
+        activeAgents,
+        totalCustomers,
+        registrationsToday,
+        pendingMRs,
+        activeAgentRate: totalAgents > 0 ? Math.round((activeAgents / totalAgents) * 100) : 0
+      };
+    } catch (error) {
+      this.logger.error(`[${correlationId}] Error getting dashboard statistics: ${error instanceof Error ? error.message : 'Unknown error'}`, error instanceof Error ? error.stack : undefined);
+      throw error;
+    }
+  }
+
+  /**
    * Get Brand Ambassadors for filter dropdown
    */
   async getBrandAmbassadorsForFilter(correlationId: string = 'unknown') {

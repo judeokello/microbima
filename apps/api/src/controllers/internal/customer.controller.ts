@@ -33,6 +33,7 @@ import { AddBeneficiariesRequestDto } from '../../dto/beneficiaries/add-benefici
 import { AddBeneficiariesResponseDto } from '../../dto/beneficiaries/add-beneficiaries-response.dto';
 import { BrandAmbassadorRegistrationsResponseDto } from '../../dto/customers/brand-ambassador-registrations.dto';
 import { AdminCustomersResponseDto } from '../../dto/customers/admin-customers.dto';
+import { DashboardStatsDto } from '../../dto/customers/dashboard-stats.dto';
 import { CorrelationId } from '../../decorators/correlation-id.decorator';
 import { PartnerId } from '../../decorators/api-key.decorator';
 
@@ -120,6 +121,37 @@ export class InternalCustomerController {
       toDate,
       correlationId
     );
+  }
+
+  /**
+   * Get dashboard statistics (Admin/Customer Care only)
+   */
+  @Get('dashboard-stats')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Get dashboard statistics',
+    description: 'Get dashboard statistics including total agents, active agents, total customers, registrations today, and pending MRs. Admin/Customer Care role required.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Dashboard statistics retrieved successfully',
+    type: DashboardStatsDto,
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Unauthorized - invalid authentication',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden - admin/customer care role required',
+  })
+  async getDashboardStats(
+    @CorrelationId() correlationId: string,
+    @Req() req: any,
+  ) {
+    const userId = req.user?.id || 'system';
+    
+    return this.customerService.getDashboardStats(correlationId);
   }
 
   /**
