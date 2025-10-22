@@ -67,20 +67,20 @@ export default function AdminLayout({
             href="/admin/ba-registration"
             className="block px-3 py-2 rounded-md hover:bg-gray-700 transition-colors"
           >
-            Register BA
+            Register Agent
           </Link>
           <Link
             href="/admin/ba-management"
             className="block px-3 py-2 rounded-md hover:bg-gray-700 transition-colors"
           >
-            Manage BAs
+            Manage Agents
           </Link>
           <Link
             href="/dashboard"
             className="block px-3 py-2 rounded-md hover:bg-gray-700 transition-colors flex items-center"
           >
             <LayoutDashboard className="h-4 w-4 mr-2" />
-            BA Dashboard
+            Agent Dashboard
           </Link>
         </nav>
 

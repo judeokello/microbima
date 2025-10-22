@@ -9,14 +9,14 @@ export default function AdminDashboardPage() {
       <div>
         <h2 className="text-2xl font-bold">Admin Dashboard</h2>
         <p className="text-muted-foreground">
-          Manage brand ambassadors and system settings
+          Manage Agents and system settings
         </p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total BAs</CardTitle>
+            <CardTitle className="text-sm font-medium">Total Agents</CardTitle>
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -29,7 +29,7 @@ export default function AdminDashboardPage() {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Active BAs</CardTitle>
+            <CardTitle className="text-sm font-medium">Active Agents</CardTitle>
             <UserPlus className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -79,19 +79,19 @@ export default function AdminDashboardPage() {
             <Link href="/dashboard">
               <Button variant="outline" className="w-full justify-start">
                 <LayoutDashboard className="mr-2 h-4 w-4" />
-                BA Dashboard
+                Agent Dashboard
               </Button>
             </Link>
             <Link href="/admin/ba-registration">
               <Button className="w-full justify-start">
                 <UserPlus className="mr-2 h-4 w-4" />
-                Register New Brand Ambassador
+                Register New Agent
               </Button>
             </Link>
             <Link href="/admin/ba-management">
               <Button variant="outline" className="w-full justify-start">
                 <Users className="mr-2 h-4 w-4" />
-                Manage Brand Ambassadors
+                Manage Agents
               </Button>
             </Link>
             <Button variant="outline" className="w-full justify-start" disabled>
@@ -113,7 +113,7 @@ export default function AdminDashboardPage() {
               <div className="flex items-center space-x-4">
                 <div className="w-2 h-2 bg-green-500 rounded-full"></div>
                 <div className="flex-1">
-                  <p className="text-sm font-medium">New BA registered</p>
+                  <p className="text-sm font-medium">New Agent registered</p>
                   <p className="text-xs text-muted-foreground">John Doe - 2 hours ago</p>
                 </div>
               </div>

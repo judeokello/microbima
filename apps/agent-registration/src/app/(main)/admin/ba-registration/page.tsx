@@ -137,11 +137,11 @@ export default function BARegistrationPage() {
           <CardHeader>
             <CardTitle className="text-green-600">Success!</CardTitle>
             <CardDescription>
-              Brand Ambassador has been created successfully.
+              Agent has been created successfully.
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <p>Redirecting to BA management...</p>
+            <p>Redirecting to Agent management...</p>
           </CardContent>
         </Card>
       </div>
@@ -152,9 +152,9 @@ export default function BARegistrationPage() {
     <div className="max-w-2xl mx-auto">
       <Card>
         <CardHeader>
-          <CardTitle>Register Brand Ambassador</CardTitle>
+          <CardTitle>Register Agent</CardTitle>
           <CardDescription>
-            Create a new brand ambassador account with partner assignment.
+            Create a new agent account with partner assignment.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -196,7 +196,7 @@ export default function BARegistrationPage() {
                 type="email"
                 value={formData.email}
                 onChange={(e) => handleInputChange('email', e.target.value)}
-                placeholder="ba@example.com"
+                placeholder="agent@example.com"
                 required
               />
             </div>
@@ -284,7 +284,7 @@ export default function BARegistrationPage() {
                     onCheckedChange={(checked) => handleRoleToggle(ROLES.BRAND_AMBASSADOR, checked as boolean)}
                   />
                   <Label htmlFor="brand_ambassador" className="text-sm font-normal">
-                    Brand Ambassador (can register customers)
+                    Agent (can register customers)
                   </Label>
                 </div>
                 <div className="flex items-center space-x-2">
@@ -294,12 +294,12 @@ export default function BARegistrationPage() {
                     onCheckedChange={(checked) => handleRoleToggle(ROLES.REGISTRATION_ADMIN, checked as boolean)}
                   />
                   <Label htmlFor="registration_admin" className="text-sm font-normal">
-                    Registration Admin (can manage BAs and resolve MRs)
+                    Registration Admin (can manage Agents and resolve MRs)
                   </Label>
                 </div>
               </div>
               <p className="text-sm text-muted-foreground">
-                Select one or both roles. Brand Ambassador is required for customer registration.
+                Select one or both roles. Agent role is required for customer registration.
               </p>
             </div>
 
@@ -314,7 +314,7 @@ export default function BARegistrationPage() {
               </Button>
               <Button type="submit" disabled={loading}>
                 {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Create Brand Ambassador
+                Create Agent
               </Button>
             </div>
           </form>

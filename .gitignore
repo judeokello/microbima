@@ -120,3 +120,4 @@ prisma/migrations/
 .specstory/
 
 .staging-api-secrets.txt
+.production-agentreg-secrets.txt
