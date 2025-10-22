@@ -64,6 +64,12 @@ export default function AdminLayout({
             Dashboard
           </Link>
           <Link
+            href="/admin/customers"
+            className="block px-3 py-2 rounded-md hover:bg-gray-700 transition-colors"
+          >
+            Customers
+          </Link>
+          <Link
             href="/admin/ba-registration"
             className="block px-3 py-2 rounded-md hover:bg-gray-700 transition-colors"
           >

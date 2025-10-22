@@ -818,7 +818,7 @@ export class CustomerService {
           firstName: beneficiary.firstName,
           middleName: beneficiary.middleName || null,
           lastName: beneficiary.lastName,
-          dateOfBirth: new Date(beneficiary.dateOfBirth),
+          dateOfBirth: beneficiary.dateOfBirth ? new Date(beneficiary.dateOfBirth) : null,
           gender: beneficiary.gender.toUpperCase() as any,
           email: beneficiary.email || null,
           phoneNumber: beneficiary.phoneNumber || null,
@@ -974,6 +974,437 @@ export class CustomerService {
       this.logger.error(`[${correlationId}] Error getting beneficiaries: ${error instanceof Error ? error.message : 'Unknown error'}`, error instanceof Error ? error.stack : undefined);
       throw error;
     }
+  }
+
+  /**
+   * Get brand ambassador's customer registrations with pagination and filtering
+   */
+  async getBrandAmbassadorRegistrations(
+    partnerId: number,
+    page: number = 1,
+    pageSize: number = 20,
+    fromDate?: string,
+    toDate?: string,
+    correlationId: string = 'unknown'
+  ) {
+    try {
+      this.logger.log(`[${correlationId}] Getting brand ambassador registrations for partner ${partnerId}, page ${page}, pageSize ${pageSize}`);
+
+      const skip = (page - 1) * pageSize;
+      
+      // Build date filter
+      const dateFilter: any = {};
+      if (fromDate) {
+        dateFilter.gte = new Date(fromDate);
+      }
+      if (toDate) {
+        dateFilter.lte = new Date(toDate);
+      }
+
+      const whereClause: any = {
+        createdByPartnerId: partnerId,
+      };
+
+      if (Object.keys(dateFilter).length > 0) {
+        whereClause.createdAt = dateFilter;
+      }
+
+      // Get customers with pagination
+      const [customers, totalCount] = await Promise.all([
+        this.prismaService.customer.findMany({
+          where: whereClause,
+          select: {
+            id: true,
+            firstName: true,
+            phoneNumber: true,
+            gender: true,
+            createdAt: true,
+            idType: true,
+            idNumber: true,
+            hasMissingRequirements: true,
+          },
+          orderBy: {
+            createdAt: 'desc',
+          },
+          skip,
+          take: pageSize,
+        }),
+        this.prismaService.customer.count({
+          where: whereClause,
+        }),
+      ]);
+
+      const totalPages = Math.ceil(totalCount / pageSize);
+
+      // Transform data for brand ambassador view (masked phone and ID)
+      const transformedCustomers = customers.map(customer => ({
+        id: customer.id,
+        firstName: customer.firstName,
+        phoneNumber: this.maskPhoneNumber(customer.phoneNumber),
+        gender: customer.gender?.toLowerCase() || 'unknown',
+        createdAt: customer.createdAt.toISOString(),
+        idType: customer.idType,
+        idNumber: this.maskIdNumber(customer.idNumber),
+        hasMissingRequirements: customer.hasMissingRequirements,
+      }));
+
+      return {
+        data: transformedCustomers,
+        pagination: {
+          page,
+          pageSize,
+          totalItems: totalCount,
+          totalPages,
+          hasNextPage: page < totalPages,
+          hasPreviousPage: page > 1,
+        },
+      };
+    } catch (error) {
+      this.logger.error(`[${correlationId}] Error getting brand ambassador registrations: ${error instanceof Error ? error.message : 'Unknown error'}`, error instanceof Error ? error.stack : undefined);
+      throw error;
+    }
+  }
+
+  /**
+   * Get Brand Ambassadors for filter dropdown
+   */
+  async getBrandAmbassadorsForFilter(correlationId: string = 'unknown') {
+    try {
+      this.logger.log(`[${correlationId}] Getting brand ambassadors for filter`);
+
+      const brandAmbassadors = await this.prismaService.brandAmbassador.findMany({
+        where: {
+          isActive: true,
+        },
+        select: {
+          displayName: true,
+          partnerId: true,
+        },
+        orderBy: {
+          displayName: 'asc',
+        },
+      });
+
+      // Remove duplicates based on displayName
+      const uniqueBrandAmbassadors = brandAmbassadors.reduce((acc, ba) => {
+        if (!acc.find(item => item.displayName === ba.displayName)) {
+          acc.push(ba);
+        }
+        return acc;
+      }, [] as typeof brandAmbassadors);
+
+      return {
+        brandAmbassadors: uniqueBrandAmbassadors.map(ba => ({
+          displayName: ba.displayName,
+          partnerId: ba.partnerId,
+        })),
+      };
+    } catch (error) {
+      this.logger.error(`[${correlationId}] Error getting brand ambassadors for filter: ${error instanceof Error ? error.message : 'Unknown error'}`, error instanceof Error ? error.stack : undefined);
+      throw error;
+    }
+  }
+
+  /**
+   * Get all customers for admin view with pagination and filtering
+   */
+  async getAllCustomers(
+    page: number = 1,
+    pageSize: number = 20,
+    fromDate?: string,
+    toDate?: string,
+    createdBy?: string,
+    correlationId: string = 'unknown'
+  ) {
+    try {
+      this.logger.log(`[${correlationId}] Getting all customers, page ${page}, pageSize ${pageSize}`);
+
+      const skip = (page - 1) * pageSize;
+      
+      // Build date filter
+      const dateFilter: any = {};
+      if (fromDate) {
+        dateFilter.gte = new Date(fromDate);
+      }
+      if (toDate) {
+        dateFilter.lte = new Date(toDate);
+      }
+
+      const whereClause: any = {};
+
+      if (Object.keys(dateFilter).length > 0) {
+        whereClause.createdAt = dateFilter;
+      }
+
+      // Get brand ambassadors for filtering if createdBy is specified
+      let brandAmbassadorFilter: any = {};
+      if (createdBy) {
+        const brandAmbassadors = await this.prismaService.brandAmbassador.findMany({
+          where: {
+            displayName: {
+              contains: createdBy,
+              mode: 'insensitive',
+            },
+          },
+          select: {
+            partnerId: true,
+          },
+        });
+        
+        if (brandAmbassadors.length > 0) {
+          whereClause.createdByPartnerId = {
+            in: brandAmbassadors.map(ba => ba.partnerId),
+          };
+        } else {
+          // If no brand ambassadors found, return empty result
+          return {
+            data: [],
+            pagination: {
+              page,
+              pageSize,
+              totalItems: 0,
+              totalPages: 0,
+              hasNextPage: false,
+              hasPreviousPage: false,
+            },
+          };
+        }
+      }
+
+      // Get customers with pagination and creator info
+      const [customers, totalCount] = await Promise.all([
+        this.prismaService.customer.findMany({
+          where: whereClause,
+          select: {
+            id: true,
+            firstName: true,
+            middleName: true,
+            lastName: true,
+            phoneNumber: true,
+            gender: true,
+            createdAt: true,
+            idType: true,
+            idNumber: true,
+            hasMissingRequirements: true,
+            createdBy: true,
+            createdByPartnerId: true,
+          },
+          orderBy: {
+            createdAt: 'desc',
+          },
+          skip,
+          take: pageSize,
+        }),
+        this.prismaService.customer.count({
+          where: whereClause,
+        }),
+      ]);
+
+      const totalPages = Math.ceil(totalCount / pageSize);
+
+      // Get brand ambassador info for registered by field
+      const partnerIds = [...new Set(customers.map(c => c.createdByPartnerId))];
+      const brandAmbassadors = await this.prismaService.brandAmbassador.findMany({
+        where: {
+          partnerId: {
+            in: partnerIds,
+          },
+        },
+        select: {
+          partnerId: true,
+          displayName: true,
+        },
+      });
+
+      const baMap = new Map(brandAmbassadors.map(ba => [ba.partnerId, ba.displayName]));
+
+      // Transform data for admin view (unmasked)
+      const transformedCustomers = customers.map(customer => ({
+        id: customer.id,
+        fullName: this.formatFullName(customer.firstName, customer.middleName, customer.lastName),
+        phoneNumber: customer.phoneNumber,
+        gender: customer.gender?.toLowerCase() || 'unknown',
+        createdAt: customer.createdAt.toISOString(),
+        registeredBy: baMap.get(customer.createdByPartnerId) || 'Unknown',
+        idType: customer.idType,
+        idNumber: customer.idNumber,
+        hasMissingRequirements: customer.hasMissingRequirements,
+      }));
+
+      return {
+        data: transformedCustomers,
+        pagination: {
+          page,
+          pageSize,
+          totalItems: totalCount,
+          totalPages,
+          hasNextPage: page < totalPages,
+          hasPreviousPage: page > 1,
+        },
+      };
+    } catch (error) {
+      this.logger.error(`[${correlationId}] Error getting all customers: ${error instanceof Error ? error.message : 'Unknown error'}`, error instanceof Error ? error.stack : undefined);
+      throw error;
+    }
+  }
+
+  /**
+   * Export customers to CSV format
+   */
+  async exportCustomersToCSV(
+    fromDate?: string,
+    toDate?: string,
+    correlationId: string = 'unknown'
+  ) {
+    try {
+      this.logger.log(`[${correlationId}] Exporting customers to CSV`);
+
+      // Build date filter
+      const dateFilter: any = {};
+      if (fromDate) {
+        dateFilter.gte = new Date(fromDate);
+      }
+      if (toDate) {
+        dateFilter.lte = new Date(toDate);
+      }
+
+      const whereClause: any = {};
+
+      if (Object.keys(dateFilter).length > 0) {
+        whereClause.createdAt = dateFilter;
+      }
+
+      // Get all customers for export
+      const customers = await this.prismaService.customer.findMany({
+        where: whereClause,
+        select: {
+          id: true,
+          firstName: true,
+          middleName: true,
+          lastName: true,
+          phoneNumber: true,
+          gender: true,
+          createdAt: true,
+          idType: true,
+          idNumber: true,
+          hasMissingRequirements: true,
+          createdByPartnerId: true,
+        },
+        orderBy: {
+          createdAt: 'desc',
+        },
+      });
+
+      // Get brand ambassador info
+      const partnerIds = [...new Set(customers.map(c => c.createdByPartnerId))];
+      const brandAmbassadors = await this.prismaService.brandAmbassador.findMany({
+        where: {
+          partnerId: {
+            in: partnerIds,
+          },
+        },
+        select: {
+          partnerId: true,
+          displayName: true,
+        },
+      });
+
+      const baMap = new Map(brandAmbassadors.map(ba => [ba.partnerId, ba.displayName]));
+
+      // Generate CSV content
+      const csvHeaders = [
+        'Customer ID',
+        'Full Name',
+        'Phone Number',
+        'Gender',
+        'Registration Date',
+        'Registered By',
+        'ID Type',
+        'ID Number',
+        'Has Missing Requirements',
+      ];
+
+      const csvRows = customers.map(customer => [
+        customer.id,
+        this.formatFullName(customer.firstName, customer.middleName, customer.lastName),
+        customer.phoneNumber,
+        customer.gender?.toLowerCase() || 'unknown',
+        customer.createdAt.toISOString(),
+        baMap.get(customer.createdByPartnerId) || 'Unknown',
+        customer.idType,
+        customer.idNumber,
+        customer.hasMissingRequirements ? 'Yes' : 'No',
+      ]);
+
+      const csvContent = [csvHeaders, ...csvRows]
+        .map(row => row.map(field => `"${field}"`).join(','))
+        .join('\n');
+
+      return {
+        filename: `customers_export_${new Date().toISOString().split('T')[0]}.csv`,
+        content: csvContent,
+        contentType: 'text/csv',
+      };
+    } catch (error) {
+      this.logger.error(`[${correlationId}] Error exporting customers to CSV: ${error instanceof Error ? error.message : 'Unknown error'}`, error instanceof Error ? error.stack : undefined);
+      throw error;
+    }
+  }
+
+  /**
+   * Helper method to mask phone numbers
+   */
+  private maskPhoneNumber(phoneNumber: string | null): string {
+    if (!phoneNumber || phoneNumber.trim() === '') {
+      return 'N/A';
+    }
+
+    const cleanPhone = phoneNumber.replace(/\D/g, '');
+    
+    if (cleanPhone.length < 7) {
+      return cleanPhone.substring(0, 4) + '***';
+    }
+
+    const start = cleanPhone.substring(0, 4);
+    const end = cleanPhone.substring(cleanPhone.length - 3);
+    const maskedMiddle = '*'.repeat(Math.max(3, cleanPhone.length - 7));
+
+    if (phoneNumber.startsWith('+')) {
+      return `+${start}${maskedMiddle}${end}`;
+    }
+
+    return `${start}${maskedMiddle}${end}`;
+  }
+
+  /**
+   * Helper method to mask ID numbers
+   */
+  private maskIdNumber(idNumber: string | null): string {
+    if (!idNumber || idNumber.trim() === '') {
+      return 'N/A';
+    }
+
+    if (idNumber.length < 4) {
+      return '*'.repeat(idNumber.length);
+    }
+
+    const start = idNumber.substring(0, 2);
+    const end = idNumber.substring(idNumber.length - 2);
+    const maskedMiddle = '*'.repeat(Math.max(2, idNumber.length - 4));
+
+    return `${start}${maskedMiddle}${end}`;
+  }
+
+  /**
+   * Helper method to format full name
+   */
+  private formatFullName(
+    firstName: string | null,
+    middleName?: string | null,
+    lastName?: string | null
+  ): string {
+    const parts = [firstName, middleName, lastName].filter(Boolean);
+    return parts.length > 0 ? parts.join(' ') : 'N/A';
   }
 
 }

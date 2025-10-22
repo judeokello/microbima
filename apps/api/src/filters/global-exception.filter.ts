@@ -97,6 +97,12 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       if (exception.message.includes('Foreign key constraint failed')) {
         return HttpStatus.BAD_REQUEST; // 400 for invalid references
       }
+
+      // Handle Prisma validation errors (like Invalid Date)
+      if (exception.message.includes('Invalid value for argument') || 
+          exception.message.includes('Provided Date object is invalid')) {
+        return HttpStatus.UNPROCESSABLE_ENTITY; // 422 for validation errors
+      }
     }
 
     // Default to 500 for unknown exceptions
@@ -139,6 +145,12 @@ export class GlobalExceptionFilter implements ExceptionFilter {
 
       if (exception.message.includes('Invalid `this.prismaService')) {
         return ErrorCodes.DATABASE_ERROR;
+      }
+
+      // Handle Prisma validation errors (like Invalid Date)
+      if (exception.message.includes('Invalid value for argument') || 
+          exception.message.includes('Provided Date object is invalid')) {
+        return ErrorCodes.VALIDATION_ERROR;
       }
     }
 
@@ -183,6 +195,15 @@ export class GlobalExceptionFilter implements ExceptionFilter {
 
       if (exception.message.includes('Invalid `this.prismaService')) {
         return 'An error occurred while saving the data';
+      }
+
+      // Handle Prisma validation errors (like Invalid Date)
+      if (exception.message.includes('Invalid value for argument') || 
+          exception.message.includes('Provided Date object is invalid')) {
+        if (process.env.NODE_ENV === 'production') {
+          return 'Invalid data provided. Please check your input and try again.';
+        }
+        return exception.message;
       }
 
       // For other database errors, return generic message in production

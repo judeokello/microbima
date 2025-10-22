@@ -3,18 +3,22 @@ import {
   Post,
   Put,
   Delete,
+  Get,
   Body,
   Param,
+  Query,
   HttpStatus,
   HttpCode,
   UseGuards,
   Req,
+  Res,
 } from '@nestjs/common';
 import {
   ApiTags,
   ApiOperation,
   ApiResponse,
   ApiParam,
+  ApiQuery,
   ApiSecurity,
   ApiBearerAuth,
 } from '@nestjs/swagger';
@@ -27,6 +31,8 @@ import { CreatePrincipalMemberRequestDto } from '../../dto/principal-member/crea
 import { CreatePrincipalMemberResponseDto } from '../../dto/principal-member/create-principal-member-response.dto';
 import { AddBeneficiariesRequestDto } from '../../dto/beneficiaries/add-beneficiaries-request.dto';
 import { AddBeneficiariesResponseDto } from '../../dto/beneficiaries/add-beneficiaries-response.dto';
+import { BrandAmbassadorRegistrationsResponseDto } from '../../dto/customers/brand-ambassador-registrations.dto';
+import { AdminCustomersResponseDto } from '../../dto/customers/admin-customers.dto';
 import { CorrelationId } from '../../decorators/correlation-id.decorator';
 import { PartnerId } from '../../decorators/api-key.decorator';
 
@@ -51,6 +57,234 @@ export class InternalCustomerController {
     private readonly customerService: CustomerService,
     private readonly partnerManagementService: PartnerManagementService,
   ) {}
+
+  /**
+   * Get brand ambassador's customer registrations
+   */
+  @Get('my-registrations')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Get agent registrations',
+    description: 'Get customers registered by the current agent with pagination and date filtering.',
+  })
+  @ApiQuery({
+    name: 'page',
+    description: 'Page number (1-based)',
+    required: false,
+    example: 1,
+  })
+  @ApiQuery({
+    name: 'pageSize',
+    description: 'Number of items per page',
+    required: false,
+    example: 20,
+  })
+  @ApiQuery({
+    name: 'fromDate',
+    description: 'Filter from date (ISO 8601 format)',
+    required: false,
+    example: '2024-01-01',
+  })
+  @ApiQuery({
+    name: 'toDate',
+    description: 'Filter to date (ISO 8601 format)',
+    required: false,
+    example: '2024-12-31',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Customer registrations retrieved successfully',
+    type: BrandAmbassadorRegistrationsResponseDto,
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Unauthorized - invalid authentication',
+  })
+  async getMyRegistrations(
+    @CorrelationId() correlationId: string,
+    @Req() req: any,
+    @Query('page') page: string = '1',
+    @Query('pageSize') pageSize: string = '20',
+    @Query('fromDate') fromDate?: string,
+    @Query('toDate') toDate?: string,
+  ): Promise<BrandAmbassadorRegistrationsResponseDto> {
+    const userId = req.user?.id || 'system';
+    const baInfo = await this.partnerManagementService.getBrandAmbassadorByUserId(userId);
+    const partnerId = baInfo.partnerId;
+
+    return this.customerService.getBrandAmbassadorRegistrations(
+      partnerId,
+      parseInt(page),
+      parseInt(pageSize),
+      fromDate,
+      toDate,
+      correlationId
+    );
+  }
+
+  /**
+   * Get Brand Ambassadors for filter dropdown (Admin/Customer Care only)
+   */
+  @Get('brand-ambassadors')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Get Brand Ambassadors for filter',
+    description: 'Get list of Brand Ambassadors for the Created By filter dropdown. Admin/Customer Care role required.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Brand Ambassadors retrieved successfully',
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Unauthorized - invalid authentication',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden - admin/customer care role required',
+  })
+  async getBrandAmbassadorsForFilter(
+    @CorrelationId() correlationId: string,
+    @Req() req: any,
+  ) {
+    const userId = req.user?.id || 'system';
+    
+    return this.customerService.getBrandAmbassadorsForFilter(correlationId);
+  }
+
+  /**
+   * Get all customers (Admin/Customer Care only)
+   */
+  @Get('all')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Get all customers (Admin)',
+    description: 'Get all customers in the system with pagination and date filtering. Admin/Customer Care role required.',
+  })
+  @ApiQuery({
+    name: 'page',
+    description: 'Page number (1-based)',
+    required: false,
+    example: 1,
+  })
+  @ApiQuery({
+    name: 'pageSize',
+    description: 'Number of items per page',
+    required: false,
+    example: 20,
+  })
+  @ApiQuery({
+    name: 'fromDate',
+    description: 'Filter from date (ISO 8601 format)',
+    required: false,
+    example: '2024-01-01',
+  })
+  @ApiQuery({
+    name: 'toDate',
+    description: 'Filter to date (ISO 8601 format)',
+    required: false,
+    example: '2024-12-31',
+  })
+  @ApiQuery({
+    name: 'createdBy',
+    description: 'Filter by Brand Ambassador display name',
+    required: false,
+    example: 'John Doe',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'All customers retrieved successfully',
+    type: AdminCustomersResponseDto,
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Unauthorized - invalid authentication',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden - admin/customer care role required',
+  })
+  async getAllCustomers(
+    @CorrelationId() correlationId: string,
+    @Req() req: any,
+    @Query('page') page: string = '1',
+    @Query('pageSize') pageSize: string = '20',
+    @Query('fromDate') fromDate?: string,
+    @Query('toDate') toDate?: string,
+    @Query('createdBy') createdBy?: string,
+  ): Promise<AdminCustomersResponseDto> {
+    const userId = req.user?.id || 'system';
+    
+    return this.customerService.getAllCustomers(
+      parseInt(page),
+      parseInt(pageSize),
+      fromDate,
+      toDate,
+      createdBy,
+      correlationId
+    );
+  }
+
+  /**
+   * Export customers to CSV (Admin/Customer Care only)
+   */
+  @Get('export')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Export customers to CSV (Admin)',
+    description: 'Export customer data to CSV format. Admin/Customer Care role required.',
+  })
+  @ApiQuery({
+    name: 'fromDate',
+    description: 'Filter from date (ISO 8601 format)',
+    required: false,
+    example: '2024-01-01',
+  })
+  @ApiQuery({
+    name: 'toDate',
+    description: 'Filter to date (ISO 8601 format)',
+    required: false,
+    example: '2024-12-31',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'CSV file generated successfully',
+    content: {
+      'text/csv': {
+        schema: {
+          type: 'string',
+          format: 'binary',
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Unauthorized - invalid authentication',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden - admin/customer care role required',
+  })
+  async exportCustomers(
+    @CorrelationId() correlationId: string,
+    @Req() req: any,
+    @Res() res: any,
+    @Query('fromDate') fromDate?: string,
+    @Query('toDate') toDate?: string,
+  ) {
+    const userId = req.user?.id || 'system';
+    
+    const exportData = await this.customerService.exportCustomersToCSV(
+      fromDate,
+      toDate,
+      correlationId
+    );
+
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename="${exportData.filename}"`);
+    res.send(exportData.content);
+  }
 
   /**
    * Create a new customer (Internal with userId support)
