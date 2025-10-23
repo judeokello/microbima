@@ -107,7 +107,7 @@ export default function AdminDashboardPage() {
               {loading ? '...' : stats ? formatNumber(stats.totalCustomers) : '0'}
             </div>
             <p className="text-xs text-muted-foreground">
-              {loading ? 'Loading...' : stats ? `${stats.activeAgentRate}% active agents` : 'No data'}
+              {loading ? 'Loading...' : 'Total customer count'}
             </p>
           </CardContent>
         </Card>
@@ -185,6 +185,11 @@ export default function AdminDashboardPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
+            {/* TODO: Implement real-time activity feed */}
+            <div className="text-center text-muted-foreground py-8">
+              <p>Activity feed coming soon...</p>
+            </div>
+            {/*
             <div className="space-y-4">
               <div className="flex items-center space-x-4">
                 <div className="w-2 h-2 bg-green-500 rounded-full"></div>
@@ -208,6 +213,7 @@ export default function AdminDashboardPage() {
                 </div>
               </div>
             </div>
+            */}
           </CardContent>
         </Card>
       </div>

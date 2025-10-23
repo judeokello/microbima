@@ -52,7 +52,7 @@ export default function DashboardLayout({
       {/* Dashboard Sidebar */}
       <aside className="w-64 bg-gray-800 text-white p-4">
         <div className="mb-6">
-          <h2 className="text-xl font-bold mb-2">BA Dashboard</h2>
+          <h2 className="text-xl font-bold mb-2">Agent Dashboard</h2>
           <div className="flex items-center space-x-2 text-sm text-gray-300">
             <User className="h-4 w-4" />
             <span>{userMetadata?.displayName ?? user?.email}</span>
