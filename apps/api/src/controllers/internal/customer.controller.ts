@@ -34,6 +34,7 @@ import { AddBeneficiariesResponseDto } from '../../dto/beneficiaries/add-benefic
 import { BrandAmbassadorRegistrationsResponseDto } from '../../dto/customers/brand-ambassador-registrations.dto';
 import { AdminCustomersResponseDto } from '../../dto/customers/admin-customers.dto';
 import { DashboardStatsDto } from '../../dto/customers/dashboard-stats.dto';
+import { BrandAmbassadorDashboardStatsDto } from '../../dto/customers/brand-ambassador-dashboard-stats.dto';
 import { CorrelationId } from '../../decorators/correlation-id.decorator';
 import { PartnerId } from '../../decorators/api-key.decorator';
 
@@ -121,6 +122,42 @@ export class InternalCustomerController {
       toDate,
       correlationId
     );
+  }
+
+  /**
+   * Get Brand Ambassador dashboard statistics
+   */
+  @Get('my-dashboard-stats')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Get Brand Ambassador dashboard statistics',
+    description: 'Get dashboard statistics for the logged-in Brand Ambassador including registrations today, yesterday, this week, last week, and total.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Brand Ambassador dashboard statistics retrieved successfully',
+    type: BrandAmbassadorDashboardStatsDto,
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Unauthorized - invalid authentication',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden - brand ambassador role required',
+  })
+  async getBrandAmbassadorDashboardStats(
+    @CorrelationId() correlationId: string,
+    @Req() req: any,
+  ): Promise<BrandAmbassadorDashboardStatsDto> {
+    const userId = req.user?.id || 'system';
+    const partnerId = req.user?.partnerId;
+    
+    if (!partnerId) {
+      throw new Error('Partner ID not found in user session');
+    }
+    
+    return this.customerService.getBrandAmbassadorDashboardStats(partnerId, correlationId);
   }
 
   /**

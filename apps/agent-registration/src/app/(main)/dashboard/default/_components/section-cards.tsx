@@ -3,79 +3,117 @@ import { TrendingUp, TrendingDown } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardAction, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 
-export function SectionCards() {
+interface BrandAmbassadorDashboardStats {
+  registeredToday: number;
+  registeredYesterday: number;
+  registeredThisWeek: number;
+  registeredLastWeek: number;
+  myTotalRegistrations: number;
+}
+
+export interface SectionCardsProps {
+  stats: BrandAmbassadorDashboardStats | null;
+  loading: boolean;
+  formatNumber: (num: number) => string;
+}
+
+export function SectionCards({ stats, loading, formatNumber }: SectionCardsProps) {
+  // Calculate week-over-week change
+  const weekChange = stats ? stats.registeredThisWeek - stats.registeredLastWeek : 0;
+  const weekChangePercent = stats && stats.registeredLastWeek > 0
+    ? Math.round((weekChange / stats.registeredLastWeek) * 100)
+    : 0;
+
   return (
     <div className="*:data-[slot=card]:from-primary/5 *:data-[slot=card]:to-card dark:*:data-[slot=card]:bg-card grid grid-cols-1 gap-4 *:data-[slot=card]:bg-gradient-to-t *:data-[slot=card]:shadow-xs @xl/main:grid-cols-2 @5xl/main:grid-cols-4">
+      {/* Card 1: Registered Today */}
       <Card className="@container/card">
         <CardHeader>
-          <CardDescription>Total Revenue</CardDescription>
-          <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">$1,250.00</CardTitle>
+          <CardDescription>Registered Today</CardDescription>
+          <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
+            {loading ? '...' : stats ? formatNumber(stats.registeredToday) : '0'}
+          </CardTitle>
           <CardAction>
             <Badge variant="outline">
               <TrendingUp />
-              +12.5%
+              Today's registrations
             </Badge>
           </CardAction>
         </CardHeader>
         <CardFooter className="flex-col items-start gap-1.5 text-sm">
           <div className="line-clamp-1 flex gap-2 font-medium">
-            Trending up this month <TrendingUp className="size-4" />
+            New customers today <TrendingUp className="size-4" />
           </div>
-          <div className="text-muted-foreground">Visitors for the last 6 months</div>
+          <div className="text-muted-foreground">Current day registrations</div>
         </CardFooter>
       </Card>
+
+      {/* Card 2: Registered Yesterday */}
       <Card className="@container/card">
         <CardHeader>
-          <CardDescription>New Customers</CardDescription>
-          <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">1,234</CardTitle>
+          <CardDescription>Registered Yesterday</CardDescription>
+          <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
+            {loading ? '...' : stats ? formatNumber(stats.registeredYesterday) : '0'}
+          </CardTitle>
           <CardAction>
             <Badge variant="outline">
               <TrendingDown />
-              -20%
+              Previous day
             </Badge>
           </CardAction>
         </CardHeader>
         <CardFooter className="flex-col items-start gap-1.5 text-sm">
           <div className="line-clamp-1 flex gap-2 font-medium">
-            Down 20% this period <TrendingDown className="size-4" />
+            Yesterday's registrations <TrendingDown className="size-4" />
           </div>
-          <div className="text-muted-foreground">Acquisition needs attention</div>
+          <div className="text-muted-foreground">Previous day performance</div>
         </CardFooter>
       </Card>
+
+      {/* Card 3: Registered This Week */}
       <Card className="@container/card">
         <CardHeader>
-          <CardDescription>Active Accounts</CardDescription>
-          <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">45,678</CardTitle>
+          <CardDescription>Registered This Week</CardDescription>
+          <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
+            {loading ? '...' : stats ? formatNumber(stats.registeredThisWeek) : '0'}
+          </CardTitle>
+          <CardAction>
+            <Badge variant="outline">
+              {weekChange >= 0 ? <TrendingUp /> : <TrendingDown />}
+              {weekChangePercent > 0 ? '+' : ''}{weekChangePercent}%
+            </Badge>
+          </CardAction>
+        </CardHeader>
+        <CardFooter className="flex-col items-start gap-1.5 text-sm">
+          <div className="line-clamp-1 flex gap-2 font-medium">
+            {weekChange >= 0 ? 'Week over week growth' : 'Week over week decline'}
+            {weekChange >= 0 ? <TrendingUp className="size-4" /> : <TrendingDown className="size-4" />}
+          </div>
+          <div className="text-muted-foreground">
+            Registered Last Week: {loading ? '...' : stats ? formatNumber(stats.registeredLastWeek) : '0'}
+          </div>
+        </CardFooter>
+      </Card>
+
+      {/* Card 4: My Total Registrations */}
+      <Card className="@container/card">
+        <CardHeader>
+          <CardDescription>My Total Registrations</CardDescription>
+          <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
+            {loading ? '...' : stats ? formatNumber(stats.myTotalRegistrations) : '0'}
+          </CardTitle>
           <CardAction>
             <Badge variant="outline">
               <TrendingUp />
-              +12.5%
+              All time
             </Badge>
           </CardAction>
         </CardHeader>
         <CardFooter className="flex-col items-start gap-1.5 text-sm">
           <div className="line-clamp-1 flex gap-2 font-medium">
-            Strong user retention <TrendingUp className="size-4" />
+            Total customers registered <TrendingUp className="size-4" />
           </div>
-          <div className="text-muted-foreground">Engagement exceed targets</div>
-        </CardFooter>
-      </Card>
-      <Card className="@container/card">
-        <CardHeader>
-          <CardDescription>Growth Rate</CardDescription>
-          <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">4.5%</CardTitle>
-          <CardAction>
-            <Badge variant="outline">
-              <TrendingUp />
-              +4.5%
-            </Badge>
-          </CardAction>
-        </CardHeader>
-        <CardFooter className="flex-col items-start gap-1.5 text-sm">
-          <div className="line-clamp-1 flex gap-2 font-medium">
-            Steady performance increase <TrendingUp className="size-4" />
-          </div>
-          <div className="text-muted-foreground">Meets growth projections</div>
+          <div className="text-muted-foreground">Your complete portfolio</div>
         </CardFooter>
       </Card>
     </div>

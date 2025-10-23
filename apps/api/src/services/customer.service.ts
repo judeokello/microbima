@@ -552,7 +552,7 @@ export class CustomerService {
             relationship: 'child' as const,
             firstName: child.firstName,
             lastName: child.lastName,
-            dateOfBirth: child.dateOfBirth.toISOString().split('T')[0],
+            dateOfBirth: child.dateOfBirth?.toISOString().split('T')[0] ?? null,
             gender: child.gender,
           })));
         }
@@ -596,7 +596,7 @@ export class CustomerService {
             relationship: 'spouse' as const,
             firstName: spouse.firstName,
             lastName: spouse.lastName,
-            dateOfBirth: spouse.dateOfBirth.toISOString().split('T')[0],
+            dateOfBirth: spouse.dateOfBirth?.toISOString().split('T')[0] ?? null,
             gender: spouse.gender,
             email: spouse.email,
             idType: SharedMapperUtils.mapIdTypeFromDto(spouse.idType),
@@ -704,7 +704,7 @@ export class CustomerService {
         dependantId: child.id,
         firstName: child.firstName,
         lastName: child.lastName,
-        dateOfBirth: child.dateOfBirth.toISOString().split('T')[0],
+        dateOfBirth: child.dateOfBirth?.toISOString().split('T')[0] ?? null,
         gender: child.gender,
         idType: child.idType,
         idNumber: child.idNumber,
@@ -715,7 +715,7 @@ export class CustomerService {
         dependantId: spouse.id,
         firstName: spouse.firstName,
         lastName: spouse.lastName,
-        dateOfBirth: spouse.dateOfBirth.toISOString().split('T')[0],
+        dateOfBirth: spouse.dateOfBirth?.toISOString().split('T')[0] ?? null,
         gender: spouse.gender,
         email: spouse.email,
         idType: spouse.idType,
@@ -850,7 +850,7 @@ export class CustomerService {
           beneficiaryId: beneficiary.id,
           firstName: beneficiary.firstName,
           lastName: beneficiary.lastName,
-          dateOfBirth: beneficiary.dateOfBirth.toISOString().split('T')[0],
+          dateOfBirth: beneficiary.dateOfBirth?.toISOString().split('T')[0] ?? null,
           gender: beneficiary.gender,
           email: beneficiary.email,
           phoneNumber: beneficiary.phoneNumber,
@@ -945,7 +945,7 @@ export class CustomerService {
         beneficiaryId: beneficiary.id,
         firstName: beneficiary.firstName,
         lastName: beneficiary.lastName,
-        dateOfBirth: beneficiary.dateOfBirth.toISOString().split('T')[0],
+        dateOfBirth: beneficiary.dateOfBirth?.toISOString().split('T')[0] ?? null,
         gender: beneficiary.gender,
         email: beneficiary.email,
         phoneNumber: beneficiary.phoneNumber,
@@ -1061,6 +1061,110 @@ export class CustomerService {
       };
     } catch (error) {
       this.logger.error(`[${correlationId}] Error getting brand ambassador registrations: ${error instanceof Error ? error.message : 'Unknown error'}`, error instanceof Error ? error.stack : undefined);
+      throw error;
+    }
+  }
+
+  /**
+   * Get Brand Ambassador dashboard statistics
+   */
+  async getBrandAmbassadorDashboardStats(partnerId: number, correlationId: string = 'unknown') {
+    try {
+      this.logger.log(`[${correlationId}] Getting brand ambassador dashboard stats for partner ${partnerId}`);
+
+      // Get date ranges
+      const now = new Date();
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const yesterday = new Date(today);
+      yesterday.setDate(yesterday.getDate() - 1);
+      
+      // This week (Monday to Sunday)
+      const thisWeekStart = new Date(today);
+      const dayOfWeek = today.getDay();
+      const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1; // Sunday = 0, Monday = 1
+      thisWeekStart.setDate(today.getDate() - daysToMonday);
+      thisWeekStart.setHours(0, 0, 0, 0);
+      
+      const thisWeekEnd = new Date(thisWeekStart);
+      thisWeekEnd.setDate(thisWeekStart.getDate() + 6);
+      thisWeekEnd.setHours(23, 59, 59, 999);
+      
+      // Last week
+      const lastWeekStart = new Date(thisWeekStart);
+      lastWeekStart.setDate(thisWeekStart.getDate() - 7);
+      
+      const lastWeekEnd = new Date(thisWeekEnd);
+      lastWeekEnd.setDate(thisWeekEnd.getDate() - 7);
+
+      // Run all queries in parallel for better performance
+      const [
+        registeredToday,
+        registeredYesterday,
+        registeredThisWeek,
+        registeredLastWeek,
+        myTotalRegistrations
+      ] = await Promise.all([
+        // Registered today
+        this.prismaService.customer.count({
+          where: {
+            createdByPartnerId: partnerId,
+            createdAt: {
+              gte: today,
+              lt: new Date(today.getTime() + 24 * 60 * 60 * 1000) // Next day
+            }
+          }
+        }),
+        
+        // Registered yesterday
+        this.prismaService.customer.count({
+          where: {
+            createdByPartnerId: partnerId,
+            createdAt: {
+              gte: yesterday,
+              lt: today
+            }
+          }
+        }),
+        
+        // Registered this week
+        this.prismaService.customer.count({
+          where: {
+            createdByPartnerId: partnerId,
+            createdAt: {
+              gte: thisWeekStart,
+              lte: thisWeekEnd
+            }
+          }
+        }),
+        
+        // Registered last week
+        this.prismaService.customer.count({
+          where: {
+            createdByPartnerId: partnerId,
+            createdAt: {
+              gte: lastWeekStart,
+              lte: lastWeekEnd
+            }
+          }
+        }),
+        
+        // Total registrations by this partner
+        this.prismaService.customer.count({
+          where: {
+            createdByPartnerId: partnerId
+          }
+        })
+      ]);
+
+      return {
+        registeredToday,
+        registeredYesterday,
+        registeredThisWeek,
+        registeredLastWeek,
+        myTotalRegistrations
+      };
+    } catch (error) {
+      this.logger.error(`[${correlationId}] Error getting brand ambassador dashboard stats: ${error instanceof Error ? error.message : 'Unknown error'}`, error instanceof Error ? error.stack : undefined);
       throw error;
     }
   }
