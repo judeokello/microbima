@@ -45,6 +45,7 @@ if (!envLoaded) {
 const sentryConfig = {
   dsn: process.env.SENTRY_DSN,
   environment: process.env.SENTRY_ENVIRONMENT || "development",
+  serverName: "maisha-poa-core", // API specific service name
   
   // Set tracesSampleRate to 1.0 to capture 100%
   // of transactions for tracing.

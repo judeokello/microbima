@@ -3,6 +3,7 @@ import * as Sentry from '@sentry/nextjs';
 Sentry.init({
   dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
   environment: process.env.SENTRY_ENVIRONMENT || 'development',
+  serverName: "agent-registration", // Identify this as agent-registration service
   
   // Set tracesSampleRate to 1.0 to capture 100%
   // of transactions for performance monitoring.
