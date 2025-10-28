@@ -105,10 +105,18 @@ import { ErrorCodes } from '../enums/error-codes.enum';
 
 ## Database Standards
 
+### Prisma Migration Standards (CRITICAL)
+- **NEVER** use `npx prisma db push` for tracked databases (development, staging, production)
+- **ALWAYS** use proper migrations to avoid drift:
+  - Development: `npx prisma migrate dev --name descriptive_name` (creates and applies migration)
+  - Production: `npx prisma migrate deploy` (applies pending migrations only)
+- Only use `db push` for throwaway/prototype databases that don't need migration tracking
+- All schema changes MUST go through Prisma migrations to maintain `_prisma_migrations` table accuracy
+
 ### Schema Updates
 - Use nullable fields with unique constraints when appropriate
 - Add compound unique constraints for business rules
-- Always run migrations: `npm exec prisma db push`
+- Create migrations for all schema changes
 
 ### Entity Validation
 - Implement `validateBeforeSave()` method in all entities

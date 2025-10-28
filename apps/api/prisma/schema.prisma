@@ -25,6 +25,7 @@ model Partner {
   partnerContacts PartnerContact[]
   partnerCustomers PartnerCustomer[]
   partnerApiKeys  PartnerApiKey[]
+  packageSchemeCustomers PackageSchemeCustomer[]
   
   // Agent Registration relations
   brandAmbassadors      BrandAmbassador[]
@@ -127,6 +128,7 @@ model Customer {
   
   // Relations
   partnerCustomers PartnerCustomer[]
+  packageSchemeCustomers PackageSchemeCustomer[]
   
   // Agent Registration relations
   registrations         AgentRegistration[]
@@ -509,4 +511,141 @@ model DeferredRequirementPartner {
 
   @@unique([partnerId, entityKind, fieldPath])
   @@map("deferred_requirements_partner")
+}
+
+// Product Management Models
+model Underwriter {
+  id              Int      @id @default(autoincrement())
+  name            String   @db.VarChar(100)
+  shortName       String   @db.VarChar(50)
+  website         String   @db.VarChar(100)
+  officeLocation  String   @db.VarChar(200)
+  
+  // Relations
+  packages        Package[]
+  
+  // Audit fields
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("underwriters")
+}
+
+model Package {
+  id              Int      @id @default(autoincrement())
+  name            String   @db.VarChar(100)
+  description     String   @db.VarChar(500)
+  underwriterId   Int?
+  isActive        Boolean  @default(true)
+  
+  // Relations
+  underwriter     Underwriter? @relation(fields: [underwriterId], references: [id])
+  packageProducts PackageProduct[]
+  packageSchemes  PackageScheme[]
+  
+  // Audit fields
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("packages")
+}
+
+model ProductType {
+  id              Int      @id @default(autoincrement())
+  name            String   @db.VarChar(100)
+  description     String?  @db.VarChar(300)
+  
+  // Relations
+  products        Product[]
+  
+  // Audit fields
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("product_types")
+}
+
+model Product {
+  id              Int      @id @default(autoincrement())
+  productTypeId   Int
+  productName     String   @db.VarChar(200)
+  description     String   @db.VarChar(500)
+  
+  // Relations
+  productType     ProductType @relation(fields: [productTypeId], references: [id])
+  packageProducts PackageProduct[]
+  
+  // Audit fields
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("products")
+}
+
+model PackageProduct {
+  id              Int      @id @default(autoincrement())
+  packageId       Int
+  productId       Int
+  
+  // Relations
+  package         Package @relation(fields: [packageId], references: [id])
+  product         Product @relation(fields: [productId], references: [id])
+  
+  // Audit fields
+  createdAt       DateTime @default(now())
+
+  @@unique([packageId, productId])
+  @@map("package_products")
+}
+
+model Scheme {
+  id              Int      @id @default(autoincrement())
+  schemeName      String   @db.VarChar(100)
+  description     String   @db.VarChar(300)
+  isActive        Boolean  @default(true)
+  
+  // Relations
+  packageSchemes  PackageScheme[]
+  
+  // Audit fields
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("schemes")
+}
+
+model PackageScheme {
+  id              Int      @id @default(autoincrement())
+  packageId       Int
+  schemeId        Int
+  
+  // Relations
+  package         Package @relation(fields: [packageId], references: [id])
+  scheme          Scheme @relation(fields: [schemeId], references: [id])
+  packageSchemeCustomers PackageSchemeCustomer[]
+  
+  // Audit fields
+  createdAt       DateTime @default(now())
+
+  @@unique([packageId, schemeId])
+  @@map("package_schemes")
+}
+
+model PackageSchemeCustomer {
+  id                    Int      @id @default(autoincrement())
+  packageSchemeId       Int
+  partnerId             Int?
+  customerId            String   @db.Uuid
+  partnerCustomerId     String?
+  
+  // Relations
+  packageScheme         PackageScheme @relation(fields: [packageSchemeId], references: [id])
+  partner               Partner? @relation(fields: [partnerId], references: [id])
+  customer              Customer @relation(fields: [customerId], references: [id])
+  
+  // Audit fields
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@map("package_scheme_customers")
 }

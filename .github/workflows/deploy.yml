@@ -69,8 +69,48 @@ jobs:
         if: env.DEPLOY_INTERNAL_API != 'false' && env.AUTO_DEPLOY_DB == 'true'
         run: |
           echo "🔄 Running database migrations on staging..."
-          flyctl ssh console -a microbima-staging-internal-api -C "sh -c 'cd /app/apps/api && npx prisma migrate deploy'"
+          
+          # First, check migration status
+          echo "📊 Checking migration status..."
+          MIGRATION_STATUS=$(flyctl ssh console -a microbima-staging-internal-api -C "sh -c 'cd /app/apps/api && npx prisma migrate status'" || echo "failed")
+          
+          if echo "$MIGRATION_STATUS" | grep -q "drift"; then
+            echo "⚠️ Drift detected or migration failed."
+            echo "❌ Automated drift resolution is not available for production safety."
+            echo "📋 Manual intervention required:"
+            echo "   1. Connect to production: flyctl ssh console -a microbima-staging-internal-api"
+            echo "   2. Check status: cd /app/apps/api && npx prisma migrate status"
+            echo "   3. Resolve drift: npx prisma migrate resolve --applied [migration-name]"
+            echo "   4. Retry deployment"
+            exit 1
+          else
+            echo "✅ No drift detected, running normal migration..."
+            flyctl ssh console -a microbima-staging-internal-api -C "sh -c 'cd /app/apps/api && npx prisma migrate deploy'"
+          fi
+          
           echo "✅ Database migrations completed"
+
+      - name: Seed Product Management Data on Staging
+        if: env.DEPLOY_INTERNAL_API != 'false' && env.AUTO_DEPLOY_DB == 'true'
+        run: |
+          echo "🌱 Seeding product management data on staging..."
+          
+          # Check if data already exists to avoid duplicates
+          echo "📊 Checking if seed data already exists..."
+          EXISTING_UNDERWRITERS=$(flyctl ssh console -a microbima-staging-internal-api -C "sh -c 'cd /app/apps/api && npx prisma db execute --stdin --schema prisma/schema.prisma' <<< 'SELECT COUNT(*) FROM underwriters;'" || echo "0")
+          
+          if [[ "$EXISTING_UNDERWRITERS" == *"0"* ]]; then
+            echo "🌱 Seeding product management tables..."
+            flyctl ssh console -a microbima-staging-internal-api -C "sh -c 'cd /app/apps/api && npx prisma db execute --file prisma/seed-product-management.sql --schema prisma/schema.prisma'"
+            echo "✅ Product management data seeded"
+          else
+            echo "⏭️ Seed data already exists, skipping..."
+          fi
+          
+          # Migrate existing customers to package schemes
+          echo "🔄 Migrating existing customers to package schemes..."
+          flyctl ssh console -a microbima-staging-internal-api -C "sh -c 'cd /app/apps/api && npx prisma db execute --file prisma/migrate-existing-customers.sql --schema prisma/schema.prisma'"
+          echo "✅ Existing customers migrated to package schemes"
 
       - name: Deploy Agent Registration to Staging
         if: env.DEPLOY_AGENT_REGISTRATION != 'false'
@@ -177,8 +217,48 @@ jobs:
         if: env.DEPLOY_INTERNAL_API != 'false' && env.AUTO_DEPLOY_DB == 'true'
         run: |
           echo "🔄 Running database migrations on production..."
-          flyctl ssh console -a maishapoa-production-internal-api -C "sh -c 'cd /app/apps/api && npx prisma migrate deploy'"
+          
+          # First, check migration status
+          echo "📊 Checking migration status..."
+          MIGRATION_STATUS=$(flyctl ssh console -a maishapoa-production-internal-api -C "sh -c 'cd /app/apps/api && npx prisma migrate status'" || echo "failed")
+          
+          if echo "$MIGRATION_STATUS" | grep -q "drift"; then
+            echo "⚠️ Drift detected or migration failed."
+            echo "❌ Automated drift resolution is not available for production safety."
+            echo "📋 Manual intervention required:"
+            echo "   1. Connect to production: flyctl ssh console -a maishapoa-production-internal-api"
+            echo "   2. Check status: cd /app/apps/api && npx prisma migrate status"
+            echo "   3. Resolve drift: npx prisma migrate resolve --applied [migration-name]"
+            echo "   4. Retry deployment"
+            exit 1
+          else
+            echo "✅ No drift detected, running normal migration..."
+            flyctl ssh console -a maishapoa-production-internal-api -C "sh -c 'cd /app/apps/api && npx prisma migrate deploy'"
+          fi
+          
           echo "✅ Database migrations completed"
+
+      - name: Seed Product Management Data on Production
+        if: env.DEPLOY_INTERNAL_API != 'false' && env.AUTO_DEPLOY_DB == 'true'
+        run: |
+          echo "🌱 Seeding product management data on production..."
+          
+          # Check if data already exists to avoid duplicates
+          echo "📊 Checking if seed data already exists..."
+          EXISTING_UNDERWRITERS=$(flyctl ssh console -a maishapoa-production-internal-api -C "sh -c 'cd /app/apps/api && npx prisma db execute --stdin --schema prisma/schema.prisma' <<< 'SELECT COUNT(*) FROM underwriters;'" || echo "0")
+          
+          if [[ "$EXISTING_UNDERWRITERS" == *"0"* ]]; then
+            echo "🌱 Seeding product management tables..."
+            flyctl ssh console -a maishapoa-production-internal-api -C "sh -c 'cd /app/apps/api && npx prisma db execute --file prisma/seed-product-management.sql --schema prisma/schema.prisma'"
+            echo "✅ Product management data seeded"
+          else
+            echo "⏭️ Seed data already exists, skipping..."
+          fi
+          
+          # Migrate existing customers to package schemes
+          echo "🔄 Migrating existing customers to package schemes..."
+          flyctl ssh console -a maishapoa-production-internal-api -C "sh -c 'cd /app/apps/api && npx prisma db execute --file prisma/migrate-existing-customers.sql --schema prisma/schema.prisma'"
+          echo "✅ Existing customers migrated to package schemes"
 
       - name: Deploy Agent Registration to Production
         if: env.DEPLOY_AGENT_REGISTRATION != 'false'

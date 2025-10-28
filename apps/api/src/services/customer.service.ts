@@ -177,6 +177,26 @@ export class CustomerService {
         },
       });
 
+      // Create package scheme customer relationship (replacement for partner_customers)
+      // Use provided packageSchemeId or default to 1 (MfanisiGo -> OOD Drivers)
+      const packageSchemeId = createRequest.packageSchemeId ?? 1;
+      
+      // Insert into package_scheme_customers table immediately after partner_customers
+      try {
+        await this.prismaService.packageSchemeCustomer.create({
+          data: {
+            packageSchemeId: packageSchemeId,
+            partnerId: partnerId,
+            customerId: createdCustomer.id,
+            partnerCustomerId: createRequest.principalMember.partnerCustomerId,
+          },
+        });
+        this.logger.log(`[${correlationId}] Package scheme customer created successfully`);
+      } catch (error) {
+        this.logger.error(`[${correlationId}] Failed to create package scheme customer: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        // Don't throw - allow the rest of customer creation to continue
+      }
+
       // Create dependants and beneficiaries if provided
       let createdChildren: any[] = [];
       let createdSpouses: any[] = [];
