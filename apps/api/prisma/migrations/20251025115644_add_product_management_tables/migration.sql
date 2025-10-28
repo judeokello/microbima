@@ -100,3 +100,4 @@ CREATE INDEX "package_schemes_schemeId_idx" ON "package_schemes"("schemeId");
 CREATE INDEX "package_scheme_customers_packageSchemeId_idx" ON "package_scheme_customers"("packageSchemeId");
 CREATE INDEX "package_scheme_customers_partnerId_idx" ON "package_scheme_customers"("partnerId");
 CREATE INDEX "package_scheme_customers_customerId_idx" ON "package_scheme_customers"("customerId");
+

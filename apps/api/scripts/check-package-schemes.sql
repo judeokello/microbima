@@ -27,3 +27,4 @@ FROM package_scheme_customers;
 
 -- If there are no records, this explains why customer creation isn't working
 -- The migration script needs to be run first to create the initial data
+

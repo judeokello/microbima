@@ -26,3 +26,4 @@ FROM "partner_customers";
 -- SELECT COUNT(*) as "Total partner_customers" FROM "partner_customers";
 -- SELECT COUNT(*) as "Total package_scheme_customers" FROM "package_scheme_customers";
 -- SELECT COUNT(*) as "Customers in package scheme 1" FROM "package_scheme_customers" WHERE "packageSchemeId" = 1;
+

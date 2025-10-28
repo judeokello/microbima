@@ -43,3 +43,4 @@ INSERT INTO "schemes" ("schemeName", "description") VALUES
 -- Seed package schemes (linking packages to schemes)
 INSERT INTO "package_schemes" ("packageId", "schemeId") VALUES
 (1, 1); -- MfanisiGo -> OOD Drivers
+

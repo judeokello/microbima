@@ -49,7 +49,7 @@ elif echo "$MIGRATION_OUTPUT" | grep -q "Following migrations have not yet been 
     echo "   npx prisma migrate deploy"
     
 else
-    echo "⚠️  Unknown migration status. Please review the output above."
+    echo "⚠️  Unknown migration  . Please review the output above."
 fi
 
 echo ""
@@ -62,3 +62,4 @@ echo ""
 echo "🌱 Seed Data Commands:"
 echo "   npx prisma db execute --file prisma/seed-product-management.sql --schema prisma/schema.prisma"
 echo "   npx prisma db execute --file prisma/migrate-existing-customers.sql --schema prisma/schema.prisma"
+

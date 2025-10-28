@@ -40,3 +40,4 @@ echo "   npx prisma db execute --file prisma/seed-product-management.sql --schem
 echo "   npx prisma db execute --file prisma/migrate-existing-customers.sql --schema prisma/schema.prisma"
 echo ""
 echo "⚠️  Always verify the migration status after resolution!"
+
