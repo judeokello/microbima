@@ -32,6 +32,9 @@ WORKDIR /app/apps/api
 RUN npx prisma generate
 RUN pnpm build
 
+# Ensure scripts are executable
+RUN chmod +x scripts/*.sh
+
 # Fix pnpm symlinks for production
 WORKDIR /app
 RUN pnpm install --prod --frozen-lockfile --shamefully-hoist

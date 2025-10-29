@@ -94,20 +94,11 @@ jobs:
         if: env.DEPLOY_INTERNAL_API != 'false' && env.AUTO_DEPLOY_DB == 'true'
         run: |
           echo "🌱 Seeding product management data on staging..."
+          echo "📝 Running idempotent seed script (safe to run multiple times)..."
+          flyctl ssh console -a microbima-staging-internal-api -C "sh -c 'cd /app/apps/api && npx prisma db execute --file prisma/seed-product-management.sql --schema prisma/schema.prisma'"
+          echo "✅ Product management data seeded"
           
-          # Check if data already exists to avoid duplicates
-          echo "📊 Checking if seed data already exists..."
-          EXISTING_UNDERWRITERS=$(flyctl ssh console -a microbima-staging-internal-api -C "sh -c 'cd /app/apps/api && npx prisma db execute --stdin --schema prisma/schema.prisma' <<< 'SELECT COUNT(*) FROM underwriters;'" || echo "0")
-          
-          if [[ "$EXISTING_UNDERWRITERS" == *"0"* ]]; then
-            echo "🌱 Seeding product management tables..."
-            flyctl ssh console -a microbima-staging-internal-api -C "sh -c 'cd /app/apps/api && npx prisma db execute --file prisma/seed-product-management.sql --schema prisma/schema.prisma'"
-            echo "✅ Product management data seeded"
-          else
-            echo "⏭️ Seed data already exists, skipping..."
-          fi
-          
-          # Migrate existing customers to package schemes
+          # Migrate existing customers to package schemes (idempotent)
           echo "🔄 Migrating existing customers to package schemes..."
           flyctl ssh console -a microbima-staging-internal-api -C "sh -c 'cd /app/apps/api && npx prisma db execute --file prisma/migrate-existing-customers.sql --schema prisma/schema.prisma'"
           echo "✅ Existing customers migrated to package schemes"
@@ -242,20 +233,11 @@ jobs:
         if: env.DEPLOY_INTERNAL_API != 'false' && env.AUTO_DEPLOY_DB == 'true'
         run: |
           echo "🌱 Seeding product management data on production..."
+          echo "📝 Running idempotent seed script (safe to run multiple times)..."
+          flyctl ssh console -a maishapoa-production-internal-api -C "sh -c 'cd /app/apps/api && npx prisma db execute --file prisma/seed-product-management.sql --schema prisma/schema.prisma'"
+          echo "✅ Product management data seeded"
           
-          # Check if data already exists to avoid duplicates
-          echo "📊 Checking if seed data already exists..."
-          EXISTING_UNDERWRITERS=$(flyctl ssh console -a maishapoa-production-internal-api -C "sh -c 'cd /app/apps/api && npx prisma db execute --stdin --schema prisma/schema.prisma' <<< 'SELECT COUNT(*) FROM underwriters;'" || echo "0")
-          
-          if [[ "$EXISTING_UNDERWRITERS" == *"0"* ]]; then
-            echo "🌱 Seeding product management tables..."
-            flyctl ssh console -a maishapoa-production-internal-api -C "sh -c 'cd /app/apps/api && npx prisma db execute --file prisma/seed-product-management.sql --schema prisma/schema.prisma'"
-            echo "✅ Product management data seeded"
-          else
-            echo "⏭️ Seed data already exists, skipping..."
-          fi
-          
-          # Migrate existing customers to package schemes
+          # Migrate existing customers to package schemes (idempotent)
           echo "🔄 Migrating existing customers to package schemes..."
           flyctl ssh console -a maishapoa-production-internal-api -C "sh -c 'cd /app/apps/api && npx prisma db execute --file prisma/migrate-existing-customers.sql --schema prisma/schema.prisma'"
           echo "✅ Existing customers migrated to package schemes"
