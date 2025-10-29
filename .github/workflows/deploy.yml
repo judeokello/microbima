@@ -21,7 +21,7 @@ jobs:
       DEPLOY_INTERNAL_API: true
       AUTO_DEPLOY_DB: true
       DEPLOY_AGENT_REGISTRATION: true
-      DEPLOY_PUBLIC_API: true
+      DEPLOY_PUBLIC_API: false
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -160,7 +160,7 @@ jobs:
       DEPLOY_INTERNAL_API: true
       AUTO_DEPLOY_DB: true
       DEPLOY_AGENT_REGISTRATION: true
-      DEPLOY_PUBLIC_API: true
+      DEPLOY_PUBLIC_API: false
     steps:
       - name: Checkout code
         uses: actions/checkout@v4

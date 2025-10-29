@@ -46,7 +46,7 @@ The Agent Registration module enables Brand Ambassadors (BAs) to register custom
 ### **4. Technical Architecture**
 
 #### **4.1 Frontend Structure (Next.js)**
-- [x] **Admin Panel** (`/admin/*`) with role-based protection
+- [x] **Admin Dashboard** (`/admin/*`) with role-based protection
 - [x] **BA Registration Form** (`/admin/ba-registration`)
 - [x] **BA Management Interface** (`/admin/ba-management`)
 - [x] **Supabase Client Configuration** with admin API
