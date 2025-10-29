@@ -4,7 +4,7 @@ import React from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
-import { LogOut, User, Settings } from 'lucide-react';
+import { LogOut, User, Settings, Search } from 'lucide-react';
 
 export default function DashboardLayout({
   children,
@@ -39,7 +39,7 @@ export default function DashboardLayout({
           <p className="text-gray-600 mb-4">You don't have permission to access the dashboard.</p>
           {isAdmin && (
             <Button asChild>
-              <Link href="/admin">Go to Admin Panel</Link>
+              <Link href="/admin">Go to Admin Dashboard</Link>
             </Button>
           )}
         </div>
@@ -84,6 +84,13 @@ export default function DashboardLayout({
           >
             Earnings
           </Link>
+          <Link
+            href="/dashboard/search"
+            className="block px-3 py-2 rounded-md hover:bg-gray-700 transition-colors"
+          >
+            <Search className="h-4 w-4 inline mr-2" />
+            Search Customer
+          </Link>
 
           {/* Admin link - only visible if user has registration_admin role */}
           {isAdmin && (
@@ -92,7 +99,7 @@ export default function DashboardLayout({
               className="block px-3 py-2 rounded-md hover:bg-gray-700 transition-colors bg-gray-700"
             >
               <Settings className="h-4 w-4 inline mr-2" />
-              Admin Panel
+              Admin Dashboard
             </Link>
           )}
         </nav>

@@ -484,6 +484,74 @@ export async function createMissingRequirement(data: CreateMissingRequirementReq
   }
 }
 
+// Customer Search API Types and Functions
+export interface CustomerSearchResult {
+  id: string
+  fullName: string
+  idType: string
+  idNumber: string
+  phoneNumber: string
+  email?: string
+  numberOfSpouses: number
+  numberOfChildren: number
+  nokAdded: boolean
+}
+
+export interface CustomerSearchPagination {
+  page: number
+  pageSize: number
+  totalItems: number
+  totalPages: number
+  hasNextPage: boolean
+  hasPreviousPage: boolean
+}
+
+export interface CustomerSearchResponse {
+  data: CustomerSearchResult[]
+  pagination: CustomerSearchPagination
+}
+
+export async function searchCustomers(
+  idNumber?: string,
+  phoneNumber?: string,
+  email?: string,
+  page: number = 1,
+  pageSize: number = 20
+): Promise<CustomerSearchResponse> {
+  try {
+    const token = await getSupabaseToken()
+
+    // Build query params
+    const params = new URLSearchParams()
+    if (idNumber) params.append('idNumber', idNumber)
+    if (phoneNumber) params.append('phoneNumber', phoneNumber)
+    if (email) params.append('email', email)
+    params.append('page', page.toString())
+    params.append('pageSize', pageSize.toString())
+
+    const response = await fetch(
+      `${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/customers/search?${params.toString()}`,
+      {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'x-correlation-id': `search-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+        }
+      }
+    )
+
+    if (!response.ok) {
+      const errorData = await response.json()
+      throw new Error(errorData.error?.message ?? `HTTP ${response.status}: ${response.statusText}`)
+    }
+
+    return await response.json()
+  } catch (error) {
+    console.error('Error searching customers:', error)
+    throw error
+  }
+}
+
 // Payment API Types and Functions (Mock Implementation)
 export interface PaymentRequest {
   customerId: string

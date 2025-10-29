@@ -33,6 +33,7 @@ import { AddBeneficiariesRequestDto } from '../../dto/beneficiaries/add-benefici
 import { AddBeneficiariesResponseDto } from '../../dto/beneficiaries/add-beneficiaries-response.dto';
 import { BrandAmbassadorRegistrationsResponseDto } from '../../dto/customers/brand-ambassador-registrations.dto';
 import { AdminCustomersResponseDto } from '../../dto/customers/admin-customers.dto';
+import { CustomerSearchResponseDto } from '../../dto/customers/customer-search.dto';
 import { DashboardStatsDto } from '../../dto/customers/dashboard-stats.dto';
 import { BrandAmbassadorDashboardStatsDto } from '../../dto/customers/brand-ambassador-dashboard-stats.dto';
 import { CorrelationId } from '../../decorators/correlation-id.decorator';
@@ -219,6 +220,73 @@ export class InternalCustomerController {
     const userId = req.user?.id || 'system';
     
     return this.customerService.getBrandAmbassadorsForFilter(correlationId);
+  }
+
+  /**
+   * Search customers by ID number, phone number, or email
+   */
+  @Get('search')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Search customers',
+    description: 'Search for customers using partial matching on ID number, phone number, or email. At least one search parameter is required.',
+  })
+  @ApiQuery({
+    name: 'idNumber',
+    description: 'Partial ID number to search for',
+    required: false,
+    example: '123',
+  })
+  @ApiQuery({
+    name: 'phoneNumber',
+    description: 'Partial phone number to search for',
+    required: false,
+    example: '0700',
+  })
+  @ApiQuery({
+    name: 'email',
+    description: 'Partial email to search for',
+    required: false,
+    example: 'john',
+  })
+  @ApiQuery({
+    name: 'page',
+    description: 'Page number (1-based)',
+    required: false,
+    example: 1,
+  })
+  @ApiQuery({
+    name: 'pageSize',
+    description: 'Number of items per page',
+    required: false,
+    example: 20,
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Search results retrieved successfully',
+    type: CustomerSearchResponseDto,
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Unauthorized - invalid authentication',
+  })
+  async searchCustomers(
+    @CorrelationId() correlationId: string,
+    @Req() req: any,
+    @Query('idNumber') idNumber?: string,
+    @Query('phoneNumber') phoneNumber?: string,
+    @Query('email') email?: string,
+    @Query('page') page: string = '1',
+    @Query('pageSize') pageSize: string = '20',
+  ): Promise<CustomerSearchResponseDto> {
+    return this.customerService.searchCustomers(
+      idNumber,
+      phoneNumber,
+      email,
+      parseInt(page),
+      parseInt(pageSize),
+      correlationId
+    );
   }
 
   /**

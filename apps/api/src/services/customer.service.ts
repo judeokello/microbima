@@ -1434,6 +1434,150 @@ export class CustomerService {
   }
 
   /**
+   * Search customers by ID number, phone number, or email
+   * Uses partial matching (LIKE query) for all search fields
+   */
+  async searchCustomers(
+    idNumber?: string,
+    phoneNumber?: string,
+    email?: string,
+    page: number = 1,
+    pageSize: number = 20,
+    correlationId: string = 'unknown'
+  ) {
+    try {
+      this.logger.log(`[${correlationId}] Searching customers: idNumber=${idNumber}, phoneNumber=${phoneNumber}, email=${email}`);
+
+      // At least one search parameter must be provided
+      if (!idNumber && !phoneNumber && !email) {
+        return {
+          data: [],
+          pagination: {
+            page,
+            pageSize,
+            totalItems: 0,
+            totalPages: 0,
+            hasNextPage: false,
+            hasPreviousPage: false,
+          },
+        };
+      }
+
+      const skip = (page - 1) * pageSize;
+      
+      // Build OR conditions for partial matching
+      const orConditions: any[] = [];
+      
+      if (idNumber) {
+        orConditions.push({
+          idNumber: {
+            contains: idNumber,
+            mode: 'insensitive',
+          },
+        });
+      }
+      
+      if (phoneNumber) {
+        orConditions.push({
+          phoneNumber: {
+            contains: phoneNumber,
+            mode: 'insensitive',
+          },
+        });
+      }
+      
+      if (email) {
+        orConditions.push({
+          email: {
+            contains: email,
+            mode: 'insensitive',
+          },
+        });
+      }
+
+      const whereClause = {
+        OR: orConditions,
+      };
+
+      // Get customers with dependant and beneficiary counts
+      const [customers, totalCount] = await Promise.all([
+        this.prismaService.customer.findMany({
+          where: whereClause,
+          select: {
+            id: true,
+            firstName: true,
+            middleName: true,
+            lastName: true,
+            phoneNumber: true,
+            email: true,
+            idType: true,
+            idNumber: true,
+            dependants: {
+              select: {
+                relationship: true,
+              },
+            },
+            beneficiaries: {
+              select: {
+                id: true,
+              },
+            },
+          },
+          orderBy: {
+            createdAt: 'desc',
+          },
+          skip,
+          take: pageSize,
+        }),
+        this.prismaService.customer.count({
+          where: whereClause,
+        }),
+      ]);
+
+      const totalPages = Math.ceil(totalCount / pageSize);
+
+      // Transform data for search results
+      const searchResults = customers.map(customer => {
+        // Count spouses and children
+        const numberOfSpouses = customer.dependants.filter(
+          d => d.relationship === 'SPOUSE'
+        ).length;
+        const numberOfChildren = customer.dependants.filter(
+          d => d.relationship === 'CHILD'
+        ).length;
+        const nokAdded = customer.beneficiaries.length > 0;
+
+        return {
+          id: customer.id,
+          fullName: this.formatFullName(customer.firstName, customer.middleName, customer.lastName),
+          idType: customer.idType,
+          idNumber: customer.idNumber,
+          phoneNumber: customer.phoneNumber,
+          email: customer.email ?? undefined,
+          numberOfSpouses,
+          numberOfChildren,
+          nokAdded,
+        };
+      });
+
+      return {
+        data: searchResults,
+        pagination: {
+          page,
+          pageSize,
+          totalItems: totalCount,
+          totalPages,
+          hasNextPage: page < totalPages,
+          hasPreviousPage: page > 1,
+        },
+      };
+    } catch (error) {
+      this.logger.error(`[${correlationId}] Error searching customers: ${error instanceof Error ? error.message : 'Unknown error'}`, error instanceof Error ? error.stack : undefined);
+      throw error;
+    }
+  }
+
+  /**
    * Export customers to CSV format
    */
   async exportCustomersToCSV(

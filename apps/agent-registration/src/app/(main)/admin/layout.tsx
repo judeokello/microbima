@@ -4,7 +4,7 @@ import React from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
-import { LogOut, User, LayoutDashboard } from 'lucide-react';
+import { LogOut, User, LayoutDashboard, Search } from 'lucide-react';
 
 export default function AdminLayout({
   children,
@@ -35,7 +35,7 @@ export default function AdminLayout({
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <h1 className="text-2xl font-bold text-gray-900 mb-4">Access Denied</h1>
-          <p className="text-gray-600 mb-4">You don't have permission to access the admin panel.</p>
+          <p className="text-gray-600 mb-4">You don't have permission to access the admin dashboard.</p>
           <Button asChild>
             <Link href="/dashboard">Go to Dashboard</Link>
           </Button>
@@ -49,7 +49,7 @@ export default function AdminLayout({
       {/* Admin Sidebar */}
       <aside className="w-64 bg-gray-800 text-white p-4">
         <div className="mb-6">
-          <h2 className="text-xl font-bold mb-2">Admin Panel</h2>
+          <h2 className="text-xl font-bold mb-2">Admin Dashboard</h2>
           <div className="flex items-center space-x-2 text-sm text-gray-300">
             <User className="h-4 w-4" />
             <span>{userMetadata?.displayName ?? user?.email}</span>
@@ -80,6 +80,13 @@ export default function AdminLayout({
             className="block px-3 py-2 rounded-md hover:bg-gray-700 transition-colors"
           >
             Manage Agents
+          </Link>
+          <Link
+            href="/dashboard/search"
+            className="block px-3 py-2 rounded-md hover:bg-gray-700 transition-colors"
+          >
+            <Search className="h-4 w-4 inline mr-2" />
+            Search Customer
           </Link>
           <Link
             href="/dashboard"
