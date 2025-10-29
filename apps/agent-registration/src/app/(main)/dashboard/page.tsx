@@ -1,7 +1,4 @@
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { PlusCircle } from 'lucide-react';
-import Link from 'next/link';
 
 export default function DashboardPage() {
   return (
@@ -11,14 +8,6 @@ export default function DashboardPage() {
         <p className="text-muted-foreground mt-2">
           Welcome to your dashboard. Track your registrations and earnings.
         </p>
-        <div className="mt-4">
-          <Link href="/register">
-            <Button size="lg">
-              <PlusCircle className="mr-2 h-5 w-5" />
-              Register New Customer
-            </Button>
-          </Link>
-        </div>
       </div>
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">

@@ -3,8 +3,7 @@
 import { ChartAreaInteractive } from "./_components/chart-area-interactive";
 import { SectionCards } from "./_components/section-cards";
 import { Button } from "@/components/ui/button";
-import { PlusCircle, RefreshCw } from "lucide-react";
-import Link from "next/link";
+import { RefreshCw } from "lucide-react";
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 
@@ -62,7 +61,7 @@ export default function Page() {
 
   return (
     <div className="@container/main flex flex-col gap-4 md:gap-6">
-      {/* Header with Register Button */}
+      {/* Header with Refresh Button */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold">Agent Dashboard</h1>
@@ -75,12 +74,6 @@ export default function Page() {
             <RefreshCw className={`mr-2 h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
             Refresh
           </Button>
-          <Link href="/register">
-            <Button size="lg">
-              <PlusCircle className="mr-2 h-5 w-5" />
-              Register New Customer
-            </Button>
-          </Link>
         </div>
       </div>
 

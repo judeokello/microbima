@@ -152,11 +152,10 @@ export class InternalCustomerController {
     @Req() req: any,
   ): Promise<BrandAmbassadorDashboardStatsDto> {
     const userId = req.user?.id || 'system';
-    const partnerId = req.user?.partnerId;
     
-    if (!partnerId) {
-      throw new Error('Partner ID not found in user session');
-    }
+    // Get Brand Ambassador info to derive partnerId
+    const baInfo = await this.partnerManagementService.getBrandAmbassadorByUserId(userId);
+    const partnerId = baInfo.partnerId;
     
     return this.customerService.getBrandAmbassadorDashboardStats(partnerId, correlationId);
   }
