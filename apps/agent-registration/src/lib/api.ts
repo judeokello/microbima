@@ -511,6 +511,17 @@ export interface CustomerSearchResponse {
   pagination: CustomerSearchPagination
 }
 
+export interface ChartDataPoint {
+  date: string
+  count: number
+}
+
+export interface RegistrationsChartResponse {
+  data: ChartDataPoint[]
+  total: number
+  period: string
+}
+
 export async function searchCustomers(
   idNumber?: string,
   phoneNumber?: string,
@@ -548,6 +559,62 @@ export async function searchCustomers(
     return await response.json()
   } catch (error) {
     console.error('Error searching customers:', error)
+    throw error
+  }
+}
+
+export async function getMyRegistrationsChart(
+  period: '7d' | '30d' | '90d' = '30d'
+): Promise<RegistrationsChartResponse> {
+  try {
+    const token = await getSupabaseToken()
+
+    const response = await fetch(
+      `${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/customers/my-registrations-chart?period=${period}`,
+      {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'x-correlation-id': `chart-agent-${Date.now()}`
+        }
+      }
+    )
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch chart data: ${response.statusText}`)
+    }
+
+    return await response.json()
+  } catch (error) {
+    console.error('Error fetching agent chart data:', error)
+    throw error
+  }
+}
+
+export async function getAllRegistrationsChart(
+  period: '7d' | '30d' | '90d' = '30d'
+): Promise<RegistrationsChartResponse> {
+  try {
+    const token = await getSupabaseToken()
+
+    const response = await fetch(
+      `${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/customers/all-registrations-chart?period=${period}`,
+      {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'x-correlation-id': `chart-admin-${Date.now()}`
+        }
+      }
+    )
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch chart data: ${response.statusText}`)
+    }
+
+    return await response.json()
+  } catch (error) {
+    console.error('Error fetching admin chart data:', error)
     throw error
   }
 }

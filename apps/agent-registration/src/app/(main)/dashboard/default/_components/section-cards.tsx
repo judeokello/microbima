@@ -33,19 +33,7 @@ export function SectionCards({ stats, loading, formatNumber }: SectionCardsProps
           <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
             {loading ? '...' : stats ? formatNumber(stats.registeredToday) : '0'}
           </CardTitle>
-          <CardAction>
-            <Badge variant="outline">
-              <TrendingUp />
-              Today's registrations
-            </Badge>
-          </CardAction>
         </CardHeader>
-        <CardFooter className="flex-col items-start gap-1.5 text-sm">
-          <div className="line-clamp-1 flex gap-2 font-medium">
-            New customers today <TrendingUp className="size-4" />
-          </div>
-          <div className="text-muted-foreground">Current day registrations</div>
-        </CardFooter>
       </Card>
 
       {/* Card 2: Registered Yesterday */}
@@ -55,19 +43,7 @@ export function SectionCards({ stats, loading, formatNumber }: SectionCardsProps
           <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
             {loading ? '...' : stats ? formatNumber(stats.registeredYesterday) : '0'}
           </CardTitle>
-          <CardAction>
-            <Badge variant="outline">
-              <TrendingDown />
-              Previous day
-            </Badge>
-          </CardAction>
         </CardHeader>
-        <CardFooter className="flex-col items-start gap-1.5 text-sm">
-          <div className="line-clamp-1 flex gap-2 font-medium">
-            Yesterday's registrations <TrendingDown className="size-4" />
-          </div>
-          <div className="text-muted-foreground">Previous day performance</div>
-        </CardFooter>
       </Card>
 
       {/* Card 3: Registered This Week */}

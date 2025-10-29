@@ -1,11 +1,11 @@
 'use client';
 
-import Link from 'next/link'
 import { useState, useEffect } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Users, UserPlus, Settings, BarChart3, LayoutDashboard, RefreshCw } from 'lucide-react'
+import { Users, UserPlus, Settings, BarChart3, RefreshCw } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { ChartAreaInteractive } from '../dashboard/default/_components/chart-area-interactive'
 
 interface DashboardStats {
   totalAgents: number;
@@ -143,37 +143,11 @@ export default function AdminDashboardPage() {
         </Card>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>Quick Actions</CardTitle>
-            <CardDescription>
-              Common administrative tasks
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <Link href="/dashboard">
-              <Button variant="outline" className="w-full justify-start">
-                <LayoutDashboard className="mr-2 h-4 w-4" />
-                Agent Dashboard
-              </Button>
-            </Link>
-            <Link href="/admin/ba-registration">
-              <Button className="w-full justify-start">
-                <UserPlus className="mr-2 h-4 w-4" />
-                Register New Agent
-              </Button>
-            </Link>
-            <Link href="/admin/ba-management">
-              <Button variant="outline" className="w-full justify-start">
-                <Users className="mr-2 h-4 w-4" />
-                Manage Agents
-              </Button>
-            </Link>
+      {/* Customer Registrations Chart */}
+      <ChartAreaInteractive isAdminView={true} />
 
-          </CardContent>
-        </Card>
-
+      {/* Recent Activity */}
+      <div className="grid gap-6">
         <Card>
           <CardHeader>
             <CardTitle>Recent Activity</CardTitle>

@@ -34,6 +34,7 @@ import { AddBeneficiariesResponseDto } from '../../dto/beneficiaries/add-benefic
 import { BrandAmbassadorRegistrationsResponseDto } from '../../dto/customers/brand-ambassador-registrations.dto';
 import { AdminCustomersResponseDto } from '../../dto/customers/admin-customers.dto';
 import { CustomerSearchResponseDto } from '../../dto/customers/customer-search.dto';
+import { RegistrationsChartResponseDto } from '../../dto/customers/registrations-chart.dto';
 import { DashboardStatsDto } from '../../dto/customers/dashboard-stats.dto';
 import { BrandAmbassadorDashboardStatsDto } from '../../dto/customers/brand-ambassador-dashboard-stats.dto';
 import { CorrelationId } from '../../decorators/correlation-id.decorator';
@@ -126,6 +127,41 @@ export class InternalCustomerController {
   }
 
   /**
+   * Get Brand Ambassador registrations chart data
+   */
+  @Get('my-registrations-chart')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Get agent registrations chart data',
+    description: 'Get daily registration counts for the logged-in agent over a specified time period.',
+  })
+  @ApiQuery({
+    name: 'period',
+    description: 'Time period for chart data',
+    required: false,
+    enum: ['7d', '30d', '90d'],
+    example: '30d',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Chart data retrieved successfully',
+    type: RegistrationsChartResponseDto,
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Unauthorized - invalid authentication',
+  })
+  async getMyRegistrationsChart(
+    @CorrelationId() correlationId: string,
+    @Req() req: any,
+    @Query('period') period: '7d' | '30d' | '90d' = '30d',
+  ): Promise<RegistrationsChartResponseDto> {
+    const userId = req.user?.id || 'system';
+    
+    return this.customerService.getRegistrationsChartData(userId, period, correlationId);
+  }
+
+  /**
    * Get Brand Ambassador dashboard statistics
    */
   @Get('my-dashboard-stats')
@@ -158,6 +194,46 @@ export class InternalCustomerController {
     const partnerId = baInfo.partnerId;
     
     return this.customerService.getBrandAmbassadorDashboardStats(partnerId, correlationId);
+  }
+
+  /**
+   * Get all registrations chart data (Admin/Customer Care only)
+   */
+  @Get('all-registrations-chart')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Get all registrations chart data (Admin)',
+    description: 'Get daily registration counts for all agents over a specified time period. Admin/Customer Care role required.',
+  })
+  @ApiQuery({
+    name: 'period',
+    description: 'Time period for chart data',
+    required: false,
+    enum: ['7d', '30d', '90d'],
+    example: '30d',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Chart data retrieved successfully',
+    type: RegistrationsChartResponseDto,
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Unauthorized - invalid authentication',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden - admin/customer care role required',
+  })
+  async getAllRegistrationsChart(
+    @CorrelationId() correlationId: string,
+    @Req() req: any,
+    @Query('period') period: '7d' | '30d' | '90d' = '30d',
+  ): Promise<RegistrationsChartResponseDto> {
+    const userId = req.user?.id || 'system';
+    
+    // No userId filter - get all registrations
+    return this.customerService.getRegistrationsChartData(undefined, period, correlationId);
   }
 
   /**

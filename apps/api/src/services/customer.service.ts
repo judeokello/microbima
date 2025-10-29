@@ -1086,6 +1086,106 @@ export class CustomerService {
   }
 
   /**
+   * Get registrations chart data (time-series)
+   * @param userId - Optional user ID to filter by specific agent
+   * @param period - Time period: '7d', '30d', or '90d'
+   * @param correlationId - Correlation ID for tracing
+   */
+  async getRegistrationsChartData(
+    userId: string | undefined,
+    period: '7d' | '30d' | '90d',
+    correlationId: string = 'unknown'
+  ) {
+    try {
+      this.logger.log(`[${correlationId}] Getting registrations chart data for period ${period}, userId: ${userId ?? 'all'}`);
+
+      // Calculate date range based on period
+      const now = new Date();
+      const startDate = new Date();
+      
+      switch (period) {
+        case '7d':
+          startDate.setDate(now.getDate() - 7);
+          break;
+        case '30d':
+          startDate.setDate(now.getDate() - 30);
+          break;
+        case '90d':
+          startDate.setDate(now.getDate() - 90);
+          break;
+      }
+      
+      startDate.setHours(0, 0, 0, 0);
+
+      // Build where clause
+      const whereClause: any = {
+        createdAt: {
+          gte: startDate,
+          lte: now,
+        },
+      };
+
+      // Filter by userId if provided (for agent view)
+      if (userId) {
+        whereClause.createdBy = userId;
+      }
+
+      // Get all registrations in the period
+      const registrations = await this.prismaService.customer.findMany({
+        where: whereClause,
+        select: {
+          createdAt: true,
+        },
+        orderBy: {
+          createdAt: 'asc',
+        },
+      });
+
+      // Group by date
+      const dailyCounts = new Map<string, number>();
+      
+      // Initialize all dates in range with 0
+      const currentDate = new Date(startDate);
+      while (currentDate <= now) {
+        const dateKey = currentDate.toISOString().split('T')[0];
+        dailyCounts.set(dateKey, 0);
+        currentDate.setDate(currentDate.getDate() + 1);
+      }
+
+      // Count registrations per day
+      registrations.forEach(reg => {
+        const dateKey = reg.createdAt.toISOString().split('T')[0];
+        const currentCount = dailyCounts.get(dateKey) ?? 0;
+        dailyCounts.set(dateKey, currentCount + 1);
+      });
+
+      // Convert to array format
+      const data = Array.from(dailyCounts.entries())
+        .map(([date, count]) => ({
+          date,
+          count,
+        }))
+        .sort((a, b) => a.date.localeCompare(b.date));
+
+      const total = registrations.length;
+
+      this.logger.log(`[${correlationId}] Retrieved chart data: ${data.length} data points, total: ${total}`);
+
+      return {
+        data,
+        total,
+        period,
+      };
+    } catch (error) {
+      this.logger.error(
+        `[${correlationId}] Error getting registrations chart data: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        error instanceof Error ? error.stack : undefined
+      );
+      throw error;
+    }
+  }
+
+  /**
    * Get Brand Ambassador dashboard statistics
    */
   async getBrandAmbassadorDashboardStats(partnerId: number, correlationId: string = 'unknown') {
@@ -1388,20 +1488,20 @@ export class CustomerService {
       const totalPages = Math.ceil(totalCount / pageSize);
 
       // Get brand ambassador info for registered by field
-      const partnerIds = [...new Set(customers.map(c => c.createdByPartnerId))];
+      const userIds = [...new Set(customers.map(c => c.createdBy).filter((id): id is string => id !== null))];
       const brandAmbassadors = await this.prismaService.brandAmbassador.findMany({
         where: {
-          partnerId: {
-            in: partnerIds,
+          userId: {
+            in: userIds,
           },
         },
         select: {
-          partnerId: true,
+          userId: true,
           displayName: true,
         },
       });
 
-      const baMap = new Map(brandAmbassadors.map(ba => [ba.partnerId, ba.displayName]));
+      const baMap = new Map(brandAmbassadors.map(ba => [ba.userId, ba.displayName]));
 
       // Transform data for admin view (unmasked)
       const transformedCustomers = customers.map(customer => ({
@@ -1410,7 +1510,7 @@ export class CustomerService {
         phoneNumber: customer.phoneNumber,
         gender: customer.gender?.toLowerCase() || 'unknown',
         createdAt: customer.createdAt.toISOString(),
-        registeredBy: baMap.get(customer.createdByPartnerId) || 'Unknown',
+        registeredBy: customer.createdBy ? (baMap.get(customer.createdBy) ?? 'Unknown') : 'Unknown',
         idType: customer.idType,
         idNumber: customer.idNumber,
         hasMissingRequirements: customer.hasMissingRequirements,
