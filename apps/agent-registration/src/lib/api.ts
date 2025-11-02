@@ -619,6 +619,360 @@ export async function getAllRegistrationsChart(
   }
 }
 
+// Customer Detail API Types and Functions
+export interface CustomerDetailData {
+  customer: {
+    id: string
+    firstName: string
+    middleName?: string
+    lastName: string
+    dateOfBirth: string
+    email?: string
+    phoneNumber?: string
+    gender?: string
+    idType: string
+    idNumber: string
+    partnerCustomerId: string
+    createdAt: string
+    createdBy?: string
+  }
+  beneficiaries: Array<{
+    id: string
+    firstName: string
+    middleName?: string
+    lastName: string
+    dateOfBirth?: string
+    phoneNumber?: string
+    idType: string
+    idNumber: string
+  }>
+  dependants: Array<{
+    id: string
+    firstName: string
+    middleName?: string
+    lastName: string
+    dateOfBirth?: string
+    phoneNumber?: string
+    idType?: string
+    idNumber?: string
+    relationship: string
+  }>
+  policies: Array<{
+    id: string
+    policyNumber: string
+    packageName: string
+    planName?: string
+    status: string
+  }>
+}
+
+export interface CustomerDetailResponse {
+  status: number
+  correlationId: string
+  message: string
+  data: CustomerDetailData
+}
+
+export interface PolicyOption {
+  id: string
+  displayText: string
+  packageName: string
+  planName?: string
+}
+
+export interface CustomerPoliciesResponse {
+  status: number
+  correlationId: string
+  message: string
+  data: PolicyOption[]
+}
+
+export interface PaymentFilter {
+  policyId?: string
+  fromDate?: string
+  toDate?: string
+}
+
+export interface Payment {
+  id: number
+  paymentType: string
+  transactionReference: string
+  accountNumber?: string
+  expectedPaymentDate: string
+  actualPaymentDate?: string
+  amount: number
+}
+
+export interface CustomerPaymentsResponse {
+  status: number
+  correlationId: string
+  message: string
+  data: Payment[]
+}
+
+export interface UpdateCustomerData {
+  firstName?: string
+  middleName?: string
+  lastName?: string
+  dateOfBirth?: string
+  email?: string
+  phoneNumber?: string
+  gender?: string
+  idType?: string
+  idNumber?: string
+}
+
+export interface UpdateDependantData {
+  firstName?: string
+  middleName?: string
+  lastName?: string
+  dateOfBirth?: string
+  email?: string
+  phoneNumber?: string
+  gender?: string
+  idType?: string
+  idNumber?: string
+}
+
+export interface UpdateBeneficiaryData {
+  firstName?: string
+  middleName?: string
+  lastName?: string
+  dateOfBirth?: string
+  email?: string
+  phoneNumber?: string
+  gender?: string
+  idType?: string
+  idNumber?: string
+  relationship?: string
+  relationshipDescription?: string
+  percentage?: number
+}
+
+export interface PrincipalMemberDto {
+  firstName: string
+  middleName?: string
+  lastName: string
+  dateOfBirth: string
+  email?: string
+  phoneNumber?: string
+  gender?: string
+  idType: string
+  idNumber: string
+  partnerCustomerId: string
+}
+
+export async function getCustomerDetails(customerId: string): Promise<CustomerDetailResponse> {
+  try {
+    const token = await getSupabaseToken()
+
+    const response = await fetch(
+      `${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/customers/${customerId}/details`,
+      {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'x-correlation-id': `customer-detail-${Date.now()}`
+        }
+      }
+    )
+
+    if (!response.ok) {
+      const errorData = await response.json()
+      throw new Error(errorData.error?.message ?? `HTTP ${response.status}: ${response.statusText}`)
+    }
+
+    return await response.json()
+  } catch (error) {
+    console.error('Error fetching customer details:', error)
+    throw error
+  }
+}
+
+export async function getCustomerPolicies(customerId: string): Promise<CustomerPoliciesResponse> {
+  try {
+    const token = await getSupabaseToken()
+
+    const response = await fetch(
+      `${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/customers/${customerId}/policies`,
+      {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'x-correlation-id': `customer-policies-${Date.now()}`
+        }
+      }
+    )
+
+    if (!response.ok) {
+      const errorData = await response.json()
+      throw new Error(errorData.error?.message ?? `HTTP ${response.status}: ${response.statusText}`)
+    }
+
+    return await response.json()
+  } catch (error) {
+    console.error('Error fetching customer policies:', error)
+    throw error
+  }
+}
+
+export async function getCustomerPayments(
+  customerId: string,
+  filters: PaymentFilter
+): Promise<CustomerPaymentsResponse> {
+  try {
+    const token = await getSupabaseToken()
+
+    // Build query params
+    const params = new URLSearchParams()
+    if (filters.policyId) params.append('policyId', filters.policyId)
+    if (filters.fromDate) params.append('fromDate', filters.fromDate)
+    if (filters.toDate) params.append('toDate', filters.toDate)
+
+    const response = await fetch(
+      `${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/customers/${customerId}/payments?${params.toString()}`,
+      {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'x-correlation-id': `customer-payments-${Date.now()}`
+        }
+      }
+    )
+
+    if (!response.ok) {
+      const errorData = await response.json()
+      throw new Error(errorData.error?.message ?? `HTTP ${response.status}: ${response.statusText}`)
+    }
+
+    return await response.json()
+  } catch (error) {
+    console.error('Error fetching customer payments:', error)
+    throw error
+  }
+}
+
+export async function updateCustomer(
+  customerId: string,
+  data: UpdateCustomerData
+): Promise<PrincipalMemberDto> {
+  try {
+    const token = await getSupabaseToken()
+
+    const response = await fetch(
+      `${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/customers/${customerId}`,
+      {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+          'x-correlation-id': `update-customer-${Date.now()}`
+        },
+        body: JSON.stringify(data)
+      }
+    )
+
+    if (!response.ok) {
+      const errorData = await response.json()
+      throw new Error(errorData.error?.message ?? `HTTP ${response.status}: ${response.statusText}`)
+    }
+
+    return await response.json()
+  } catch (error) {
+    console.error('Error updating customer:', error)
+    throw error
+  }
+}
+
+export interface UpdatedDependant {
+  id: string
+  firstName: string
+  middleName?: string
+  lastName: string
+  dateOfBirth?: string
+  phoneNumber?: string
+  idType?: string
+  idNumber?: string
+  relationship: string
+}
+
+export async function updateDependant(
+  dependantId: string,
+  data: UpdateDependantData
+): Promise<UpdatedDependant> {
+  try {
+    const token = await getSupabaseToken()
+
+    const response = await fetch(
+      `${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/customers/dependants/${dependantId}`,
+      {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+          'x-correlation-id': `update-dependant-${Date.now()}`
+        },
+        body: JSON.stringify(data)
+      }
+    )
+
+    if (!response.ok) {
+      const errorData = await response.json()
+      throw new Error(errorData.error?.message ?? `HTTP ${response.status}: ${response.statusText}`)
+    }
+
+    return await response.json()
+  } catch (error) {
+    console.error('Error updating dependant:', error)
+    throw error
+  }
+}
+
+export interface UpdatedBeneficiary {
+  id: string
+  firstName: string
+  middleName?: string
+  lastName: string
+  dateOfBirth?: string
+  phoneNumber?: string
+  idType: string
+  idNumber: string
+  relationship: string
+}
+
+export async function updateBeneficiary(
+  customerId: string,
+  beneficiaryId: string,
+  data: UpdateBeneficiaryData
+): Promise<UpdatedBeneficiary> {
+  try {
+    const token = await getSupabaseToken()
+
+    const response = await fetch(
+      `${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/customers/${customerId}/beneficiaries/${beneficiaryId}`,
+      {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+          'x-correlation-id': `update-beneficiary-${Date.now()}`
+        },
+        body: JSON.stringify(data)
+      }
+    )
+
+    if (!response.ok) {
+      const errorData = await response.json()
+      throw new Error(errorData.error?.message ?? `HTTP ${response.status}: ${response.statusText}`)
+    }
+
+    return await response.json()
+  } catch (error) {
+    console.error('Error updating beneficiary:', error)
+    throw error
+  }
+}
+
 // Payment API Types and Functions (Mock Implementation)
 export interface PaymentRequest {
   customerId: string

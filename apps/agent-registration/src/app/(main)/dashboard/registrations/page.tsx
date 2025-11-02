@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,7 +11,6 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { CheckCircle, XCircle, RefreshCw } from 'lucide-react';
 import { formatDate } from '@/lib/utils';
-import { maskPhoneNumber, maskIdNumber } from '@/lib/data-masking';
 import { supabase } from '@/lib/supabase';
 
 interface BrandAmbassadorRegistration {
@@ -39,6 +39,7 @@ interface RegistrationsResponse {
 }
 
 export default function RegistrationsPage() {
+  const router = useRouter();
   const [registrations, setRegistrations] = useState<BrandAmbassadorRegistration[]>([]);
   const [pagination, setPagination] = useState<PaginationInfo | null>(null);
   const [loading, setLoading] = useState(true);
@@ -237,12 +238,16 @@ export default function RegistrationsPage() {
                   </TableHeader>
                   <TableBody>
                     {registrations.map((registration) => (
-                      <TableRow key={registration.id}>
+                      <TableRow
+                        key={registration.id}
+                        className="cursor-pointer hover:bg-gray-50"
+                        onClick={() => router.push(`/dashboard/customer/${registration.id}`)}
+                      >
                         <TableCell className="font-medium">
-                          {registration.firstName}
+                          <span className="text-blue-600 hover:underline">{registration.firstName}</span>
                         </TableCell>
                         <TableCell>
-                          {maskPhoneNumber(registration.phoneNumber)}
+                          {registration.phoneNumber}
                         </TableCell>
                         <TableCell>
                           <Badge variant={getGenderBadgeVariant(registration.gender)}>
@@ -256,7 +261,7 @@ export default function RegistrationsPage() {
                           {registration.idType}
                         </TableCell>
                         <TableCell>
-                          {maskIdNumber(registration.idNumber)}
+                          {registration.idNumber}
                         </TableCell>
                         <TableCell>
                           {getMissingDataIcon(registration.hasMissingRequirements)}

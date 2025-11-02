@@ -126,13 +126,6 @@ export class BootstrapController {
         },
       });
 
-      // Seed MfanisiGo bundled product
-      await this.prisma.$executeRaw`
-        INSERT INTO "bundled_products" ("name", "description", "created_by")
-        VALUES ('MfanisiGo', 'Owned by the OOD drivers', ${body.userId}::uuid)
-        ON CONFLICT DO NOTHING
-      `;
-
       this.logger.log(`[${correlationId}] Bootstrap data seeded successfully`);
 
       return {
@@ -140,7 +133,6 @@ export class BootstrapController {
         message: 'Bootstrap data seeded successfully',
         data: {
           partnerCreated: 'Maisha Poa (partnerId: 1)',
-          productCreated: 'MfanisiGo',
         },
       };
     } catch (error: any) {
@@ -156,7 +148,6 @@ export class BootstrapController {
           message: 'Bootstrap data already exists',
           data: {
             partnerCreated: 'Maisha Poa (already exists)',
-            productCreated: 'MfanisiGo (already exists)',
           },
         };
       }

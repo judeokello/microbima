@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -44,6 +45,7 @@ interface CustomersResponse {
 }
 
 export default function AdminCustomersPage() {
+  const router = useRouter();
   const [customers, setCustomers] = useState<AdminCustomer[]>([]);
   const [pagination, setPagination] = useState<PaginationInfo | null>(null);
   const [loading, setLoading] = useState(true);
@@ -92,7 +94,7 @@ export default function AdminCustomersPage() {
     } finally {
       setLoading(false);
     }
-  }, [currentPage, pageSize]);
+  }, [currentPage, pageSize, fromDate, toDate, createdBy]);
 
   const getSupabaseToken = async () => {
     const { data: session } = await supabase.auth.getSession();
@@ -113,7 +115,7 @@ export default function AdminCustomersPage() {
       }
 
       const data = await response.json();
-      setBrandAmbassadors(data.brandAmbassadors || []);
+      setBrandAmbassadors(data.brandAmbassadors ?? []);
     } catch (err) {
       console.error('Error fetching brand ambassadors:', err);
       // Don't show error to user, just log it
@@ -347,9 +349,13 @@ export default function AdminCustomersPage() {
                   </TableHeader>
                   <TableBody>
                     {customers.map((customer) => (
-                      <TableRow key={customer.id}>
+                      <TableRow
+                        key={customer.id}
+                        className="cursor-pointer hover:bg-gray-50"
+                        onClick={() => router.push(`/admin/customer/${customer.id}`)}
+                      >
                         <TableCell className="font-medium">
-                          {customer.fullName}
+                          <span className="text-blue-600 hover:underline">{customer.fullName}</span>
                         </TableCell>
                         <TableCell>
                           {formatPhoneNumber(customer.phoneNumber)}

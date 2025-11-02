@@ -16,6 +16,11 @@ import { AddBeneficiariesRequestDto } from '../dto/beneficiaries/add-beneficiari
 import { AddBeneficiariesResponseDto } from '../dto/beneficiaries/add-beneficiaries-response.dto';
 import { GetBeneficiariesResponseDto } from '../dto/beneficiaries/get-beneficiaries-response.dto';
 import { SharedMapperUtils } from '../mappers/shared.mapper.utils';
+import { CustomerDetailResponseDto, CustomerDetailDataDto } from '../dto/customers/customer-detail.dto';
+import { CustomerPoliciesResponseDto, CustomerPaymentsResponseDto, PolicyOptionDto, PaymentDto } from '../dto/customers/customer-payments-filter.dto';
+import { UpdateCustomerDto } from '../dto/customers/update-customer.dto';
+import { UpdateDependantDto } from '../dto/dependants/update-dependant.dto';
+import { UpdateBeneficiaryDto } from '../dto/beneficiaries/update-beneficiary.dto';
 
 /**
  * Customer Service
@@ -1825,6 +1830,466 @@ export class CustomerService {
   }
 
   /**
+   * Get customer details with relations (for detail page)
+   * @param customerId - Customer ID
+   * @param userId - User ID
+   * @param userRoles - User roles array
+   * @param correlationId - Correlation ID for tracing
+   * @returns Customer details with beneficiaries, dependants, and policies
+   */
+  async getCustomerDetails(
+    customerId: string,
+    userId: string,
+    userRoles: string[],
+    correlationId: string
+  ): Promise<CustomerDetailResponseDto> {
+    this.logger.log(`[${correlationId}] Getting customer details for ${customerId}`);
+
+    try {
+      // Check access permission
+      const canAccess = await this.canUserAccessCustomer(customerId, userId, userRoles);
+      if (!canAccess) {
+        throw new NotFoundException('Customer not found or not accessible');
+      }
+
+      // Get customer with all relations
+      const customer = await this.prismaService.customer.findUnique({
+        where: { id: customerId },
+        include: {
+          beneficiaries: true,
+          dependants: true,
+          policies: {
+            include: {
+              package: {
+                select: {
+                  id: true,
+                  name: true,
+                },
+              },
+              packagePlan: {
+                select: {
+                  id: true,
+                  name: true,
+                },
+              },
+            },
+          },
+          partnerCustomers: {
+            take: 1,
+            select: {
+              partnerCustomerId: true,
+            },
+          },
+        },
+      });
+
+      if (!customer) {
+        throw new NotFoundException('Customer not found');
+      }
+
+      const customerEntity = Customer.fromPrismaData(customer);
+      const customerDto = CustomerMapper.toPrincipalMemberDto(customerEntity);
+
+      // Map beneficiaries
+      const beneficiaries = customer.beneficiaries.map((b) => ({
+        id: b.id,
+        firstName: b.firstName,
+        middleName: b.middleName ?? undefined,
+        lastName: b.lastName,
+        dateOfBirth: b.dateOfBirth ? b.dateOfBirth.toISOString().split('T')[0] : undefined,
+        phoneNumber: b.phoneNumber ?? undefined,
+        idType: b.idType,
+        idNumber: b.idNumber,
+      }));
+
+      // Map dependants
+      const dependants = customer.dependants.map((d) => ({
+        id: d.id,
+        firstName: d.firstName,
+        middleName: d.middleName ?? undefined,
+        lastName: d.lastName,
+        dateOfBirth: d.dateOfBirth ? d.dateOfBirth.toISOString().split('T')[0] : undefined,
+        phoneNumber: d.phoneNumber ?? undefined,
+        idType: d.idType ?? undefined,
+        idNumber: d.idNumber ?? undefined,
+        relationship: d.relationship,
+      }));
+
+      // Map policies
+      const policies = customer.policies.map((p) => ({
+        id: p.id,
+        policyNumber: p.policyNumber,
+        packageName: p.package.name,
+        planName: p.packagePlan?.name,
+        status: p.status,
+      }));
+
+      const data: CustomerDetailDataDto = {
+        customer: {
+          ...customerDto,
+          id: customer.id,
+          createdAt: customer.createdAt.toISOString(),
+          createdBy: customer.createdBy ?? undefined,
+        },
+        beneficiaries,
+        dependants,
+        policies,
+      };
+
+      return {
+        status: 200,
+        correlationId,
+        message: 'Customer details retrieved successfully',
+        data,
+      };
+    } catch (error) {
+      this.logger.error(`[${correlationId}] Error getting customer details: ${error instanceof Error ? error.message : 'Unknown error'}`, error instanceof Error ? error.stack : undefined);
+      throw error;
+    }
+  }
+
+  /**
+   * Get customer policies for filter dropdown
+   * @param customerId - Customer ID
+   * @param userId - User ID
+   * @param userRoles - User roles array
+   * @param correlationId - Correlation ID for tracing
+   * @returns List of policies formatted for dropdown
+   */
+  async getCustomerPolicies(
+    customerId: string,
+    userId: string,
+    userRoles: string[],
+    correlationId: string
+  ): Promise<CustomerPoliciesResponseDto> {
+    this.logger.log(`[${correlationId}] Getting customer policies for ${customerId}`);
+
+    try {
+      // Check access permission
+      const canAccess = await this.canUserAccessCustomer(customerId, userId, userRoles);
+      if (!canAccess) {
+        throw new NotFoundException('Customer not found or not accessible');
+      }
+
+      // Get customer policies
+      const policies = await this.prismaService.policy.findMany({
+        where: { customerId },
+        include: {
+          package: {
+            select: {
+              name: true,
+            },
+          },
+          packagePlan: {
+            select: {
+              name: true,
+            },
+          },
+        },
+      });
+
+      const policyOptions: PolicyOptionDto[] = policies.map((p) => ({
+        id: p.id,
+        displayText: p.packagePlan
+          ? `${p.package.name} - ${p.packagePlan.name}`
+          : p.package.name,
+        packageName: p.package.name,
+        planName: p.packagePlan?.name,
+      }));
+
+      return {
+        status: 200,
+        correlationId,
+        message: 'Customer policies retrieved successfully',
+        data: policyOptions,
+      };
+    } catch (error) {
+      this.logger.error(`[${correlationId}] Error getting customer policies: ${error instanceof Error ? error.message : 'Unknown error'}`, error instanceof Error ? error.stack : undefined);
+      throw error;
+    }
+  }
+
+  /**
+   * Get customer payments with filters
+   * @param customerId - Customer ID
+   * @param userId - User ID
+   * @param userRoles - User roles array
+   * @param policyId - Optional policy ID filter
+   * @param fromDate - Optional from date filter
+   * @param toDate - Optional to date filter
+   * @param correlationId - Correlation ID for tracing
+   * @returns Filtered payments ordered by actualPaymentDate DESC
+   */
+  async getCustomerPayments(
+    customerId: string,
+    userId: string,
+    userRoles: string[],
+    correlationId: string,
+    policyId?: string,
+    fromDate?: string,
+    toDate?: string
+  ): Promise<CustomerPaymentsResponseDto> {
+    this.logger.log(`[${correlationId}] Getting customer payments for ${customerId}`);
+
+    try {
+      // Check access permission
+      const canAccess = await this.canUserAccessCustomer(customerId, userId, userRoles);
+      if (!canAccess) {
+        throw new NotFoundException('Customer not found or not accessible');
+      }
+
+      // Build where clause
+      const where: any = {
+        policy: {
+          customerId,
+        },
+      };
+
+      if (policyId) {
+        where.policyId = policyId;
+      }
+
+      if (fromDate || toDate) {
+        where.expectedPaymentDate = {};
+        if (fromDate) {
+          where.expectedPaymentDate.gte = new Date(fromDate);
+        }
+        if (toDate) {
+          where.expectedPaymentDate.lte = new Date(toDate);
+        }
+      }
+
+      // Get payments ordered by actualPaymentDate DESC (nulls last)
+      // Prisma handles nulls by putting them last in desc order
+      const payments = await this.prismaService.policyPayment.findMany({
+        where,
+        orderBy: {
+          actualPaymentDate: 'desc',
+        },
+      });
+
+      const paymentDtos: PaymentDto[] = payments.map((p) => ({
+        id: p.id,
+        paymentType: p.paymentType,
+        transactionReference: p.transactionReference,
+        accountNumber: p.accountNumber ?? undefined,
+        expectedPaymentDate: p.expectedPaymentDate.toISOString(),
+        actualPaymentDate: p.actualPaymentDate?.toISOString(),
+        amount: Number(p.amount),
+      }));
+
+      return {
+        status: 200,
+        correlationId,
+        message: 'Payments retrieved successfully',
+        data: paymentDtos,
+      };
+    } catch (error) {
+      this.logger.error(`[${correlationId}] Error getting customer payments: ${error instanceof Error ? error.message : 'Unknown error'}`, error instanceof Error ? error.stack : undefined);
+      throw error;
+    }
+  }
+
+  /**
+   * Update customer
+   * @param customerId - Customer ID
+   * @param updateData - Update data
+   * @param userId - User ID
+   * @param userRoles - User roles array
+   * @param correlationId - Correlation ID for tracing
+   * @returns Updated customer
+   */
+  async updateCustomer(
+    customerId: string,
+    updateData: UpdateCustomerDto,
+    userId: string,
+    userRoles: string[],
+    correlationId: string
+  ): Promise<PrincipalMemberDto> {
+    this.logger.log(`[${correlationId}] Updating customer ${customerId}`);
+
+    try {
+      // Check access permission
+      const canAccess = await this.canUserAccessCustomer(customerId, userId, userRoles);
+      if (!canAccess) {
+        throw new NotFoundException('Customer not found or not accessible');
+      }
+
+      // Build update data
+      const updatePayload: any = {};
+      if (updateData.firstName !== undefined) updatePayload.firstName = updateData.firstName;
+      if (updateData.middleName !== undefined) updatePayload.middleName = updateData.middleName;
+      if (updateData.lastName !== undefined) updatePayload.lastName = updateData.lastName;
+      if (updateData.dateOfBirth !== undefined) updatePayload.dateOfBirth = new Date(updateData.dateOfBirth);
+      if (updateData.email !== undefined) updatePayload.email = updateData.email;
+      if (updateData.phoneNumber !== undefined) updatePayload.phoneNumber = updateData.phoneNumber;
+      if (updateData.gender !== undefined) updatePayload.gender = SharedMapperUtils.mapGenderFromDto(updateData.gender);
+      if (updateData.idType !== undefined) updatePayload.idType = SharedMapperUtils.mapIdTypeFromDto(updateData.idType);
+      if (updateData.idNumber !== undefined) updatePayload.idNumber = updateData.idNumber;
+      updatePayload.updatedBy = userId;
+
+      // Update customer
+      const updated = await this.prismaService.customer.update({
+        where: { id: customerId },
+        data: updatePayload,
+      });
+
+      const customerEntity = Customer.fromPrismaData(updated);
+      return CustomerMapper.toPrincipalMemberDto(customerEntity);
+    } catch (error) {
+      this.logger.error(`[${correlationId}] Error updating customer: ${error instanceof Error ? error.message : 'Unknown error'}`, error instanceof Error ? error.stack : undefined);
+      throw error;
+    }
+  }
+
+  /**
+   * Update dependant
+   * @param dependantId - Dependant ID
+   * @param updateData - Update data
+   * @param userId - User ID
+   * @param userRoles - User roles array
+   * @param correlationId - Correlation ID for tracing
+   * @returns Updated dependant
+   */
+  async updateDependant(
+    dependantId: string,
+    updateData: UpdateDependantDto,
+    userId: string,
+    userRoles: string[],
+    correlationId: string
+  ): Promise<any> {
+    this.logger.log(`[${correlationId}] Updating dependant ${dependantId}`);
+
+    try {
+      // Get dependant to check customer access
+      const dependant = await this.prismaService.dependant.findUnique({
+        where: { id: dependantId },
+        select: { customerId: true },
+      });
+
+      if (!dependant) {
+        throw new NotFoundException('Dependant not found');
+      }
+
+      // Check access permission via customer
+      const canAccess = await this.canUserAccessCustomer(dependant.customerId, userId, userRoles);
+      if (!canAccess) {
+        throw new NotFoundException('Dependant not found or not accessible');
+      }
+
+      // Build update data
+      const updatePayload: any = {};
+      if (updateData.firstName !== undefined) updatePayload.firstName = updateData.firstName;
+      if (updateData.middleName !== undefined) updatePayload.middleName = updateData.middleName;
+      if (updateData.lastName !== undefined) updatePayload.lastName = updateData.lastName;
+      if (updateData.dateOfBirth !== undefined) updatePayload.dateOfBirth = new Date(updateData.dateOfBirth);
+      if (updateData.email !== undefined) updatePayload.email = updateData.email;
+      if (updateData.phoneNumber !== undefined) updatePayload.phoneNumber = updateData.phoneNumber;
+      if (updateData.gender !== undefined) updatePayload.gender = SharedMapperUtils.mapGenderFromDto(updateData.gender);
+      if (updateData.idType !== undefined) updatePayload.idType = SharedMapperUtils.mapIdTypeFromDto(updateData.idType);
+      if (updateData.idNumber !== undefined) updatePayload.idNumber = updateData.idNumber;
+
+      // Update dependant
+      const updated = await this.prismaService.dependant.update({
+        where: { id: dependantId },
+        data: updatePayload,
+      });
+
+      return {
+        id: updated.id,
+        firstName: updated.firstName,
+        middleName: updated.middleName ?? undefined,
+        lastName: updated.lastName,
+        dateOfBirth: updated.dateOfBirth ? updated.dateOfBirth.toISOString().split('T')[0] : undefined,
+        phoneNumber: updated.phoneNumber ?? undefined,
+        idType: updated.idType ?? undefined,
+        idNumber: updated.idNumber ?? undefined,
+        relationship: updated.relationship,
+      };
+    } catch (error) {
+      this.logger.error(`[${correlationId}] Error updating dependant: ${error instanceof Error ? error.message : 'Unknown error'}`, error instanceof Error ? error.stack : undefined);
+      throw error;
+    }
+  }
+
+  /**
+   * Update beneficiary
+   * @param customerId - Customer ID
+   * @param beneficiaryId - Beneficiary ID
+   * @param updateData - Update data
+   * @param userId - User ID
+   * @param userRoles - User roles array
+   * @param correlationId - Correlation ID for tracing
+   * @returns Updated beneficiary
+   */
+  async updateBeneficiary(
+    customerId: string,
+    beneficiaryId: string,
+    updateData: UpdateBeneficiaryDto,
+    userId: string,
+    userRoles: string[],
+    correlationId: string
+  ): Promise<any> {
+    this.logger.log(`[${correlationId}] Updating beneficiary ${beneficiaryId} for customer ${customerId}`);
+
+    try {
+      // Check access permission
+      const canAccess = await this.canUserAccessCustomer(customerId, userId, userRoles);
+      if (!canAccess) {
+        throw new NotFoundException('Customer not found or not accessible');
+      }
+
+      // Verify beneficiary belongs to customer
+      const beneficiary = await this.prismaService.beneficiary.findFirst({
+        where: {
+          id: beneficiaryId,
+          customerId: customerId,
+        },
+      });
+
+      if (!beneficiary) {
+        throw new NotFoundException('Beneficiary not found');
+      }
+
+      // Build update data
+      const updatePayload: any = {};
+      if (updateData.firstName !== undefined) updatePayload.firstName = updateData.firstName;
+      if (updateData.middleName !== undefined) updatePayload.middleName = updateData.middleName;
+      if (updateData.lastName !== undefined) updatePayload.lastName = updateData.lastName;
+      if (updateData.dateOfBirth !== undefined) updatePayload.dateOfBirth = new Date(updateData.dateOfBirth);
+      if (updateData.email !== undefined) updatePayload.email = updateData.email;
+      if (updateData.phoneNumber !== undefined) updatePayload.phoneNumber = updateData.phoneNumber;
+      if (updateData.gender !== undefined) updatePayload.gender = SharedMapperUtils.mapGenderFromDto(updateData.gender);
+      if (updateData.idType !== undefined) updatePayload.idType = SharedMapperUtils.mapIdTypeFromDto(updateData.idType);
+      if (updateData.idNumber !== undefined) updatePayload.idNumber = updateData.idNumber;
+      if (updateData.relationship !== undefined) updatePayload.relationship = updateData.relationship;
+      if (updateData.relationshipDescription !== undefined) updatePayload.relationshipDescription = updateData.relationshipDescription;
+      if (updateData.percentage !== undefined) updatePayload.percentage = updateData.percentage;
+
+      // Update beneficiary
+      const updated = await this.prismaService.beneficiary.update({
+        where: { id: beneficiaryId },
+        data: updatePayload,
+      });
+
+      return {
+        id: updated.id,
+        firstName: updated.firstName,
+        middleName: updated.middleName ?? undefined,
+        lastName: updated.lastName,
+        dateOfBirth: updated.dateOfBirth ? updated.dateOfBirth.toISOString().split('T')[0] : undefined,
+        phoneNumber: updated.phoneNumber ?? undefined,
+        idType: updated.idType,
+        idNumber: updated.idNumber,
+        relationship: updated.relationship,
+      };
+    } catch (error) {
+      this.logger.error(`[${correlationId}] Error updating beneficiary: ${error instanceof Error ? error.message : 'Unknown error'}`, error instanceof Error ? error.stack : undefined);
+      throw error;
+    }
+  }
+
+  /**
    * Helper method to format full name
    */
   private formatFullName(
@@ -1834,6 +2299,39 @@ export class CustomerService {
   ): string {
     const parts = [firstName, middleName, lastName].filter(Boolean);
     return parts.length > 0 ? parts.join(' ') : 'N/A';
+  }
+
+  /**
+   * Check if user can access/edit customer
+   * @param customerId - Customer ID
+   * @param userId - User ID
+   * @param userRoles - User roles array
+   * @returns true if user can access, false otherwise
+   */
+  private async canUserAccessCustomer(
+    customerId: string,
+    userId: string,
+    userRoles: string[]
+  ): Promise<boolean> {
+    // Admins can access any customer
+    if (userRoles.includes('registration_admin')) {
+      return true;
+    }
+
+    // Agents can only access customers they registered
+    if (userRoles.includes('brand_ambassador')) {
+      const registration = await this.prismaService.agentRegistration.findFirst({
+        where: {
+          customerId: customerId,
+          ba: {
+            userId: userId,
+          },
+        },
+      });
+      return !!registration;
+    }
+
+    return false;
   }
 
 }

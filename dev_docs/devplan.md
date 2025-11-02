@@ -239,6 +239,26 @@ The Customer Onboarding module is a core component of the MicroBima microinsuran
 
 ---
 
+## ✅ Implemented Features (Cross-App, for discovery)
+
+These items are implemented in the Agent Registration app and expose internal APIs that other modules (including Customer Onboarding) can leverage. Documented here for tooling/search visibility.
+
+- [x] Customer Search API
+  - Endpoint: `GET /internal/customers/search`
+  - Filters: partial `idNumber`, `phoneNumber`, `email`
+  - Response: customer identity + counts (spouses/children) + NoK present flag
+
+- [x] Registrations Time-Series APIs
+  - Agent: `GET /internal/customers/my-registrations-chart?period=7d|30d|90d` (filtered by logged-in `userId`)
+  - Admin: `GET /internal/customers/all-registrations-chart?period=7d|30d|90d` (system-wide)
+  - Service: shared `getRegistrationsChartData(userId?, period)` returns daily counts (zero-filled)
+
+Frontend availability (Agent Registration UI):
+- Chart component `ChartAreaInteractive` (one line, “Total Customers”, default Last 7 days) on Agent and Admin dashboards
+- Customer Search screen (Agent + Admin) with data grid and partial-match filters
+
+---
+
 ## **Ongoing Work Throughout Development (Phases 5-8)**
 
 ### **5.4.4 Ongoing API Gateway Work (Throughout Phases 5-8)**

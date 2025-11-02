@@ -154,23 +154,39 @@ The Agent Registration module enables Brand Ambassadors (BAs) to register custom
 #### **5.4 Phase 4: BA Dashboard & Analytics (Week 4)**
 
 ##### **5.4.1 Dashboard Infrastructure**
-- [ ] **5.4.1.1** Create dashboard layout with sidebar navigation
-- [ ] **5.4.1.2** Implement period-based data fetching
+- [x] **5.4.1.1** Create dashboard layout with sidebar navigation
+- [x] **5.4.1.2** Implement period-based data fetching
 - [ ] **5.4.1.3** Set up timezone handling (Africa/Nairobi)
-- [ ] **5.4.1.4** Create responsive design for mobile/desktop
+- [x] **5.4.1.4** Create responsive design for mobile/desktop
 
 ##### **5.4.2 Analytics Components**
-- [ ] **5.4.2.1** Build period cards (Today/Yesterday/This Week/Last Week)
-- [ ] **5.4.2.2** Implement registration count and earnings display
+- [x] **5.4.2.1** Build period cards (Today/Yesterday/This Week/Last Week)
+- [x] **5.4.2.2** Implement registration count display
 - [ ] **5.4.2.3** Create clickable cards for filtered lists
 - [ ] **5.4.2.4** Build customer list with masked data display
 - [ ] **5.4.2.5** Implement earnings tracking and payout status
 
 ##### **5.4.3 Data Visualization**
-- [ ] **5.4.3.1** Create charts for registration trends
+- [x] **5.4.3.1** Create charts for registration trends (Agent + Admin time-series, 7/30/90 days)
 - [ ] **5.4.3.2** Implement earnings visualization
 - [ ] **5.4.3.3** Build performance metrics display
 - [ ] **5.4.3.4** Add export functionality for reports
+
+---
+
+### ✅ Implemented Feature Details (for discoverability)
+
+1) Customer Search Feature
+- Frontend: Sidebar item "Search Customer" (Agent + Admin); page supports partial match on ID Number/Phone/Email; table shows Full Name, ID Type/Number, Phone, Email, Number of Spouses/Children, and NoK Added.
+- Backend: `GET /internal/customers/search` (internal) with LIKE filters; returns counts and NoK boolean.
+
+2) Time Series Registrations Chart
+- Frontend Component: `ChartAreaInteractive` (single line labelled "Registrations"; title "Total Customers"; default filter Last 7 days; filters 7/30/90 days).
+- Placement: Agent dashboard (agent-scoped by userId) and Admin dashboard (system-wide).
+- Backend Endpoints:
+  - Agent: `GET /internal/customers/my-registrations-chart?period=7d|30d|90d`
+  - Admin: `GET /internal/customers/all-registrations-chart?period=7d|30d|90d`
+- Service: Shared method `getRegistrationsChartData(userId?, period)` groups daily counts and zero-fills dates.
 
 #### **5.5 Phase 5: Missing Requirements Management (Week 5)**
 

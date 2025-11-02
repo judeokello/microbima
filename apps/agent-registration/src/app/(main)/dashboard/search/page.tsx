@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,6 +11,7 @@ import { Search, X, Check, Loader2 } from 'lucide-react';
 import { searchCustomers, CustomerSearchResult, CustomerSearchPagination } from '@/lib/api';
 
 export default function CustomerSearchPage() {
+  const router = useRouter();
   const [idNumber, setIdNumber] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
   const [email, setEmail] = useState('');
@@ -190,9 +192,13 @@ export default function CustomerSearchPage() {
                     </TableHeader>
                     <TableBody>
                       {searchResults.map((customer) => (
-                        <TableRow key={customer.id}>
+                        <TableRow
+                          key={customer.id}
+                          className="cursor-pointer hover:bg-gray-50"
+                          onClick={() => router.push(`/dashboard/customer/${customer.id}`)}
+                        >
                           <TableCell className="font-medium">
-                            {customer.fullName}
+                            <span className="text-blue-600 hover:underline">{customer.fullName}</span>
                           </TableCell>
                           <TableCell>
                             {customer.idType.replace(/_/g, ' ')}

@@ -37,6 +37,11 @@ import { CustomerSearchResponseDto } from '../../dto/customers/customer-search.d
 import { RegistrationsChartResponseDto } from '../../dto/customers/registrations-chart.dto';
 import { DashboardStatsDto } from '../../dto/customers/dashboard-stats.dto';
 import { BrandAmbassadorDashboardStatsDto } from '../../dto/customers/brand-ambassador-dashboard-stats.dto';
+import { CustomerDetailResponseDto } from '../../dto/customers/customer-detail.dto';
+import { CustomerPoliciesResponseDto, CustomerPaymentsResponseDto, CustomerPaymentsFilterDto } from '../../dto/customers/customer-payments-filter.dto';
+import { UpdateCustomerDto } from '../../dto/customers/update-customer.dto';
+import { UpdateDependantDto } from '../../dto/dependants/update-dependant.dto';
+import { UpdateBeneficiaryDto } from '../../dto/beneficiaries/update-beneficiary.dto';
 import { CorrelationId } from '../../decorators/correlation-id.decorator';
 import { PartnerId } from '../../decorators/api-key.decorator';
 
@@ -602,10 +607,124 @@ export class InternalCustomerController {
   }
 
   /**
+   * Get customer details with relations (for detail page)
+   */
+  @Get(':customerId/details')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Get customer details (Internal)',
+    description: 'Gets customer details with beneficiaries, dependants, and policies. This endpoint is only accessible internally.',
+  })
+  @ApiParam({
+    name: 'customerId',
+    description: 'Customer ID',
+    example: '123e4567-e89b-12d3-a456-426614174000',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Customer details retrieved successfully',
+    type: CustomerDetailResponseDto,
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Customer not found or not accessible',
+  })
+  async getCustomerDetails(
+    @Param('customerId') customerId: string,
+    @CorrelationId() correlationId: string,
+    @Req() req: any,
+  ): Promise<CustomerDetailResponseDto> {
+    const userId = req.user?.id || 'system';
+    const userRoles = req.user?.roles || [];
+    return this.customerService.getCustomerDetails(customerId, userId, userRoles, correlationId);
+  }
+
+  /**
+   * Get customer policies for filter dropdown
+   */
+  @Get(':customerId/policies')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Get customer policies (Internal)',
+    description: 'Gets customer policies formatted for dropdown filter. This endpoint is only accessible internally.',
+  })
+  @ApiParam({
+    name: 'customerId',
+    description: 'Customer ID',
+    example: '123e4567-e89b-12d3-a456-426614174000',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Customer policies retrieved successfully',
+    type: CustomerPoliciesResponseDto,
+  })
+  async getCustomerPolicies(
+    @Param('customerId') customerId: string,
+    @CorrelationId() correlationId: string,
+    @Req() req: any,
+  ): Promise<CustomerPoliciesResponseDto> {
+    const userId = req.user?.id || 'system';
+    const userRoles = req.user?.roles || [];
+    return this.customerService.getCustomerPolicies(customerId, userId, userRoles, correlationId);
+  }
+
+  /**
+   * Get customer payments with filters
+   */
+  @Get(':customerId/payments')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Get customer payments (Internal)',
+    description: 'Gets customer payments with optional filters. This endpoint is only accessible internally.',
+  })
+  @ApiParam({
+    name: 'customerId',
+    description: 'Customer ID',
+    example: '123e4567-e89b-12d3-a456-426614174000',
+  })
+  @ApiQuery({
+    name: 'policyId',
+    description: 'Optional policy ID filter',
+    required: false,
+  })
+  @ApiQuery({
+    name: 'fromDate',
+    description: 'Optional from date filter (YYYY-MM-DD)',
+    required: false,
+  })
+  @ApiQuery({
+    name: 'toDate',
+    description: 'Optional to date filter (YYYY-MM-DD)',
+    required: false,
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Payments retrieved successfully',
+    type: CustomerPaymentsResponseDto,
+  })
+  async getCustomerPayments(
+    @Param('customerId') customerId: string,
+    @Query() filters: CustomerPaymentsFilterDto,
+    @CorrelationId() correlationId: string,
+    @Req() req: any,
+  ): Promise<CustomerPaymentsResponseDto> {
+    const userId = req.user?.id || 'system';
+    const userRoles = req.user?.roles || [];
+    return this.customerService.getCustomerPayments(
+      customerId,
+      userId,
+      userRoles,
+      correlationId,
+      filters.policyId,
+      filters.fromDate,
+      filters.toDate
+    );
+  }
+
+  /**
    * Update an existing customer
    * @param customerId - Customer ID
    * @param updateRequest - Customer update request
-   * @param partnerId - Partner ID from API key validation
    * @param correlationId - Correlation ID from request header
    * @returns Updated customer data
    */
@@ -631,20 +750,85 @@ export class InternalCustomerController {
   })
   @ApiResponse({
     status: 404,
-    description: 'Customer not found or not accessible to this partner',
+    description: 'Customer not found or not accessible',
   })
   @ApiResponse({
     status: 401,
-    description: 'Unauthorized - invalid or inactive API key',
+    description: 'Unauthorized - invalid authentication',
   })
   async updateCustomer(
     @Param('customerId') customerId: string,
-    @Body() updateRequest: any, // TODO: Replace with UpdatePrincipalMemberRequestDto
-    @PartnerId() partnerId: string,
+    @Body() updateRequest: UpdateCustomerDto,
     @CorrelationId() correlationId: string,
+    @Req() req: any,
   ): Promise<PrincipalMemberDto> {
-    // TODO: Implement updateCustomer method in CustomerService
-    throw new Error('Update customer functionality not yet implemented');
+    const userId = req.user?.id || 'system';
+    const userRoles = req.user?.roles || [];
+    return this.customerService.updateCustomer(customerId, updateRequest, userId, userRoles, correlationId);
+  }
+
+  /**
+   * Update a dependant
+   */
+  @Put('dependants/:dependantId')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Update dependant (Internal)',
+    description: 'Updates an existing dependant. This endpoint is only accessible internally.',
+  })
+  @ApiParam({
+    name: 'dependantId',
+    description: 'Dependant ID',
+    example: '123e4567-e89b-12d3-a456-426614174000',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Dependant updated successfully',
+  })
+  async updateDependant(
+    @Param('dependantId') dependantId: string,
+    @Body() updateRequest: UpdateDependantDto,
+    @CorrelationId() correlationId: string,
+    @Req() req: any,
+  ): Promise<any> {
+    const userId = req.user?.id || 'system';
+    const userRoles = req.user?.roles || [];
+    return this.customerService.updateDependant(dependantId, updateRequest, userId, userRoles, correlationId);
+  }
+
+  /**
+   * Update a beneficiary
+   */
+  @Put(':customerId/beneficiaries/:beneficiaryId')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Update beneficiary (Internal)',
+    description: 'Updates an existing beneficiary. This endpoint is only accessible internally.',
+  })
+  @ApiParam({
+    name: 'customerId',
+    description: 'Customer ID',
+    example: '123e4567-e89b-12d3-a456-426614174000',
+  })
+  @ApiParam({
+    name: 'beneficiaryId',
+    description: 'Beneficiary ID',
+    example: '123e4567-e89b-12d3-a456-426614174000',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Beneficiary updated successfully',
+  })
+  async updateBeneficiary(
+    @Param('customerId') customerId: string,
+    @Param('beneficiaryId') beneficiaryId: string,
+    @Body() updateRequest: UpdateBeneficiaryDto,
+    @CorrelationId() correlationId: string,
+    @Req() req: any,
+  ): Promise<any> {
+    const userId = req.user?.id || 'system';
+    const userRoles = req.user?.roles || [];
+    return this.customerService.updateBeneficiary(customerId, beneficiaryId, updateRequest, userId, userRoles, correlationId);
   }
 
   /**

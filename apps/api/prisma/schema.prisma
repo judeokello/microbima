@@ -134,6 +134,9 @@ model Customer {
   registrations         AgentRegistration[]
   missingRequirements   MissingRequirement[]
   
+  // Policy member relations
+  policyMemberPrincipals PolicyMemberPrincipal[]
+  
   // Audit fields
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
@@ -180,6 +183,9 @@ model Dependant {
   verifiedAt  DateTime? // When verification was completed
   verifiedBy  String?   @db.Uuid // Who verified (user ID)
   createdByPartnerId Int // Partner who created this dependant
+  
+  // Policy member relations
+  policyMemberDependants PolicyMemberDependant[]
   
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -260,21 +266,24 @@ model KYCVerification {
 
 model Policy {
   id             String    @id @db.Uuid
-  policyNumber String  @unique
-  productName  String
-  planName     String
-  status       PolicyStatus @default(ACTIVE)
-  startDate    DateTime
-  endDate      DateTime?
-  premium      Decimal  @db.Decimal(10, 2)
-  frequency    PaymentFrequency
-  paymentCadence Int    // Number of days between premium payments
+  policyNumber   String    @unique
+  status         PolicyStatus @default(PENDING_ACTIVATION)
   customerId     String    @db.Uuid
-  customer       Customer  @relation(fields: [customerId], references: [id], onDelete: Cascade)
-
-  // Bundled Product relation
-  bundledProductId Int?            @map("bundled_product_id")
-  bundledProduct   BundledProduct? @relation(fields: [bundledProductId], references: [id], onDelete: Restrict)
+  packageId      Int
+  packagePlanId  Int?
+  
+  productName    String
+  startDate      DateTime
+  endDate        DateTime?
+  premium        Decimal  @db.Decimal(10, 2)
+  frequency      PaymentFrequency
+  paymentCadence Int      // Number of days between premium payments
+  
+  // Relations
+  customer       Customer     @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  package        Package      @relation(fields: [packageId], references: [id], onDelete: Restrict)
+  packagePlan    PackagePlan? @relation(fields: [packagePlanId], references: [id], onDelete: Restrict)
+  policyPayments PolicyPayment[]
 
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
@@ -282,20 +291,6 @@ model Policy {
   @@map("policies")
 }
 
-model BundledProduct {
-  id          Int      @id @default(autoincrement())
-  name        String   @db.VarChar(100)
-  description String?  @db.VarChar(500)
-  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  createdBy   String   @map("created_by") @db.Uuid
-  
-  // Relations
-  policies      Policy[]
-  
-  @@index([createdBy])
-  @@index([name])
-  @@map("bundled_products")
-}
 
 enum CustomerStatus {
   PENDING_KYC
@@ -352,6 +347,7 @@ enum KYCVerificationMethod {
 }
 
 enum PolicyStatus {
+  PENDING_ACTIVATION
   ACTIVE
   SUSPENDED
   TERMINATED
@@ -365,6 +361,11 @@ enum PaymentFrequency {
   QUARTERLY
   ANNUALLY
   CUSTOM
+}
+
+enum PaymentType {
+  MPESA
+  SASAPAY
 }
 
 // New enums for Agent Registration module
@@ -532,16 +533,20 @@ model Underwriter {
 }
 
 model Package {
-  id              Int      @id @default(autoincrement())
-  name            String   @db.VarChar(100)
-  description     String   @db.VarChar(500)
-  underwriterId   Int?
-  isActive        Boolean  @default(true)
+  id                  Int      @id @default(autoincrement())
+  name                String   @db.VarChar(100)
+  description         String   @db.VarChar(500)
+  underwriterId       Int?
+  isActive            Boolean  @default(true)
+  policyNumberFormat  String?  @db.VarChar(200)
+  memberNumberFormat  String?  @db.VarChar(200)
   
   // Relations
   underwriter     Underwriter? @relation(fields: [underwriterId], references: [id])
   packageProducts PackageProduct[]
   packageSchemes  PackageScheme[]
+  packagePlans    PackagePlan[]
+  policies        Policy[]
   
   // Audit fields
   createdAt       DateTime @default(now())
@@ -648,4 +653,74 @@ model PackageSchemeCustomer {
   updatedAt             DateTime @updatedAt
 
   @@map("package_scheme_customers")
+}
+
+model PackagePlan {
+  id          Int      @id @default(autoincrement())
+  name        String   @db.VarChar(200)
+  description String?  @db.VarChar(200)
+  packageId   Int
+  isActive    Boolean  @default(true)
+  
+  // Relations
+  package     Package  @relation(fields: [packageId], references: [id])
+  policies    Policy[]
+  
+  // Audit fields
+  createdAt   DateTime @default(now())
+  createdBy   String   @db.Uuid
+  updatedAt   DateTime @updatedAt
+  updatedBy   String   @db.Uuid
+  
+  @@unique([packageId, name])
+  @@map("package_plans")
+}
+
+model PolicyMemberPrincipal {
+  id           Int      @id @default(autoincrement())
+  customerId   String   @db.Uuid
+  memberNumber String   @db.VarChar(20)
+  
+  // Relations
+  customer     Customer @relation(fields: [customerId], references: [id])
+  
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime?
+  
+  @@map("policy_member_principals")
+}
+
+model PolicyMemberDependant {
+  id           Int       @id @default(autoincrement())
+  dependantId  String    @db.Uuid
+  memberNumber String    @db.VarChar(20)
+  
+  // Relations
+  dependant    Dependant @relation(fields: [dependantId], references: [id])
+  
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime?
+  
+  @@map("policy_member_dependants")
+}
+
+model PolicyPayment {
+  id                    Int          @id @default(autoincrement())
+  policyId              String       @db.Uuid
+  paymentType           PaymentType
+  transactionReference  String       @db.VarChar(50)
+  amount                Decimal      @db.Decimal(10, 2)
+  accountNumber         String?      @db.VarChar(50)
+  details               String?      @db.VarChar(500)
+  expectedPaymentDate   DateTime
+  actualPaymentDate     DateTime?
+  paymentMessageBlob    String?      @db.VarChar(500)
+  
+  // Relations
+  policy                Policy       @relation(fields: [policyId], references: [id])
+  
+  createdAt             DateTime     @default(now())
+  updatedAt             DateTime     @updatedAt
+  
+  @@map("policy_payments")
 }

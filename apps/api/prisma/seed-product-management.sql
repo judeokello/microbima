@@ -53,3 +53,71 @@ INSERT INTO "package_schemes" ("packageId", "schemeId") VALUES
 (1, 1) -- MfanisiGo -> OOD Drivers
 ON CONFLICT ("packageId", "schemeId") DO NOTHING;
 
+-- Update packages with policy and member number formats (idempotent)
+UPDATE "packages" 
+SET 
+  "policyNumberFormat" = 'MP/MFG/{auto-increasing-policy-number}',
+  "memberNumberFormat" = 'MFG{auto-increasing-policy-number}-{auto-increasing-member-number}',
+  "updatedAt" = CURRENT_TIMESTAMP
+WHERE id = 1;
+
+UPDATE "packages" 
+SET 
+  "policyNumberFormat" = 'MP/MFS/{auto-increasing-policy-number}',
+  "memberNumberFormat" = 'MFS{auto-increasing-policy-number}-{auto-increasing-member-number}',
+  "updatedAt" = CURRENT_TIMESTAMP
+WHERE id = 2;
+
+UPDATE "packages" 
+SET 
+  "policyNumberFormat" = 'MP/MZD/{auto-increasing-policy-number}',
+  "memberNumberFormat" = 'MZD{auto-increasing-policy-number}-{auto-increasing-member-number}',
+  "updatedAt" = CURRENT_TIMESTAMP
+WHERE id = 3;
+
+-- Seed package_plans for all three packages (idempotent)
+-- MfanisiGo Plans (packageId=1)
+INSERT INTO "package_plans" ("name", "description", "packageId", "isActive", "createdBy", "updatedBy", "updatedAt") 
+VALUES ('Silver', 'the silver plan', 1, true,
+  (SELECT id FROM auth.users ORDER BY created_at ASC LIMIT 1),
+  (SELECT id FROM auth.users ORDER BY created_at ASC LIMIT 1),
+  CURRENT_TIMESTAMP)
+ON CONFLICT ("packageId", "name") DO NOTHING;
+
+INSERT INTO "package_plans" ("name", "description", "packageId", "isActive", "createdBy", "updatedBy", "updatedAt") 
+VALUES ('Gold', 'the Gold plan', 1, true,
+  (SELECT id FROM auth.users ORDER BY created_at ASC LIMIT 1),
+  (SELECT id FROM auth.users ORDER BY created_at ASC LIMIT 1),
+  CURRENT_TIMESTAMP)
+ON CONFLICT ("packageId", "name") DO NOTHING;
+
+-- Mfanisi Plans (packageId=2)
+INSERT INTO "package_plans" ("name", "description", "packageId", "isActive", "createdBy", "updatedBy", "updatedAt") 
+VALUES ('Silver', 'the silver plan', 2, true,
+  (SELECT id FROM auth.users ORDER BY created_at ASC LIMIT 1),
+  (SELECT id FROM auth.users ORDER BY created_at ASC LIMIT 1),
+  CURRENT_TIMESTAMP)
+ON CONFLICT ("packageId", "name") DO NOTHING;
+
+INSERT INTO "package_plans" ("name", "description", "packageId", "isActive", "createdBy", "updatedBy", "updatedAt") 
+VALUES ('Gold', 'the Gold plan', 2, true,
+  (SELECT id FROM auth.users ORDER BY created_at ASC LIMIT 1),
+  (SELECT id FROM auth.users ORDER BY created_at ASC LIMIT 1),
+  CURRENT_TIMESTAMP)
+ON CONFLICT ("packageId", "name") DO NOTHING;
+
+-- Mzalendo Plans (packageId=3)
+INSERT INTO "package_plans" ("name", "description", "packageId", "isActive", "createdBy", "updatedBy", "updatedAt") 
+VALUES ('Silver', 'the silver plan', 3, true,
+  (SELECT id FROM auth.users ORDER BY created_at ASC LIMIT 1),
+  (SELECT id FROM auth.users ORDER BY created_at ASC LIMIT 1),
+  CURRENT_TIMESTAMP)
+ON CONFLICT ("packageId", "name") DO NOTHING;
+
+INSERT INTO "package_plans" ("name", "description", "packageId", "isActive", "createdBy", "updatedBy", "updatedAt") 
+VALUES ('Gold', 'the Gold plan', 3, true,
+  (SELECT id FROM auth.users ORDER BY created_at ASC LIMIT 1),
+  (SELECT id FROM auth.users ORDER BY created_at ASC LIMIT 1),
+  CURRENT_TIMESTAMP)
+ON CONFLICT ("packageId", "name") DO NOTHING;
+
