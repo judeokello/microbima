@@ -14,6 +14,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Loader2 } from 'lucide-react';
 import { updateDependant, UpdateDependantData } from '@/lib/api';
+import { formatPhoneNumber, getPhoneValidationError } from '@/lib/phone-validation';
 
 interface EditDependantDialogProps {
   dependant: {
@@ -23,6 +24,7 @@ interface EditDependantDialogProps {
     lastName: string;
     dateOfBirth?: string;
     phoneNumber?: string;
+    gender?: string;
     idType?: string;
     idNumber?: string;
   };
@@ -45,6 +47,11 @@ const mapIdTypeToBackend = (idType?: string): string | undefined => {
 
 const mapIdTypeFromBackend = (idType?: string): string => {
   if (!idType) return 'NATIONAL_ID';
+  // Handle both lowercase DTO format and uppercase enum format
+  const upperType = idType.toUpperCase();
+  if (['NATIONAL_ID', 'PASSPORT', 'ALIEN', 'BIRTH_CERTIFICATE', 'MILITARY'].includes(upperType)) {
+    return upperType;
+  }
   const mapping: Record<string, string> = {
     'national': 'NATIONAL_ID',
     'passport': 'PASSPORT',
@@ -52,7 +59,17 @@ const mapIdTypeFromBackend = (idType?: string): string => {
     'birth_certificate': 'BIRTH_CERTIFICATE',
     'military': 'MILITARY',
   };
-  return mapping[idType] ?? 'NATIONAL_ID';
+  return mapping[idType.toLowerCase()] ?? 'NATIONAL_ID';
+};
+
+const mapGenderFromBackend = (gender?: string): string => {
+  if (!gender) return '';
+  // Handle both lowercase DTO format and uppercase enum format
+  const lowerGender = gender.toLowerCase();
+  if (lowerGender === 'male' || lowerGender === 'female') {
+    return lowerGender;
+  }
+  return '';
 };
 
 export default function EditDependantDialog({
@@ -67,16 +84,29 @@ export default function EditDependantDialog({
     lastName: dependant.lastName,
     dateOfBirth: dependant.dateOfBirth,
     phoneNumber: dependant.phoneNumber,
+    gender: mapGenderFromBackend(dependant.gender),
     idType: mapIdTypeFromBackend(dependant.idType),
     idNumber: dependant.idNumber,
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [phoneError, setPhoneError] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
+    setPhoneError(null);
+
+    // Validate phone number
+    if (formData.phoneNumber) {
+      const phoneErr = getPhoneValidationError(formData.phoneNumber);
+      if (phoneErr) {
+        setPhoneError(phoneErr);
+        setLoading(false);
+        return;
+      }
+    }
 
     try {
       const updateData: UpdateDependantData = {
@@ -148,8 +178,16 @@ export default function EditDependantDialog({
               <Input
                 id="phoneNumber"
                 value={formData.phoneNumber ?? ''}
-                onChange={(e) => setFormData({ ...formData, phoneNumber: e.target.value || undefined })}
+                onChange={(e) => {
+                  const formatted = formatPhoneNumber(e.target.value);
+                  setFormData({ ...formData, phoneNumber: formatted || undefined });
+                  setPhoneError(getPhoneValidationError(formatted));
+                }}
+                placeholder="01XXXXXXXX or 07XXXXXXXX"
               />
+              {phoneError && (
+                <p className="text-sm text-red-600 mt-1">{phoneError}</p>
+              )}
             </div>
 
             <div>
@@ -159,7 +197,7 @@ export default function EditDependantDialog({
                 onValueChange={(value) => setFormData({ ...formData, gender: value || undefined })}
               >
                 <SelectTrigger id="gender">
-                  <SelectValue placeholder="Select gender" />
+                  <SelectValue placeholder={formData.gender ? (formData.gender === 'male' ? 'Male' : 'Female') : 'Select gender'} />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="male">Male</SelectItem>
@@ -175,7 +213,7 @@ export default function EditDependantDialog({
                 onValueChange={(value) => setFormData({ ...formData, idType: value })}
               >
                 <SelectTrigger id="idType">
-                  <SelectValue />
+                  <SelectValue placeholder="Select ID Type" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="NATIONAL_ID">National ID</SelectItem>

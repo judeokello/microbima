@@ -1898,7 +1898,8 @@ export class CustomerService {
         lastName: b.lastName,
         dateOfBirth: b.dateOfBirth ? b.dateOfBirth.toISOString().split('T')[0] : undefined,
         phoneNumber: b.phoneNumber ?? undefined,
-        idType: b.idType,
+        gender: b.gender ? SharedMapperUtils.mapGenderToDto(b.gender) : undefined,
+        idType: SharedMapperUtils.mapIdTypeToDto(b.idType),
         idNumber: b.idNumber,
       }));
 
@@ -1910,7 +1911,8 @@ export class CustomerService {
         lastName: d.lastName,
         dateOfBirth: d.dateOfBirth ? d.dateOfBirth.toISOString().split('T')[0] : undefined,
         phoneNumber: d.phoneNumber ?? undefined,
-        idType: d.idType ?? undefined,
+        gender: d.gender ? SharedMapperUtils.mapGenderToDto(d.gender) : undefined,
+        idType: d.idType ? SharedMapperUtils.mapIdTypeToDto(d.idType) : undefined,
         idNumber: d.idNumber ?? undefined,
         relationship: d.relationship,
       }));

@@ -59,23 +59,13 @@ interface CustomerFormData {
 //   return minDate.toISOString().split('T')[0];
 // };
 
+import { validatePhoneNumber, formatPhoneNumber } from '@/lib/phone-validation';
+
 // Helper functions
 const toTitleCase = (str: string): string => {
   return str.replace(/\w\S*/g, (txt) =>
     txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase()
   );
-};
-
-const validatePhoneNumber = (phone: string): boolean => {
-  // Remove any non-digit characters
-  const cleanPhone = phone.replace(/\D/g, '');
-  // Check if it starts with 01 or 07 and is exactly 10 digits
-  return /^(01|07)\d{8}$/.test(cleanPhone);
-};
-
-const formatPhoneNumber = (phone: string): string => {
-  // Remove any non-digit characters and limit to 10 digits
-  return phone.replace(/\D/g, '').substring(0, 10);
 };
 
 // Helper function to map frontend ID types to backend values

@@ -59,7 +59,7 @@ export default function BootstrapPage() {
 
       if (!createUserResponse.ok) {
         const errorData = await createUserResponse.json()
-        throw new Error(errorData.error?.message || 'Failed to create user')
+        throw new Error(errorData.error?.message ?? 'Failed to create user')
       }
 
       const createUserResult = await createUserResponse.json()

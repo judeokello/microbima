@@ -92,8 +92,18 @@ export class BeneficiarySummaryDto {
   phoneNumber?: string;
 
   @ApiProperty({
+    description: 'Gender',
+    example: 'male',
+    enum: ['male', 'female'],
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  gender?: string;
+
+  @ApiProperty({
     description: 'ID type',
-    example: 'NATIONAL_ID',
+    example: 'national',
   })
   @IsString()
   idType: string;
@@ -156,8 +166,18 @@ export class DependantSummaryDto {
   phoneNumber?: string;
 
   @ApiProperty({
+    description: 'Gender',
+    example: 'male',
+    enum: ['male', 'female'],
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  gender?: string;
+
+  @ApiProperty({
     description: 'ID type',
-    example: 'NATIONAL_ID',
+    example: 'national',
     required: false,
   })
   @IsOptional()

@@ -15,6 +15,7 @@ interface NextOfKinSectionProps {
     lastName: string;
     dateOfBirth?: string;
     phoneNumber?: string;
+    gender?: string;
     idType: string;
     idNumber: string;
   }>;
