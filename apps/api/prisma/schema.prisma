@@ -9,50 +9,50 @@ generator client {
 /// @seed="npx ts-node prisma/seed.ts"
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
   directUrl = env("DIRECT_URL")
 }
 
 model Partner {
-  id              Int      @id @default(autoincrement())
-  partnerName     String
-  website         String?
-  officeLocation  String?
-  isActive        Boolean  @default(true)
-  
+  id             Int     @id @default(autoincrement())
+  partnerName    String
+  website        String?
+  officeLocation String?
+  isActive       Boolean @default(true)
+
   // Relations
-  partnerContacts PartnerContact[]
-  partnerCustomers PartnerCustomer[]
-  partnerApiKeys  PartnerApiKey[]
+  partnerContacts        PartnerContact[]
+  partnerCustomers       PartnerCustomer[]
+  partnerApiKeys         PartnerApiKey[]
   packageSchemeCustomers PackageSchemeCustomer[]
-  
+
   // Agent Registration relations
-  brandAmbassadors      BrandAmbassador[]
-  registrations         AgentRegistration[]
-  missingRequirements   MissingRequirement[]
-  deferredPartner       DeferredRequirementPartner[]
-  baPayouts             BAPayout[]
-  
+  brandAmbassadors    BrandAmbassador[]
+  registrations       AgentRegistration[]
+  missingRequirements MissingRequirement[]
+  deferredPartner     DeferredRequirementPartner[]
+  baPayouts           BAPayout[]
+
   // Audit fields
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  createdBy       String?  // User ID who created
-  updatedBy       String?  // User ID who last updated
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String? // User ID who created
+  updatedBy String? // User ID who last updated
 
   @@map("partners")
 }
 
 model PartnerApiKey {
-  id          Int      @id @default(autoincrement())
-  partnerId   Int
-  partner     Partner  @relation(fields: [partnerId], references: [id], onDelete: Cascade)
-  apiKey      String   // SHA-256 hashed API key
-  isActive    Boolean  @default(true)
-  
+  id        Int     @id @default(autoincrement())
+  partnerId Int
+  partner   Partner @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+  apiKey    String // SHA-256 hashed API key
+  isActive  Boolean @default(true)
+
   // Audit fields
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([partnerId, isActive], name: "unique_active_key_per_partner") // Only one active key per partner
   @@index([apiKey], name: "idx_api_key_lookup") // For fast API key lookups
@@ -60,237 +60,237 @@ model PartnerApiKey {
 }
 
 model PartnerContact {
-  id              Int      @id @default(autoincrement())
-  partnerId       Int
-  partner         Partner  @relation(fields: [partnerId], references: [id], onDelete: Cascade)
-  
-  contactName     String
-  contactPhone    String   @db.VarChar(20) // Numeric phone number, max 20 characters
-  contactEmail    String?
-  isPrimary       Boolean  @default(false)
-  
+  id        Int     @id @default(autoincrement())
+  partnerId Int
+  partner   Partner @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+
+  contactName  String
+  contactPhone String  @db.VarChar(20) // Numeric phone number, max 20 characters
+  contactEmail String?
+  isPrimary    Boolean @default(false)
+
   // Audit fields
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@map("partner_contacts")
 }
 
 model PartnerCustomer {
-  id              Int      @id @default(autoincrement())
-  partnerId       Int
-  partner         Partner  @relation(fields: [partnerId], references: [id], onDelete: Cascade)
-  customerId      String   @db.Uuid
-  customer        Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  id                Int      @id @default(autoincrement())
+  partnerId         Int
+  partner           Partner  @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+  customerId        String   @db.Uuid
+  customer          Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
   partnerCustomerId String // External partner customer ID (unique per partner)
-  
+
   // Audit fields
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([partnerId, partnerCustomerId]) // Unique combination of partner and partnerCustomerId
   @@map("partner_customers")
 }
 
 model Customer {
-  id              String   @id @default(uuid()) @db.Uuid
-  firstName       String   @db.VarChar(50)
-  middleName      String?  @db.VarChar(50) // Optional middle name
-  lastName        String   @db.VarChar(50)
-  email           String?  @unique // Made nullable - when provided must be unique
-  phoneNumber     String   @db.VarChar(20) // Numeric phone number, max 20 characters
-  dateOfBirth     DateTime? @db.Date // Date only, no time component
-  gender          Gender?  // Optional gender field
-  idType          IdType
-  idNumber        String   @db.VarChar(20) // Max 20 characters
-  status          CustomerStatus @default(PENDING_KYC)
-  onboardingStep  OnboardingStep @default(BASIC_INFO)
-  createdByPartnerId Int // Partner who created this customer
-  hasMissingRequirements Boolean @default(false)
-  
+  id                     String         @id @default(uuid()) @db.Uuid
+  firstName              String         @db.VarChar(50)
+  middleName             String?        @db.VarChar(50) // Optional middle name
+  lastName               String         @db.VarChar(50)
+  email                  String?        @unique // Made nullable - when provided must be unique
+  phoneNumber            String         @db.VarChar(20) // Numeric phone number, max 20 characters
+  dateOfBirth            DateTime?      @db.Date // Date only, no time component
+  gender                 Gender? // Optional gender field
+  idType                 IdType
+  idNumber               String         @db.VarChar(20) // Max 20 characters
+  status                 CustomerStatus @default(PENDING_KYC)
+  onboardingStep         OnboardingStep @default(BASIC_INFO)
+  createdByPartnerId     Int // Partner who created this customer
+  hasMissingRequirements Boolean        @default(false)
+
   // Address information
-  address         Address?
-  
+  address Address?
+
   // Dependants
-  dependants      Dependant[]
-  
+  dependants Dependant[]
+
   // Beneficiaries
-  beneficiaries   Beneficiary[]
-  
+  beneficiaries Beneficiary[]
+
   // Onboarding progress
   onboardingProgress OnboardingProgress?
-  
+
   // KYC information
   kycVerification KYCVerification?
-  
+
   // Policies
-  policies        Policy[]
-  
+  policies Policy[]
+
   // Relations
-  partnerCustomers PartnerCustomer[]
+  partnerCustomers       PartnerCustomer[]
   packageSchemeCustomers PackageSchemeCustomer[]
-  
+
   // Agent Registration relations
-  registrations         AgentRegistration[]
-  missingRequirements   MissingRequirement[]
-  
+  registrations       AgentRegistration[]
+  missingRequirements MissingRequirement[]
+
   // Policy member relations
   policyMemberPrincipals PolicyMemberPrincipal[]
-  
+
   // Audit fields
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  createdBy       String?  // User ID who created
-  updatedBy       String?  // User ID who last updated
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String? // User ID who created
+  updatedBy String? // User ID who last updated
 
   @@unique([idType, idNumber], name: "unique_id_type_number") // Unique combination of idType and idNumber
   @@map("customers")
 }
 
 model Address {
-  id          Int      @id @default(autoincrement())
-  customerId  String   @unique @db.Uuid
-  customer    Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  
-  street      String
-  city        String
-  state       String
-  postalCode  String
-  country     String @default("KE") // Default to Kenya
-  
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id         Int      @id @default(autoincrement())
+  customerId String   @unique @db.Uuid
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  street     String
+  city       String
+  state      String
+  postalCode String
+  country    String @default("KE") // Default to Kenya
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@map("addresses")
 }
 
 model Dependant {
-  id          String   @id @default(uuid()) @db.Uuid
-  customerId  String   @db.Uuid
-  customer    Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  
-  firstName   String   @db.VarChar(50)
-  middleName  String?  @db.VarChar(50) // Optional middle name
-  lastName    String   @db.VarChar(50)
-  dateOfBirth DateTime? @db.Date // Optional date of birth, date only
-  gender      Gender?  // Optional gender field
-  email       String?  @db.VarChar(100) // Optional email
-  phoneNumber String?  @db.VarChar(20) // Optional phone number
-  idType      IdType?  // Optional ID type for identification
-  idNumber    String?  @db.VarChar(20) // Optional ID number for identification, max 20 characters
-  relationship DependantRelationship
-  isVerified  Boolean  @default(false) // Verification status
-  verifiedAt  DateTime? // When verification was completed
-  verifiedBy  String?   @db.Uuid // Who verified (user ID)
+  id         String   @id @default(uuid()) @db.Uuid
+  customerId String   @db.Uuid
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  firstName          String                @db.VarChar(50)
+  middleName         String?               @db.VarChar(50) // Optional middle name
+  lastName           String                @db.VarChar(50)
+  dateOfBirth        DateTime?             @db.Date // Optional date of birth, date only
+  gender             Gender? // Optional gender field
+  email              String?               @db.VarChar(100) // Optional email
+  phoneNumber        String?               @db.VarChar(20) // Optional phone number
+  idType             IdType? // Optional ID type for identification
+  idNumber           String?               @db.VarChar(20) // Optional ID number for identification, max 20 characters
+  relationship       DependantRelationship
+  isVerified         Boolean               @default(false) // Verification status
+  verifiedAt         DateTime? // When verification was completed
+  verifiedBy         String?               @db.Uuid // Who verified (user ID)
   createdByPartnerId Int // Partner who created this dependant
-  
+
   // Policy member relations
   policyMemberDependants PolicyMemberDependant[]
-  
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@map("dependants")
 }
 
 model Beneficiary {
-  id          String   @id @default(uuid()) @db.Uuid
-  customerId  String   @db.Uuid
-  customer    Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  
-  firstName   String   @db.VarChar(50)
-  middleName  String?  @db.VarChar(50) // Optional field
-  lastName    String   @db.VarChar(50)
-  dateOfBirth DateTime? @db.Date // Optional date of birth, date only
-  gender      Gender?  // Optional field
-  email       String?  @db.VarChar(100) // Optional email
-  phoneNumber String?  @db.VarChar(20) // Optional phone number
-  idType      IdType
-  idNumber    String   @db.VarChar(20) // Max 20 characters
-  relationship String? // Relationship to principal member
+  id         String   @id @default(uuid()) @db.Uuid
+  customerId String   @db.Uuid
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  firstName               String    @db.VarChar(50)
+  middleName              String?   @db.VarChar(50) // Optional field
+  lastName                String    @db.VarChar(50)
+  dateOfBirth             DateTime? @db.Date // Optional date of birth, date only
+  gender                  Gender? // Optional field
+  email                   String?   @db.VarChar(100) // Optional email
+  phoneNumber             String?   @db.VarChar(20) // Optional phone number
+  idType                  IdType
+  idNumber                String    @db.VarChar(20) // Max 20 characters
+  relationship            String? // Relationship to principal member
   relationshipDescription String? // Optional description for "other" relationship
-  percentage  Int?     // Percentage of benefits (1-100)
-  isVerified  Boolean  @default(false) // Verification status
-  verifiedAt  DateTime? // When verification was completed
-  verifiedBy  String?   @db.Uuid // Who verified (user ID)
-  createdByPartnerId Int // Partner who created this beneficiary
-  
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  percentage              Int? // Percentage of benefits (1-100)
+  isVerified              Boolean   @default(false) // Verification status
+  verifiedAt              DateTime? // When verification was completed
+  verifiedBy              String?   @db.Uuid // Who verified (user ID)
+  createdByPartnerId      Int // Partner who created this beneficiary
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@map("beneficiaries")
 }
 
 model OnboardingProgress {
-  id          Int      @id @default(autoincrement())
-  customerId  String   @unique @db.Uuid
-  customer    Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  
-  currentStep OnboardingStep
-  completedSteps OnboardingStep[]
-  nextStep    OnboardingStep?
+  id         Int      @id @default(autoincrement())
+  customerId String   @unique @db.Uuid
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  currentStep         OnboardingStep
+  completedSteps      OnboardingStep[]
+  nextStep            OnboardingStep?
   estimatedCompletion DateTime?
-  
+
   // Step-specific data
   basicInfoCompleted    Boolean @default(false)
-  kycCompleted         Boolean @default(false)
-  planSelected         Boolean @default(false)
+  kycCompleted          Boolean @default(false)
+  planSelected          Boolean @default(false)
   paymentSetupCompleted Boolean @default(false)
-  
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@map("onboarding_progress")
 }
 
 model KYCVerification {
-  id          Int      @id @default(autoincrement())
-  customerId  String   @unique @db.Uuid
-  customer    Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  
-  status      KYCStatus @default(PENDING)
+  id         Int      @id @default(autoincrement())
+  customerId String   @unique @db.Uuid
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  status             KYCStatus             @default(PENDING)
   verificationMethod KYCVerificationMethod
-  documents   Json?    // Array of document references
-  verifiedAt  DateTime?
-  verifiedBy  String?  // User ID who verified
-  
+  documents          Json? // Array of document references
+  verifiedAt         DateTime?
+  verifiedBy         String? // User ID who verified
+
   // KYC provider response
   providerReference String?
-  providerResponse Json?
-  
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  providerResponse  Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@map("kyc_verifications")
 }
 
 model Policy {
-  id             String    @id @db.Uuid
-  policyNumber   String    @unique
-  status         PolicyStatus @default(PENDING_ACTIVATION)
-  customerId     String    @db.Uuid
-  packageId      Int
-  packagePlanId  Int?
-  
+  id            String       @id @db.Uuid
+  policyNumber  String       @unique
+  status        PolicyStatus @default(PENDING_ACTIVATION)
+  customerId    String       @db.Uuid
+  packageId     Int
+  packagePlanId Int?
+
   productName    String
   startDate      DateTime
   endDate        DateTime?
-  premium        Decimal  @db.Decimal(10, 2)
+  premium        Decimal          @db.Decimal(10, 2)
   frequency      PaymentFrequency
-  paymentCadence Int      // Number of days between premium payments
-  
-  // Relations
-  customer       Customer     @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  package        Package      @relation(fields: [packageId], references: [id], onDelete: Restrict)
-  packagePlan    PackagePlan? @relation(fields: [packagePlanId], references: [id], onDelete: Restrict)
-  policyPayments PolicyPayment[]
+  paymentCadence Int // Number of days between premium payments
 
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  // Relations
+  customer       Customer        @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  package        Package         @relation(fields: [packageId], references: [id], onDelete: Restrict)
+  packagePlan    PackagePlan?    @relation(fields: [packagePlanId], references: [id], onDelete: Restrict)
+  policyPayments PolicyPayment[]
+  policyTags     PolicyTag[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@map("policies")
 }
-
 
 enum CustomerStatus {
   PENDING_KYC
@@ -397,118 +397,118 @@ enum BAPayoutStatus {
 
 // Agent Registration Models
 model BrandAmbassador {
-  id                    String   @id @default(uuid()) @db.Uuid
-  userId                String   @unique @db.Uuid // Supabase user ID
-  partnerId             Int
-  partner               Partner  @relation(fields: [partnerId], references: [id])
-  
-  displayName           String
-  phoneNumber           String?  @db.VarChar(20)
-  perRegistrationRateCents Int   // Rate in cents (e.g., 500 = 5.00 KES)
-  isActive              Boolean  @default(true)
-  
+  id        String  @id @default(uuid()) @db.Uuid
+  userId    String  @unique @db.Uuid // Supabase user ID
+  partnerId Int
+  partner   Partner @relation(fields: [partnerId], references: [id])
+
+  displayName              String
+  phoneNumber              String? @db.VarChar(20)
+  perRegistrationRateCents Int // Rate in cents (e.g., 500 = 5.00 KES)
+  isActive                 Boolean @default(true)
+
   // Relations
-  registrations         AgentRegistration[]
-  payouts              BAPayout[]
-  
+  registrations AgentRegistration[]
+  payouts       BAPayout[]
+
   // Audit fields
-  createdAt            DateTime @default(now())
-  updatedAt            DateTime @updatedAt
-  createdBy            String?  // User ID who created
-  updatedBy            String?  // User ID who last updated
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String? // User ID who created
+  updatedBy String? // User ID who last updated
 
   @@map("brand_ambassadors")
 }
 
 model AgentRegistration {
-  id                    String   @id @default(uuid()) @db.Uuid
-  baId                  String   @db.Uuid
-  customerId            String   @db.Uuid
-  partnerId             Int
-  
-  ba                    BrandAmbassador @relation(fields: [baId], references: [id])
-  customer              Customer @relation(fields: [customerId], references: [id])
-  partner               Partner @relation(fields: [partnerId], references: [id])
-  
-  registrationStatus    RegistrationStatus @default(IN_PROGRESS)
-  completedAt           DateTime?
-  
+  id         String @id @default(uuid()) @db.Uuid
+  baId       String @db.Uuid
+  customerId String @db.Uuid
+  partnerId  Int
+
+  ba       BrandAmbassador @relation(fields: [baId], references: [id])
+  customer Customer        @relation(fields: [customerId], references: [id])
+  partner  Partner         @relation(fields: [partnerId], references: [id])
+
+  registrationStatus RegistrationStatus @default(IN_PROGRESS)
+  completedAt        DateTime?
+
   // Relations
-  missingRequirements   MissingRequirement[]
-  payouts              BAPayout[]
-  
+  missingRequirements MissingRequirement[]
+  payouts             BAPayout[]
+
   // Audit fields
-  createdAt            DateTime @default(now())
-  updatedAt            DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@map("agent_registrations")
 }
 
 model MissingRequirement {
-  id                    String   @id @default(uuid()) @db.Uuid
-  registrationId        String   @db.Uuid
-  customerId            String   @db.Uuid
-  partnerId             Int
-  
-  entityKind            RegistrationEntityKind
-  entityId              String?  // ID of spouse/child/beneficiary if applicable
-  fieldPath             String   // e.g., "firstName", "gender", "idNumber"
-  status                RegistrationMissingStatus @default(PENDING)
-  
-  registration          AgentRegistration @relation(fields: [registrationId], references: [id])
-  customer              Customer @relation(fields: [customerId], references: [id])
-  partner               Partner @relation(fields: [partnerId], references: [id])
-  
-  resolvedAt            DateTime?
-  resolvedBy            String?  // User ID who resolved
-  
+  id             String @id @default(uuid()) @db.Uuid
+  registrationId String @db.Uuid
+  customerId     String @db.Uuid
+  partnerId      Int
+
+  entityKind RegistrationEntityKind
+  entityId   String? // ID of spouse/child/beneficiary if applicable
+  fieldPath  String // e.g., "firstName", "gender", "idNumber"
+  status     RegistrationMissingStatus @default(PENDING)
+
+  registration AgentRegistration @relation(fields: [registrationId], references: [id])
+  customer     Customer          @relation(fields: [customerId], references: [id])
+  partner      Partner           @relation(fields: [partnerId], references: [id])
+
+  resolvedAt DateTime?
+  resolvedBy String? // User ID who resolved
+
   // Audit fields
-  createdAt            DateTime @default(now())
-  updatedAt            DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@map("missing_requirements")
 }
 
 model BAPayout {
-  id                    String   @id @default(uuid()) @db.Uuid
-  baId                  String   @db.Uuid
-  registrationId        String?  @db.Uuid // Optional - can be general payout
-  partnerId             Int
-  
-  amountCents           Int      // Amount in cents
-  status                BAPayoutStatus @default(PENDING)
-  payoutDate            DateTime?
-  reference             String?  // Payment reference
-  
-  ba                    BrandAmbassador @relation(fields: [baId], references: [id])
-  registration          AgentRegistration? @relation(fields: [registrationId], references: [id])
-  partner               Partner @relation(fields: [partnerId], references: [id])
-  
+  id             String  @id @default(uuid()) @db.Uuid
+  baId           String  @db.Uuid
+  registrationId String? @db.Uuid // Optional - can be general payout
+  partnerId      Int
+
+  amountCents Int // Amount in cents
+  status      BAPayoutStatus @default(PENDING)
+  payoutDate  DateTime?
+  reference   String? // Payment reference
+
+  ba           BrandAmbassador    @relation(fields: [baId], references: [id])
+  registration AgentRegistration? @relation(fields: [registrationId], references: [id])
+  partner      Partner            @relation(fields: [partnerId], references: [id])
+
   // Audit fields
-  createdAt            DateTime @default(now())
-  updatedAt            DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@map("ba_payouts")
 }
 
 model DeferredRequirementDefault {
-  id                    Int      @id @default(autoincrement())
-  entityKind            RegistrationEntityKind
-  fieldPath             String
-  isRequired            Boolean  @default(true)
+  id         Int                    @id @default(autoincrement())
+  entityKind RegistrationEntityKind
+  fieldPath  String
+  isRequired Boolean                @default(true)
 
   @@unique([entityKind, fieldPath])
   @@map("deferred_requirements_default")
 }
 
 model DeferredRequirementPartner {
-  id                    Int      @id @default(autoincrement())
-  partnerId             Int
-  entityKind            RegistrationEntityKind
-  fieldPath             String
-  isRequired            Boolean  @default(true)
+  id         Int                    @id @default(autoincrement())
+  partnerId  Int
+  entityKind RegistrationEntityKind
+  fieldPath  String
+  isRequired Boolean                @default(true)
 
-  partner               Partner @relation(fields: [partnerId], references: [id])
+  partner Partner @relation(fields: [partnerId], references: [id])
 
   @@unique([partnerId, entityKind, fieldPath])
   @@map("deferred_requirements_partner")
@@ -516,211 +516,256 @@ model DeferredRequirementPartner {
 
 // Product Management Models
 model Underwriter {
-  id              Int      @id @default(autoincrement())
-  name            String   @db.VarChar(100)
-  shortName       String   @db.VarChar(50)
-  website         String   @db.VarChar(100)
-  officeLocation  String   @db.VarChar(200)
-  
+  id             Int    @id @default(autoincrement())
+  name           String @db.VarChar(100)
+  shortName      String @db.VarChar(50)
+  website        String @db.VarChar(100)
+  officeLocation String @db.VarChar(200)
+
   // Relations
-  packages        Package[]
-  
+  packages Package[]
+
   // Audit fields
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@map("underwriters")
 }
 
 model Package {
-  id                  Int      @id @default(autoincrement())
-  name                String   @db.VarChar(100)
-  description         String   @db.VarChar(500)
-  underwriterId       Int?
-  isActive            Boolean  @default(true)
-  policyNumberFormat  String?  @db.VarChar(200)
-  memberNumberFormat  String?  @db.VarChar(200)
-  
+  id                 Int     @id @default(autoincrement())
+  name               String  @db.VarChar(100)
+  description        String  @db.VarChar(500)
+  underwriterId      Int?
+  isActive           Boolean @default(true)
+  policyNumberFormat String? @db.VarChar(200)
+  memberNumberFormat String? @db.VarChar(200)
+
   // Relations
-  underwriter     Underwriter? @relation(fields: [underwriterId], references: [id])
+  underwriter     Underwriter?     @relation(fields: [underwriterId], references: [id])
   packageProducts PackageProduct[]
   packageSchemes  PackageScheme[]
   packagePlans    PackagePlan[]
   policies        Policy[]
-  
+
   // Audit fields
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@map("packages")
 }
 
 model ProductType {
-  id              Int      @id @default(autoincrement())
-  name            String   @db.VarChar(100)
-  description     String?  @db.VarChar(300)
-  
+  id          Int     @id @default(autoincrement())
+  name        String  @db.VarChar(100)
+  description String? @db.VarChar(300)
+
   // Relations
-  products        Product[]
-  
+  products Product[]
+
   // Audit fields
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@map("product_types")
 }
 
 model Product {
-  id              Int      @id @default(autoincrement())
-  productTypeId   Int
-  productName     String   @db.VarChar(200)
-  description     String   @db.VarChar(500)
-  
+  id            Int    @id @default(autoincrement())
+  productTypeId Int
+  productName   String @db.VarChar(200)
+  description   String @db.VarChar(500)
+
   // Relations
-  productType     ProductType @relation(fields: [productTypeId], references: [id])
+  productType     ProductType      @relation(fields: [productTypeId], references: [id])
   packageProducts PackageProduct[]
-  
+
   // Audit fields
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@map("products")
 }
 
 model PackageProduct {
-  id              Int      @id @default(autoincrement())
-  packageId       Int
-  productId       Int
-  
+  id        Int @id @default(autoincrement())
+  packageId Int
+  productId Int
+
   // Relations
-  package         Package @relation(fields: [packageId], references: [id])
-  product         Product @relation(fields: [productId], references: [id])
-  
+  package Package @relation(fields: [packageId], references: [id])
+  product Product @relation(fields: [productId], references: [id])
+
   // Audit fields
-  createdAt       DateTime @default(now())
+  createdAt DateTime @default(now())
 
   @@unique([packageId, productId])
   @@map("package_products")
 }
 
 model Scheme {
-  id              Int      @id @default(autoincrement())
-  schemeName      String   @db.VarChar(100)
-  description     String   @db.VarChar(300)
-  isActive        Boolean  @default(true)
-  
+  id          Int     @id @default(autoincrement())
+  schemeName  String  @db.VarChar(100)
+  description String  @db.VarChar(300)
+  isActive    Boolean @default(true)
+
   // Relations
-  packageSchemes  PackageScheme[]
-  
+  packageSchemes PackageScheme[]
+  schemeTags     SchemeTag[]
+
   // Audit fields
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@map("schemes")
 }
 
 model PackageScheme {
-  id              Int      @id @default(autoincrement())
-  packageId       Int
-  schemeId        Int
-  
+  id        Int @id @default(autoincrement())
+  packageId Int
+  schemeId  Int
+
   // Relations
-  package         Package @relation(fields: [packageId], references: [id])
-  scheme          Scheme @relation(fields: [schemeId], references: [id])
+  package                Package                 @relation(fields: [packageId], references: [id])
+  scheme                 Scheme                  @relation(fields: [schemeId], references: [id])
   packageSchemeCustomers PackageSchemeCustomer[]
-  
+
   // Audit fields
-  createdAt       DateTime @default(now())
+  createdAt DateTime @default(now())
 
   @@unique([packageId, schemeId])
   @@map("package_schemes")
 }
 
 model PackageSchemeCustomer {
-  id                    Int      @id @default(autoincrement())
-  packageSchemeId       Int
-  partnerId             Int?
-  customerId            String   @db.Uuid
-  partnerCustomerId     String?
-  
+  id                Int     @id @default(autoincrement())
+  packageSchemeId   Int
+  partnerId         Int?
+  customerId        String  @db.Uuid
+  partnerCustomerId String?
+
   // Relations
-  packageScheme         PackageScheme @relation(fields: [packageSchemeId], references: [id])
-  partner               Partner? @relation(fields: [partnerId], references: [id])
-  customer              Customer @relation(fields: [customerId], references: [id])
-  
+  packageScheme PackageScheme @relation(fields: [packageSchemeId], references: [id])
+  partner       Partner?      @relation(fields: [partnerId], references: [id])
+  customer      Customer      @relation(fields: [customerId], references: [id])
+
   // Audit fields
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@map("package_scheme_customers")
 }
 
 model PackagePlan {
-  id          Int      @id @default(autoincrement())
-  name        String   @db.VarChar(200)
-  description String?  @db.VarChar(200)
+  id          Int     @id @default(autoincrement())
+  name        String  @db.VarChar(200)
+  description String? @db.VarChar(200)
   packageId   Int
-  isActive    Boolean  @default(true)
-  
+  isActive    Boolean @default(true)
+
   // Relations
-  package     Package  @relation(fields: [packageId], references: [id])
-  policies    Policy[]
-  
+  package  Package  @relation(fields: [packageId], references: [id])
+  policies Policy[]
+
   // Audit fields
-  createdAt   DateTime @default(now())
-  createdBy   String   @db.Uuid
-  updatedAt   DateTime @updatedAt
-  updatedBy   String   @db.Uuid
-  
+  createdAt DateTime @default(now())
+  createdBy String   @db.Uuid
+  updatedAt DateTime @updatedAt
+  updatedBy String   @db.Uuid
+
   @@unique([packageId, name])
   @@map("package_plans")
 }
 
 model PolicyMemberPrincipal {
-  id           Int      @id @default(autoincrement())
-  customerId   String   @db.Uuid
-  memberNumber String   @db.VarChar(20)
-  
+  id           Int    @id @default(autoincrement())
+  customerId   String @db.Uuid
+  memberNumber String @db.VarChar(20)
+
   // Relations
-  customer     Customer @relation(fields: [customerId], references: [id])
-  
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime?
-  
+  customer Customer @relation(fields: [customerId], references: [id])
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime?
+
   @@map("policy_member_principals")
 }
 
 model PolicyMemberDependant {
-  id           Int       @id @default(autoincrement())
-  dependantId  String    @db.Uuid
-  memberNumber String    @db.VarChar(20)
-  
+  id           Int    @id @default(autoincrement())
+  dependantId  String @db.Uuid
+  memberNumber String @db.VarChar(20)
+
   // Relations
-  dependant    Dependant @relation(fields: [dependantId], references: [id])
-  
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime?
-  
+  dependant Dependant @relation(fields: [dependantId], references: [id])
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime?
+
   @@map("policy_member_dependants")
 }
 
 model PolicyPayment {
-  id                    Int          @id @default(autoincrement())
-  policyId              String       @db.Uuid
-  paymentType           PaymentType
-  transactionReference  String       @db.VarChar(50)
-  amount                Decimal      @db.Decimal(10, 2)
-  accountNumber         String?      @db.VarChar(50)
-  details               String?      @db.VarChar(500)
-  expectedPaymentDate   DateTime
-  actualPaymentDate     DateTime?
-  paymentMessageBlob    String?      @db.VarChar(500)
-  
+  id                   Int         @id @default(autoincrement())
+  policyId             String      @db.Uuid
+  paymentType          PaymentType
+  transactionReference String      @db.VarChar(50)
+  amount               Decimal     @db.Decimal(10, 2)
+  accountNumber        String?     @db.VarChar(50)
+  details              String?     @db.VarChar(500)
+  expectedPaymentDate  DateTime
+  actualPaymentDate    DateTime?
+  paymentMessageBlob   String?     @db.VarChar(500)
+
   // Relations
-  policy                Policy       @relation(fields: [policyId], references: [id])
-  
-  createdAt             DateTime     @default(now())
-  updatedAt             DateTime     @updatedAt
-  
+  policy Policy @relation(fields: [policyId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   @@map("policy_payments")
+}
+
+model Tag {
+  id   Int    @id @default(autoincrement())
+  name String @unique @db.VarChar(100)
+
+  // Relations
+  schemeTags SchemeTag[]
+  policyTags PolicyTag[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("tags")
+}
+
+model SchemeTag {
+  id       Int @id @default(autoincrement())
+  schemeId Int
+  tagId    Int
+
+  // Relations
+  scheme Scheme @relation(fields: [schemeId], references: [id], onDelete: Cascade)
+  tag    Tag    @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([schemeId, tagId])
+  @@map("scheme_tags")
+}
+
+model PolicyTag {
+  id       Int    @id @default(autoincrement())
+  policyId String @db.Uuid
+  tagId    Int
+
+  // Relations
+  policy Policy @relation(fields: [policyId], references: [id], onDelete: Cascade)
+  tag    Tag    @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([policyId, tagId])
+  @@map("policy_tags")
 }

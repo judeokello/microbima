@@ -1021,6 +1021,317 @@ export async function processPayment(data: PaymentRequest): Promise<PaymentRespo
   }
 }
 
+// Product Management API Functions
+
+export interface Package {
+  id: number
+  name: string
+}
+
+export interface Scheme {
+  id: number
+  name: string
+  description?: string
+}
+
+export interface Plan {
+  id: number
+  name: string
+  description?: string
+}
+
+export interface Tag {
+  id: number
+  name: string
+}
+
+export interface PackagesResponse {
+  status: number
+  correlationId: string
+  message: string
+  data: Package[]
+}
+
+export interface SchemesResponse {
+  status: number
+  correlationId: string
+  message: string
+  data: Scheme[]
+}
+
+export interface PlansResponse {
+  status: number
+  correlationId: string
+  message: string
+  data: Plan[]
+}
+
+export interface TagsResponse {
+  status: number
+  correlationId: string
+  message: string
+  data: Tag[]
+}
+
+export interface CreateTagRequest {
+  name: string
+}
+
+export interface CreateTagResponse {
+  status: number
+  correlationId: string
+  message: string
+  data: Tag
+}
+
+export async function getPackages(): Promise<Package[]> {
+  try {
+    const token = await getSupabaseToken()
+
+    const response = await fetch(
+      `${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/product-management/packages`,
+      {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'x-correlation-id': `get-packages-${Date.now()}`
+        }
+      }
+    )
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch packages: ${response.statusText}`)
+    }
+
+    const data: PackagesResponse = await response.json()
+    return data.data
+  } catch (error) {
+    console.error('Error fetching packages:', error)
+    throw error
+  }
+}
+
+export async function getPackageSchemes(packageId: number): Promise<Scheme[]> {
+  try {
+    const token = await getSupabaseToken()
+
+    const response = await fetch(
+      `${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/product-management/packages/${packageId}/schemes`,
+      {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'x-correlation-id': `get-schemes-${Date.now()}`
+        }
+      }
+    )
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch schemes: ${response.statusText}`)
+    }
+
+    const data: SchemesResponse = await response.json()
+    return data.data
+  } catch (error) {
+    console.error('Error fetching schemes:', error)
+    throw error
+  }
+}
+
+export async function getPackagePlans(packageId: number): Promise<Plan[]> {
+  try {
+    const token = await getSupabaseToken()
+
+    const response = await fetch(
+      `${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/product-management/packages/${packageId}/plans`,
+      {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'x-correlation-id': `get-plans-${Date.now()}`
+        }
+      }
+    )
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch plans: ${response.statusText}`)
+    }
+
+    const data: PlansResponse = await response.json()
+    return data.data
+  } catch (error) {
+    console.error('Error fetching plans:', error)
+    throw error
+  }
+}
+
+export async function getSchemeTags(schemeId: number, search?: string): Promise<Tag[]> {
+  try {
+    const token = await getSupabaseToken()
+
+    const url = new URL(
+      `${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/product-management/schemes/${schemeId}/tags`
+    )
+    if (search) {
+      url.searchParams.append('search', search)
+    }
+
+    const response = await fetch(url.toString(), {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'x-correlation-id': `get-scheme-tags-${Date.now()}`
+      }
+    })
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch scheme tags: ${response.statusText}`)
+    }
+
+    const data: TagsResponse = await response.json()
+    return data.data
+  } catch (error) {
+    console.error('Error fetching scheme tags:', error)
+    throw error
+  }
+}
+
+export async function searchTags(search: string, limit: number = 10): Promise<Tag[]> {
+  try {
+    const token = await getSupabaseToken()
+
+    const url = new URL(
+      `${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/product-management/tags`
+    )
+    url.searchParams.append('search', search)
+    if (limit !== 10) {
+      url.searchParams.append('limit', limit.toString())
+    }
+
+    const response = await fetch(url.toString(), {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'x-correlation-id': `search-tags-${Date.now()}`
+      }
+    })
+
+    if (!response.ok) {
+      throw new Error(`Failed to search tags: ${response.statusText}`)
+    }
+
+    const data: TagsResponse = await response.json()
+    return data.data
+  } catch (error) {
+    console.error('Error searching tags:', error)
+    throw error
+  }
+}
+
+export async function createTag(name: string): Promise<Tag> {
+  try {
+    const token = await getSupabaseToken()
+
+    const response = await fetch(
+      `${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/product-management/tags`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+          'x-correlation-id': `create-tag-${Date.now()}`
+        },
+        body: JSON.stringify({ name })
+      }
+    )
+
+    if (!response.ok) {
+      throw new Error(`Failed to create tag: ${response.statusText}`)
+    }
+
+    const data: CreateTagResponse = await response.json()
+    return data.data
+  } catch (error) {
+    console.error('Error creating tag:', error)
+    throw error
+  }
+}
+
+// Policy Creation API
+
+export interface CreatePolicyRequest {
+  customerId: string
+  packageId: number
+  packagePlanId: number
+  frequency: 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'QUARTERLY' | 'ANNUALLY' | 'CUSTOM'
+  premium: number
+  productName: string
+  tags?: Array<{ id?: number; name: string }>
+  paymentData: {
+    paymentType: 'MPESA' | 'SASAPAY'
+    transactionReference: string
+    amount: number
+    accountNumber?: string
+    details?: string
+    expectedPaymentDate: string
+    actualPaymentDate?: string
+    paymentMessageBlob?: string
+  }
+  customDays?: number
+}
+
+export interface CreatePolicyResponse {
+  status: number
+  correlationId: string
+  message: string
+  policy: {
+    id: string
+    policyNumber: string
+    status: string
+    productName: string
+    premium: number
+    startDate: string
+    endDate: string
+  }
+  payment: {
+    id: number
+    paymentType: string
+    transactionReference: string
+    amount: number
+    expectedPaymentDate: string
+    actualPaymentDate?: string
+  }
+}
+
+export async function createPolicy(data: CreatePolicyRequest): Promise<CreatePolicyResponse> {
+  try {
+    const token = await getSupabaseToken()
+
+    const response = await fetch(
+      `${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/policies`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+          'x-correlation-id': `create-policy-${Date.now()}`
+        },
+        body: JSON.stringify(data)
+      }
+    )
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      throw new Error(errorData.error?.message ?? `Failed to create policy: ${response.statusText}`)
+    }
+
+    return await response.json()
+  } catch (error) {
+    console.error('Error creating policy:', error)
+    throw error
+  }
+}
+
 async function getSupabaseToken(): Promise<string> {
   try {
     // Get the current session from the client-side supabase instance
