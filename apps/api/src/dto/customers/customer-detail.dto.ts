@@ -212,6 +212,7 @@ export class CustomerDetailDataDto {
     id: string;
     createdAt: string;
     createdBy?: string;
+    createdByDisplayName?: string;
   };
 
   @ApiProperty({

@@ -112,18 +112,21 @@ export default function CustomerDetailPage() {
           <NextOfKinSection
             beneficiaries={customerData.beneficiaries}
             canEdit={canEdit}
+            canAdd={canEdit}
             onUpdate={loadCustomerDetails}
           />
 
           <SpouseSection
             dependants={customerData.dependants.filter((d) => d.relationship === 'SPOUSE')}
             canEdit={canEdit}
+            canAdd={canEdit}
             onUpdate={loadCustomerDetails}
           />
 
           <ChildrenSection
             dependants={customerData.dependants.filter((d) => d.relationship === 'CHILD')}
             canEdit={canEdit}
+            canAdd={canEdit}
             onUpdate={loadCustomerDetails}
           />
         </TabsContent>

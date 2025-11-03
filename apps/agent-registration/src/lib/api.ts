@@ -453,6 +453,76 @@ export async function addBeneficiaries(customerId: string, beneficiaries: Benefi
   }
 }
 
+export interface SpouseData {
+  firstName: string
+  lastName: string
+  middleName?: string
+  dateOfBirth?: string
+  gender: string
+  email?: string
+  phoneNumber?: string
+  idType: string
+  idNumber: string
+}
+
+export interface ChildData {
+  firstName: string
+  lastName: string
+  middleName?: string
+  dateOfBirth?: string
+  gender: string
+  idType?: string
+  idNumber?: string
+}
+
+export interface AddDependantsRequest {
+  correlationId: string
+  children?: ChildData[]
+  spouses?: SpouseData[]
+}
+
+export interface AddDependantsResponse {
+  success: boolean
+  error?: string
+}
+
+export async function addDependants(customerId: string, request: AddDependantsRequest): Promise<AddDependantsResponse> {
+  try {
+    // Get Supabase session token for internal API
+    const { data: session } = await supabase.auth.getSession();
+    const token = session.session?.access_token;
+
+    if (!token) {
+      throw new Error('No Supabase session token found');
+    }
+
+    const response = await fetch(`${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/customers/${customerId}/dependants`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+        'x-correlation-id': `req-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+      },
+      body: JSON.stringify(request)
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json()
+      throw new Error(errorData.error?.message ?? `HTTP ${response.status}: ${response.statusText}`)
+    }
+
+    return {
+      success: true,
+    }
+  } catch (error) {
+    console.error('Error adding dependants:', error)
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error occurred'
+    }
+  }
+}
+
 export async function createMissingRequirement(data: CreateMissingRequirementRequest): Promise<CreateMissingRequirementResponse> {
   try {
     const response = await fetch(`${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/agent-registrations/missing-requirements`, {
@@ -635,6 +705,7 @@ export interface CustomerDetailData {
     partnerCustomerId: string
     createdAt: string
     createdBy?: string
+    createdByDisplayName?: string
   }
   beneficiaries: Array<{
     id: string

@@ -1041,6 +1041,8 @@ export class CustomerService {
           select: {
             id: true,
             firstName: true,
+            middleName: true,
+            lastName: true,
             phoneNumber: true,
             gender: true,
             createdAt: true,
@@ -1061,15 +1063,17 @@ export class CustomerService {
 
       const totalPages = Math.ceil(totalCount / pageSize);
 
-      // Transform data for brand ambassador view (masked phone and ID)
+      // Transform data for brand ambassador view (unmasked data as requested)
       const transformedCustomers = customers.map(customer => ({
         id: customer.id,
         firstName: customer.firstName,
-        phoneNumber: this.maskPhoneNumber(customer.phoneNumber),
+        middleName: customer.middleName ?? undefined,
+        lastName: customer.lastName,
+        phoneNumber: customer.phoneNumber, // Unmasked
         gender: customer.gender?.toLowerCase() || 'unknown',
         createdAt: customer.createdAt.toISOString(),
         idType: customer.idType,
-        idNumber: this.maskIdNumber(customer.idNumber),
+        idNumber: customer.idNumber, // Unmasked
         hasMissingRequirements: customer.hasMissingRequirements,
       }));
 
@@ -1887,6 +1891,16 @@ export class CustomerService {
         throw new NotFoundException('Customer not found');
       }
 
+      // Get brand ambassador display name for createdBy if it exists
+      let createdByDisplayName: string | undefined;
+      if (customer.createdBy) {
+        const brandAmbassador = await this.prismaService.brandAmbassador.findUnique({
+          where: { userId: customer.createdBy },
+          select: { displayName: true },
+        });
+        createdByDisplayName = brandAmbassador?.displayName;
+      }
+
       const customerEntity = Customer.fromPrismaData(customer);
       const customerDto = CustomerMapper.toPrincipalMemberDto(customerEntity);
 
@@ -1932,6 +1946,7 @@ export class CustomerService {
           id: customer.id,
           createdAt: customer.createdAt.toISOString(),
           createdBy: customer.createdBy ?? undefined,
+          createdByDisplayName: createdByDisplayName,
         },
         beneficiaries,
         dependants,

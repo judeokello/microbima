@@ -1,4 +1,4 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class BrandAmbassadorRegistrationDto {
   @ApiProperty({
@@ -13,9 +13,21 @@ export class BrandAmbassadorRegistrationDto {
   })
   firstName: string;
 
+  @ApiPropertyOptional({
+    description: 'Customer middle name',
+    example: 'Michael',
+  })
+  middleName?: string;
+
   @ApiProperty({
-    description: 'Customer phone number (masked)',
-    example: '+254***678',
+    description: 'Customer last name',
+    example: 'Doe',
+  })
+  lastName: string;
+
+  @ApiProperty({
+    description: 'Customer phone number',
+    example: '+254712345678',
   })
   phoneNumber: string;
 
@@ -40,8 +52,8 @@ export class BrandAmbassadorRegistrationDto {
   idType: string;
 
   @ApiProperty({
-    description: 'ID number (masked)',
-    example: '12***78',
+    description: 'ID number',
+    example: '12345678',
   })
   idNumber: string;
 

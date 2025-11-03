@@ -16,6 +16,8 @@ import { supabase } from '@/lib/supabase';
 interface BrandAmbassadorRegistration {
   id: string;
   firstName: string;
+  middleName?: string;
+  lastName: string;
   phoneNumber: string;
   gender: string;
   createdAt: string;
@@ -244,7 +246,9 @@ export default function RegistrationsPage() {
                         onClick={() => router.push(`/dashboard/customer/${registration.id}`)}
                       >
                         <TableCell className="font-medium">
-                          <span className="text-blue-600 hover:underline">{registration.firstName}</span>
+                          <span className="text-blue-600 hover:underline">
+                            {[registration.firstName, registration.middleName, registration.lastName].filter(Boolean).join(' ')}
+                          </span>
                         </TableCell>
                         <TableCell>
                           {registration.phoneNumber}

@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Checkbox } from '@/components/ui/checkbox';
 // import { Separator } from '@/components/ui/separator';
 import { CheckCircle, CreditCard, Users, User, Loader2 } from 'lucide-react';
-import { processPayment, PaymentRequest } from '@/lib/api';
+import { processPayment, PaymentRequest, createPolicy, CreatePolicyRequest, getPackagePlans, Plan } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
 
 interface InsurancePricing {
@@ -213,6 +213,75 @@ export default function PaymentStep() {
       }
 
       console.log('Payment successful:', paymentResult);
+
+      // After payment succeeds, create the policy
+      // Validate that plan and category are selected
+      if (!selectedPlan || !selectedCategory) {
+        throw new Error('Please select an insurance plan and family category before submitting payment.');
+      }
+
+      // Validate premium is calculated
+      if (calculatedPricing.totalDaily === 0 && calculatedPricing.totalWeekly === 0) {
+        throw new Error('Premium amount could not be calculated. Please select a plan and category.');
+      }
+
+      // Use default package (packageId=1 is MfanisiGo)
+      const packageId = 1; // MfanisiGo package
+
+      // Fetch plans for the package to get the correct packagePlanId
+      let packagePlanId: number;
+      try {
+        const plans = await getPackagePlans(packageId);
+        const selectedPlanName = selectedPlan.charAt(0).toUpperCase() + selectedPlan.slice(1); // "silver" -> "Silver"
+        const matchingPlan = plans.find((plan: Plan) => plan.name.toLowerCase() === selectedPlan.toLowerCase());
+
+        if (!matchingPlan) {
+          throw new Error(`Plan "${selectedPlanName}" not found for package.`);
+        }
+
+        packagePlanId = matchingPlan.id;
+        console.log(`Mapped plan "${selectedPlan}" to packagePlanId: ${packagePlanId}`);
+      } catch (planError) {
+        console.error('Failed to fetch plans:', planError);
+        // Fallback: use ID 1 for Silver, 2 for Gold (based on seed data order)
+        packagePlanId = selectedPlan.toLowerCase() === 'silver' ? 1 : 2;
+        console.warn(`Using fallback packagePlanId: ${packagePlanId} for plan: ${selectedPlan}`);
+      }
+
+      // Determine frequency and premium amount
+      // Prefer weekly if available, otherwise use daily
+      const frequency = calculatedPricing.totalWeekly > 0 ? 'WEEKLY' : 'DAILY';
+      const premium = frequency === 'WEEKLY' ? calculatedPricing.totalWeekly : calculatedPricing.totalDaily;
+
+      const policyRequest: CreatePolicyRequest = {
+        customerId,
+        packageId,
+        packagePlanId,
+        frequency: frequency as 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'QUARTERLY' | 'ANNUALLY' | 'CUSTOM',
+        premium,
+        productName: `MfanisiGo ${selectedPlan.charAt(0).toUpperCase() + selectedPlan.slice(1)}`,
+        paymentData: {
+          paymentType: paymentType as 'MPESA' | 'SASAPAY',
+          transactionReference,
+          amount: premium,
+          accountNumber: paymentPhone,
+          details: `Payment for policy registration - ${customerData.firstName} ${customerData.lastName}`,
+          expectedPaymentDate: new Date().toISOString(),
+          actualPaymentDate: new Date().toISOString(),
+        },
+      };
+
+      console.log('Creating policy with payment:', policyRequest);
+
+      try {
+        const policyResult = await createPolicy(policyRequest);
+        console.log('Policy created successfully:', policyResult);
+      } catch (policyError) {
+        console.error('Failed to create policy after payment:', policyError);
+        // Don't throw - payment was successful, policy creation can be retried
+        // Log error but continue with success flow
+        console.warn('Payment succeeded but policy creation failed. Policy can be created manually later.');
+      }
 
       // Clear saved data
       localStorage.removeItem('customerFormData');

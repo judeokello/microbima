@@ -20,6 +20,7 @@ interface CustomerInfoSectionProps {
     idNumber: string;
     createdAt: string;
     createdBy?: string;
+    createdByDisplayName?: string;
   };
   canEdit: boolean;
   onUpdate: () => void;
@@ -118,7 +119,7 @@ export default function CustomerInfoSection({ customer, canEdit, onUpdate }: Cus
             {customer.createdBy && (
               <div>
                 <label className="text-sm font-medium text-gray-500">Created By</label>
-                <p className="text-gray-900">{customer.createdBy}</p>
+                <p className="text-gray-900">{customer.createdByDisplayName ?? customer.createdBy}</p>
               </div>
             )}
           </div>

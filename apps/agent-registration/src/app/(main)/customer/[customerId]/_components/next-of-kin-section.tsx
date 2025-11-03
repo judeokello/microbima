@@ -20,13 +20,15 @@ interface NextOfKinSectionProps {
     idNumber: string;
   }>;
   canEdit: boolean;
+  canAdd: boolean;
   onUpdate: () => void;
 }
 
-export default function NextOfKinSection({ beneficiaries, canEdit, onUpdate }: NextOfKinSectionProps) {
+export default function NextOfKinSection({ beneficiaries, canEdit, canAdd, onUpdate }: NextOfKinSectionProps) {
   const params = useParams();
   const customerId = params.customerId as string;
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [isAddOpen, setIsAddOpen] = useState(false);
 
   const formatDate = (dateString?: string) => {
     if (!dateString) return 'N/A';
@@ -48,16 +50,34 @@ export default function NextOfKinSection({ beneficiaries, canEdit, onUpdate }: N
       .join(' ');
   };
 
+  const maxBeneficiaries = 1;
+  const canAddMore = beneficiaries.length < maxBeneficiaries;
+
   if (beneficiaries.length === 0) {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Next of Kin</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-gray-500">No next of kin added</p>
-        </CardContent>
-      </Card>
+      <>
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle>Next of Kin</CardTitle>
+              {canAdd && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsAddOpen(true)}
+                  disabled={!canAddMore}
+                >
+                  Add Next of Kin
+                </Button>
+              )}
+            </div>
+          </CardHeader>
+          <CardContent>
+            <p className="text-gray-500">No next of kin added</p>
+          </CardContent>
+        </Card>
+        {/* Add dialog will be added here */}
+      </>
     );
   }
 
@@ -65,7 +85,19 @@ export default function NextOfKinSection({ beneficiaries, canEdit, onUpdate }: N
     <>
       <Card>
         <CardHeader>
-          <CardTitle>Next of Kin</CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle>Next of Kin</CardTitle>
+            {canAdd && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIsAddOpen(true)}
+                disabled={!canAddMore}
+              >
+                Add Next of Kin
+              </Button>
+            )}
+          </div>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">

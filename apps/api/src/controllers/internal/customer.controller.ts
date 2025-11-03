@@ -42,6 +42,8 @@ import { CustomerPoliciesResponseDto, CustomerPaymentsResponseDto, CustomerPayme
 import { UpdateCustomerDto } from '../../dto/customers/update-customer.dto';
 import { UpdateDependantDto } from '../../dto/dependants/update-dependant.dto';
 import { UpdateBeneficiaryDto } from '../../dto/beneficiaries/update-beneficiary.dto';
+import { AddDependantsRequestDto } from '../../dto/dependants/add-dependants-request.dto';
+import { AddDependantsResponseDto } from '../../dto/dependants/add-dependants-response.dto';
 import { CorrelationId } from '../../decorators/correlation-id.decorator';
 import { PartnerId } from '../../decorators/api-key.decorator';
 
@@ -718,6 +720,62 @@ export class InternalCustomerController {
       filters.policyId,
       filters.fromDate,
       filters.toDate
+    );
+  }
+
+  /**
+   * Add dependants to an existing customer (Internal)
+   * @param customerId - Customer ID
+   * @param addRequest - Dependants addition request
+   * @param correlationId - Correlation ID from request header
+   * @returns Dependants addition response
+   */
+  @Post(':customerId/dependants')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({
+    summary: 'Add dependants to customer (Internal)',
+    description: 'Add children and/or spouses to an existing customer in a single transaction. At least one child or spouse must be provided. This endpoint is for internal use only.',
+  })
+  @ApiParam({
+    name: 'customerId',
+    description: 'Customer ID',
+    example: 'cust_1234567890',
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'Dependants added successfully',
+    type: AddDependantsResponseDto,
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Bad request - validation errors or no dependants provided',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Customer not found or not accessible',
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Unauthorized - invalid authentication',
+  })
+  async addDependants(
+    @Param('customerId') customerId: string,
+    @Body() addRequest: AddDependantsRequestDto,
+    @CorrelationId() correlationId: string,
+    @Req() req: any,
+  ): Promise<AddDependantsResponseDto> {
+    // Extract user ID from authenticated user
+    const userId = req.user?.id || 'system';
+    
+    // Get Brand Ambassador info to derive partnerId
+    const baInfo = await this.partnerManagementService.getBrandAmbassadorByUserId(userId);
+    const partnerId = baInfo.partnerId;
+    
+    return this.customerService.addDependants(
+      customerId,
+      addRequest,
+      partnerId,
+      correlationId
     );
   }
 

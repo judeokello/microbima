@@ -19,11 +19,13 @@ interface SpouseSectionProps {
     relationship: string;
   }>;
   canEdit: boolean;
+  canAdd: boolean;
   onUpdate: () => void;
 }
 
-export default function SpouseSection({ dependants, canEdit, onUpdate }: SpouseSectionProps) {
+export default function SpouseSection({ dependants, canEdit, canAdd, onUpdate }: SpouseSectionProps) {
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [isAddOpen, setIsAddOpen] = useState(false);
 
   const formatDate = (dateString?: string) => {
     if (!dateString) return 'N/A';
@@ -46,16 +48,34 @@ export default function SpouseSection({ dependants, canEdit, onUpdate }: SpouseS
       .join(' ');
   };
 
+  const maxSpouses = 2;
+  const canAddMore = dependants.length < maxSpouses;
+
   if (dependants.length === 0) {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Spouse</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-gray-500">No spouse added</p>
-        </CardContent>
-      </Card>
+      <>
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle>Spouse</CardTitle>
+              {canAdd && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsAddOpen(true)}
+                  disabled={!canAddMore}
+                >
+                  Add Spouse
+                </Button>
+              )}
+            </div>
+          </CardHeader>
+          <CardContent>
+            <p className="text-gray-500">No spouse added</p>
+          </CardContent>
+        </Card>
+        {/* Add dialog will be added here */}
+      </>
     );
   }
 
@@ -63,7 +83,19 @@ export default function SpouseSection({ dependants, canEdit, onUpdate }: SpouseS
     <>
       <Card>
         <CardHeader>
-          <CardTitle>Spouse</CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle>Spouse</CardTitle>
+            {canAdd && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIsAddOpen(true)}
+                disabled={!canAddMore}
+              >
+                Add Spouse
+              </Button>
+            )}
+          </div>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">

@@ -18,11 +18,13 @@ interface ChildrenSectionProps {
     relationship: string;
   }>;
   canEdit: boolean;
+  canAdd: boolean;
   onUpdate: () => void;
 }
 
-export default function ChildrenSection({ dependants, canEdit, onUpdate }: ChildrenSectionProps) {
+export default function ChildrenSection({ dependants, canEdit, canAdd, onUpdate }: ChildrenSectionProps) {
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [isAddOpen, setIsAddOpen] = useState(false);
 
   const formatDate = (dateString?: string) => {
     if (!dateString) return 'N/A';
@@ -45,16 +47,34 @@ export default function ChildrenSection({ dependants, canEdit, onUpdate }: Child
       .join(' ');
   };
 
+  const maxChildren = 7;
+  const canAddMore = dependants.length < maxChildren;
+
   if (dependants.length === 0) {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Children</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-gray-500">No children added</p>
-        </CardContent>
-      </Card>
+      <>
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle>Children</CardTitle>
+              {canAdd && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsAddOpen(true)}
+                  disabled={!canAddMore}
+                >
+                  Add Child
+                </Button>
+              )}
+            </div>
+          </CardHeader>
+          <CardContent>
+            <p className="text-gray-500">No children added</p>
+          </CardContent>
+        </Card>
+        {/* Add dialog will be added here */}
+      </>
     );
   }
 
@@ -62,7 +82,19 @@ export default function ChildrenSection({ dependants, canEdit, onUpdate }: Child
     <>
       <Card>
         <CardHeader>
-          <CardTitle>Children</CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle>Children</CardTitle>
+            {canAdd && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIsAddOpen(true)}
+                disabled={!canAddMore}
+              >
+                Add Child
+              </Button>
+            )}
+          </div>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
