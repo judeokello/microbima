@@ -72,21 +72,40 @@ jobs:
           
           # First, check migration status
           echo "📊 Checking migration status..."
-          MIGRATION_STATUS=$(flyctl ssh console -a microbima-staging-internal-api -C "sh -c 'cd /app/apps/api && npx prisma migrate status'" || echo "failed")
+          MIGRATION_STATUS=$(flyctl ssh console -a microbima-staging-internal-api -C "sh -c 'cd /app/apps/api && npx prisma migrate status 2>&1'" || echo "failed")
           
-          if echo "$MIGRATION_STATUS" | grep -q "drift"; then
-            echo "⚠️ Drift detected or migration failed."
+          # Check for failed migrations (P3009 error)
+          if echo "$MIGRATION_STATUS" | grep -q "failed migrations\|P3009"; then
+            echo "⚠️ Failed migrations detected. Attempting to resolve..."
+            
+            # First, ensure PENDING_ACTIVATION enum value exists
+            echo "📝 Adding PENDING_ACTIVATION enum value if missing..."
+            flyctl ssh console -a microbima-staging-internal-api -C "sh -c 'cd /app/apps/api && echo \"ALTER TYPE \\\"public\\\".\\\"PolicyStatus\\\" ADD VALUE IF NOT EXISTS '\''PENDING_ACTIVATION'\'';\" | npx prisma db execute --stdin'"
+            
+            # Mark the failed migration as rolled back
+            echo "🔄 Resolving failed migration..."
+            flyctl ssh console -a microbima-staging-internal-api -C "sh -c 'cd /app/apps/api && npx prisma migrate resolve --rolled-back 20251030180217_add_package_plans_and_policy_payments'"
+            
+            # Mark the enum migration as applied if it exists
+            flyctl ssh console -a microbima-staging-internal-api -C "sh -c 'cd /app/apps/api && npx prisma migrate resolve --applied 20251030180216_add_pending_activation_enum 2>/dev/null || true'"
+            
+            echo "✅ Failed migration resolved, proceeding with migration deployment..."
+          elif echo "$MIGRATION_STATUS" | grep -q "drift"; then
+            echo "⚠️ Drift detected."
             echo "❌ Automated drift resolution is not available for production safety."
             echo "📋 Manual intervention required:"
-            echo "   1. Connect to production: flyctl ssh console -a microbima-staging-internal-api"
+            echo "   1. Connect to staging: flyctl ssh console -a microbima-staging-internal-api"
             echo "   2. Check status: cd /app/apps/api && npx prisma migrate status"
             echo "   3. Resolve drift: npx prisma migrate resolve --applied [migration-name]"
             echo "   4. Retry deployment"
             exit 1
           else
-            echo "✅ No drift detected, running normal migration..."
-            flyctl ssh console -a microbima-staging-internal-api -C "sh -c 'cd /app/apps/api && npx prisma migrate deploy'"
+            echo "✅ No issues detected, running normal migration..."
           fi
+          
+          # Run migration deployment
+          echo "🚀 Deploying migrations..."
+          flyctl ssh console -a microbima-staging-internal-api -C "sh -c 'cd /app/apps/api && npx prisma migrate deploy'"
           
           echo "✅ Database migrations completed"
 
@@ -211,10 +230,37 @@ jobs:
           
           # First, check migration status
           echo "📊 Checking migration status..."
-          MIGRATION_STATUS=$(flyctl ssh console -a maishapoa-production-internal-api -C "sh -c 'cd /app/apps/api && npx prisma migrate status'" || echo "failed")
+          MIGRATION_STATUS=$(flyctl ssh console -a maishapoa-production-internal-api -C "sh -c 'cd /app/apps/api && npx prisma migrate status 2>&1'" || echo "failed")
           
-          if echo "$MIGRATION_STATUS" | grep -q "drift"; then
-            echo "⚠️ Drift detected or migration failed."
+          # Check for failed migrations (P3009 error) - REQUIRE MANUAL INTERVENTION FOR PRODUCTION
+          if echo "$MIGRATION_STATUS" | grep -q "failed migrations\|P3009"; then
+            echo "⚠️ Failed migrations detected in production."
+            echo "❌ PRODUCTION SAFETY: Automated resolution is NOT available."
+            echo "📋 Manual intervention REQUIRED before proceeding:"
+            echo ""
+            echo "   1. Connect to production:"
+            echo "      flyctl ssh console -a maishapoa-production-internal-api"
+            echo ""
+            echo "   2. Check migration status:"
+            echo "      cd /app/apps/api && npx prisma migrate status"
+            echo ""
+            echo "   3. Add missing enum value (if needed):"
+            echo "      echo \"ALTER TYPE \\\"public\\\".\\\"PolicyStatus\\\" ADD VALUE IF NOT EXISTS 'PENDING_ACTIVATION';\" | npx prisma db execute --stdin"
+            echo ""
+            echo "   4. Resolve failed migration:"
+            echo "      npx prisma migrate resolve --rolled-back 20251030180217_add_package_plans_and_policy_payments"
+            echo ""
+            echo "   5. Mark enum migration as applied (if exists):"
+            echo "      npx prisma migrate resolve --applied 20251030180216_add_pending_activation_enum 2>/dev/null || true"
+            echo ""
+            echo "   6. Verify status:"
+            echo "      npx prisma migrate status"
+            echo ""
+            echo "   7. After manual resolution, retry deployment"
+            echo ""
+            exit 1
+          elif echo "$MIGRATION_STATUS" | grep -q "drift"; then
+            echo "⚠️ Drift detected in production."
             echo "❌ Automated drift resolution is not available for production safety."
             echo "📋 Manual intervention required:"
             echo "   1. Connect to production: flyctl ssh console -a maishapoa-production-internal-api"
@@ -223,9 +269,12 @@ jobs:
             echo "   4. Retry deployment"
             exit 1
           else
-            echo "✅ No drift detected, running normal migration..."
-            flyctl ssh console -a maishapoa-production-internal-api -C "sh -c 'cd /app/apps/api && npx prisma migrate deploy'"
+            echo "✅ No issues detected, running normal migration..."
           fi
+          
+          # Run migration deployment
+          echo "🚀 Deploying migrations to production..."
+          flyctl ssh console -a maishapoa-production-internal-api -C "sh -c 'cd /app/apps/api && npx prisma migrate deploy'"
           
           echo "✅ Database migrations completed"
 
