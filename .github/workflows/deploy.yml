@@ -76,9 +76,14 @@ jobs:
           
           # First, ensure PENDING_ACTIVATION enum value exists (idempotent)
           echo "📝 Adding PENDING_ACTIVATION enum value if missing..."
-          set +e  # Don't fail if enum already exists
-          flyctl ssh console -a microbima-staging-internal-api -C "sh -c 'cd /app/apps/api && echo \"ALTER TYPE \\\"public\\\".\\\"PolicyStatus\\\" ADD VALUE IF NOT EXISTS '\''PENDING_ACTIVATION'\'';\" | npx prisma db execute --stdin'"
+          set +e  # Don't fail if enum already exists (IF NOT EXISTS handles this)
+          ENUM_RESULT=$(flyctl ssh console -a microbima-staging-internal-api -C "sh -c 'cd /app/apps/api && echo \"ALTER TYPE \\\"public\\\".\\\"PolicyStatus\\\" ADD VALUE IF NOT EXISTS '\''PENDING_ACTIVATION'\'';\" | npx prisma db execute --stdin --schema prisma/schema.prisma 2>&1'")
+          ENUM_EXIT_CODE=$?
           set -e
+          
+          # Log result but don't fail if it's just "already exists" or similar
+          echo "Enum addition result (exit code: $ENUM_EXIT_CODE):"
+          echo "$ENUM_RESULT"
           
           # Mark the failed migration as rolled back (idempotent - safe if already resolved)
           echo "🔄 Resolving failed migration if it exists..."
