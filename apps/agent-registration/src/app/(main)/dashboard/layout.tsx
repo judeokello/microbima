@@ -177,6 +177,8 @@ export default function DashboardLayout({
               alt="MaishaPoa Logo"
               width={180}
               height={60}
+              priority
+              style={{ height: 'auto' }}
               className="object-contain"
             />
           </div>

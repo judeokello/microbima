@@ -1,10 +1,12 @@
 'use client';
 
 import { useState } from 'react';
+import { useParams } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Pencil } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import EditDependantDialog from './edit-dependant-dialog';
+import AddChildDialog from './add-child-dialog';
 
 interface ChildrenSectionProps {
   dependants: Array<{
@@ -23,6 +25,8 @@ interface ChildrenSectionProps {
 }
 
 export default function ChildrenSection({ dependants, canEdit, canAdd, onUpdate }: ChildrenSectionProps) {
+  const params = useParams();
+  const customerId = params.customerId as string;
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isAddOpen, setIsAddOpen] = useState(false);
 
@@ -73,7 +77,12 @@ export default function ChildrenSection({ dependants, canEdit, canAdd, onUpdate 
             <p className="text-gray-500">No children added</p>
           </CardContent>
         </Card>
-        {/* Add dialog will be added here */}
+        <AddChildDialog
+          customerId={customerId}
+          open={isAddOpen}
+          onOpenChange={setIsAddOpen}
+          onSuccess={onUpdate}
+        />
       </>
     );
   }
@@ -164,6 +173,13 @@ export default function ChildrenSection({ dependants, canEdit, canAdd, onUpdate 
           }}
         />
       )}
+
+      <AddChildDialog
+        customerId={customerId}
+        open={isAddOpen}
+        onOpenChange={setIsAddOpen}
+        onSuccess={onUpdate}
+      />
     </>
   );
 }

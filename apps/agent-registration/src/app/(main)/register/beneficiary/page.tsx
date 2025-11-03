@@ -175,8 +175,11 @@ export default function BeneficiaryStep() {
       console.log('🔍 Form data:', formData);
 
       if (!skipBeneficiary && formData.firstName.trim()) {
-        // Validate phone number if provided
-        if (formData.phoneNumber && !validatePhoneNumber(formData.phoneNumber)) {
+        // Validate phone number (mandatory)
+        if (!formData.phoneNumber || formData.phoneNumber.trim() === '') {
+          throw new Error('Phone number is required');
+        }
+        if (!validatePhoneNumber(formData.phoneNumber)) {
           throw new Error('Phone number must be 10 digits starting with 01 or 07');
         }
 
@@ -348,7 +351,7 @@ export default function BeneficiaryStep() {
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
-                  <Label htmlFor="phoneNumber">Phone Number</Label>
+                  <Label htmlFor="phoneNumber">Phone Number *</Label>
                   <Input
                     id="phoneNumber"
                     value={formData.phoneNumber}
@@ -360,6 +363,7 @@ export default function BeneficiaryStep() {
                     maxLength={10}
                     inputMode="numeric"
                     pattern="[0-9]*"
+                    required
                   />
                 </div>
                 <div>

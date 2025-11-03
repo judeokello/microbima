@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Pencil } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import EditBeneficiaryDialog from './edit-beneficiary-dialog';
+import AddBeneficiaryDialog from './add-beneficiary-dialog';
 
 interface NextOfKinSectionProps {
   beneficiaries: Array<{
@@ -76,7 +77,12 @@ export default function NextOfKinSection({ beneficiaries, canEdit, canAdd, onUpd
             <p className="text-gray-500">No next of kin added</p>
           </CardContent>
         </Card>
-        {/* Add dialog will be added here */}
+        <AddBeneficiaryDialog
+          customerId={customerId}
+          open={isAddOpen}
+          onOpenChange={setIsAddOpen}
+          onSuccess={onUpdate}
+        />
       </>
     );
   }
@@ -170,6 +176,13 @@ export default function NextOfKinSection({ beneficiaries, canEdit, canAdd, onUpd
           }}
         />
       )}
+
+      <AddBeneficiaryDialog
+        customerId={customerId}
+        open={isAddOpen}
+        onOpenChange={setIsAddOpen}
+        onSuccess={onUpdate}
+      />
     </>
   );
 }

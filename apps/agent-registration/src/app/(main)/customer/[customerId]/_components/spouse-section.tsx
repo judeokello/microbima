@@ -1,10 +1,12 @@
 'use client';
 
 import { useState } from 'react';
+import { useParams } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Pencil } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import EditDependantDialog from './edit-dependant-dialog';
+import AddSpouseDialog from './add-spouse-dialog';
 
 interface SpouseSectionProps {
   dependants: Array<{
@@ -24,6 +26,8 @@ interface SpouseSectionProps {
 }
 
 export default function SpouseSection({ dependants, canEdit, canAdd, onUpdate }: SpouseSectionProps) {
+  const params = useParams();
+  const customerId = params.customerId as string;
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isAddOpen, setIsAddOpen] = useState(false);
 
@@ -74,7 +78,12 @@ export default function SpouseSection({ dependants, canEdit, canAdd, onUpdate }:
             <p className="text-gray-500">No spouse added</p>
           </CardContent>
         </Card>
-        {/* Add dialog will be added here */}
+        <AddSpouseDialog
+          customerId={customerId}
+          open={isAddOpen}
+          onOpenChange={setIsAddOpen}
+          onSuccess={onUpdate}
+        />
       </>
     );
   }
@@ -171,6 +180,13 @@ export default function SpouseSection({ dependants, canEdit, canAdd, onUpdate }:
           }}
         />
       )}
+
+      <AddSpouseDialog
+        customerId={customerId}
+        open={isAddOpen}
+        onOpenChange={setIsAddOpen}
+        onSuccess={onUpdate}
+      />
     </>
   );
 }
