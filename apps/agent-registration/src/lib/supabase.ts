@@ -12,6 +12,9 @@ if (typeof window === 'undefined' && (!supabaseUrl || !supabaseAnonKey)) {
 const safeSupabaseUrl = supabaseUrl ?? 'https://placeholder.supabase.co'
 const safeSupabaseAnonKey = supabaseAnonKey ?? 'placeholder-key'
 
+// Create a single Supabase client instance (ES modules act as singletons)
+// To avoid "Multiple GoTrueClient instances" warnings, always import this instance
+// instead of creating new clients with createClient()
 export const supabase = createClient(safeSupabaseUrl, safeSupabaseAnonKey)
 
 // Admin client for server-side operations (user creation, etc.)

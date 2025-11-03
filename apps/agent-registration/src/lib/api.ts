@@ -1403,6 +1403,41 @@ export async function createPolicy(data: CreatePolicyRequest): Promise<CreatePol
   }
 }
 
+/**
+ * Check if a transaction reference already exists
+ */
+export async function checkTransactionReferenceExists(
+  transactionReference: string
+): Promise<boolean> {
+  try {
+    const token = await getSupabaseToken()
+
+    const response = await fetch(
+      `${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/policies/check-transaction-reference?transactionReference=${encodeURIComponent(transactionReference)}`,
+      {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'x-correlation-id': `check-transaction-${Date.now()}`
+        }
+      }
+    )
+
+    if (!response.ok) {
+      // If request fails, assume it doesn't exist to allow submission
+      console.warn('Failed to check transaction reference, allowing submission')
+      return false
+    }
+
+    const data = await response.json()
+    return data.exists === true
+  } catch (error) {
+    console.error('Error checking transaction reference:', error)
+    // On error, return false to allow submission (fail open)
+    return false
+  }
+}
+
 async function getSupabaseToken(): Promise<string> {
   try {
     // Get the current session from the client-side supabase instance

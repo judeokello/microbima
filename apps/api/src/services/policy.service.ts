@@ -215,6 +215,35 @@ export class PolicyService {
     },
     correlationId: string
   ) {
+    // Idempotency check: Check if a policy payment already exists with this transaction reference
+    // This prevents duplicate policy creation if the same request is submitted multiple times
+    const existingPayment = await this.prismaService.policyPayment.findFirst({
+      where: {
+        transactionReference: data.paymentData.transactionReference,
+      },
+      include: {
+        policy: {
+          include: {
+            policyPayments: {
+              orderBy: { createdAt: 'desc' },
+              take: 1,
+            },
+          },
+        },
+      },
+    });
+
+    if (existingPayment) {
+      this.logger.log(
+        `[${correlationId}] Policy payment with transaction reference ${data.paymentData.transactionReference} already exists. Returning existing policy ${existingPayment.policy.id}`
+      );
+      
+      // Return the existing policy and payment
+      return {
+        policy: existingPayment.policy,
+        policyPayment: existingPayment,
+      };
+    }
     this.logger.log(`[${correlationId}] Creating policy with payment for customer ${data.customerId}`);
 
     try {
@@ -252,6 +281,27 @@ export class PolicyService {
 
       // Use transaction to ensure atomicity
       const result = await this.prismaService.$transaction(async (tx) => {
+        // Double-check idempotency inside transaction to prevent race conditions
+        // This ensures that even if two requests pass the initial check, only one will succeed
+        const existingPaymentInTx = await tx.policyPayment.findFirst({
+          where: {
+            transactionReference: data.paymentData.transactionReference,
+          },
+          include: {
+            policy: true,
+          },
+        });
+
+        if (existingPaymentInTx) {
+          this.logger.log(
+            `[${correlationId}] Policy payment with transaction reference ${data.paymentData.transactionReference} already exists (race condition detected). Returning existing policy ${existingPaymentInTx.policy.id}`
+          );
+          return {
+            policy: existingPaymentInTx.policy,
+            policyPayment: existingPaymentInTx,
+          };
+        }
+
         // Generate policy number
         const policyNumber = await this.generatePolicyNumber(data.packageId, correlationId);
 
@@ -334,6 +384,37 @@ export class PolicyService {
       );
       throw error;
     }
+  }
+
+  /**
+   * Check if a transaction reference already exists
+   * @param transactionReference - Transaction reference to check
+   * @param correlationId - Correlation ID for tracing
+   * @returns True if transaction reference exists, false otherwise
+   */
+  async checkTransactionReferenceExists(
+    transactionReference: string,
+    correlationId: string
+  ): Promise<boolean> {
+    this.logger.log(
+      `[${correlationId}] Checking if transaction reference exists: ${transactionReference}`
+    );
+
+    const existingPayment = await this.prismaService.policyPayment.findFirst({
+      where: {
+        transactionReference: transactionReference.trim(),
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    const exists = !!existingPayment;
+    this.logger.log(
+      `[${correlationId}] Transaction reference ${transactionReference} ${exists ? 'exists' : 'does not exist'}`
+    );
+
+    return exists;
   }
 }
 

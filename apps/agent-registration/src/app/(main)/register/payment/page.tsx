@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Checkbox } from '@/components/ui/checkbox';
 // import { Separator } from '@/components/ui/separator';
 import { CheckCircle, CreditCard, Users, User, Loader2 } from 'lucide-react';
-import { processPayment, PaymentRequest, createPolicy, CreatePolicyRequest, getPackagePlans, Plan } from '@/lib/api';
+import { processPayment, PaymentRequest, createPolicy, CreatePolicyRequest, getPackagePlans, Plan, checkTransactionReferenceExists } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
 
 interface InsurancePricing {
@@ -91,6 +91,8 @@ export default function PaymentStep() {
   const [transactionReference, setTransactionReference] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [transactionReferenceError, setTransactionReferenceError] = useState<string | null>(null);
+  const [isCheckingTransaction, setIsCheckingTransaction] = useState(false);
 
   // Insurance pricing state
   const [pricingData, setPricingData] = useState<InsurancePricing | null>(null);
@@ -115,6 +117,50 @@ export default function PaymentStep() {
       day: 'numeric'
     });
   };
+
+  // Debounce timer for transaction reference validation
+  const transactionCheckTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Validate transaction reference as user types (debounced)
+  const validateTransactionReference = useCallback(async (value: string) => {
+    // Clear existing timeout
+    if (transactionCheckTimeoutRef.current) {
+      clearTimeout(transactionCheckTimeoutRef.current);
+    }
+
+    // Clear error if field is empty
+    if (!value || value.trim() === '') {
+      setTransactionReferenceError(null);
+      return;
+    }
+
+    // Debounce: wait 500ms after user stops typing
+    transactionCheckTimeoutRef.current = setTimeout(async () => {
+      setIsCheckingTransaction(true);
+      setTransactionReferenceError(null);
+
+      try {
+        const exists = await checkTransactionReferenceExists(value.trim());
+        if (exists) {
+          setTransactionReferenceError('This transaction reference has already been used for another payment. Please enter a different transaction reference.');
+        }
+      } catch (error) {
+        // On error, don't block user - fail open
+        console.warn('Failed to validate transaction reference:', error);
+      } finally {
+        setIsCheckingTransaction(false);
+      }
+    }, 500);
+  }, []);
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (transactionCheckTimeoutRef.current) {
+        clearTimeout(transactionCheckTimeoutRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     // Load saved form data
@@ -182,8 +228,19 @@ export default function PaymentStep() {
 
     setIsSubmitting(true);
     setError(null);
+    setTransactionReferenceError(null);
 
     try {
+      // Validate transaction reference before submitting
+      if (transactionReference.trim()) {
+        const exists = await checkTransactionReferenceExists(transactionReference.trim());
+        if (exists) {
+          setTransactionReferenceError('This transaction reference has already been used for another payment. Please enter a different transaction reference.');
+          setIsSubmitting(false);
+          return;
+        }
+      }
+
       // Validate required data
       if (!customerData) {
         throw new Error('Customer data not found. Please start over.');
@@ -277,10 +334,18 @@ export default function PaymentStep() {
         const policyResult = await createPolicy(policyRequest);
         console.log('Policy created successfully:', policyResult);
       } catch (policyError) {
+        const errorMessage = policyError instanceof Error ? policyError.message : String(policyError);
         console.error('Failed to create policy after payment:', policyError);
-        // Don't throw - payment was successful, policy creation can be retried
-        // Log error but continue with success flow
-        console.warn('Payment succeeded but policy creation failed. Policy can be created manually later.');
+
+        // Check if the error is about a duplicate record (idempotency)
+        // This can happen if the user resubmits the form or if the request was retried
+        if (errorMessage.includes('already exists') || errorMessage.includes('duplicate')) {
+          console.log('Policy already exists for this transaction. Treating as success.');
+          // Policy already exists, so we can continue with the success flow
+        } else {
+          // For other errors, log but don't throw - payment was successful
+          console.warn('Payment succeeded but policy creation failed. Policy can be created manually later.');
+        }
       }
 
       // Clear saved data
@@ -563,16 +628,34 @@ export default function PaymentStep() {
 
             <div>
               <Label htmlFor="transactionReference">Transaction Reference <span className="text-red-500">*</span></Label>
-              <Input
-                id="transactionReference"
-                value={transactionReference}
-                onChange={(e) => setTransactionReference(e.target.value)}
-                placeholder="Enter transaction reference"
-                required
-              />
-              <p className="text-sm text-gray-600 mt-1">
-                Enter the transaction reference for this payment
-              </p>
+              <div className="relative">
+                <Input
+                  id="transactionReference"
+                  value={transactionReference}
+                  onChange={(e) => {
+                    setTransactionReference(e.target.value);
+                    validateTransactionReference(e.target.value);
+                  }}
+                  placeholder="Enter transaction reference"
+                  required
+                  className={transactionReferenceError ? 'border-red-500' : ''}
+                />
+                {isCheckingTransaction && (
+                  <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                    <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
+                  </div>
+                )}
+              </div>
+              {transactionReferenceError && (
+                <p className="text-sm text-red-600 mt-1">
+                  {transactionReferenceError}
+                </p>
+              )}
+              {!transactionReferenceError && !isCheckingTransaction && (
+                <p className="text-sm text-gray-500 mt-1">
+                  Enter the transaction reference for this payment
+                </p>
+              )}
             </div>
 
             {/* <div className="p-4 bg-yellow-50 rounded-lg">
@@ -616,7 +699,7 @@ export default function PaymentStep() {
         </Button>
         <Button
           onClick={handleSubmit}
-          disabled={isSubmitting || !paymentPhone || !transactionReference || authLoading}
+          disabled={isSubmitting || !paymentPhone || !transactionReference || authLoading || !!transactionReferenceError || isCheckingTransaction}
           className="bg-green-600 hover:bg-green-700 disabled:opacity-50"
         >
           {isSubmitting ? (

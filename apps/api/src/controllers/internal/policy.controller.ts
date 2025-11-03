@@ -1,7 +1,9 @@
 import {
   Controller,
   Post,
+  Get,
   Body,
+  Query,
   HttpStatus,
   HttpCode,
 } from '@nestjs/common';
@@ -120,6 +122,53 @@ export class PolicyController {
       message: 'Policy and payment created successfully',
       policy: policyResponse,
       payment: paymentResponse,
+    };
+  }
+
+  /**
+   * Check if a transaction reference already exists
+   */
+  @Get('check-transaction-reference')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Check if transaction reference exists',
+    description: 'Validates if a transaction reference has already been used for a payment. Used to prevent duplicate transaction references before form submission.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Transaction reference check completed',
+    schema: {
+      type: 'object',
+      properties: {
+        exists: {
+          type: 'boolean',
+          description: 'True if transaction reference exists, false otherwise',
+        },
+        correlationId: {
+          type: 'string',
+        },
+      },
+    },
+  })
+  async checkTransactionReference(
+    @Query('transactionReference') transactionReference: string,
+    @CorrelationId() correlationId: string
+  ): Promise<{ exists: boolean; correlationId: string }> {
+    if (!transactionReference || transactionReference.trim() === '') {
+      return {
+        exists: false,
+        correlationId,
+      };
+    }
+
+    const exists = await this.policyService.checkTransactionReferenceExists(
+      transactionReference,
+      correlationId
+    );
+
+    return {
+      exists,
+      correlationId,
     };
   }
 }

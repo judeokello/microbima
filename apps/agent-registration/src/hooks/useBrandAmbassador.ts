@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from './useAuth';
+import { supabase } from '@/lib/supabase';
 
 interface BrandAmbassadorInfo {
   id: string;
@@ -97,12 +98,7 @@ export function useBrandAmbassador() {
 }
 
 async function getSupabaseToken(): Promise<string> {
-  const { createClient } = await import('@supabase/supabase-js');
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  );
-
+  // Use the existing singleton supabase client instance instead of creating a new one
   const { data: { session }, error } = await supabase.auth.getSession();
   if (error || !session?.access_token) {
     throw new Error('No valid session found');
