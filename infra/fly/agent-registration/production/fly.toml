@@ -11,6 +11,10 @@ primary_region = "fra"
     NEXT_PUBLIC_API_BASE_URL = "https://maishapoa-production-internal-api.fly.dev"
     NEXT_PUBLIC_INTERNAL_API_BASE_URL = "https://maishapoa-production-internal-api.fly.dev/api"
     NEXT_PUBLIC_ENABLE_BOOTSTRAP = "true"
+    # Sentry configuration (client-side, embedded at build time)
+    # Set these via Fly secrets: fly secrets set NEXT_PUBLIC_SENTRY_DSN="..." NEXT_PUBLIC_SENTRY_ENVIRONMENT="production"
+    NEXT_PUBLIC_SENTRY_DSN = { from_secret = "NEXT_PUBLIC_SENTRY_DSN" }
+    NEXT_PUBLIC_SENTRY_ENVIRONMENT = "production"
 
 [env]
   NODE_ENV = "production"

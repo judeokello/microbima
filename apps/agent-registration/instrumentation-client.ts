@@ -2,11 +2,11 @@ import * as Sentry from '@sentry/nextjs';
 
 console.log('🔍 Client Sentry Config Debug:');
 console.log('NEXT_PUBLIC_SENTRY_DSN:', process.env.NEXT_PUBLIC_SENTRY_DSN);
-console.log('SENTRY_ENVIRONMENT:', process.env.SENTRY_ENVIRONMENT);
+console.log('NEXT_PUBLIC_SENTRY_ENVIRONMENT:', process.env.NEXT_PUBLIC_SENTRY_ENVIRONMENT);
 
 Sentry.init({
   dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
-  environment: process.env.SENTRY_ENVIRONMENT || 'development',
+  environment: process.env.NEXT_PUBLIC_SENTRY_ENVIRONMENT || process.env.SENTRY_ENVIRONMENT || 'development',
   serverName: "agent-registration", // Identify this as agent-registration service
 
   // Set tracesSampleRate to 1.0 to capture 100%

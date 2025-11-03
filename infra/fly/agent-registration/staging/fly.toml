@@ -11,6 +11,10 @@ primary_region = "fra"
     NEXT_PUBLIC_API_BASE_URL = "https://microbima-staging-internal-api.fly.dev"
     NEXT_PUBLIC_INTERNAL_API_BASE_URL = "https://microbima-staging-internal-api.fly.dev/api"
     NEXT_PUBLIC_ENABLE_BOOTSTRAP = "true"
+    # Sentry configuration (client-side, embedded at build time)
+    # Set these via Fly secrets: fly secrets set NEXT_PUBLIC_SENTRY_DSN="..." NEXT_PUBLIC_SENTRY_ENVIRONMENT="staging"
+    NEXT_PUBLIC_SENTRY_DSN = { from_secret = "NEXT_PUBLIC_SENTRY_DSN" }
+    NEXT_PUBLIC_SENTRY_ENVIRONMENT = "staging"
 
 [env]
   NODE_ENV = "staging"
