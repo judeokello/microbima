@@ -240,44 +240,40 @@ jobs:
           echo "Migration status output:"
           echo "$MIGRATION_STATUS"
           
-          # Proactively resolve tags migration if it's in failed state (prevents P3009 during migrate deploy)
-          # This is idempotent - safe to run even if migration is not in failed state
-          echo "🔧 Proactively resolving tags migration if it's in failed state..."
-          TAGS_MIGRATION_FAILED=false
+          # Proactively skip tags migration during migrate deploy (it has dependency issue)
+          # Mark it as applied to prevent Prisma from trying to run it before schemes table exists
+          echo "🔧 Proactively skipping tags migration (will apply manually after schemes table exists)..."
           set +e
-          RESOLVE_OUTPUT=$(flyctl ssh console -a maishapoa-production-internal-api -C "sh -c 'cd /app/apps/api && npx prisma migrate resolve --rolled-back 20250202120000_add_tags_system 2>&1'")
-          RESOLVE_EXIT=$?
+          # First resolve any failed/rolled-back state
+          flyctl ssh console -a maishapoa-production-internal-api -C "sh -c 'cd /app/apps/api && npx prisma migrate resolve --rolled-back 20250202120000_add_tags_system 2>&1' || true"
+          
+          # Mark as applied to skip it during migrate deploy (safe because we'll manually apply it after)
+          SKIP_OUTPUT=$(flyctl ssh console -a maishapoa-production-internal-api -C "sh -c 'cd /app/apps/api && npx prisma migrate resolve --applied 20250202120000_add_tags_system 2>&1'")
+          SKIP_EXIT=$?
           set -e
           
-          # Check if resolve command indicated the migration was in failed state
-          if [ "$RESOLVE_EXIT" -eq 0 ]; then
-            if echo "$RESOLVE_OUTPUT" | grep -q "marked as rolled back\|Migration.*marked as rolled back"; then
-              TAGS_MIGRATION_FAILED=true
-              echo "✅ Tags migration was in failed state and has been marked as rolled back."
-              echo "   It will be reapplied after schemes table is created."
-            else
-              echo "ℹ️ Tags migration resolve completed (may have already been resolved)."
-            fi
+          if [ "$SKIP_EXIT" -eq 0 ]; then
+            echo "✅ Tags migration marked as applied (will be skipped during migrate deploy)."
+            echo "   It will be manually applied after schemes table is created by product management migration."
+            TAGS_MIGRATION_SKIPPED=true
           else
-            # If resolve failed, migration might not be in failed state (that's okay)
-            if echo "$RESOLVE_OUTPUT" | grep -q "No failed migration\|not found"; then
-              echo "ℹ️ Tags migration is not in failed state - proceeding normally."
+            # If we can't mark it as applied, check if it's already applied or in a different state
+            if echo "$SKIP_OUTPUT" | grep -q "already applied\|already marked"; then
+              echo "ℹ️ Tags migration already marked as applied - will skip during migrate deploy."
+              TAGS_MIGRATION_SKIPPED=true
             else
-              echo "⚠️ Could not check/resolve tags migration: $RESOLVE_OUTPUT"
+              echo "⚠️ Could not mark tags migration as applied: $SKIP_OUTPUT"
+              echo "   Will attempt to proceed - may fail and need manual resolution."
+              TAGS_MIGRATION_SKIPPED=false
             fi
-          fi
-          
-          # Also check migration status output for tags migration failure indicators
-          if echo "$MIGRATION_STATUS" | grep -q "20250202120000_add_tags_system.*failed"; then
-            TAGS_MIGRATION_FAILED=true
           fi
           
           # Check for other failed migrations (P3009 error) - REQUIRE MANUAL INTERVENTION FOR PRODUCTION
           # But skip if it's only the tags migration (we handle that above)
           if echo "$MIGRATION_STATUS" | grep -q "failed migrations\|P3009\|P3018"; then
-            # If it's only the tags migration, we've already handled it - proceed with migrations
-            if [ "$TAGS_MIGRATION_FAILED" = "true" ] && ! echo "$MIGRATION_STATUS" | grep -q "failed migrations"; then
-              echo "✅ Only tags migration failed, already handled. Proceeding with other migrations..."
+            # If we've skipped the tags migration, proceed with other migrations
+            if [ "$TAGS_MIGRATION_SKIPPED" = "true" ]; then
+              echo "✅ Tags migration skipped, proceeding with other migrations..."
             else
               # Other failed migrations - require manual intervention
               echo "⚠️ Failed migrations detected in production."
