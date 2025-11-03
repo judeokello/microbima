@@ -240,19 +240,36 @@ jobs:
           echo "Migration status output:"
           echo "$MIGRATION_STATUS"
           
-          # Proactively handle tags migration failure (known dependency issue)
+          # Proactively resolve tags migration if it's in failed state (prevents P3009 during migrate deploy)
+          # This is idempotent - safe to run even if migration is not in failed state
+          echo "🔧 Proactively resolving tags migration if it's in failed state..."
           TAGS_MIGRATION_FAILED=false
-          if echo "$MIGRATION_STATUS" | grep -q "20250202120000_add_tags_system.*failed\|P3018.*20250202120000\|relation.*schemes.*does not exist"; then
+          set +e
+          RESOLVE_OUTPUT=$(flyctl ssh console -a maishapoa-production-internal-api -C "sh -c 'cd /app/apps/api && npx prisma migrate resolve --rolled-back 20250202120000_add_tags_system 2>&1'")
+          RESOLVE_EXIT=$?
+          set -e
+          
+          # Check if resolve command indicated the migration was in failed state
+          if [ "$RESOLVE_EXIT" -eq 0 ]; then
+            if echo "$RESOLVE_OUTPUT" | grep -q "marked as rolled back\|Migration.*marked as rolled back"; then
+              TAGS_MIGRATION_FAILED=true
+              echo "✅ Tags migration was in failed state and has been marked as rolled back."
+              echo "   It will be reapplied after schemes table is created."
+            else
+              echo "ℹ️ Tags migration resolve completed (may have already been resolved)."
+            fi
+          else
+            # If resolve failed, migration might not be in failed state (that's okay)
+            if echo "$RESOLVE_OUTPUT" | grep -q "No failed migration\|not found"; then
+              echo "ℹ️ Tags migration is not in failed state - proceeding normally."
+            else
+              echo "⚠️ Could not check/resolve tags migration: $RESOLVE_OUTPUT"
+            fi
+          fi
+          
+          # Also check migration status output for tags migration failure indicators
+          if echo "$MIGRATION_STATUS" | grep -q "20250202120000_add_tags_system.*failed"; then
             TAGS_MIGRATION_FAILED=true
-            echo "⚠️ Tags migration failed due to missing schemes table (dependency issue)"
-            echo "🔧 Resolving dependency by marking tags migration as rolled back..."
-            
-            # Mark tags migration as rolled back
-            set +e
-            flyctl ssh console -a maishapoa-production-internal-api -C "sh -c 'cd /app/apps/api && npx prisma migrate resolve --rolled-back 20250202120000_add_tags_system'"
-            set -e
-            
-            echo "✅ Tags migration marked as rolled back. Will be applied after schemes table is created."
           fi
           
           # Check for other failed migrations (P3009 error) - REQUIRE MANUAL INTERVENTION FOR PRODUCTION
