@@ -222,37 +222,68 @@ jobs:
         run: |
           echo "🔄 Running database migrations on production..."
           
-          # First, check migration status
-          echo "📊 Checking migration status..."
-          MIGRATION_STATUS=$(flyctl ssh console -a maishapoa-production-internal-api -C "sh -c 'cd /app/apps/api && npx prisma migrate status 2>&1'" || echo "failed")
+          # First, check if schemes table exists (needed for tags migration)
+          echo "🔍 Checking if schemes table exists..."
+          set +e
+          SCHEMES_CHECK=$(flyctl ssh console -a maishapoa-production-internal-api -C "sh -c 'cd /app/apps/api && npx prisma db execute --stdin --schema prisma/schema.prisma <<< \"SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_schema = '\''public'\'' AND table_name = '\''schemes'\'');\"' 2>&1")
+          set -e
           
-          # Check for failed migrations (P3009 error) - REQUIRE MANUAL INTERVENTION FOR PRODUCTION
-          if echo "$MIGRATION_STATUS" | grep -q "failed migrations\|P3009"; then
-            echo "⚠️ Failed migrations detected in production."
-            echo "❌ PRODUCTION SAFETY: Automated resolution is NOT available."
-            echo "📋 Manual intervention REQUIRED before proceeding:"
-            echo ""
-            echo "   1. Connect to production:"
-            echo "      flyctl ssh console -a maishapoa-production-internal-api"
-            echo ""
-            echo "   2. Check migration status:"
-            echo "      cd /app/apps/api && npx prisma migrate status"
-            echo ""
-            echo "   3. Add missing enum value (if needed):"
-            echo "      echo \"ALTER TYPE \\\"public\\\".\\\"PolicyStatus\\\" ADD VALUE IF NOT EXISTS 'PENDING_ACTIVATION';\" | npx prisma db execute --stdin"
-            echo ""
-            echo "   4. Resolve failed migration:"
-            echo "      npx prisma migrate resolve --rolled-back 20251030180217_add_package_plans_and_policy_payments"
-            echo ""
-            echo "   5. Mark enum migration as applied (if exists):"
-            echo "      npx prisma migrate resolve --applied 20251030180216_add_pending_activation_enum 2>/dev/null || true"
-            echo ""
-            echo "   6. Verify status:"
-            echo "      npx prisma migrate status"
-            echo ""
-            echo "   7. After manual resolution, retry deployment"
-            echo ""
-            exit 1
+          # Check migration status
+          echo "📊 Checking migration status..."
+          set +e
+          MIGRATION_STATUS=$(flyctl ssh console -a maishapoa-production-internal-api -C "sh -c 'cd /app/apps/api && npx prisma migrate status 2>&1'")
+          MIGRATION_EXIT_CODE=$?
+          set -e
+          
+          # Proactively handle tags migration failure (known dependency issue)
+          TAGS_MIGRATION_FAILED=false
+          if echo "$MIGRATION_STATUS" | grep -q "20250202120000_add_tags_system.*failed\|P3018.*20250202120000\|relation.*schemes.*does not exist"; then
+            TAGS_MIGRATION_FAILED=true
+            echo "⚠️ Tags migration failed due to missing schemes table (dependency issue)"
+            echo "🔧 Resolving dependency by marking tags migration as rolled back..."
+            
+            # Mark tags migration as rolled back
+            set +e
+            flyctl ssh console -a maishapoa-production-internal-api -C "sh -c 'cd /app/apps/api && npx prisma migrate resolve --rolled-back 20250202120000_add_tags_system'"
+            set -e
+            
+            echo "✅ Tags migration marked as rolled back. Will be applied after schemes table is created."
+          fi
+          
+          # Check for other failed migrations (P3009 error) - REQUIRE MANUAL INTERVENTION FOR PRODUCTION
+          # But skip if it's only the tags migration (we handle that above)
+          if [ "$MIGRATION_EXIT_CODE" != "0" ] || echo "$MIGRATION_STATUS" | grep -q "failed migrations\|P3009"; then
+            # If it's only the tags migration, we've already handled it - proceed with migrations
+            if [ "$TAGS_MIGRATION_FAILED" = "true" ] && ! echo "$MIGRATION_STATUS" | grep -q "failed migrations"; then
+              echo "✅ Only tags migration failed, already handled. Proceeding with other migrations..."
+            else
+              # Other failed migrations - require manual intervention
+              echo "⚠️ Failed migrations detected in production."
+              echo "❌ PRODUCTION SAFETY: Automated resolution is NOT available."
+              echo "📋 Manual intervention REQUIRED before proceeding:"
+              echo ""
+              echo "   1. Connect to production:"
+              echo "      flyctl ssh console -a maishapoa-production-internal-api"
+              echo ""
+              echo "   2. Check migration status:"
+              echo "      cd /app/apps/api && npx prisma migrate status"
+              echo ""
+              echo "   3. Add missing enum value (if needed):"
+              echo "      echo \"ALTER TYPE \\\"public\\\".\\\"PolicyStatus\\\" ADD VALUE IF NOT EXISTS 'PENDING_ACTIVATION';\" | npx prisma db execute --stdin --schema prisma/schema.prisma"
+              echo ""
+              echo "   4. Resolve failed migration:"
+              echo "      npx prisma migrate resolve --rolled-back 20251030180217_add_package_plans_and_policy_payments"
+              echo ""
+              echo "   5. Mark enum migration as applied (if exists):"
+              echo "      npx prisma migrate resolve --applied 20251030180216_add_pending_activation_enum 2>/dev/null || true"
+              echo ""
+              echo "   6. Verify status:"
+              echo "      npx prisma migrate status"
+              echo ""
+              echo "   7. After manual resolution, retry deployment"
+              echo ""
+              exit 1
+            fi
           elif echo "$MIGRATION_STATUS" | grep -q "drift"; then
             echo "⚠️ Drift detected in production."
             echo "❌ Automated drift resolution is not available for production safety."
@@ -269,6 +300,31 @@ jobs:
           # Run migration deployment
           echo "🚀 Deploying migrations to production..."
           flyctl ssh console -a maishapoa-production-internal-api -C "sh -c 'cd /app/apps/api && npx prisma migrate deploy'"
+          
+          # After migrations, if tags migration was rolled back, check if schemes table exists and reapply tags migration
+          echo "🔍 Checking if tags migration needs to be reapplied..."
+          set +e
+          SCHEMES_EXISTS=$(flyctl ssh console -a maishapoa-production-internal-api -C "sh -c 'cd /app/apps/api && npx prisma db execute --stdin --schema prisma/schema.prisma <<< \"SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_schema = '\''public'\'' AND table_name = '\''schemes'\'');\"' 2>&1 | grep -o 'true\|false' | head -1")
+          set -e
+          
+          if [ "$SCHEMES_EXISTS" = "true" ]; then
+            echo "✅ Schemes table exists. Checking if tags migration needs to be applied..."
+            set +e
+            TAGS_TABLE_EXISTS=$(flyctl ssh console -a maishapoa-production-internal-api -C "sh -c 'cd /app/apps/api && npx prisma db execute --stdin --schema prisma/schema.prisma <<< \"SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_schema = '\''public'\'' AND table_name = '\''tags'\'');\"' 2>&1 | grep -o 'true\|false' | head -1")
+            set -e
+            
+            if [ "$TAGS_TABLE_EXISTS" != "true" ]; then
+              echo "🔧 Applying tags migration now that schemes table exists..."
+              flyctl ssh console -a maishapoa-production-internal-api -C "sh -c 'cd /app/apps/api && cat prisma/migrations/20250202120000_add_tags_system/migration.sql | npx prisma db execute --stdin --schema prisma/schema.prisma'"
+              
+              # Mark migration as applied
+              flyctl ssh console -a maishapoa-production-internal-api -C "sh -c 'cd /app/apps/api && npx prisma migrate resolve --applied 20250202120000_add_tags_system'"
+              echo "✅ Tags migration applied and marked as resolved"
+            else
+              echo "✅ Tags table already exists, marking migration as applied..."
+              flyctl ssh console -a maishapoa-production-internal-api -C "sh -c 'cd /app/apps/api && npx prisma migrate resolve --applied 20250202120000_add_tags_system 2>/dev/null || true'"
+            fi
+          fi
           
           echo "✅ Database migrations completed"
 
