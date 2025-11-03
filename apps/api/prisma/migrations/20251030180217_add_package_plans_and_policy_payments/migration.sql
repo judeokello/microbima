@@ -1,8 +1,8 @@
 -- CreateEnum
 CREATE TYPE "public"."PaymentType" AS ENUM ('MPESA', 'SASAPAY');
 
--- AlterEnum (already applied separately)
--- ALTER TYPE "public"."PolicyStatus" ADD VALUE IF NOT EXISTS 'PENDING_ACTIVATION';
+-- Note: PENDING_ACTIVATION enum value should have been added by migration 20251030180216_add_pending_activation_enum
+-- If it wasn't, you may need to manually add it: ALTER TYPE "public"."PolicyStatus" ADD VALUE IF NOT EXISTS 'PENDING_ACTIVATION';
 
 -- DropForeignKey
 ALTER TABLE "public"."policies" DROP CONSTRAINT "policies_bundled_product_id_fkey";
