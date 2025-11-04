@@ -4,11 +4,27 @@
 -- Explicitly sets updatedAt to work around Prisma @updatedAt behavior
 
 -- Seed underwriters (idempotent)
-INSERT INTO "underwriters" ("id", "name", "shortName", "website", "officeLocation", "updatedAt") VALUES
-(1, 'Definite Assurance company Ltd', 'Definite', 'https://definiteassurance.com', 'ABSA TOWERS ,1st Floor, Loita Street, Nairobi Kenya', CURRENT_TIMESTAMP),
-(2, 'AAR Insurance Limited', 'AAR', 'https://aar-insurance.com', 'Kiambu road', CURRENT_TIMESTAMP),
-(3, 'UAP Old Mutual Insurance Ltd', 'UAP-Old Mutual', 'https://www.oldmutual.co.ke/personal/insure/health-insurance/', 'Upper hill', CURRENT_TIMESTAMP)
-ON CONFLICT (id) DO NOTHING;
+-- Get first user ID for createdBy field
+DO $$
+DECLARE
+    first_user_id TEXT;
+BEGIN
+    -- Get first user ID from auth.users
+    SELECT id INTO first_user_id FROM auth.users ORDER BY created_at ASC LIMIT 1;
+    
+    -- If no user exists, use a placeholder (shouldn't happen in production)
+    IF first_user_id IS NULL THEN
+        first_user_id := '00000000-0000-0000-0000-000000000000';
+        RAISE WARNING 'No users found in auth.users, using placeholder UUID';
+    END IF;
+
+    -- Insert underwriters with createdBy and isActive fields
+    INSERT INTO "underwriters" ("id", "name", "shortName", "website", "officeLocation", "isActive", "createdBy", "updatedAt") VALUES
+    (1, 'Definite Assurance company Ltd', 'Definite', 'https://definiteassurance.com', 'ABSA TOWERS ,1st Floor, Loita Street, Nairobi Kenya', true, first_user_id, CURRENT_TIMESTAMP),
+    (2, 'AAR Insurance Limited', 'AAR', 'https://aar-insurance.com', 'Kiambu road', true, first_user_id, CURRENT_TIMESTAMP),
+    (3, 'UAP Old Mutual Insurance Ltd', 'UAP-Old Mutual', 'https://www.oldmutual.co.ke/personal/insure/health-insurance/', 'Upper hill', true, first_user_id, CURRENT_TIMESTAMP)
+    ON CONFLICT (id) DO NOTHING;
+END $$;
 
 -- Seed product types (idempotent)
 INSERT INTO "product_types" ("id", "name", "description", "updatedAt") VALUES
