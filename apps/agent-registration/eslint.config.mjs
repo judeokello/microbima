@@ -26,6 +26,7 @@ export default [
   { 
     files: ["**/*.{js,mjs,cjs,ts,jsx,tsx}"] 
   },
+  // Use compat for Next.js config which uses legacy format
   ...compat.extends("next/core-web-vitals"),
   ...tseslint.configs.recommended,
   {

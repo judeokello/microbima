@@ -40,3 +40,6 @@ Sentry.init({
     }),
   ],
 });
+
+// Export navigation hook for Next.js router instrumentation
+export const onRouterTransitionStart = Sentry.captureRouterTransitionStart;
