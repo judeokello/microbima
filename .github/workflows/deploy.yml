@@ -97,9 +97,25 @@ jobs:
           flyctl ssh console -a microbima-staging-internal-api -C "sh -c 'cd /app/apps/api && npx prisma migrate resolve --applied 20251030180216_add_pending_activation_enum 2>/dev/null || true'"
           set -e
           
+          # Verify DIRECT_URL is configured (critical for migration performance)
+          echo "🔍 Verifying DIRECT_URL is configured for fast migrations..."
+          echo "💡 Note: Without DIRECT_URL, migrations use pooled connection (30+ minutes). With DIRECT_URL: 5-10 minutes."
+          echo "📖 See: apps/api/docs/SUPABASE_MIGRATION_PERFORMANCE.md for setup instructions"
+          
+          # Check migration status first to see what needs to be applied
+          echo "📋 Checking migration status before deployment..."
+          flyctl ssh console -a microbima-staging-internal-api -C "sh -c 'cd /app/apps/api && npx prisma migrate status'"
+          
           # Now run migration deployment
+          # Note: Using --skip-seed to avoid running seed scripts during migration
+          # Large migrations (like init with 412 lines) can take 5-10+ minutes on Supabase with direct connection
+          # Without DIRECT_URL, this can take 30+ minutes with pooled connection
           echo "🚀 Deploying migrations..."
-          flyctl ssh console -a microbima-staging-internal-api -C "sh -c 'cd /app/apps/api && npx prisma migrate deploy'"
+          echo "⏱️  Expected time: 5-10 minutes (direct) or 30+ minutes (pooled) for large migrations..."
+          echo "💡 Tip: The init migration (412 lines) is particularly large"
+          
+          # Run migration with explicit query engine path for musl compatibility
+          flyctl ssh console -a microbima-staging-internal-api -C "sh -c 'cd /app/apps/api && PRISMA_CLI_QUERY_ENGINE_LIBRARY=/app/node_modules/.prisma/client/libquery_engine-linux-musl-openssl-3.0.x.so.node npx prisma migrate deploy --skip-seed'"
           
           echo "✅ Database migrations completed"
 
