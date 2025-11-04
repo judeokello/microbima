@@ -15,6 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Loader2 } from 'lucide-react';
 import { updateCustomer, UpdateCustomerData } from '@/lib/api';
 import { formatPhoneNumber, getPhoneValidationError } from '@/lib/phone-validation';
+import * as Sentry from '@sentry/nextjs';
 
 interface EditCustomerDialogProps {
   customer: {
@@ -118,6 +119,19 @@ export default function EditCustomerDialog({
       onSuccess();
       onOpenChange(false);
     } catch (err) {
+      console.error('Error updating customer:', err);
+      // Report error to Sentry
+      if (err instanceof Error) {
+        Sentry.captureException(err, {
+          tags: {
+            component: 'EditCustomerDialog',
+            action: 'update_customer',
+          },
+          extra: {
+            customerId: customer.id,
+          },
+        });
+      }
       setError(err instanceof Error ? err.message : 'Failed to update customer');
     } finally {
       setLoading(false);

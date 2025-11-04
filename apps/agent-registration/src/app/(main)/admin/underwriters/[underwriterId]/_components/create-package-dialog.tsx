@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Loader2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import * as Sentry from '@sentry/nextjs';
 
 interface CreatePackageDialogProps {
   open: boolean;
@@ -159,6 +160,24 @@ export default function CreatePackageDialog({
       onSuccess();
     } catch (err) {
       console.error('Error creating package:', err);
+      // Report error to Sentry
+      if (err instanceof Error) {
+        Sentry.captureException(err, {
+          tags: {
+            component: 'CreatePackageDialog',
+            action: 'create_package',
+          },
+          extra: {
+            underwriterId,
+            formData: {
+              name: formData.name,
+              description: formData.description,
+              isActive: formData.isActive,
+            },
+            hasLogo: !!formData.logo,
+          },
+        });
+      }
       setError(err instanceof Error ? err.message : 'Failed to create package');
     } finally {
       setLoading(false);

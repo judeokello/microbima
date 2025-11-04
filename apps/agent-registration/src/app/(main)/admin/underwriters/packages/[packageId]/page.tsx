@@ -10,6 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { RefreshCw, Edit, Save, X, Plus } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import * as Sentry from '@sentry/nextjs';
 import Image from 'next/image';
 import { TruncatedDescription } from '../../[underwriterId]/_components/truncated-description';
 import CreateSchemeDialog from './_components/create-scheme-dialog';
@@ -129,6 +130,18 @@ export default function PackageDetailPage() {
       }
     } catch (err) {
       console.error('Error fetching package:', err);
+      // Report error to Sentry
+      if (err instanceof Error) {
+        Sentry.captureException(err, {
+          tags: {
+            component: 'PackageDetailPage',
+            action: 'fetch_package',
+          },
+          extra: {
+            packageId,
+          },
+        });
+      }
       setError(err instanceof Error ? err.message : 'Failed to fetch package');
     } finally {
       setLoading(false);
@@ -208,6 +221,18 @@ export default function PackageDetailPage() {
       fetchPackage();
     } catch (err) {
       console.error('Error uploading logo:', err);
+      // Report error to Sentry
+      if (err instanceof Error) {
+        Sentry.captureException(err, {
+          tags: {
+            component: 'PackageDetailPage',
+            action: 'upload_logo',
+          },
+          extra: {
+            packageId,
+          },
+        });
+      }
       setError(err instanceof Error ? err.message : 'Failed to upload logo');
     } finally {
       setUploadingLogo(false);
@@ -239,6 +264,19 @@ export default function PackageDetailPage() {
       fetchPackage();
     } catch (err) {
       console.error('Error updating package:', err);
+      // Report error to Sentry
+      if (err instanceof Error) {
+        Sentry.captureException(err, {
+          tags: {
+            component: 'PackageDetailPage',
+            action: 'update_package',
+          },
+          extra: {
+            packageId,
+            formData,
+          },
+        });
+      }
       setError(err instanceof Error ? err.message : 'Failed to update package');
     } finally {
       setLoading(false);

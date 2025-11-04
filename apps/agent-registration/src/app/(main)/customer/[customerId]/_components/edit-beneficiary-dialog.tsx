@@ -16,6 +16,7 @@ import { Loader2 } from 'lucide-react';
 import { updateBeneficiary, UpdateBeneficiaryData } from '@/lib/api';
 import { useParams } from 'next/navigation';
 import { formatPhoneNumber, getPhoneValidationError } from '@/lib/phone-validation';
+import * as Sentry from '@sentry/nextjs';
 
 interface EditBeneficiaryDialogProps {
   beneficiary: {
@@ -122,6 +123,19 @@ export default function EditBeneficiaryDialog({
       onSuccess();
       onOpenChange(false);
     } catch (err) {
+      console.error('Error updating beneficiary:', err);
+      // Report error to Sentry
+      if (err instanceof Error) {
+        Sentry.captureException(err, {
+          tags: {
+            component: 'EditBeneficiaryDialog',
+            action: 'update_beneficiary',
+          },
+          extra: {
+            beneficiaryId: beneficiary.id,
+          },
+        });
+      }
       setError(err instanceof Error ? err.message : 'Failed to update beneficiary');
     } finally {
       setLoading(false);

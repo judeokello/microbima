@@ -15,6 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Loader2 } from 'lucide-react';
 import { updateDependant, UpdateDependantData } from '@/lib/api';
 import { formatPhoneNumber, getPhoneValidationError } from '@/lib/phone-validation';
+import * as Sentry from '@sentry/nextjs';
 
 interface EditDependantDialogProps {
   dependant: {
@@ -118,6 +119,19 @@ export default function EditDependantDialog({
       onSuccess();
       onOpenChange(false);
     } catch (err) {
+      console.error('Error updating dependant:', err);
+      // Report error to Sentry
+      if (err instanceof Error) {
+        Sentry.captureException(err, {
+          tags: {
+            component: 'EditDependantDialog',
+            action: 'update_dependant',
+          },
+          extra: {
+            dependantId: dependant.id,
+          },
+        });
+      }
       setError(err instanceof Error ? err.message : 'Failed to update dependant');
     } finally {
       setLoading(false);

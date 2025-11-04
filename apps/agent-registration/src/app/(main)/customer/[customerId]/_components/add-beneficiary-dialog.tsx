@@ -16,6 +16,7 @@ import { Loader2 } from 'lucide-react';
 import { addBeneficiaries, BeneficiaryData } from '@/lib/api';
 import { useParams } from 'next/navigation';
 import { formatPhoneNumber, getPhoneValidationError } from '@/lib/phone-validation';
+import * as Sentry from '@sentry/nextjs';
 
 interface AddBeneficiaryDialogProps {
   customerId: string;
@@ -159,6 +160,25 @@ export default function AddBeneficiaryDialog({
       onSuccess();
       onOpenChange(false);
     } catch (err) {
+      console.error('Error adding beneficiary:', err);
+      // Report error to Sentry
+      if (err instanceof Error) {
+        Sentry.captureException(err, {
+          tags: {
+            component: 'AddBeneficiaryDialog',
+            action: 'add_beneficiary',
+          },
+          extra: {
+            customerId,
+            formData: {
+              firstName: formData.firstName,
+              lastName: formData.lastName,
+              phoneNumber: formData.phoneNumber,
+              relationship: formData.relationship,
+            },
+          },
+        });
+      }
       // Transform API validation errors into user-friendly messages
       let errorMessage = err instanceof Error ? err.message : 'Failed to add next of kin';
 

@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Loader2 } from 'lucide-react';
 import { getCustomerPolicies, getCustomerPayments, PolicyOption, Payment, PaymentFilter } from '@/lib/api';
+import * as Sentry from '@sentry/nextjs';
 
 interface PaymentsTabProps {
   customerId: string;
@@ -38,6 +39,18 @@ export default function PaymentsTab({ customerId }: PaymentsTabProps) {
       setPolicies(response.data);
     } catch (err) {
       console.error('Error loading policies:', err);
+      // Report error to Sentry
+      if (err instanceof Error) {
+        Sentry.captureException(err, {
+          tags: {
+            component: 'PaymentsTab',
+            action: 'load_policies',
+          },
+          extra: {
+            customerId,
+          },
+        });
+      }
       setError(err instanceof Error ? err.message : 'Failed to load policies');
     } finally {
       setPoliciesLoading(false);
@@ -64,6 +77,23 @@ export default function PaymentsTab({ customerId }: PaymentsTabProps) {
       setPayments(response.data);
     } catch (err) {
       console.error('Error loading payments:', err);
+      // Report error to Sentry
+      if (err instanceof Error) {
+        Sentry.captureException(err, {
+          tags: {
+            component: 'PaymentsTab',
+            action: 'load_payments',
+          },
+          extra: {
+            customerId,
+            filter: {
+              policyId: selectedPolicyId,
+              fromDate,
+              toDate,
+            },
+          },
+        });
+      }
       setError(err instanceof Error ? err.message : 'Failed to load payments');
       setPayments([]);
     } finally {

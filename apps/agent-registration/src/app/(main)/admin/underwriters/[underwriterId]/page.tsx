@@ -10,6 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { RefreshCw, Edit, Save, X, Plus } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import * as Sentry from '@sentry/nextjs';
 import Image from 'next/image';
 import { TruncatedDescription } from './_components/truncated-description';
 import CreatePackageDialog from './_components/create-package-dialog';
@@ -102,6 +103,18 @@ export default function UnderwriterDetailPage() {
       });
     } catch (err) {
       console.error('Error fetching underwriter:', err);
+      // Report error to Sentry
+      if (err instanceof Error) {
+        Sentry.captureException(err, {
+          tags: {
+            component: 'UnderwriterDetailPage',
+            action: 'fetch_underwriter',
+          },
+          extra: {
+            underwriterId,
+          },
+        });
+      }
       setError(err instanceof Error ? err.message : 'Failed to fetch underwriter');
     } finally {
       setLoading(false);
@@ -159,6 +172,19 @@ export default function UnderwriterDetailPage() {
       fetchUnderwriter();
     } catch (err) {
       console.error('Error updating underwriter:', err);
+      // Report error to Sentry
+      if (err instanceof Error) {
+        Sentry.captureException(err, {
+          tags: {
+            component: 'UnderwriterDetailPage',
+            action: 'update_underwriter',
+          },
+          extra: {
+            underwriterId,
+            formData,
+          },
+        });
+      }
       setError(err instanceof Error ? err.message : 'Failed to update underwriter');
     } finally {
       setLoading(false);

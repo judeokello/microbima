@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Loader2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import * as Sentry from '@sentry/nextjs';
 
 interface CreateSchemeDialogProps {
   open: boolean;
@@ -94,6 +95,23 @@ export default function CreateSchemeDialog({
       onSuccess();
     } catch (err) {
       console.error('Error creating scheme:', err);
+      // Report error to Sentry
+      if (err instanceof Error) {
+        Sentry.captureException(err, {
+          tags: {
+            component: 'CreateSchemeDialog',
+            action: 'create_scheme',
+          },
+          extra: {
+            packageId,
+            formData: {
+              schemeName: formData.schemeName,
+              description: formData.description,
+              isActive: formData.isActive,
+            },
+          },
+        });
+      }
       setError(err instanceof Error ? err.message : 'Failed to create scheme');
     } finally {
       setLoading(false);

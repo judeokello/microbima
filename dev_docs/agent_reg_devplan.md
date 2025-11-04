@@ -49,23 +49,28 @@ The Agent Registration module enables Brand Ambassadors (BAs) to register custom
 - [x] **Admin Dashboard** (`/admin/*`) with role-based protection
 - [x] **BA Registration Form** (`/admin/ba-registration`)
 - [x] **BA Management Interface** (`/admin/ba-management`)
+- [x] **Underwriters Management System** (`/admin/underwriters/*`) ✅ **NEW**
 - [x] **Supabase Client Configuration** with admin API
 - [x] **Customer Registration Wizard** (`/register/*`)
 - [x] **BA Dashboard** (`/dashboard/*`)
 - [x] **Role-Based Middleware** for route protection
 
 #### **4.2 Backend Structure (NestJS)**
-- [ ] **Agent Registration Module** (`/internal/agent-registrations/*`)
+- [x] **Agent Registration Module** (`/internal/agent-registrations/*`) ✅ **COMPLETED**
+- [x] **Underwriter Management Module** (`/internal/underwriters/*`) ✅ **NEW - COMPLETED**
+- [x] **Product Management Module** (`/internal/product-management/*`) - Extended with package/scheme CRUD ✅ **COMPLETED**
+- [x] **User Display Name Helper** (`/internal/users/:userId/display-name`) ✅ **NEW - COMPLETED**
 - [ ] **Missing Requirements Service** with MR logic
-- [ ] **BA Authorization Guards** with role checking
-- [ ] **Data Masking Serializers** for BA views
+- [x] **BA Authorization Guards** with role checking ✅ **COMPLETED**
+- [x] **Data Masking Serializers** for BA views ✅ **COMPLETED**
 - [ ] **MPESA Integration** for payment processing
 
 #### **4.3 Database Schema**
-- [ ] **New Models**: BrandAmbassador, AgentRegistration, MissingRequirement, BAPayout
-- [ ] **New Enums**: RegistrationEntityKind, RegistrationMissingStatus, BAPayoutStatus
-- [ ] **Updated Models**: Customer (hasMissingRequirements), Partner (relations)
-- [ ] **Deferred Requirements**: Default and Partner-specific configurations
+- [x] **New Models**: BrandAmbassador, AgentRegistration, MissingRequirement, BAPayout ✅ **COMPLETED**
+- [x] **New Enums**: RegistrationEntityKind, RegistrationMissingStatus, BAPayoutStatus ✅ **COMPLETED**
+- [x] **Updated Models**: Customer (hasMissingRequirements), Partner (relations) ✅ **COMPLETED**
+- [x] **Updated Models**: Underwriter (isActive, logoPath, createdBy), Package (logoPath, createdBy), Scheme (createdBy) ✅ **NEW - COMPLETED**
+- [x] **Deferred Requirements**: Default and Partner-specific configurations ✅ **COMPLETED**
 
 ### **5. Development Phases**
 
@@ -176,17 +181,31 @@ The Agent Registration module enables Brand Ambassadors (BAs) to register custom
 
 ### ✅ Implemented Feature Details (for discoverability)
 
-1) Customer Search Feature
+1) Customer Search Feature ✅ **COMPLETED**
 - Frontend: Sidebar item "Search Customer" (Agent + Admin); page supports partial match on ID Number/Phone/Email; table shows Full Name, ID Type/Number, Phone, Email, Number of Spouses/Children, and NoK Added.
 - Backend: `GET /internal/customers/search` (internal) with LIKE filters; returns counts and NoK boolean.
 
-2) Time Series Registrations Chart
+2) Time Series Registrations Chart ✅ **COMPLETED**
 - Frontend Component: `ChartAreaInteractive` (single line labelled "Registrations"; title "Total Customers"; default filter Last 7 days; filters 7/30/90 days).
 - Placement: Agent dashboard (agent-scoped by userId) and Admin dashboard (system-wide).
 - Backend Endpoints:
   - Agent: `GET /internal/customers/my-registrations-chart?period=7d|30d|90d`
   - Admin: `GET /internal/customers/all-registrations-chart?period=7d|30d|90d`
 - Service: Shared method `getRegistrationsChartData(userId?, period)` groups daily counts and zero-fills dates.
+
+3) Admin Underwriters Management System ✅ **COMPLETED**
+- **Database Schema**: Added `isActive`, `logoPath`, `createdBy` fields to underwriters, packages, and schemes tables
+- **API Endpoints**: Complete CRUD for underwriters, packages, and schemes with proper authentication
+- **Frontend Pages**: 
+  - `/admin/underwriters/` - List page with pagination and package counts
+  - `/admin/underwriters/:underwriterId` - Detail/edit page with packages table and create package button
+  - `/admin/underwriters/packages/:packageId` - Package detail/edit page with schemes table and create scheme button
+  - `/admin/underwriters/packages/:packageId/schemes/:schemeId` - Scheme detail/edit page with paginated customers table
+- **Logo Upload**: Next.js API route for file uploads with proper authentication and validation
+- **Pagination**: Implemented on all list pages with page size selectors
+- **User Display Names**: Helper endpoint to fetch display names from Supabase auth metadata
+- **TruncatedDescription Component**: Reusable component with click-to-show tooltip for long descriptions
+- **Registration Filtering**: Fixed `/dashboard/registrations` to only show customers belonging to logged-in user
 
 #### **5.5 Phase 5: Missing Requirements Management (Week 5)**
 
@@ -238,11 +257,13 @@ The Agent Registration module enables Brand Ambassadors (BAs) to register custom
 - [ ] Can track registration progress
 
 #### **Registration Admins**
-- [ ] Can create and manage Brand Ambassadors
-- [ ] Can assign BAs to partners
+- [x] Can create and manage Brand Ambassadors ✅ **COMPLETED**
+- [x] Can assign BAs to partners ✅ **COMPLETED**
+- [x] Can manage Underwriters, Packages, and Schemes ✅ **NEW - COMPLETED**
+- [x] Can upload logos for underwriters and packages ✅ **NEW - COMPLETED**
+- [x] Can view full customer data ✅ **COMPLETED**
+- [x] Can access admin analytics ✅ **COMPLETED**
 - [ ] Can resolve Missing Requirements
-- [ ] Can view full customer data
-- [ ] Can access admin analytics
 
 #### **System Administrators**
 - [ ] Can manage partner configurations
@@ -260,10 +281,11 @@ The Agent Registration module enables Brand Ambassadors (BAs) to register custom
 - [x] **Supabase** for authentication and user management
 
 #### **Backend**
-- [ ] **NestJS** with TypeScript for API development
-- [ ] **Prisma ORM** with PostgreSQL database
-- [ ] **Supabase Auth** for user authentication
-- [ ] **Role-based Guards** for authorization
+- [x] **NestJS** with TypeScript for API development ✅ **COMPLETED**
+- [x] **Prisma ORM** with PostgreSQL database ✅ **COMPLETED**
+- [x] **Supabase Auth** for user authentication ✅ **COMPLETED**
+- [x] **Role-based Guards** for authorization ✅ **COMPLETED**
+- [x] **File Upload API** (Next.js API routes) ✅ **NEW - COMPLETED**
 
 #### **Infrastructure**
 - [ ] **Fly.io** for deployment
@@ -333,3 +355,53 @@ This development plan provides a comprehensive roadmap for implementing the Micr
 - Dashboard provides real-time analytics for all BA activities
 
 **Key Insight**: Phases 1-2 establish the foundation, while Phases 3-6 build the complete user experience with comprehensive testing and validation.
+
+---
+
+## **11) Admin Underwriters Management System** ✅ **COMPLETED**
+
+### **11.1 Database Schema & Migrations** ✅ **COMPLETED**
+- [x] **11.1.1** Add `isActive`, `logoPath`, `createdBy` to underwriters table
+- [x] **11.1.2** Add `logoPath`, `createdBy` to packages table
+- [x] **11.1.3** Add `createdBy` to schemes table
+- [x] **11.1.4** Create migration script with proper seeding of existing records
+- [x] **11.1.5** Seed existing records with first user ID
+
+### **11.2 Backend API Implementation** ✅ **COMPLETED**
+- [x] **11.2.1** Create UnderwriterService with CRUD operations
+- [x] **11.2.2** Create UnderwriterController with all endpoints
+- [x] **11.2.3** Extend ProductManagementService with package/scheme CRUD
+- [x] **11.2.4** Create DTOs for all operations (underwriters, packages, schemes)
+- [x] **11.2.5** Implement user display name helper endpoint
+- [x] **11.2.6** Add package counts to underwriter list response
+- [x] **11.2.7** Add customer counts to scheme responses
+- [x] **11.2.8** Implement proper error handling with ValidationException
+
+### **11.3 File Upload System** ✅ **COMPLETED**
+- [x] **11.3.1** Create Next.js API route `/api/upload/logo`
+- [x] **11.3.2** Implement file validation (type, size)
+- [x] **11.3.3** Implement directory structure creation
+- [x] **11.3.4** Add Bearer token authentication
+- [x] **11.3.5** Return public paths for database storage
+- [x] **11.3.6** Handle upload errors gracefully
+
+### **11.4 Frontend Implementation** ✅ **COMPLETED**
+- [x] **11.4.1** Create underwriters list page (`/admin/underwriters/`)
+- [x] **11.4.2** Create create underwriter dialog with logo upload
+- [x] **11.4.3** Create underwriter detail/edit page
+- [x] **11.4.4** Create package detail/edit page
+- [x] **11.4.5** Create scheme detail/edit page
+- [x] **11.4.6** Create create package dialog with logo upload
+- [x] **11.4.7** Create create scheme dialog
+- [x] **11.4.8** Implement TruncatedDescription component
+- [x] **11.4.9** Add pagination to all list pages
+- [x] **11.4.10** Fix `/dashboard/registrations` filtering by userId
+
+### **11.5 UI/UX Enhancements** ✅ **COMPLETED**
+- [x] **11.5.1** Auto-prepend https:// to website URLs
+- [x] **11.5.2** Default isActive to false for new underwriters/packages
+- [x] **11.5.3** Default isActive to true for new schemes (user can change)
+- [x] **11.5.4** Add isActive checkbox to edit sections
+- [x] **11.5.5** Add package count column to underwriters list
+- [x] **11.5.6** Implement click-to-show tooltips for descriptions
+- [x] **11.5.7** Add page size selectors to all paginated tables

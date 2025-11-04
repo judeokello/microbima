@@ -10,6 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { RefreshCw, Edit, Save, X, CheckCircle, XCircle } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import * as Sentry from '@sentry/nextjs';
 import { formatDate } from '@/lib/utils';
 import { TruncatedDescription } from '../../../../[underwriterId]/_components/truncated-description';
 
@@ -139,6 +140,18 @@ export default function SchemeDetailPage() {
       }
     } catch (err) {
       console.error('Error fetching scheme:', err);
+      // Report error to Sentry
+      if (err instanceof Error) {
+        Sentry.captureException(err, {
+          tags: {
+            component: 'SchemeDetailPage',
+            action: 'fetch_scheme',
+          },
+          extra: {
+            schemeId,
+          },
+        });
+      }
       setError(err instanceof Error ? err.message : 'Failed to fetch scheme');
     } finally {
       setLoading(false);
@@ -205,6 +218,19 @@ export default function SchemeDetailPage() {
       fetchScheme();
     } catch (err) {
       console.error('Error updating scheme:', err);
+      // Report error to Sentry
+      if (err instanceof Error) {
+        Sentry.captureException(err, {
+          tags: {
+            component: 'SchemeDetailPage',
+            action: 'update_scheme',
+          },
+          extra: {
+            schemeId,
+            formData,
+          },
+        });
+      }
       setError(err instanceof Error ? err.message : 'Failed to update scheme');
     } finally {
       setLoading(false);

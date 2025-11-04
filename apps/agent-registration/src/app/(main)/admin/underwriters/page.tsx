@@ -8,6 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { RefreshCw, Plus } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import * as Sentry from '@sentry/nextjs';
 import CreateUnderwriterDialog from './_components/create-underwriter-dialog';
 
 interface Underwriter {
@@ -77,6 +78,19 @@ export default function UnderwritersPage() {
       setPagination(data.pagination);
     } catch (err) {
       console.error('Error fetching underwriters:', err);
+      // Report error to Sentry
+      if (err instanceof Error) {
+        Sentry.captureException(err, {
+          tags: {
+            component: 'UnderwritersPage',
+            action: 'fetch_underwriters',
+          },
+          extra: {
+            page: currentPage,
+            pageSize,
+          },
+        });
+      }
       setError(err instanceof Error ? err.message : 'Failed to fetch underwriters');
     } finally {
       setLoading(false);

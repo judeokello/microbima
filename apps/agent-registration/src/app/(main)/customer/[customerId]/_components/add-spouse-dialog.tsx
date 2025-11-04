@@ -16,6 +16,7 @@ import { Loader2 } from 'lucide-react';
 import { addDependants, SpouseData } from '@/lib/api';
 import { useParams } from 'next/navigation';
 import { formatPhoneNumber, getPhoneValidationError } from '@/lib/phone-validation';
+import * as Sentry from '@sentry/nextjs';
 
 interface AddSpouseDialogProps {
   customerId: string;
@@ -120,6 +121,25 @@ export default function AddSpouseDialog({
       onSuccess();
       onOpenChange(false);
     } catch (err) {
+      console.error('Error adding spouse:', err);
+      // Report error to Sentry
+      if (err instanceof Error) {
+        Sentry.captureException(err, {
+          tags: {
+            component: 'AddSpouseDialog',
+            action: 'add_spouse',
+          },
+          extra: {
+            customerId,
+            formData: {
+              firstName: formData.firstName,
+              lastName: formData.lastName,
+              phoneNumber: formData.phoneNumber,
+              gender: formData.gender,
+            },
+          },
+        });
+      }
       setError(err instanceof Error ? err.message : 'Failed to add spouse');
     } finally {
       setLoading(false);

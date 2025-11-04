@@ -15,6 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Loader2 } from 'lucide-react';
 import { addDependants, ChildData } from '@/lib/api';
 import { useParams } from 'next/navigation';
+import * as Sentry from '@sentry/nextjs';
 
 interface AddChildDialogProps {
   customerId: string;
@@ -102,6 +103,25 @@ export default function AddChildDialog({
       onSuccess();
       onOpenChange(false);
     } catch (err) {
+      console.error('Error adding child:', err);
+      // Report error to Sentry
+      if (err instanceof Error) {
+        Sentry.captureException(err, {
+          tags: {
+            component: 'AddChildDialog',
+            action: 'add_child',
+          },
+          extra: {
+            customerId,
+            formData: {
+              firstName: formData.firstName,
+              lastName: formData.lastName,
+              gender: formData.gender,
+              idType: formData.idType,
+            },
+          },
+        });
+      }
       setError(err instanceof Error ? err.message : 'Failed to add child');
     } finally {
       setLoading(false);

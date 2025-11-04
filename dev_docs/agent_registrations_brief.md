@@ -508,14 +508,18 @@ sequenceDiagram
 
 ## 12) Implementation Checklist (Cursor-friendly)
 
-- [ ] Add Prisma models & relations above; run `prisma migrate`.
-- [ ] Seed `DeferredRequirementDefault` and hook partner creation to copy defaults → `DeferredRequirementPartner`.
-- [ ] Implement NestJS module `/internal/agent-registrations` with endpoints & DTOs.
+- [x] Add Prisma models & relations above; run `prisma migrate`. ✅ **COMPLETED**
+- [x] Seed `DeferredRequirementDefault` and hook partner creation to copy defaults → `DeferredRequirementPartner`. ✅ **COMPLETED**
+- [x] Implement NestJS module `/internal/agent-registrations` with endpoints & DTOs. ✅ **COMPLETED**
+- [x] Implement BA authorization guard + masking serializer. ✅ **COMPLETED**
+- [x] Scaffold Next.js wizard (Stepper + Steps) and wire PATCH calls per step. ✅ **COMPLETED**
+- [x] Build dashboard cards and filtered customer list views. ✅ **COMPLETED**
+- [x] **Admin Underwriters Management System** - Complete CRUD for underwriters, packages, and schemes ✅ **COMPLETED**
+- [x] **File Upload System** - Logo uploads for underwriters and packages ✅ **COMPLETED**
+- [x] **Pagination** - Implemented on all list pages ✅ **COMPLETED**
+- [x] **User Display Names** - Helper endpoint for fetching display names ✅ **COMPLETED**
 - [ ] Implement MR service with placeholder creation and resolution helpers.
-- [ ] Implement BA authorization guard + masking serializer.
-- [ ] Scaffold Next.js wizard (Stepper + Steps) and wire PATCH calls per step.
 - [ ] Implement final submit → MPESA prompt + payment record.
-- [ ] Build dashboard cards and filtered customer list views.
 - [ ] QA: zero spouse/children flows; partial data; MR placeholder mapping; flag updates.
 - [ ] Add tests for MR invariants and registration earnings totals.
 
@@ -530,6 +534,166 @@ sequenceDiagram
 - **No dependant/beneficiary rows** are created unless data present on that step.
 - **MRs** always created for missing deferred fields and/or missing indices.
 - **Customer can be 0 spouses / 0 children** (supported).
+
+---
+
+---
+
+## **14) Admin Underwriters Management System** ✅ **COMPLETED**
+
+### **14.1 Database Schema Changes** ✅ **COMPLETED**
+
+#### **Underwriters Table**
+- ✅ Added `isActive` Boolean field (default: true, but new underwriters created as false)
+- ✅ Added `logoPath` VARCHAR(200) nullable field
+- ✅ Added `createdBy` String NOT NULL field (stores Supabase user ID)
+- ✅ Migration created to add fields and seed existing underwriters with first user ID and isActive=true
+
+#### **Packages Table**
+- ✅ Added `logoPath` VARCHAR(200) nullable field
+- ✅ Added `createdBy` String NOT NULL field (stores Supabase user ID)
+- ✅ Migration created to add fields and seed existing packages with first user ID
+
+#### **Schemes Table**
+- ✅ Added `createdBy` String NOT NULL field (stores Supabase user ID)
+- ✅ Migration created to add fields and seed existing schemes with first user ID
+
+### **14.2 API Endpoints (NestJS)** ✅ **COMPLETED**
+
+#### **Underwriters Endpoints**
+- ✅ `GET /internal/underwriters` - List all underwriters (paginated, includes isActive and packagesCount)
+- ✅ `GET /internal/underwriters/:id` - Get underwriter details with packages count
+- ✅ `POST /internal/underwriters` - Create underwriter (requires userId from auth, defaults isActive=false)
+- ✅ `PUT /internal/underwriters/:id` - Update underwriter (all fields including logoPath and isActive)
+- ✅ `DELETE /internal/underwriters/:id` - Delete underwriter
+- ✅ `GET /internal/underwriters/:id/packages` - Get packages for underwriter with counts
+
+#### **Packages Endpoints**
+- ✅ `GET /internal/product-management/packages/:id/details` - Get package details with underwriter info
+- ✅ `POST /internal/product-management/packages` - Create package (with logo upload support)
+- ✅ `PUT /internal/product-management/packages/:id` - Update package (all fields including logoPath)
+- ✅ `GET /internal/product-management/packages/:id/schemes-with-counts` - Get schemes for package with customer counts
+
+#### **Schemes Endpoints**
+- ✅ `GET /internal/product-management/schemes/:id` - Get scheme details
+- ✅ `POST /internal/product-management/schemes` - Create scheme (with optional packageId linking)
+- ✅ `PUT /internal/product-management/schemes/:id` - Update scheme (schemeName, description, isActive)
+- ✅ `GET /internal/product-management/schemes/:id/customers` - Get customers for scheme (paginated, same fields as registrations page)
+
+#### **Helper Endpoints**
+- ✅ `GET /internal/users/:userId/display-name` - Get user displayName from Supabase auth metadata
+
+### **14.3 File Upload (Next.js API Route)** ✅ **COMPLETED**
+
+#### **Endpoint: `/api/upload/logo`**
+- ✅ Accepts multipart/form-data with file and entity type (underwriter/package)
+- ✅ Saves files to:
+  - Underwriter: `public/logos/underwriters/[underwriterId]/logo.[ext]`
+  - Package: `public/logos/underwriters/[underwriterId]/packages/[packageId].[ext]`
+- ✅ Returns file path for storage in database
+- ✅ Validates file type (images only) and size limits (5MB max)
+- ✅ Uses Bearer token authentication from Authorization header
+
+### **14.4 Frontend Pages** ✅ **COMPLETED**
+
+#### **1. `/admin/underwriters/` (List Page)** ✅ **COMPLETED**
+- ✅ DataGrid showing: Name, ShortName, Packages (count), Website, Office Location, isActive status
+- ✅ "Create Underwriter" button opens dialog
+- ✅ Create dialog fields: Name, ShortName, Website (auto-prepends https://), Office Location, Logo Upload (all mandatory)
+- ✅ Clicking row navigates to detail page
+- ✅ Pagination with page size selector
+
+#### **2. `/admin/underwriters/:underwriterId` (Detail/Edit Page)** ✅ **COMPLETED**
+- ✅ **Details Section** (editable):
+  - Name, ShortName, Website (auto-prepends https://), Office Location (text fields)
+  - Logo display (image preview, not path)
+  - isActive checkbox (editable)
+  - Edit button toggles edit mode
+  - All fields mandatory
+- ✅ **Packages Table** below details:
+  - Columns: Package Name, Description (first 40 chars + info icon with click tooltip), Schemes count, Total Customers
+  - "Create Package" button opens dialog
+  - Clicking package name navigates to package detail page
+
+#### **3. `/admin/underwriters/packages/:packageId` (Package Detail/Edit Page)** ✅ **COMPLETED**
+- ✅ **Details Section** (editable):
+  - Package Name, Description (first 40 chars + click tooltip), Underwriter Name, isActive, CreatedBy (displayName), Logo Upload
+  - All fields mandatory
+  - Logo upload functionality with preview
+- ✅ **Schemes Table** below details:
+  - Columns: Scheme Name, Customers count, isActive
+  - "Add Scheme" button opens create scheme dialog
+  - Clicking row navigates to scheme detail page
+
+#### **4. `/admin/underwriters/packages/:packageId/schemes/:schemeId` (Scheme Detail/Edit Page)** ✅ **COMPLETED**
+- ✅ **Details Section** (editable):
+  - Scheme Name, Description, isActive, CreatedAt, CreatedBy (displayName)
+  - Editable fields: Scheme Name, Description, isActive
+- ✅ **Customers Table** below details:
+  - Columns: Name, PhoneNumber, Gender (pill badge), Registration Date, ID Type, ID Number, Data Complete? (icon)
+  - Same fields as `/dashboard/registrations` page
+  - Pagination: Only fetch current page from DB, load next page on click
+
+### **14.5 Pagination Implementation** ✅ **COMPLETED**
+
+#### **Pages with Pagination:**
+- ✅ `/dashboard/search` - Paginated search results
+- ✅ `/admin/customers` - Verified pagination working with page size selector
+- ✅ `/dashboard/registrations` - Fixed filtering to only show customers belonging to logged-in user (filtered by createdBy), pagination with page size selector
+- ✅ `/admin/underwriters/packages/:packageId/schemes/:schemeId` - Paginated customers table
+
+### **14.6 UI Components** ✅ **COMPLETED**
+
+#### **Reusable Components Created:**
+- ✅ `TruncatedDescription` component with info icon (click to show tooltip)
+- ✅ Logo upload functionality (file input + preview)
+- ✅ Editable detail sections with inline editing
+- ✅ Pagination component with page size selector (reused existing pattern)
+
+#### **DataGrid Requirements:**
+- ✅ All tables use pagination
+- ✅ Loading states
+- ✅ Empty states
+- ✅ Error handling
+- ✅ Click handlers for navigation
+
+### **14.7 Technical Implementation Details** ✅ **COMPLETED**
+
+#### **File Storage Structure:**
+```
+public/
+  logos/
+    underwriters/
+      1/
+        logo.png (underwriter logo)
+        packages/
+          1.png (package logo)
+          2.png (package logo)
+      2/
+        logo.png
+        packages/
+          ...
+```
+
+#### **User ID Handling:**
+- ✅ Extract from Supabase auth token using `@UserId()` decorator
+- ✅ Pass to service methods for `createdBy` field
+- ✅ Use Supabase auth metadata to get displayName for display
+
+#### **Description Tooltip:**
+- ✅ Show first 40 characters
+- ✅ Info icon (ℹ️) next to truncated text
+- ✅ Click info icon to show full description in tooltip
+- ✅ Uses shadcn/ui Tooltip component
+
+#### **Website URL Handling:**
+- ✅ Auto-prepends `https://` if user doesn't enter it
+- ✅ Removed strict URL validation to allow flexible input
+
+#### **Default isActive Values:**
+- ✅ Underwriters: Created as `false` by default
+- ✅ Packages: Created as `false` by default
+- ✅ Schemes: Created as `true` by default (user can change)
 
 ---
 

@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Loader2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import * as Sentry from '@sentry/nextjs';
 
 interface CreateUnderwriterDialogProps {
   open: boolean;
@@ -155,6 +156,24 @@ export default function CreateUnderwriterDialog({
       onSuccess();
     } catch (err) {
       console.error('Error creating underwriter:', err);
+      // Report error to Sentry
+      if (err instanceof Error) {
+        Sentry.captureException(err, {
+          tags: {
+            component: 'CreateUnderwriterDialog',
+            action: 'create_underwriter',
+          },
+          extra: {
+            formData: {
+              name: formData.name,
+              shortName: formData.shortName,
+              website: formData.website,
+              officeLocation: formData.officeLocation,
+            },
+            hasLogo: !!formData.logo,
+          },
+        });
+      }
       setError(err instanceof Error ? err.message : 'Failed to create underwriter');
     } finally {
       setLoading(false);

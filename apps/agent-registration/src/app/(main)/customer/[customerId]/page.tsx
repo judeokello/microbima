@@ -7,6 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Loader2 } from 'lucide-react';
 import { getCustomerDetails, CustomerDetailData } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
+import * as Sentry from '@sentry/nextjs';
 import CustomerInfoSection from './_components/customer-info-section';
 import NextOfKinSection from './_components/next-of-kin-section';
 import SpouseSection from './_components/spouse-section';
@@ -41,6 +42,18 @@ export default function CustomerDetailPage() {
       setCustomerData(response.data);
     } catch (err) {
       console.error('Error loading customer details:', err);
+      // Report error to Sentry
+      if (err instanceof Error) {
+        Sentry.captureException(err, {
+          tags: {
+            component: 'CustomerDetailPage',
+            action: 'load_customer_details',
+          },
+          extra: {
+            customerId,
+          },
+        });
+      }
       setError(err instanceof Error ? err.message : 'Failed to load customer details');
     } finally {
       setLoading(false);
