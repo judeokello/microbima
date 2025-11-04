@@ -64,12 +64,12 @@ export function useBrandAmbassador() {
         // If 404, the BA might be inactive or doesn't exist
         // Clear cache and let the status check hook handle sign-out
         localStorage.removeItem('baInfo')
-        
+
         if (response.status === 404) {
           // BA not found or inactive - this will be handled by useBAStatusCheck
           throw new Error('Brand Ambassador not found or inactive')
         }
-        
+
         throw new Error(`Failed to fetch BA info: ${response.status}`);
       }
 

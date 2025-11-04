@@ -203,6 +203,7 @@ export async function updateBrandAmbassador(id: string, data: UpdateBARequest): 
       phoneNumber?: string | null
       perRegistrationRateCents?: number
       isActive?: boolean
+      roles?: string[]
     } = {}
     if (data.partnerId !== undefined) {
       updateData.partnerId = data.partnerId

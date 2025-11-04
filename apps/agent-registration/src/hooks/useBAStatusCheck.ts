@@ -48,7 +48,7 @@ export function useBAStatusCheck() {
       }
     } catch (error) {
       console.error('Error checking BA status:', error)
-      
+
       // If we get a 404 or 401, treat it as inactive (user might be deactivated)
       if (error instanceof Error) {
         const errorMessage = error.message.toLowerCase()

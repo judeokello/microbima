@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -48,6 +48,32 @@ export default function EditBADialog({
   const [error, setError] = useState<string | null>(null);
   const [phoneError, setPhoneError] = useState<string | null>(null);
 
+  const loadPartners = useCallback(async () => {
+    try {
+      setLoadingPartners(true);
+      const partnersData = await getPartners();
+      setPartners(partnersData);
+    } catch (err) {
+      console.error('Failed to load partners:', err);
+      setError('Failed to load partners');
+    } finally {
+      setLoadingPartners(false);
+    }
+  }, []);
+
+  const loadRoles = useCallback(async () => {
+    try {
+      setLoadingRoles(true);
+      const roles = await getBrandAmbassadorRoles(brandAmbassador.id);
+      setFormData(prev => ({ ...prev, roles }));
+    } catch (err) {
+      console.error('Failed to load roles:', err);
+      setError('Failed to load roles');
+    } finally {
+      setLoadingRoles(false);
+    }
+  }, [brandAmbassador.id]);
+
   // Load partners and roles when dialog opens
   useEffect(() => {
     if (open) {
@@ -64,33 +90,7 @@ export default function EditBADialog({
         roles: [],
       });
     }
-  }, [open, brandAmbassador]);
-
-  const loadPartners = async () => {
-    try {
-      setLoadingPartners(true);
-      const partnersData = await getPartners();
-      setPartners(partnersData);
-    } catch (err) {
-      console.error('Failed to load partners:', err);
-      setError('Failed to load partners');
-    } finally {
-      setLoadingPartners(false);
-    }
-  };
-
-  const loadRoles = async () => {
-    try {
-      setLoadingRoles(true);
-      const roles = await getBrandAmbassadorRoles(brandAmbassador.id);
-      setFormData(prev => ({ ...prev, roles }));
-    } catch (err) {
-      console.error('Failed to load roles:', err);
-      setError('Failed to load roles');
-    } finally {
-      setLoadingRoles(false);
-    }
-  };
+  }, [open, brandAmbassador, loadPartners, loadRoles]);
 
   const handleRoleToggle = (role: string, checked: boolean) => {
     // Ensure at least one role remains selected

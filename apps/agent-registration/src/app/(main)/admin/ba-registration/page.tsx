@@ -12,7 +12,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Loader2 } from 'lucide-react'
 import { createBrandAmbassador, getPartners, ROLES, Partner } from '@/lib/api'
 import { useAuth } from '@/hooks/useAuth'
-import { formatPhoneNumber, getPhoneValidationError, validatePhoneNumber } from '@/lib/phone-validation'
+import { formatPhoneNumber, getPhoneValidationError } from '@/lib/phone-validation'
 
 export default function BARegistrationPage() {
   const router = useRouter()
