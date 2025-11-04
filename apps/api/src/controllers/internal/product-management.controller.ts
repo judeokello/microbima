@@ -2,6 +2,7 @@ import {
   Controller,
   Get,
   Post,
+  Put,
   Body,
   Param,
   Query,
@@ -28,7 +29,20 @@ import {
   CreateTagResponseDto,
   SearchTagsQueryDto,
 } from '../../dto/product-management/product-management.dto';
+import {
+  PackageDetailResponseDto,
+  PackageSchemesResponseDto,
+  UpdatePackageRequestDto,
+} from '../../dto/packages/package.dto';
+import {
+  SchemeDetailResponseDto,
+  SchemeCustomersResponseDto,
+  UpdateSchemeRequestDto,
+} from '../../dto/schemes/scheme.dto';
 import { CorrelationId } from '../../decorators/correlation-id.decorator';
+import { UserId } from '../../decorators/user.decorator';
+import { CreatePackageRequestDto } from '../../dto/packages/package.dto';
+import { CreateSchemeRequestDto } from '../../dto/schemes/scheme.dto';
 
 /**
  * Internal Product Management Controller
@@ -76,6 +90,50 @@ export class ProductManagementController {
       correlationId,
       message: 'Packages retrieved successfully',
       data: packages,
+    };
+  }
+
+  /**
+   * Create a new package
+   */
+  @Post('packages')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({
+    summary: 'Create a new package',
+    description: 'Create a new package for an underwriter.',
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'Package created successfully',
+    type: PackageDetailResponseDto,
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Invalid request data',
+  })
+  @ApiResponse({
+    status: 500,
+    description: 'Internal server error',
+  })
+  async createPackage(
+    @Body() createRequest: CreatePackageRequestDto,
+    @UserId() userId: string,
+    @CorrelationId() correlationId: string
+  ): Promise<PackageDetailResponseDto> {
+    if (!userId) {
+      throw new Error('User ID not found in request');
+    }
+    const pkg = await this.productManagementService.createPackage(
+      createRequest,
+      userId,
+      correlationId
+    );
+
+    return {
+      status: HttpStatus.CREATED,
+      correlationId,
+      message: 'Package created successfully',
+      data: pkg,
     };
   }
 
@@ -297,6 +355,360 @@ export class ProductManagementController {
       correlationId: correlationId || 'unknown',
       message: 'Tag created successfully',
       data: tag,
+    };
+  }
+
+  /**
+   * Get package by ID
+   */
+  @Get('packages/:packageId/details')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Get package details',
+    description: 'Retrieve detailed information about a specific package including underwriter info.',
+  })
+  @ApiParam({
+    name: 'packageId',
+    description: 'Package ID',
+    type: Number,
+    example: 1,
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Package retrieved successfully',
+    type: PackageDetailResponseDto,
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Package not found',
+  })
+  @ApiResponse({
+    status: 500,
+    description: 'Internal server error',
+  })
+  async getPackageById(
+    @Param('packageId', ParseIntPipe) packageId: number,
+    @CorrelationId() correlationId?: string
+  ): Promise<PackageDetailResponseDto> {
+    const pkg = await this.productManagementService.getPackageById(
+      packageId,
+      correlationId || 'unknown'
+    );
+
+    return {
+      status: HttpStatus.OK,
+      correlationId: correlationId || 'unknown',
+      message: 'Package retrieved successfully',
+      data: pkg,
+    };
+  }
+
+  /**
+   * Update a package
+   */
+  @Put('packages/:packageId')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Update a package',
+    description: 'Update an existing package. Only provided fields will be updated.',
+  })
+  @ApiParam({
+    name: 'packageId',
+    description: 'Package ID',
+    type: Number,
+    example: 1,
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Package updated successfully',
+    type: PackageDetailResponseDto,
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Package not found',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Bad request - validation failed',
+  })
+  @ApiResponse({
+    status: 500,
+    description: 'Internal server error',
+  })
+  async updatePackage(
+    @Param('packageId', ParseIntPipe) packageId: number,
+    @Body() updateRequest: UpdatePackageRequestDto,
+    @CorrelationId() correlationId?: string
+  ): Promise<PackageDetailResponseDto> {
+    const pkg = await this.productManagementService.updatePackage(
+      packageId,
+      {
+        name: updateRequest.name,
+        description: updateRequest.description,
+        underwriterId: updateRequest.underwriterId,
+        isActive: updateRequest.isActive,
+        logoPath: updateRequest.logoPath,
+      },
+      correlationId || 'unknown'
+    );
+
+    return {
+      status: HttpStatus.OK,
+      correlationId: correlationId || 'unknown',
+      message: 'Package updated successfully',
+      data: pkg,
+    };
+  }
+
+  /**
+   * Get schemes for a package with customer counts
+   */
+  @Get('packages/:packageId/schemes-with-counts')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Get schemes for a package with customer counts',
+    description: 'Retrieve all schemes for a specific package with customer counts.',
+  })
+  @ApiParam({
+    name: 'packageId',
+    description: 'Package ID',
+    type: Number,
+    example: 1,
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Schemes retrieved successfully',
+    type: PackageSchemesResponseDto,
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Package not found',
+  })
+  @ApiResponse({
+    status: 500,
+    description: 'Internal server error',
+  })
+  async getPackageSchemesWithCounts(
+    @Param('packageId', ParseIntPipe) packageId: number,
+    @CorrelationId() correlationId?: string
+  ): Promise<PackageSchemesResponseDto> {
+    const schemes = await this.productManagementService.getPackageSchemesWithCounts(
+      packageId,
+      correlationId || 'unknown'
+    );
+
+    return {
+      status: HttpStatus.OK,
+      correlationId: correlationId || 'unknown',
+      message: 'Schemes retrieved successfully',
+      data: schemes,
+    };
+  }
+
+  /**
+   * Create a new scheme
+   */
+  @Post('schemes')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({
+    summary: 'Create a new scheme',
+    description: 'Create a new scheme, optionally linked to a package.',
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'Scheme created successfully',
+    type: SchemeDetailResponseDto,
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Invalid request data',
+  })
+  @ApiResponse({
+    status: 500,
+    description: 'Internal server error',
+  })
+  async createScheme(
+    @Body() createRequest: CreateSchemeRequestDto,
+    @UserId() userId: string,
+    @CorrelationId() correlationId: string
+  ): Promise<SchemeDetailResponseDto> {
+    const scheme = await this.productManagementService.createScheme(
+      createRequest,
+      userId,
+      correlationId
+    );
+
+    return {
+      status: HttpStatus.CREATED,
+      correlationId,
+      message: 'Scheme created successfully',
+      data: scheme,
+    };
+  }
+
+  /**
+   * Get scheme by ID
+   */
+  @Get('schemes/:schemeId')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Get scheme details',
+    description: 'Retrieve detailed information about a specific scheme.',
+  })
+  @ApiParam({
+    name: 'schemeId',
+    description: 'Scheme ID',
+    type: Number,
+    example: 1,
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Scheme retrieved successfully',
+    type: SchemeDetailResponseDto,
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Scheme not found',
+  })
+  @ApiResponse({
+    status: 500,
+    description: 'Internal server error',
+  })
+  async getSchemeById(
+    @Param('schemeId', ParseIntPipe) schemeId: number,
+    @CorrelationId() correlationId?: string
+  ): Promise<SchemeDetailResponseDto> {
+    const scheme = await this.productManagementService.getSchemeById(
+      schemeId,
+      correlationId || 'unknown'
+    );
+
+    return {
+      status: HttpStatus.OK,
+      correlationId: correlationId || 'unknown',
+      message: 'Scheme retrieved successfully',
+      data: scheme,
+    };
+  }
+
+  /**
+   * Update a scheme
+   */
+  @Put('schemes/:schemeId')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Update a scheme',
+    description: 'Update an existing scheme. Only provided fields will be updated.',
+  })
+  @ApiParam({
+    name: 'schemeId',
+    description: 'Scheme ID',
+    type: Number,
+    example: 1,
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Scheme updated successfully',
+    type: SchemeDetailResponseDto,
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Scheme not found',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Bad request - validation failed',
+  })
+  @ApiResponse({
+    status: 500,
+    description: 'Internal server error',
+  })
+  async updateScheme(
+    @Param('schemeId', ParseIntPipe) schemeId: number,
+    @Body() updateRequest: UpdateSchemeRequestDto,
+    @CorrelationId() correlationId?: string
+  ): Promise<SchemeDetailResponseDto> {
+    const scheme = await this.productManagementService.updateScheme(
+      schemeId,
+      {
+        schemeName: updateRequest.schemeName,
+        description: updateRequest.description,
+        isActive: updateRequest.isActive,
+      },
+      correlationId || 'unknown'
+    );
+
+    return {
+      status: HttpStatus.OK,
+      correlationId: correlationId || 'unknown',
+      message: 'Scheme updated successfully',
+      data: scheme,
+    };
+  }
+
+  /**
+   * Get customers for a scheme with pagination
+   */
+  @Get('schemes/:schemeId/customers')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Get customers for a scheme',
+    description: 'Retrieve a paginated list of customers enrolled in a specific scheme.',
+  })
+  @ApiParam({
+    name: 'schemeId',
+    description: 'Scheme ID',
+    type: Number,
+    example: 1,
+  })
+  @ApiQuery({
+    name: 'page',
+    description: 'Page number (default: 1)',
+    required: false,
+    type: Number,
+    example: 1,
+  })
+  @ApiQuery({
+    name: 'pageSize',
+    description: 'Items per page (default: 20, max: 100)',
+    required: false,
+    type: Number,
+    example: 20,
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Customers retrieved successfully',
+    type: SchemeCustomersResponseDto,
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Scheme not found',
+  })
+  @ApiResponse({
+    status: 500,
+    description: 'Internal server error',
+  })
+  async getSchemeCustomers(
+    @Param('schemeId', ParseIntPipe) schemeId: number,
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+    @CorrelationId() correlationId?: string
+  ): Promise<SchemeCustomersResponseDto> {
+    const pageNum = page ? parseInt(page, 10) : 1;
+    const pageSizeNum = pageSize ? parseInt(pageSize, 10) : 20;
+
+    const result = await this.productManagementService.getSchemeCustomers(
+      schemeId,
+      pageNum,
+      pageSizeNum,
+      correlationId || 'unknown'
+    );
+
+    return {
+      status: HttpStatus.OK,
+      correlationId: correlationId || 'unknown',
+      message: 'Customers retrieved successfully',
+      ...result,
     };
   }
 }

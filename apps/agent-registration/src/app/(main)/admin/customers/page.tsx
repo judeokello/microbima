@@ -395,6 +395,17 @@ export default function AdminCustomersPage() {
                     {pagination.totalItems} results
                   </div>
                   <div className="flex items-center space-x-2">
+                    <select
+                      value={pageSize.toString()}
+                      onChange={(e) => handlePageSizeChange(e.target.value)}
+                      className="px-3 py-1 border rounded-md text-sm"
+                    >
+                      <option value="10">10</option>
+                      <option value="20">20</option>
+                      <option value="30">30</option>
+                      <option value="50">50</option>
+                      <option value="100">100</option>
+                    </select>
                     <Button
                       variant="outline"
                       size="sm"

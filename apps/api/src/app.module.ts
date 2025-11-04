@@ -16,6 +16,7 @@ import { AgentRegistrationService } from './services/agent-registration.service'
 import { MissingRequirementService } from './services/missing-requirement.service';
 import { ProductManagementService } from './services/product-management.service';
 import { PolicyService } from './services/policy.service';
+import { UnderwriterService } from './services/underwriter.service';
 import { CustomerController } from './controllers/customer.controller';
 import { InternalCustomerController } from './controllers/internal/customer.controller';
 import { InternalPartnerManagementController } from './controllers/internal/partner-management.controller';
@@ -27,6 +28,8 @@ import { AgentRegistrationController } from './controllers/internal/agent-regist
 import { BootstrapController } from './controllers/internal/bootstrap.controller';
 import { ProductManagementController } from './controllers/internal/product-management.controller';
 import { PolicyController } from './controllers/internal/policy.controller';
+import { UnderwriterController } from './controllers/internal/underwriter.controller';
+import { UserController } from './controllers/internal/user.controller';
 
 @Module({
   imports: [
@@ -34,8 +37,8 @@ import { PolicyController } from './controllers/internal/policy.controller';
     ConfigurationModule,
     PrismaModule
   ],
-  controllers: [AppController, CustomerController, InternalCustomerController, InternalPartnerManagementController, PublicPartnerManagementController, SupabaseTestController, ConnectionMonitorController, SosController, AgentRegistrationController, BootstrapController, ProductManagementController, PolicyController],
-  providers: [AppService, ExternalIntegrationsService, CustomerService, PartnerManagementService, SupabaseService, SosService, AgentRegistrationService, MissingRequirementService, ProductManagementService, PolicyService],
+  controllers: [AppController, CustomerController, InternalCustomerController, InternalPartnerManagementController, PublicPartnerManagementController, SupabaseTestController, ConnectionMonitorController, SosController, AgentRegistrationController, BootstrapController, ProductManagementController, PolicyController, UnderwriterController, UserController],
+  providers: [AppService, ExternalIntegrationsService, CustomerService, PartnerManagementService, SupabaseService, SosService, AgentRegistrationService, MissingRequirementService, ProductManagementService, PolicyService, UnderwriterService],
   exports: [PrismaModule], // Export PrismaModule so middleware can access PrismaService
 })
 export class AppModule implements NestModule {

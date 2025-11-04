@@ -516,11 +516,13 @@ model DeferredRequirementPartner {
 
 // Product Management Models
 model Underwriter {
-  id             Int    @id @default(autoincrement())
-  name           String @db.VarChar(100)
-  shortName      String @db.VarChar(50)
-  website        String @db.VarChar(100)
-  officeLocation String @db.VarChar(200)
+  id             Int     @id @default(autoincrement())
+  name           String  @db.VarChar(100)
+  shortName      String  @db.VarChar(50)
+  website        String  @db.VarChar(100)
+  officeLocation String  @db.VarChar(200)
+  isActive       Boolean @default(true)
+  logoPath       String? @db.VarChar(200)
 
   // Relations
   packages Package[]
@@ -528,6 +530,7 @@ model Underwriter {
   // Audit fields
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  createdBy String // User ID who created
 
   @@map("underwriters")
 }
@@ -540,6 +543,7 @@ model Package {
   isActive           Boolean @default(true)
   policyNumberFormat String? @db.VarChar(200)
   memberNumberFormat String? @db.VarChar(200)
+  logoPath           String? @db.VarChar(200)
 
   // Relations
   underwriter     Underwriter?     @relation(fields: [underwriterId], references: [id])
@@ -551,6 +555,7 @@ model Package {
   // Audit fields
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  createdBy String // User ID who created
 
   @@map("packages")
 }
@@ -616,6 +621,7 @@ model Scheme {
   // Audit fields
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  createdBy String // User ID who created
 
   @@map("schemes")
 }

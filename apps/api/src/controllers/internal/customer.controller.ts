@@ -12,6 +12,7 @@ import {
   UseGuards,
   Req,
   Res,
+  UnauthorizedException,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -119,12 +120,14 @@ export class InternalCustomerController {
     @Query('fromDate') fromDate?: string,
     @Query('toDate') toDate?: string,
   ): Promise<BrandAmbassadorRegistrationsResponseDto> {
-    const userId = req.user?.id || 'system';
-    const baInfo = await this.partnerManagementService.getBrandAmbassadorByUserId(userId);
-    const partnerId = baInfo.partnerId;
+    const userId = req.user?.id;
+    
+    if (!userId) {
+      throw new UnauthorizedException('User ID not found in request');
+    }
 
     return this.customerService.getBrandAmbassadorRegistrations(
-      partnerId,
+      userId,
       parseInt(page),
       parseInt(pageSize),
       fromDate,

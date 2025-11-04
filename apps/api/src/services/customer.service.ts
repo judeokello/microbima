@@ -1003,9 +1003,10 @@ export class CustomerService {
 
   /**
    * Get brand ambassador's customer registrations with pagination and filtering
+   * Filters by createdBy (userId) to show only customers created by the logged-in user
    */
   async getBrandAmbassadorRegistrations(
-    partnerId: number,
+    userId: string,
     page: number = 1,
     pageSize: number = 20,
     fromDate?: string,
@@ -1013,7 +1014,7 @@ export class CustomerService {
     correlationId: string = 'unknown'
   ) {
     try {
-      this.logger.log(`[${correlationId}] Getting brand ambassador registrations for partner ${partnerId}, page ${page}, pageSize ${pageSize}`);
+      this.logger.log(`[${correlationId}] Getting brand ambassador registrations for user ${userId}, page ${page}, pageSize ${pageSize}`);
 
       const skip = (page - 1) * pageSize;
       
@@ -1027,7 +1028,7 @@ export class CustomerService {
       }
 
       const whereClause: any = {
-        createdByPartnerId: partnerId,
+        createdBy: userId, // Filter by user ID who created the customer
       };
 
       if (Object.keys(dateFilter).length > 0) {
