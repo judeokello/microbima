@@ -467,15 +467,12 @@ export class PartnerManagementService {
     const displayName = `${brandAmbassadorData.firstName} ${brandAmbassadorData.lastName}`.trim();
 
     // Step 1: Create Supabase user
+    // Only store roles in user metadata - other data is stored in brand_ambassadors table
     const userResult = await this.supabaseService.createUser({
       email: brandAmbassadorData.email,
       password: brandAmbassadorData.password,
       userMetadata: {
         roles: brandAmbassadorData.roles,
-        partnerId: partnerId,
-        displayName: displayName,
-        phone: brandAmbassadorData.phoneNumber,
-        perRegistrationRateCents: brandAmbassadorData.perRegistrationRateCents
       }
     });
 
@@ -676,6 +673,32 @@ export class PartnerManagementService {
   }
 
   /**
+   * Check Brand Ambassador active status by User ID
+   * @param userId - Supabase User ID
+   * @returns Brand Ambassador active status
+   */
+  async checkBrandAmbassadorActiveStatus(userId: string): Promise<{ isActive: boolean; exists: boolean }> {
+    this.logger.log(`Checking Brand Ambassador active status for user: ${userId}`);
+
+    const brandAmbassador = await this.prismaService.brandAmbassador.findFirst({
+      where: {
+        userId: userId,
+      },
+      select: {
+        isActive: true,
+      },
+    });
+
+    if (!brandAmbassador) {
+      this.logger.log(`Brand Ambassador not found for user: ${userId}`);
+      return { isActive: false, exists: false };
+    }
+
+    this.logger.log(`Brand Ambassador status for user ${userId}: isActive=${brandAmbassador.isActive}`);
+    return { isActive: brandAmbassador.isActive, exists: true };
+  }
+
+  /**
    * Get Brand Ambassador by User ID
    * @param userId - Supabase User ID
    * @returns Brand Ambassador information
@@ -714,5 +737,306 @@ export class PartnerManagementService {
       isActive: brandAmbassador.isActive,
       partner: brandAmbassador.partner,
     };
+  }
+
+  /**
+   * Update a Brand Ambassador
+   * @param id - Brand Ambassador ID
+   * @param updateData - Update data
+   * @param updatedByUserId - User ID of the admin performing the update
+   * @param correlationId - Correlation ID for tracing
+   * @returns Updated Brand Ambassador
+   */
+  async updateBrandAmbassador(
+    id: string,
+    updateData: {
+      partnerId?: number;
+      phoneNumber?: string;
+      perRegistrationRateCents?: number;
+      isActive?: boolean;
+      roles?: string[];
+    },
+    updatedByUserId: string,
+    correlationId: string
+  ) {
+    this.logger.log(`[${correlationId}] Updating Brand Ambassador: ${id}`);
+
+    // Check if Brand Ambassador exists
+    const existingBA = await this.prismaService.brandAmbassador.findUnique({
+      where: { id },
+    });
+
+    if (!existingBA) {
+      throw new NotFoundException(`Brand Ambassador with ID ${id} not found`);
+    }
+
+    // Validate partner if partnerId is being updated
+    if (updateData.partnerId !== undefined) {
+      const partner = await this.prismaService.partner.findFirst({
+        where: {
+          id: updateData.partnerId,
+          isActive: true,
+        },
+      });
+
+      if (!partner) {
+        throw new NotFoundException(`Partner with ID ${updateData.partnerId} not found or inactive`);
+      }
+    }
+
+    // Prepare update data (only include fields that are provided)
+    const dataToUpdate: any = {
+      updatedBy: updatedByUserId,
+    };
+
+    if (updateData.partnerId !== undefined) {
+      dataToUpdate.partnerId = updateData.partnerId;
+    }
+
+    if (updateData.phoneNumber !== undefined) {
+      dataToUpdate.phoneNumber = updateData.phoneNumber || null;
+    }
+
+    if (updateData.perRegistrationRateCents !== undefined) {
+      dataToUpdate.perRegistrationRateCents = updateData.perRegistrationRateCents;
+    }
+
+    if (updateData.isActive !== undefined) {
+      dataToUpdate.isActive = updateData.isActive;
+    }
+
+    // Update the Brand Ambassador
+    const updatedBA = await this.prismaService.brandAmbassador.update({
+      where: { id },
+      data: dataToUpdate,
+      include: {
+        partner: {
+          select: {
+            id: true,
+            partnerName: true,
+            isActive: true,
+          },
+        },
+      },
+    });
+
+    // Update user metadata roles if provided
+    if (updateData.roles !== undefined) {
+      // Get current user metadata
+      const { data: { user }, error: getUserError } = await this.supabaseService
+        .getClient()
+        .auth.admin.getUserById(existingBA.userId);
+
+      if (getUserError || !user) {
+        this.logger.warn(`[${correlationId}] Could not fetch user metadata for role update: ${getUserError?.message}`);
+      } else {
+        // Clean up metadata to only keep roles - remove other fields that are stored in DB
+        const updatedMetadata = {
+          roles: updateData.roles,
+        };
+
+        // Update user metadata with new roles
+        const { error: updateMetadataError } = await this.supabaseService
+          .getClient()
+          .auth.admin.updateUserById(existingBA.userId, {
+            user_metadata: updatedMetadata,
+          });
+
+        if (updateMetadataError) {
+          this.logger.error(`[${correlationId}] Error updating user metadata: ${updateMetadataError.message}`);
+          // Don't throw - BA update succeeded, role update is secondary
+        } else {
+          this.logger.log(`[${correlationId}] ✅ User roles updated successfully`);
+        }
+      }
+    }
+
+    this.logger.log(`[${correlationId}] ✅ Brand Ambassador updated successfully: ${updatedBA.id}`);
+    return updatedBA;
+  }
+
+  /**
+   * Get user metadata (roles) for a Brand Ambassador
+   * @param baId - Brand Ambassador ID
+   * @param correlationId - Correlation ID for tracing
+   * @returns User roles array
+   */
+  async getBrandAmbassadorRoles(
+    baId: string,
+    correlationId: string
+  ): Promise<string[]> {
+    this.logger.log(`[${correlationId}] Getting roles for Brand Ambassador: ${baId}`);
+
+    // Get Brand Ambassador to find userId
+    const brandAmbassador = await this.prismaService.brandAmbassador.findUnique({
+      where: { id: baId },
+    });
+
+    if (!brandAmbassador) {
+      throw new NotFoundException(`Brand Ambassador with ID ${baId} not found`);
+    }
+
+    // Get user from Supabase
+    const { data: { user }, error } = await this.supabaseService
+      .getClient()
+      .auth.admin.getUserById(brandAmbassador.userId);
+
+    if (error || !user) {
+      throw new NotFoundException(`User with ID ${brandAmbassador.userId} not found`);
+    }
+
+    const userMetadata = user.user_metadata || {};
+    const roles = userMetadata.roles || [];
+
+    this.logger.log(`[${correlationId}] ✅ Retrieved roles for Brand Ambassador: ${roles.join(', ')}`);
+    return roles;
+  }
+
+  /**
+   * Update Brand Ambassador password
+   * @param baId - Brand Ambassador ID
+   * @param password - New password
+   * @param correlationId - Correlation ID for tracing
+   * @returns Success status
+   */
+  async updateBrandAmbassadorPassword(
+    baId: string,
+    password: string,
+    correlationId: string
+  ) {
+    this.logger.log(`[${correlationId}] Updating password for Brand Ambassador: ${baId}`);
+
+    // Get Brand Ambassador to find userId
+    const brandAmbassador = await this.prismaService.brandAmbassador.findUnique({
+      where: { id: baId },
+    });
+
+    if (!brandAmbassador) {
+      throw new NotFoundException(`Brand Ambassador with ID ${baId} not found`);
+    }
+
+    // Update password using Supabase admin API
+    const { data: updatedUser, error } = await this.supabaseService
+      .getClient()
+      .auth.admin.updateUserById(brandAmbassador.userId, {
+        password: password,
+      });
+
+    if (error) {
+      this.logger.error(`[${correlationId}] Error updating password: ${error.message}`);
+      throw new BadRequestException(`Failed to update password: ${error.message}`);
+    }
+
+    this.logger.log(`[${correlationId}] ✅ Password updated successfully for Brand Ambassador: ${baId}`);
+    return { success: true };
+  }
+
+  /**
+   * Clean up user metadata for all Brand Ambassadors
+   * Removes duplicate fields (displayName, phone, partnerId, perRegistrationRateCents, email_verified)
+   * and keeps only the roles array
+   * @param correlationId - Correlation ID for tracing
+   * @returns Number of users cleaned up
+   */
+  async cleanupBrandAmbassadorMetadata(correlationId: string): Promise<number> {
+    this.logger.log(`[${correlationId}] Starting user metadata cleanup for Brand Ambassadors`);
+
+    let cleanedCount = 0;
+
+    try {
+      // Get all Brand Ambassadors
+      const brandAmbassadors = await this.prismaService.brandAmbassador.findMany({
+        select: {
+          id: true,
+          userId: true,
+        },
+      });
+
+      this.logger.log(`[${correlationId}] Found ${brandAmbassadors.length} Brand Ambassadors to process`);
+
+      // Process each Brand Ambassador
+      for (const ba of brandAmbassadors) {
+        try {
+          // Get current user from Supabase
+          const { data: { user }, error: getUserError } = await this.supabaseService
+            .getClient()
+            .auth.admin.getUserById(ba.userId);
+
+          if (getUserError || !user) {
+            this.logger.warn(`[${correlationId}] Could not fetch user ${ba.userId}: ${getUserError?.message}`);
+            continue;
+          }
+
+          const currentMetadata = user.user_metadata || {};
+          const roles = currentMetadata.roles || [];
+
+          // Check if cleanup is needed (if metadata has more than just roles)
+          const hasExtraFields = Object.keys(currentMetadata).some(
+            key => key !== 'roles'
+          );
+
+          if (!hasExtraFields) {
+            // Already clean, skip
+            continue;
+          }
+
+          // Clean metadata to only keep roles
+          // Note: Supabase admin.updateUserById should replace user_metadata entirely
+          // But we'll verify it worked by fetching the user again after update
+          const cleanedMetadata = {
+            roles: roles,
+          };
+
+          this.logger.log(`[${correlationId}] Updating metadata for user ${ba.userId} - current: ${JSON.stringify(currentMetadata)}, new: ${JSON.stringify(cleanedMetadata)}`);
+
+          // Update user metadata
+          const { data: updateResult, error: updateError } = await this.supabaseService
+            .getClient()
+            .auth.admin.updateUserById(ba.userId, {
+              user_metadata: cleanedMetadata,
+            });
+
+          if (updateError) {
+            this.logger.error(`[${correlationId}] Error cleaning metadata for user ${ba.userId}: ${updateError.message}`);
+            continue;
+          }
+
+          // Wait a moment for the update to propagate
+          await new Promise(resolve => setTimeout(resolve, 100));
+
+          // Verify the update actually worked by fetching the user again
+          const { data: { user: verifyUser }, error: verifyError } = await this.supabaseService
+            .getClient()
+            .auth.admin.getUserById(ba.userId);
+
+          if (verifyError || !verifyUser) {
+            this.logger.error(`[${correlationId}] Could not verify update for user ${ba.userId}: ${verifyError?.message}`);
+            continue;
+          }
+
+          const verifiedMetadata = verifyUser.user_metadata || {};
+          const verifiedKeys = Object.keys(verifiedMetadata);
+          const stillHasExtraFields = verifiedKeys.some(key => key !== 'roles');
+
+          if (stillHasExtraFields) {
+            this.logger.error(`[${correlationId}] ❌ Metadata update failed for user ${ba.userId} - still has extra fields: ${verifiedKeys.filter(k => k !== 'roles').join(', ')}. Current metadata: ${JSON.stringify(verifiedMetadata)}`);
+            // Don't increment cleanedCount - the update didn't work
+            continue;
+          }
+
+          cleanedCount++;
+          this.logger.log(`[${correlationId}] ✅ Cleaned metadata for Brand Ambassador ${ba.id} (user ${ba.userId}) - verified: ${JSON.stringify(verifiedMetadata)}`);
+        } catch (error) {
+          this.logger.error(`[${correlationId}] Error processing Brand Ambassador ${ba.id}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+          continue;
+        }
+      }
+
+      this.logger.log(`[${correlationId}] ✅ Metadata cleanup completed. Cleaned ${cleanedCount} of ${brandAmbassadors.length} users`);
+      return cleanedCount;
+    } catch (error) {
+      this.logger.error(`[${correlationId}] Error during metadata cleanup: ${error instanceof Error ? error.message : 'Unknown error'}`, error instanceof Error ? error.stack : undefined);
+      throw error;
+    }
   }
 }

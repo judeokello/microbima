@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -10,14 +10,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Checkbox } from '@/components/ui/checkbox'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Loader2 } from 'lucide-react'
-import { createBrandAmbassador, ROLES } from '@/lib/api'
+import { createBrandAmbassador, getPartners, ROLES, Partner } from '@/lib/api'
 import { useAuth } from '@/hooks/useAuth'
-
-interface Partner {
-  id: number
-  partnerName: string
-  isActive: boolean
-}
+import { formatPhoneNumber, getPhoneValidationError, validatePhoneNumber } from '@/lib/phone-validation'
 
 export default function BARegistrationPage() {
   const router = useRouter()
@@ -34,32 +29,29 @@ export default function BARegistrationPage() {
     lastName: '',
     phone: '',
     partnerId: '',
-    perRegistrationRateCents: '',
+    perRegistrationRateShillings: '',
     roles: [ROLES.BRAND_AMBASSADOR] as string[] // Default to BA role
   })
 
-  // TEMPORARY: Hardcoded partners until API issue is resolved
-  const [partners] = useState<Partner[]>([
-    { id: 1, partnerName: 'Maisha Poa', isActive: true }
-  ])
-  const [loadingPartners] = useState(false)
+  const [partners, setPartners] = useState<Partner[]>([])
+  const [loadingPartners, setLoadingPartners] = useState(true)
+  const [phoneError, setPhoneError] = useState<string | null>(null)
 
-  // TODO: Re-enable API call once authentication issue is fixed
-  // useEffect(() => {
-  //   async function loadPartners() {
-  //     if (!user) return // Wait for authentication
-  //     try {
-  //       const partnersData = await getPartners()
-  //       setPartners(partnersData)
-  //     } catch (err) {
-  //       console.error('Failed to load partners:', err)
-  //       setError('Failed to load partners')
-  //     } finally {
-  //       setLoadingPartners(false)
-  //     }
-  //   }
-  //   loadPartners()
-  // }, [user]) // Depend on user authentication
+  useEffect(() => {
+    async function loadPartners() {
+      try {
+        setLoadingPartners(true)
+        const partnersData = await getPartners()
+        setPartners(partnersData)
+      } catch (err) {
+        console.error('Failed to load partners:', err)
+        setError('Failed to load partners. Please refresh the page.')
+      } finally {
+        setLoadingPartners(false)
+      }
+    }
+    loadPartners()
+  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -76,12 +68,25 @@ export default function BARegistrationPage() {
         throw new Error('Please fill in all required fields')
       }
 
+      // Validate phone number if provided
+      if (formData.phone) {
+        const phoneErr = getPhoneValidationError(formData.phone)
+        if (phoneErr) {
+          setPhoneError(phoneErr)
+          setLoading(false)
+          return
+        }
+      }
+
       // Role validation - at least one role must be selected
       if (formData.roles.length === 0) {
         throw new Error('Please select at least one role')
       }
 
       // Create BA - combine firstName and lastName into displayName
+      // Convert shillings to number (handle decimal input like 5.50)
+      const rateShillings = parseFloat(formData.perRegistrationRateShillings) || 0
+
       const result = await createBrandAmbassador({
         email: formData.email,
         password: formData.password,
@@ -89,7 +94,7 @@ export default function BARegistrationPage() {
         lastName: formData.lastName,
         phone: formData.phone,
         partnerId: parseInt(formData.partnerId),
-        perRegistrationRateCents: parseInt(formData.perRegistrationRateCents) ?? 0,
+        perRegistrationRateShillings: rateShillings,
         roles: formData.roles
       })
 
@@ -233,9 +238,17 @@ export default function BARegistrationPage() {
                 <Input
                   id="phone"
                   value={formData.phone}
-                  onChange={(e) => handleInputChange('phone', e.target.value)}
-                  placeholder="+254700000000"
+                  onChange={(e) => {
+                    const formatted = formatPhoneNumber(e.target.value)
+                    handleInputChange('phone', formatted)
+                    setPhoneError(getPhoneValidationError(formatted))
+                  }}
+                  placeholder="01XXXXXXXX or 07XXXXXXXX"
+                  maxLength={10}
                 />
+                {phoneError && (
+                  <p className="text-sm text-destructive">{phoneError}</p>
+                )}
               </div>
 
               <div className="space-y-2">
@@ -260,13 +273,13 @@ export default function BARegistrationPage() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="perRegistrationRateCents">Per Registration Rate (KSh)</Label>
+              <Label htmlFor="perRegistrationRateShillings">Per Registration Rate (KSh)</Label>
               <Input
-                id="perRegistrationRateCents"
+                id="perRegistrationRateShillings"
                 type="number"
-                value={formData.perRegistrationRateCents}
-                onChange={(e) => handleInputChange('perRegistrationRateCents', e.target.value)}
-                placeholder="500"
+                value={formData.perRegistrationRateShillings}
+                onChange={(e) => handleInputChange('perRegistrationRateShillings', e.target.value)}
+                placeholder="200"
                 min="0"
               />
               <p className="text-sm text-muted-foreground">

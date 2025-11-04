@@ -2,6 +2,7 @@ import {
   Controller,
   Post,
   Get,
+  Put,
   Body,
   Param,
   Query,
@@ -23,6 +24,7 @@ import { PartnerManagementService } from '../../services/partner-management.serv
 import { PartnerMapper } from '../../mappers/partner.mapper';
 import { PartnerApiKeyMapper } from '../../mappers/partner-api-key.mapper';
 import { CorrelationId } from '../../decorators/correlation-id.decorator';
+import { UserId } from '../../decorators/user.decorator';
 import {
   CreatePartnerRequestDto,
   CreatePartnerResponseDto,
@@ -33,6 +35,8 @@ import {
   PartnerListResponseDto,
 } from '../../dto/partner-management';
 import { CreateBrandAmbassadorFromExistingUserRequestDto } from '../../dto/partner-management/create-brand-ambassador-from-existing-user-request.dto';
+import { UpdateBrandAmbassadorRequestDto } from '../../dto/partner-management/update-brand-ambassador-request.dto';
+import { UpdateBrandAmbassadorPasswordRequestDto } from '../../dto/partner-management/update-brand-ambassador-password-request.dto';
 
 /**
  * Internal Partner Management Controller
@@ -517,6 +521,48 @@ export class InternalPartnerManagementController {
   }
 
   /**
+   * Check Brand Ambassador active status by User ID
+   */
+  @Get('brand-ambassadors/check-status/:userId')
+  @ApiOperation({
+    summary: 'Check Brand Ambassador active status',
+    description: 'Check if a Brand Ambassador exists and is active for a specific user ID.',
+  })
+  @ApiParam({
+    name: 'userId',
+    description: 'Supabase User ID',
+    type: 'string',
+    example: '123e4567-e89b-12d3-a456-426614174000',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Brand Ambassador status checked successfully',
+    schema: {
+      type: 'object',
+      properties: {
+        isActive: { type: 'boolean', example: true },
+        exists: { type: 'boolean', example: true },
+      },
+    },
+  })
+  async checkBrandAmbassadorActiveStatus(
+    @Param('userId') userId: string,
+    @CorrelationId() correlationId: string,
+  ) {
+    try {
+      this.logger.log(`[${correlationId}] Checking Brand Ambassador active status for user: ${userId}`);
+
+      const status = await this.partnerManagementService.checkBrandAmbassadorActiveStatus(userId);
+
+      this.logger.log(`[${correlationId}] ✅ Brand Ambassador status checked: exists=${status.exists}, isActive=${status.isActive}`);
+      return status;
+    } catch (error) {
+      this.logger.error(`[${correlationId}] Error checking Brand Ambassador status: ${error instanceof Error ? error.message : 'Unknown error'}`, error instanceof Error ? error.stack : undefined);
+      throw error;
+    }
+  }
+
+  /**
    * Get Brand Ambassador by User ID
    */
   @Get('brand-ambassadors/by-user/:userId')
@@ -551,6 +597,231 @@ export class InternalPartnerManagementController {
       return brandAmbassador;
     } catch (error) {
       this.logger.error(`[${correlationId}] Error getting Brand Ambassador: ${error instanceof Error ? error.message : 'Unknown error'}`, error instanceof Error ? error.stack : undefined);
+      throw error;
+    }
+  }
+
+  /**
+   * Update Brand Ambassador
+   */
+  @Put('brand-ambassadors/:id')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Update Brand Ambassador',
+    description: 'Update an existing Brand Ambassador. Only provided fields will be updated.',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'Brand Ambassador ID',
+    type: 'string',
+    example: '123e4567-e89b-12d3-a456-426614174000',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Brand Ambassador updated successfully',
+    type: CreateBrandAmbassadorResponseDto,
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Brand Ambassador not found',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Bad request - validation failed',
+  })
+  @ApiResponse({
+    status: 500,
+    description: 'Internal server error',
+  })
+  async updateBrandAmbassador(
+    @Param('id') id: string,
+    @Body() dto: UpdateBrandAmbassadorRequestDto,
+    @UserId() userId: string,
+    @CorrelationId() correlationId: string,
+  ): Promise<CreateBrandAmbassadorResponseDto> {
+    try {
+      this.logger.log(`[${correlationId}] Updating Brand Ambassador: ${id}`);
+
+      const updatedBA = await this.partnerManagementService.updateBrandAmbassador(
+        id,
+        dto,
+        userId,
+        correlationId
+      );
+
+      const response: CreateBrandAmbassadorResponseDto = {
+        id: updatedBA.id,
+        userId: updatedBA.userId,
+        partnerId: updatedBA.partnerId,
+        displayName: updatedBA.displayName,
+        phoneNumber: updatedBA.phoneNumber || undefined,
+        perRegistrationRateCents: updatedBA.perRegistrationRateCents,
+        isActive: updatedBA.isActive,
+        createdAt: updatedBA.createdAt,
+        updatedAt: updatedBA.updatedAt,
+      };
+
+      this.logger.log(`[${correlationId}] ✅ Brand Ambassador updated successfully: ${updatedBA.id}`);
+      return response;
+    } catch (error) {
+      this.logger.error(`[${correlationId}] Error updating Brand Ambassador: ${error instanceof Error ? error.message : 'Unknown error'}`, error instanceof Error ? error.stack : undefined);
+      throw error;
+    }
+  }
+
+  /**
+   * Get Brand Ambassador roles
+   */
+  @Get('brand-ambassadors/:id/roles')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Get Brand Ambassador roles',
+    description: 'Get the user roles for a Brand Ambassador from user metadata.',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'Brand Ambassador ID',
+    type: 'string',
+    example: '123e4567-e89b-12d3-a456-426614174000',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Roles retrieved successfully',
+    schema: {
+      type: 'object',
+      properties: {
+        roles: {
+          type: 'array',
+          items: { type: 'string' },
+          example: ['brand_ambassador', 'registration_admin'],
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Brand Ambassador not found',
+  })
+  async getBrandAmbassadorRoles(
+    @Param('id') id: string,
+    @CorrelationId() correlationId: string,
+  ) {
+    try {
+      this.logger.log(`[${correlationId}] Getting roles for Brand Ambassador: ${id}`);
+
+      const roles = await this.partnerManagementService.getBrandAmbassadorRoles(
+        id,
+        correlationId
+      );
+
+      this.logger.log(`[${correlationId}] ✅ Roles retrieved successfully for Brand Ambassador: ${id}`);
+      return { roles };
+    } catch (error) {
+      this.logger.error(`[${correlationId}] Error getting roles: ${error instanceof Error ? error.message : 'Unknown error'}`, error instanceof Error ? error.stack : undefined);
+      throw error;
+    }
+  }
+
+  /**
+   * Update Brand Ambassador password
+   */
+  @Put('brand-ambassadors/:id/password')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Update Brand Ambassador password',
+    description: 'Update the password for a Brand Ambassador. No email notification will be sent.',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'Brand Ambassador ID',
+    type: 'string',
+    example: '123e4567-e89b-12d3-a456-426614174000',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Password updated successfully',
+    schema: {
+      type: 'object',
+      properties: {
+        success: { type: 'boolean', example: true },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Brand Ambassador not found',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Bad request - validation failed',
+  })
+  @ApiResponse({
+    status: 500,
+    description: 'Internal server error',
+  })
+  async updateBrandAmbassadorPassword(
+    @Param('id') id: string,
+    @Body() dto: UpdateBrandAmbassadorPasswordRequestDto,
+    @CorrelationId() correlationId: string,
+  ) {
+    try {
+      this.logger.log(`[${correlationId}] Updating password for Brand Ambassador: ${id}`);
+
+      const result = await this.partnerManagementService.updateBrandAmbassadorPassword(
+        id,
+        dto.password,
+        correlationId
+      );
+
+      this.logger.log(`[${correlationId}] ✅ Password updated successfully for Brand Ambassador: ${id}`);
+      return result;
+    } catch (error) {
+      this.logger.error(`[${correlationId}] Error updating password: ${error instanceof Error ? error.message : 'Unknown error'}`, error instanceof Error ? error.stack : undefined);
+      throw error;
+    }
+  }
+
+  /**
+   * Clean up user metadata for all Brand Ambassadors
+   */
+  @Post('brand-ambassadors/cleanup-metadata')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Clean up user metadata for all Brand Ambassadors',
+    description: 'Removes duplicate fields from user metadata (displayName, phone, partnerId, perRegistrationRateCents, email_verified) and keeps only the roles array. This ensures single source of truth for BA data in the database.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Metadata cleanup completed',
+    schema: {
+      type: 'object',
+      properties: {
+        cleanedCount: { type: 'number', example: 5 },
+        totalProcessed: { type: 'number', example: 5 },
+        message: { type: 'string' },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 500,
+    description: 'Internal server error',
+  })
+  async cleanupBrandAmbassadorMetadata(
+    @CorrelationId() correlationId: string,
+  ) {
+    try {
+      this.logger.log(`[${correlationId}] Starting Brand Ambassador metadata cleanup`);
+
+      const cleanedCount = await this.partnerManagementService.cleanupBrandAmbassadorMetadata(correlationId);
+
+      this.logger.log(`[${correlationId}] ✅ Metadata cleanup completed: ${cleanedCount} users cleaned`);
+
+      return {
+        cleanedCount,
+        message: `Successfully cleaned metadata for ${cleanedCount} Brand Ambassador(s)`,
+      };
+    } catch (error) {
+      this.logger.error(`[${correlationId}] Error cleaning metadata: ${error instanceof Error ? error.message : 'Unknown error'}`, error instanceof Error ? error.stack : undefined);
       throw error;
     }
   }

@@ -8,7 +8,8 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Loader2 } from 'lucide-react'
-import { supabase } from '@/lib/supabase'
+import { supabase, ROLES } from '@/lib/supabase'
+import { checkBrandAmbassadorActiveStatus } from '@/lib/api'
 
 export default function LoginPage() {
   const router = useRouter()
@@ -37,10 +38,32 @@ export default function LoginPage() {
       }
 
       if (data.user) {
-        // Redirect based on user roles
+        // Get user roles from metadata
         const userMetadata = data.user.user_metadata as { roles?: string[] }
         const roles = userMetadata.roles ?? []
 
+        // Check if user is BA-only (has brand_ambassador but NOT registration_admin)
+        const isBAOnly = roles.includes(ROLES.BRAND_AMBASSADOR) && !roles.includes(ROLES.REGISTRATION_ADMIN)
+
+        if (isBAOnly) {
+          // Check BA active status before allowing login
+          try {
+            const status = await checkBrandAmbassadorActiveStatus(data.user.id)
+
+            if (!status.exists || !status.isActive) {
+              // BA is inactive or doesn't exist - sign out and show error
+              await supabase.auth.signOut()
+              setError('Your account has been deactivated. Please contact your administrator.')
+              return
+            }
+          } catch (error) {
+            console.error('Error checking BA status:', error)
+            // On API error, still allow login but log the error
+            // This prevents network issues from blocking legitimate users
+          }
+        }
+
+        // Redirect based on user roles
         if (roles.includes('registration_admin')) {
           router.push('/admin')
         } else if (roles.includes('brand_ambassador')) {

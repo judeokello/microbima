@@ -44,7 +44,7 @@ export interface CreateBARequest {
   lastName: string
   phone?: string
   partnerId: number
-  perRegistrationRateCents: number
+  perRegistrationRateShillings: number  // Rate in shillings (KES)
   roles: string[]  // ['brand_ambassador'] or ['brand_ambassador', 'registration_admin']
 }
 
@@ -62,6 +62,9 @@ export async function createBrandAmbassador(data: CreateBARequest): Promise<Crea
     const currentUserId = session?.user?.id
 
     // Prepare data for backend API (backend will handle user creation)
+    // Convert shillings to cents for backend
+    const perRegistrationRateCents = Math.round(data.perRegistrationRateShillings * 100)
+
     const baData = {
       email: data.email,
       password: data.password,
@@ -70,7 +73,7 @@ export async function createBrandAmbassador(data: CreateBARequest): Promise<Crea
       displayName: `${data.firstName} ${data.lastName}`.trim(),
       roles: data.roles,
       phoneNumber: data.phone,
-      perRegistrationRateCents: data.perRegistrationRateCents,
+      perRegistrationRateCents: perRegistrationRateCents,
       isActive: true,
       createdBy: currentUserId
     }
@@ -173,7 +176,8 @@ export async function getPartners(): Promise<Partner[]> {
       }
     }
     const data = await response.json();
-    return data.partners ?? [];
+    // Response structure: { status, message, data: { partners: [...], pagination: {...} } }
+    return data.data?.partners ?? [];
   } catch (error) {
     console.error('Error fetching partners:', error)
     // Return empty array on error to prevent UI breaking
@@ -181,14 +185,172 @@ export async function getPartners(): Promise<Partner[]> {
   }
 }
 
-export async function updateBrandAmbassador(id: string, data: Partial<BrandAmbassador>): Promise<boolean> {
+export interface UpdateBARequest {
+  partnerId?: number
+  phoneNumber?: string
+  perRegistrationRateShillings?: number  // Rate in shillings (KES)
+  isActive?: boolean
+  roles?: string[]
+}
+
+export async function updateBrandAmbassador(id: string, data: UpdateBARequest): Promise<boolean> {
   try {
-    // TODO: Call your NestJS API to update brand ambassador
-    console.log('Updating BA:', id, data)
+    const token = await getSupabaseToken()
+
+    // Convert shillings to cents if rate is provided
+    const updateData: {
+      partnerId?: number
+      phoneNumber?: string | null
+      perRegistrationRateCents?: number
+      isActive?: boolean
+    } = {}
+    if (data.partnerId !== undefined) {
+      updateData.partnerId = data.partnerId
+    }
+    if (data.phoneNumber !== undefined) {
+      updateData.phoneNumber = data.phoneNumber || null
+    }
+    if (data.perRegistrationRateShillings !== undefined) {
+      updateData.perRegistrationRateCents = Math.round(data.perRegistrationRateShillings * 100)
+    }
+    if (data.isActive !== undefined) {
+      updateData.isActive = data.isActive
+    }
+    if (data.roles !== undefined) {
+      updateData.roles = data.roles
+    }
+
+    const response = await fetch(
+      `${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/partner-management/brand-ambassadors/${id}`,
+      {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+          'x-correlation-id': `ba-update-${Date.now()}`
+        },
+        body: JSON.stringify(updateData)
+      }
+    )
+
+    if (!response.ok) {
+      try {
+        const errorData = await response.json()
+        const errorMessage = errorData.error?.details?.message ?? errorData.error?.message ?? `Failed to update BA: ${response.statusText}`
+        throw new Error(errorMessage)
+      } catch {
+        throw new Error(`Failed to update BA: ${response.statusText}`)
+      }
+    }
+
     return true
   } catch (error) {
     console.error('Error updating brand ambassador:', error)
-    return false
+    throw error
+  }
+}
+
+export async function getBrandAmbassadorRoles(id: string): Promise<string[]> {
+  try {
+    const token = await getSupabaseToken()
+
+    const response = await fetch(
+      `${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/partner-management/brand-ambassadors/${id}/roles`,
+      {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'x-correlation-id': `ba-roles-${Date.now()}`
+        }
+      }
+    )
+
+    if (!response.ok) {
+      try {
+        const errorData = await response.json()
+        const errorMessage = errorData.error?.details?.message ?? errorData.error?.message ?? `Failed to fetch roles: ${response.statusText}`
+        throw new Error(errorMessage)
+      } catch {
+        throw new Error(`Failed to fetch roles: ${response.statusText}`)
+      }
+    }
+
+    const data = await response.json()
+    return data.roles ?? []
+  } catch (error) {
+    console.error('Error fetching brand ambassador roles:', error)
+    throw error
+  }
+}
+
+export async function checkBrandAmbassadorActiveStatus(userId: string): Promise<{ isActive: boolean; exists: boolean }> {
+  try {
+    const token = await getSupabaseToken()
+
+    const response = await fetch(
+      `${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/partner-management/brand-ambassadors/check-status/${userId}`,
+      {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'x-correlation-id': `ba-status-check-${Date.now()}`
+        }
+      }
+    )
+
+    if (!response.ok) {
+      // If 404 or 401, treat as inactive
+      if (response.status === 404 || response.status === 401) {
+        return { isActive: false, exists: false }
+      }
+
+      try {
+        const errorData = await response.json()
+        const errorMessage = errorData.error?.details?.message ?? errorData.error?.message ?? `Failed to check status: ${response.statusText}`
+        throw new Error(errorMessage)
+      } catch {
+        throw new Error(`Failed to check status: ${response.statusText}`)
+      }
+    }
+
+    const data = await response.json()
+    return { isActive: data.isActive ?? false, exists: data.exists ?? false }
+  } catch (error) {
+    console.error('Error checking brand ambassador status:', error)
+    // Re-throw to let the hook handle it
+    throw error
+  }
+}
+
+export async function updateBrandAmbassadorPassword(id: string, password: string): Promise<boolean> {
+  try {
+    const token = await getSupabaseToken()
+
+    const response = await fetch(
+      `${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/partner-management/brand-ambassadors/${id}/password`,
+      {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+          'x-correlation-id': `ba-password-update-${Date.now()}`
+        },
+        body: JSON.stringify({ password })
+      }
+    )
+
+    if (!response.ok) {
+      try {
+        const errorData = await response.json()
+        const errorMessage = errorData.error?.details?.message ?? errorData.error?.message ?? `Failed to update password: ${response.statusText}`
+        throw new Error(errorMessage)
+      } catch {
+        throw new Error(`Failed to update password: ${response.statusText}`)
+      }
+    }
+
+    return true
+  } catch (error) {
+    console.error('Error updating brand ambassador password:', error)
+    throw error
   }
 }
 

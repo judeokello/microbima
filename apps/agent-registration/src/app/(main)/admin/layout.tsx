@@ -5,6 +5,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
+import { useBAStatusCheck } from '@/hooks/useBAStatusCheck';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -19,6 +20,9 @@ export default function AdminLayout({
   const pathname = usePathname();
   const isMobile = useIsMobile();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  // Check BA active status during active sessions (for BA users who also have admin access)
+  useBAStatusCheck();
 
   if (loading) {
     return (

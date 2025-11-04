@@ -7,8 +7,10 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Loader2, Plus, Edit, Eye, UserX } from 'lucide-react'
+import { Loader2, Plus, Edit, Key } from 'lucide-react'
 import { getBrandAmbassadors, getPartners, BrandAmbassador, Partner } from '@/lib/api'
+import EditBADialog from './_components/edit-ba-dialog'
+import ChangePasswordDialog from './_components/change-password-dialog'
 
 export default function BAManagementPage() {
   const router = useRouter()
@@ -16,6 +18,10 @@ export default function BAManagementPage() {
   const [error, setError] = useState<string | null>(null)
   const [brandAmbassadors, setBrandAmbassadors] = useState<BrandAmbassador[]>([])
   const [partners, setPartners] = useState<Partner[]>([])
+  const [editDialogOpen, setEditDialogOpen] = useState(false)
+  const [selectedBA, setSelectedBA] = useState<BrandAmbassador | null>(null)
+  const [passwordDialogOpen, setPasswordDialogOpen] = useState(false)
+  const [selectedBAForPassword, setSelectedBAForPassword] = useState<BrandAmbassador | null>(null)
 
   useEffect(() => {
     loadData()
@@ -48,7 +54,26 @@ export default function BAManagementPage() {
   }
 
   const formatRate = (cents: number) => {
-    return `KSh ${(cents / 100).toFixed(2)}`
+    // Display in shillings (cents / 100) as integer
+    return `KSh ${Math.round(cents / 100)}`
+  }
+
+  const handleEditClick = (ba: BrandAmbassador) => {
+    setSelectedBA(ba)
+    setEditDialogOpen(true)
+  }
+
+  const handlePasswordClick = (ba: BrandAmbassador) => {
+    setSelectedBAForPassword(ba)
+    setPasswordDialogOpen(true)
+  }
+
+  const handleEditSuccess = () => {
+    loadData()
+  }
+
+  const handlePasswordSuccess = () => {
+    loadData()
   }
 
   const formatDate = (dateString: string) => {
@@ -72,14 +97,14 @@ export default function BAManagementPage() {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <div>
-          <h2 className="text-2xl font-bold">Brand Ambassador Management</h2>
+          <h2 className="text-2xl font-bold">Agent Management</h2>
           <p className="text-muted-foreground">
-            Manage brand ambassadors and their partner assignments
+            Manage agents and their account details
           </p>
         </div>
         <Button onClick={() => router.push('/admin/ba-registration')}>
           <Plus className="mr-2 h-4 w-4" />
-          Register New BA
+          New Agent
         </Button>
       </div>
 
@@ -147,35 +172,19 @@ export default function BAManagementPage() {
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => {
-                              // TODO: Implement view details
-                              console.log('View BA:', ba.id)
-                            }}
+                            onClick={() => handleEditClick(ba)}
+                            title="Edit Brand Ambassador"
                           >
-                            <Eye className="h-4 w-4" />
+                            <Edit className="h-4 w-4" />
                           </Button>
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => {
-                              // TODO: Implement edit
-                              console.log('Edit BA:', ba.id)
-                            }}
+                            onClick={() => handlePasswordClick(ba)}
+                            title="Change Password"
                           >
-                            <Edit className="h-4 w-4" />
+                            <Key className="h-4 w-4" />
                           </Button>
-                          {ba.isActive && (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => {
-                                // TODO: Implement deactivate
-                                console.log('Deactivate BA:', ba.id)
-                              }}
-                            >
-                              <UserX className="h-4 w-4" />
-                            </Button>
-                          )}
                         </div>
                       </TableCell>
                     </TableRow>
@@ -186,6 +195,25 @@ export default function BAManagementPage() {
           )}
         </CardContent>
       </Card>
+
+      {selectedBA && (
+        <EditBADialog
+          brandAmbassador={selectedBA}
+          open={editDialogOpen}
+          onOpenChange={setEditDialogOpen}
+          onSuccess={handleEditSuccess}
+        />
+      )}
+
+      {selectedBAForPassword && (
+        <ChangePasswordDialog
+          brandAmbassadorId={selectedBAForPassword.id}
+          brandAmbassadorName={selectedBAForPassword.displayName ?? 'Brand Ambassador'}
+          open={passwordDialogOpen}
+          onOpenChange={setPasswordDialogOpen}
+          onSuccess={handlePasswordSuccess}
+        />
+      )}
     </div>
   )
 }

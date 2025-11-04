@@ -5,7 +5,8 @@ import { useForm } from "react-hook-form";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { z } from "zod";
-import { supabase } from '@/lib/supabase';
+import { supabase, ROLES } from '@/lib/supabase';
+import { checkBrandAmbassadorActiveStatus } from '@/lib/api';
 
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -56,6 +57,27 @@ export function LoginForm() {
         console.log('User metadata:', userMetadata)
         console.log('Roles:', roles)
         console.log('Full user object:', authData.user)
+
+        // Check if user is BA-only (has brand_ambassador but NOT registration_admin)
+        const isBAOnly = roles.includes(ROLES.BRAND_AMBASSADOR) && !roles.includes(ROLES.REGISTRATION_ADMIN)
+
+        if (isBAOnly) {
+          // Check BA active status before allowing login
+          try {
+            const status = await checkBrandAmbassadorActiveStatus(authData.user.id)
+
+            if (!status.exists || !status.isActive) {
+              // BA is inactive or doesn't exist - sign out and show error
+              await supabase.auth.signOut()
+              toast.error('Your account has been deactivated. Please contact your administrator.')
+              return
+            }
+          } catch (error) {
+            console.error('Error checking BA status:', error)
+            // On API error, still allow login but log the error
+            // This prevents network issues from blocking legitimate users
+          }
+        }
 
         toast.success("Login successful!")
 
