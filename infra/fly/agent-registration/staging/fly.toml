@@ -12,8 +12,8 @@ primary_region = "fra"
     NEXT_PUBLIC_INTERNAL_API_BASE_URL = "https://microbima-staging-internal-api.fly.dev/api"
     NEXT_PUBLIC_ENABLE_BOOTSTRAP = "true"
     # Sentry configuration (client-side, embedded at build time)
-    # Set these via Fly secrets: fly secrets set NEXT_PUBLIC_SENTRY_DSN="..." NEXT_PUBLIC_SENTRY_ENVIRONMENT="staging"
-    NEXT_PUBLIC_SENTRY_DSN = { from_secret = "NEXT_PUBLIC_SENTRY_DSN" }
+    # Note: Client-side Sentry DSNs are public by design (embedded in browser code)
+    NEXT_PUBLIC_SENTRY_DSN = "https://80f29418b76e462ce3af33b42e0e442b@o4509982735466496.ingest.de.sentry.io/4510119855194192"
     NEXT_PUBLIC_SENTRY_ENVIRONMENT = "staging"
 
 [env]
