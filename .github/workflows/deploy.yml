@@ -104,7 +104,14 @@ jobs:
           
           # Check migration status first to see what needs to be applied
           echo "📋 Checking migration status before deployment..."
-          flyctl ssh console -a microbima-staging-internal-api -C "sh -c 'cd /app/apps/api && npx prisma migrate status'"
+          set +e  # Don't fail if there are pending migrations (exit code 1 is expected)
+          MIGRATION_STATUS=$(flyctl ssh console -a microbima-staging-internal-api -C "sh -c 'cd /app/apps/api && npx prisma migrate status' 2>&1 || true")
+          MIGRATION_EXIT_CODE=$?
+          set -e
+          
+          # Show migration status (exit code 1 is normal when migrations are pending)
+          echo "Migration status output (exit code $MIGRATION_EXIT_CODE):"
+          echo "$MIGRATION_STATUS"
           
           # Now run migration deployment
           # Note: migrate deploy doesn't run seed scripts by default (only migrate dev does)
