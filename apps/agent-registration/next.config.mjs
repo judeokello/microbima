@@ -27,6 +27,28 @@ const nextConfig = {
   env: {
     CUSTOM_PORT: process.env.CUSTOM_PORT ?? '3001',
   },
+  // Configure image optimization for Supabase storage
+  images: {
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: '*.supabase.co',
+        pathname: '/storage/v1/object/public/**',
+      },
+      // Explicitly allow staging Supabase URL
+      {
+        protocol: 'https',
+        hostname: 'yowgqzgqxvkqyyzhxvej.supabase.co',
+        pathname: '/storage/v1/object/public/**',
+      },
+      // Explicitly allow production Supabase URL
+      {
+        protocol: 'https',
+        hostname: 'xmkiddtkujaparakqwem.supabase.co',
+        pathname: '/storage/v1/object/public/**',
+      },
+    ],
+  },
 }
 
 // Extract org and project from DSN if not provided separately

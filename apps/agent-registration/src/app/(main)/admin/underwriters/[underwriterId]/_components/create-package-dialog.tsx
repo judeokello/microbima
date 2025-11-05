@@ -58,7 +58,7 @@ export default function CreatePackageDialog({
       const token = await getSupabaseToken();
       let logoPath: string | undefined;
 
-      // Create package first
+      // Create package first (without logoPath - it will be added after logo upload)
       const response = await fetch(`${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/product-management/packages`, {
         method: 'POST',
         headers: {
@@ -71,7 +71,6 @@ export default function CreatePackageDialog({
           description: formData.description,
           underwriterId: underwriterId,
           isActive: formData.isActive,
-          logoPath: logoPath,
         }),
       });
 
