@@ -45,11 +45,27 @@ INSERT INTO "products" ("id", "productTypeId", "productName", "description", "up
 ON CONFLICT (id) DO NOTHING;
 
 -- Seed packages (idempotent)
-INSERT INTO "packages" ("id", "name", "description", "underwriterId", "updatedAt") VALUES
-(1, 'MfanisiGo', 'Product targeting drivers and riders in the logistics space', 1, CURRENT_TIMESTAMP),
-(2, 'Mfanisi', 'A product targeted for SMEs', 1, CURRENT_TIMESTAMP),
-(3, 'Mzalendo', 'Product that allows customers to pay a monthly fee and select a particular hospital for all treatments', 1, CURRENT_TIMESTAMP)
-ON CONFLICT (id) DO NOTHING;
+-- Get first user ID for createdBy field
+DO $$
+DECLARE
+    first_user_id TEXT;
+BEGIN
+    -- Get first user ID from auth.users
+    SELECT id INTO first_user_id FROM auth.users ORDER BY created_at ASC LIMIT 1;
+    
+    -- If no user exists, use a placeholder (shouldn't happen in production)
+    IF first_user_id IS NULL THEN
+        first_user_id := '00000000-0000-0000-0000-000000000000';
+        RAISE WARNING 'No users found in auth.users, using placeholder UUID';
+    END IF;
+
+    -- Insert packages with createdBy and isActive fields
+    INSERT INTO "packages" ("id", "name", "description", "underwriterId", "isActive", "createdBy", "updatedAt") VALUES
+    (1, 'MfanisiGo', 'Product targeting drivers and riders in the logistics space', 1, true, first_user_id, CURRENT_TIMESTAMP),
+    (2, 'Mfanisi', 'A product targeted for SMEs', 1, true, first_user_id, CURRENT_TIMESTAMP),
+    (3, 'Mzalendo', 'Product that allows customers to pay a monthly fee and select a particular hospital for all treatments', 1, true, first_user_id, CURRENT_TIMESTAMP)
+    ON CONFLICT (id) DO NOTHING;
+END $$;
 
 -- Seed package products (idempotent - using composite unique constraint)
 INSERT INTO "package_products" ("packageId", "productId") VALUES
@@ -60,9 +76,25 @@ INSERT INTO "package_products" ("packageId", "productId") VALUES
 ON CONFLICT ("packageId", "productId") DO NOTHING;
 
 -- Seed schemes (idempotent)
-INSERT INTO "schemes" ("id", "schemeName", "description", "updatedAt") VALUES
-(1, 'OOD Drivers', 'organization of Online drivers', CURRENT_TIMESTAMP)
-ON CONFLICT (id) DO NOTHING;
+-- Get first user ID for createdBy field
+DO $$
+DECLARE
+    first_user_id TEXT;
+BEGIN
+    -- Get first user ID from auth.users
+    SELECT id INTO first_user_id FROM auth.users ORDER BY created_at ASC LIMIT 1;
+    
+    -- If no user exists, use a placeholder (shouldn't happen in production)
+    IF first_user_id IS NULL THEN
+        first_user_id := '00000000-0000-0000-0000-000000000000';
+        RAISE WARNING 'No users found in auth.users, using placeholder UUID';
+    END IF;
+
+    -- Insert schemes with createdBy and isActive fields
+    INSERT INTO "schemes" ("id", "schemeName", "description", "isActive", "createdBy", "updatedAt") VALUES
+    (1, 'OOD Drivers', 'organization of Online drivers', true, first_user_id, CURRENT_TIMESTAMP)
+    ON CONFLICT (id) DO NOTHING;
+END $$;
 
 -- Seed package schemes (idempotent - using composite unique constraint)
 INSERT INTO "package_schemes" ("packageId", "schemeId") VALUES
