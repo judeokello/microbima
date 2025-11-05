@@ -180,6 +180,7 @@ export default function PackageDetailPage() {
 
     setUploadingLogo(true);
     try {
+      const oldLogoPath = pkg.logoPath;
       const uploadFormData = new FormData();
       uploadFormData.append('file', file);
       uploadFormData.append('entityType', 'package');
@@ -216,6 +217,48 @@ export default function PackageDetailPage() {
 
       if (!updateResponse.ok) {
         throw new Error('Failed to update package with logo path');
+      }
+
+      // Delete old file from storage if it exists
+      if (oldLogoPath) {
+        try {
+          let storagePath: string | undefined;
+          let oldPathForDelete: string | undefined;
+
+          // Check if it's a Supabase Storage URL
+          if (oldLogoPath.startsWith('http') && oldLogoPath.includes('supabase.co')) {
+            // Extract storage path from URL
+            // Format: https://{project-id}.supabase.co/storage/v1/object/public/logos/{path}
+            const urlParts = oldLogoPath.split('/storage/v1/object/public/logos/');
+            if (urlParts.length === 2) {
+              storagePath = urlParts[1];
+            }
+          } else {
+            // Filesystem path (relative path like /logos/underwriters/1/packages/2.png)
+            oldPathForDelete = oldLogoPath;
+          }
+
+          // Call API route to delete old file
+          const deleteResponse = await fetch('/api/upload/logo', {
+            method: 'DELETE',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+              path: storagePath,
+              oldLogoPath: oldPathForDelete,
+            }),
+          });
+
+          if (!deleteResponse.ok) {
+            console.warn('Failed to delete old logo file');
+            // Don't throw - the new logo is already uploaded and saved
+          }
+        } catch (deleteErr) {
+          console.warn('Error deleting old logo file:', deleteErr);
+          // Don't throw - the new logo is already uploaded and saved
+        }
       }
 
       fetchPackage();
@@ -422,6 +465,13 @@ export default function PackageDetailPage() {
             <div>
               <Label>Created By</Label>
               <p className="text-sm font-medium">{createdByName}</p>
+            </div>
+
+            <div>
+              <Label>Created At</Label>
+              <p className="text-sm font-medium">
+                {pkg.createdAt ? new Date(pkg.createdAt).toLocaleString() : 'N/A'}
+              </p>
             </div>
 
             <div className="md:col-span-2">

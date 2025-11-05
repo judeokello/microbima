@@ -1,5 +1,7 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { ValidationException } from '../exceptions/validation.exception';
+import { ErrorCodes } from '../enums/error-codes.enum';
 
 /**
  * Product Management Service
@@ -740,6 +742,25 @@ export class ProductManagementService {
     this.logger.log(`[${correlationId}] Creating package: ${data.name}`);
 
     try {
+      // Pre-save validation: Check for duplicates (name + underwriterId combination)
+      const existingPackage = await this.prismaService.package.findFirst({
+        where: {
+          name: {
+            equals: data.name,
+            mode: 'insensitive',
+          },
+          underwriterId: data.underwriterId ?? null,
+        },
+      });
+
+      if (existingPackage) {
+        throw ValidationException.forField(
+          'name',
+          'A package with this name already exists for this underwriter',
+          ErrorCodes.VALIDATION_ERROR
+        );
+      }
+
       const pkg = await this.prismaService.package.create({
         data: {
           name: data.name,
@@ -812,6 +833,24 @@ export class ProductManagementService {
     this.logger.log(`[${correlationId}] Creating scheme: ${data.schemeName}`);
 
     try {
+      // Pre-save validation: Check for duplicates (schemeName must be unique)
+      const existingScheme = await this.prismaService.scheme.findFirst({
+        where: {
+          schemeName: {
+            equals: data.schemeName,
+            mode: 'insensitive',
+          },
+        },
+      });
+
+      if (existingScheme) {
+        throw ValidationException.forField(
+          'schemeName',
+          'A scheme with this name already exists',
+          ErrorCodes.VALIDATION_ERROR
+        );
+      }
+
       // Create the scheme
       const scheme = await this.prismaService.scheme.create({
         data: {

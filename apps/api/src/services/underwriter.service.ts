@@ -1,5 +1,7 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { ValidationException } from '../exceptions/validation.exception';
+import { ErrorCodes } from '../enums/error-codes.enum';
 
 /**
  * Underwriter Service
@@ -153,6 +155,69 @@ export class UnderwriterService {
     this.logger.log(`[${correlationId}] Creating underwriter: ${data.name}`);
 
     try {
+      // Pre-save validation: Check for duplicates
+      const validationErrors: Record<string, string> = {};
+
+      // Normalize website URL for comparison (remove protocol, trailing slash, lowercase)
+      const normalizedWebsite = data.website
+        .toLowerCase()
+        .replace(/^https?:\/\//, '')
+        .replace(/\/$/, '');
+
+      // Check if name already exists (case-insensitive)
+      const existingByName = await this.prismaService.underwriter.findFirst({
+        where: {
+          name: {
+            equals: data.name,
+            mode: 'insensitive',
+          },
+        },
+      });
+
+      if (existingByName) {
+        validationErrors['name'] = 'An underwriter with this name already exists';
+      }
+
+      // Check if shortName already exists (case-insensitive)
+      const existingByShortName = await this.prismaService.underwriter.findFirst({
+        where: {
+          shortName: {
+            equals: data.shortName,
+            mode: 'insensitive',
+          },
+        },
+      });
+
+      if (existingByShortName) {
+        validationErrors['shortName'] = 'An underwriter with this short name already exists';
+      }
+
+      // Check if website already exists (normalized comparison)
+      // Get all underwriters (we'll filter for non-null websites in JavaScript)
+      const allUnderwriters = await this.prismaService.underwriter.findMany({
+        select: {
+          website: true,
+        },
+      });
+
+      const websiteExists = allUnderwriters.some(uw => {
+        if (!uw.website) return false;
+        const existingNormalized = uw.website
+          .toLowerCase()
+          .replace(/^https?:\/\//, '')
+          .replace(/\/$/, '');
+        return existingNormalized === normalizedWebsite;
+      });
+
+      if (websiteExists) {
+        validationErrors['website'] = 'An underwriter with this website already exists';
+      }
+
+      // If there are any validation errors, throw exception with all errors
+      if (Object.keys(validationErrors).length > 0) {
+        throw ValidationException.withMultipleErrors(validationErrors, ErrorCodes.VALIDATION_ERROR);
+      }
+
       const underwriter = await this.prismaService.underwriter.create({
         data: {
           name: data.name,
@@ -180,10 +245,39 @@ export class UnderwriterService {
         updatedAt: underwriter.updatedAt.toISOString(),
       };
     } catch (error) {
+      // Log full error details for debugging
       this.logger.error(
         `[${correlationId}] Error creating underwriter: ${error instanceof Error ? error.message : 'Unknown error'}`,
         error instanceof Error ? error.stack : undefined
       );
+      
+      // Log Prisma error details if available
+      if (error && typeof error === 'object' && 'meta' in error) {
+        this.logger.error(
+          `[${correlationId}] Prisma error meta: ${JSON.stringify((error as any).meta)}`
+        );
+      }
+      
+      // Re-throw with more context if it's a Prisma error
+      if (error instanceof Error) {
+        // Check for specific Prisma error patterns
+        if (error.message.includes('Unique constraint failed')) {
+          // Extract which field failed from meta if available
+          const meta = (error as any).meta;
+          if (meta?.target) {
+            const fields = Array.isArray(meta.target) ? meta.target.join(', ') : String(meta.target);
+            throw new Error(`A record with this ${fields} already exists`);
+          }
+          throw new Error('A record with this information already exists');
+        }
+        if (error.message.includes('Foreign key constraint failed')) {
+          throw new Error('Invalid reference to related data');
+        }
+        if (error.message.includes('Null constraint')) {
+          throw new Error('Required field is missing');
+        }
+      }
+      
       throw error;
     }
   }

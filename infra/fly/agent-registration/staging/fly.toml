@@ -21,7 +21,6 @@ primary_region = "fra"
   PORT = "3001"
   # Staging-specific environment variables
   NEXT_PUBLIC_API_URL = "https://microbima-staging-internal-api.fly.dev"
-  NEXT_PUBLIC_ENVIRONMENT = "staging"
 
 [[services]]
   internal_port = 3001

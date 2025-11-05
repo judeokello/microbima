@@ -21,7 +21,6 @@ primary_region = "fra"
   PORT = "3001"
   # Production-specific environment variables
   NEXT_PUBLIC_API_URL = "https://maishapoa-production-internal-api.fly.dev"
-  NEXT_PUBLIC_ENVIRONMENT = "production"
 
 [[services]]
   internal_port = 3001

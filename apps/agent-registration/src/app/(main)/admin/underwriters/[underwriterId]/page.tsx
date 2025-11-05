@@ -51,6 +51,17 @@ interface PackagesResponse {
   data: Package[];
 }
 
+interface UserDisplayNameResponse {
+  status: number;
+  correlationId: string;
+  message: string;
+  data: {
+    userId: string;
+    displayName: string;
+    email: string;
+  };
+}
+
 export default function UnderwriterDetailPage() {
   const router = useRouter();
   const params = useParams();
@@ -58,9 +69,11 @@ export default function UnderwriterDetailPage() {
 
   const [underwriter, setUnderwriter] = useState<Underwriter | null>(null);
   const [packages, setPackages] = useState<Package[]>([]);
+  const [createdByName, setCreatedByName] = useState<string>('Loading...');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
   const [createPackageDialogOpen, setCreatePackageDialogOpen] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
@@ -101,6 +114,25 @@ export default function UnderwriterDetailPage() {
         officeLocation: data.data.officeLocation,
         isActive: data.data.isActive,
       });
+
+      // Fetch createdBy display name
+      if (data.data.createdBy) {
+        try {
+          const userResponse = await fetch(`${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/users/${data.data.createdBy}/display-name`, {
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'x-correlation-id': `req-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+            }
+          });
+          if (userResponse.ok) {
+            const userData: UserDisplayNameResponse = await userResponse.json();
+            setCreatedByName(userData.data.displayName);
+          }
+        } catch (err) {
+          console.error('Error fetching user display name:', err);
+          setCreatedByName('Unknown');
+        }
+      }
     } catch (err) {
       console.error('Error fetching underwriter:', err);
       // Report error to Sentry
@@ -146,6 +178,113 @@ export default function UnderwriterDetailPage() {
     fetchUnderwriter();
     fetchPackages();
   }, [fetchUnderwriter, fetchPackages]);
+
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !underwriter) return;
+
+    setUploadingLogo(true);
+    try {
+      const oldLogoPath = underwriter.logoPath;
+      const uploadFormData = new FormData();
+      uploadFormData.append('file', file);
+      uploadFormData.append('entityType', 'underwriter');
+      uploadFormData.append('entityId', underwriter.id.toString());
+
+      const token = await getSupabaseToken();
+      const uploadResponse = await fetch('/api/upload/logo', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+        body: uploadFormData,
+      });
+
+      if (!uploadResponse.ok) {
+        throw new Error('Failed to upload logo');
+      }
+
+      const uploadResult = await uploadResponse.json();
+
+      // Update underwriter with logo path
+      const updateResponse = await fetch(`${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/underwriters/${underwriterId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+          'x-correlation-id': `req-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+        },
+        body: JSON.stringify({
+          logoPath: uploadResult.path,
+        }),
+      });
+
+      if (!updateResponse.ok) {
+        throw new Error('Failed to update underwriter with logo path');
+      }
+
+      // Delete old file from storage if it exists
+      if (oldLogoPath) {
+        try {
+          let storagePath: string | undefined;
+          let oldPathForDelete: string | undefined;
+
+          // Check if it's a Supabase Storage URL
+          if (oldLogoPath.startsWith('http') && oldLogoPath.includes('supabase.co')) {
+            // Extract storage path from URL
+            // Format: https://{project-id}.supabase.co/storage/v1/object/public/logos/{path}
+            const urlParts = oldLogoPath.split('/storage/v1/object/public/logos/');
+            if (urlParts.length === 2) {
+              storagePath = urlParts[1];
+            }
+          } else {
+            // Filesystem path (relative path like /logos/underwriters/1/logo.png)
+            oldPathForDelete = oldLogoPath;
+          }
+
+          // Call API route to delete old file
+          const deleteResponse = await fetch('/api/upload/logo', {
+            method: 'DELETE',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+              path: storagePath,
+              oldLogoPath: oldPathForDelete,
+            }),
+          });
+
+          if (!deleteResponse.ok) {
+            console.warn('Failed to delete old logo file');
+            // Don't throw - the new logo is already uploaded and saved
+          }
+        } catch (deleteErr) {
+          console.warn('Error deleting old logo file:', deleteErr);
+          // Don't throw - the new logo is already uploaded and saved
+        }
+      }
+
+      fetchUnderwriter();
+    } catch (err) {
+      console.error('Error uploading logo:', err);
+      // Report error to Sentry
+      if (err instanceof Error) {
+        Sentry.captureException(err, {
+          tags: {
+            component: 'UnderwriterDetailPage',
+            action: 'upload_logo',
+          },
+          extra: {
+            underwriterId,
+          },
+        });
+      }
+      setError(err instanceof Error ? err.message : 'Failed to upload logo');
+    } finally {
+      setUploadingLogo(false);
+    }
+  };
 
   const handleSave = async () => {
     try {
@@ -356,9 +495,21 @@ export default function UnderwriterDetailPage() {
               )}
             </div>
 
-            {underwriter.logoPath && (
-              <div className="md:col-span-2">
-                <Label>Logo</Label>
+            <div>
+              <Label>Created By</Label>
+              <p className="text-sm font-medium">{createdByName}</p>
+            </div>
+
+            <div>
+              <Label>Created At</Label>
+              <p className="text-sm font-medium">
+                {underwriter.createdAt ? new Date(underwriter.createdAt).toLocaleString() : 'N/A'}
+              </p>
+            </div>
+
+            <div className="md:col-span-2">
+              <Label>Logo</Label>
+              {underwriter.logoPath && (
                 <div className="mt-2">
                   <Image
                     src={underwriter.logoPath}
@@ -368,8 +519,21 @@ export default function UnderwriterDetailPage() {
                     className="object-contain"
                   />
                 </div>
-              </div>
-            )}
+              )}
+              {editing && (
+                <div className="mt-2">
+                  <Input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleLogoUpload}
+                    disabled={uploadingLogo}
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Supported formats: JPEG, PNG, GIF, WebP. Max size: 5MB
+                  </p>
+                </div>
+              )}
+            </div>
           </div>
         </CardContent>
       </Card>
