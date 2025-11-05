@@ -40,6 +40,7 @@ The `DIRECT_URL` should:
 - Use port `5432` (NOT `6543`)
 - NOT include `?pgbouncer=true`
 - Include `?sslmode=require` for SSL
+- **DO NOT include pooling parameters** like `connection_limit`, `pool_timeout`, or `connect_timeout`
 
 Example:
 ```
@@ -48,7 +49,12 @@ postgresql://postgres.xxx:5432/postgres?sslmode=require
 
 # ❌ WRONG (Pooled connection)
 postgresql://postgres.xxx:6543/postgres?pgbouncer=true
+
+# ❌ WRONG (Pooling parameters on direct connection - causes slow migrations)
+postgresql://postgres.xxx:5432/postgres?connection_limit=20&pool_timeout=30000&connect_timeout=10
 ```
+
+**Important:** Pooling-related parameters (`connection_limit`, `pool_timeout`, `connect_timeout`) should NOT be included in `DIRECT_URL`. These parameters can cause the direct connection to behave like a pooled connection, leading to slow migration performance (30+ minutes instead of 5-10 minutes).
 
 ### 3. Prisma Schema Configuration
 
