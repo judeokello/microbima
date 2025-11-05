@@ -28,6 +28,7 @@ interface EditDependantDialogProps {
     gender?: string;
     idType?: string;
     idNumber?: string;
+    relationship?: string;
   };
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -73,6 +74,38 @@ const mapGenderFromBackend = (gender?: string): string => {
   return '';
 };
 
+// Get minimum date for adults (18 years ago from today)
+const getMinDateForAdults = () => {
+  const today = new Date();
+  const minDate = new Date(today.getFullYear() - 18, today.getMonth(), today.getDate());
+  return minDate.toISOString().split('T')[0];
+};
+
+// Get maximum date for children (today)
+const getMaxDateForChildren = () => {
+  const today = new Date();
+  return today.toISOString().split('T')[0];
+};
+
+// Get minimum date for children (24 years ago from today)
+const getMinDateForChildren = () => {
+  const today = new Date();
+  const minDate = new Date(today.getFullYear() - 24, today.getMonth(), today.getDate());
+  return minDate.toISOString().split('T')[0];
+};
+
+// Calculate age from date of birth
+const calculateAge = (dateOfBirth: string): number => {
+  const birthDate = new Date(dateOfBirth);
+  const today = new Date();
+  let age = today.getFullYear() - birthDate.getFullYear();
+  const monthDiff = today.getMonth() - birthDate.getMonth();
+  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+    age--;
+  }
+  return age;
+};
+
 export default function EditDependantDialog({
   dependant,
   open,
@@ -95,7 +128,6 @@ export default function EditDependantDialog({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
     setError(null);
     setPhoneError(null);
 
@@ -104,10 +136,122 @@ export default function EditDependantDialog({
       const phoneErr = getPhoneValidationError(formData.phoneNumber);
       if (phoneErr) {
         setPhoneError(phoneErr);
-        setLoading(false);
         return;
       }
     }
+
+    // Determine if this is a spouse or child
+    const isSpouse = dependant.relationship === 'SPOUSE' || dependant.relationship === 'spouse';
+    const isChild = dependant.relationship === 'CHILD' || dependant.relationship === 'child';
+
+    // Validate date of birth
+    if (formData.dateOfBirth) {
+      const selectedDate = new Date(formData.dateOfBirth);
+      const today = new Date();
+      if (selectedDate > today) {
+        setError('Date of birth cannot be in the future');
+        try {
+          Sentry.captureException(new Error('Date of birth validation failed'), {
+            tags: {
+              component: 'EditDependantDialog',
+              action: 'validation_error',
+            },
+            extra: {
+              dependantId: dependant.id,
+              relationship: dependant.relationship,
+              field: 'dateOfBirth',
+              value: formData.dateOfBirth,
+              errorMessage: 'Date of birth cannot be in the future',
+            },
+          });
+        } catch (sentryErr) {
+          console.error('Sentry error:', sentryErr);
+        }
+        return;
+      }
+
+      if (isSpouse) {
+        // Validate spouse is at least 18 years old
+        const age = calculateAge(formData.dateOfBirth);
+        if (age < 18) {
+          setError('Minimum age is 18 years old for a spouse');
+          try {
+            Sentry.captureException(new Error('Age validation failed'), {
+              tags: {
+                component: 'EditDependantDialog',
+                action: 'age_validation_error',
+              },
+              extra: {
+                dependantId: dependant.id,
+                relationship: 'SPOUSE',
+                field: 'dateOfBirth',
+                value: formData.dateOfBirth,
+                age,
+                errorMessage: 'Minimum age is 18 years old for a spouse',
+              },
+            });
+          } catch (sentryErr) {
+            console.error('Sentry error:', sentryErr);
+          }
+          return;
+        }
+      } else if (isChild) {
+        // Validate child age is between 1 day and 24 years
+        const age = calculateAge(formData.dateOfBirth);
+        const today = new Date();
+        const birthDate = new Date(formData.dateOfBirth);
+        const daysOld = Math.floor((today.getTime() - birthDate.getTime()) / (1000 * 60 * 60 * 24));
+
+        if (daysOld < 1) {
+          setError('Child age must be at least 1 day old');
+          try {
+            Sentry.captureException(new Error('Child age validation failed'), {
+              tags: {
+                component: 'EditDependantDialog',
+                action: 'age_validation_error',
+              },
+              extra: {
+                dependantId: dependant.id,
+                relationship: 'CHILD',
+                field: 'dateOfBirth',
+                value: formData.dateOfBirth,
+                age,
+                daysOld,
+                errorMessage: 'Child age must be at least 1 day old',
+              },
+            });
+          } catch (sentryErr) {
+            console.error('Sentry error:', sentryErr);
+          }
+          return;
+        }
+
+        if (age >= 25) {
+          setError('Child age must be less than 25 years old');
+          try {
+            Sentry.captureException(new Error('Child age validation failed'), {
+              tags: {
+                component: 'EditDependantDialog',
+                action: 'age_validation_error',
+              },
+              extra: {
+                dependantId: dependant.id,
+                relationship: 'CHILD',
+                field: 'dateOfBirth',
+                value: formData.dateOfBirth,
+                age,
+                errorMessage: 'Child age must be less than 25 years old',
+              },
+            });
+          } catch (sentryErr) {
+            console.error('Sentry error:', sentryErr);
+          }
+          return;
+        }
+      }
+    }
+
+    setLoading(true);
 
     try {
       const updateData: UpdateDependantData = {
@@ -184,6 +328,16 @@ export default function EditDependantDialog({
                 type="date"
                 value={formData.dateOfBirth ?? ''}
                 onChange={(e) => setFormData({ ...formData, dateOfBirth: e.target.value || undefined })}
+                max={
+                  dependant.relationship === 'SPOUSE' || dependant.relationship === 'spouse'
+                    ? getMinDateForAdults()
+                    : getMaxDateForChildren()
+                }
+                min={
+                  dependant.relationship === 'CHILD' || dependant.relationship === 'child'
+                    ? getMinDateForChildren()
+                    : undefined
+                }
               />
             </div>
 

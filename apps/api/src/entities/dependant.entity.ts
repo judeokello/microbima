@@ -14,6 +14,7 @@ export interface DependantData {
   isVerified: boolean;
   verifiedAt?: Date | null;
   verifiedBy?: string | null;
+  verificationRequired: boolean;
   createdByPartnerId: string;
   createdAt: Date;
   updatedAt: Date;
@@ -34,6 +35,7 @@ export class Dependant {
   isVerified: boolean;
   verifiedAt?: Date | null;
   verifiedBy?: string | null;
+  verificationRequired: boolean;
   createdByPartnerId: string;
   createdAt: Date;
   updatedAt: Date;
@@ -52,6 +54,7 @@ export class Dependant {
     this.isVerified = data.isVerified;
     this.verifiedAt = data.verifiedAt;
     this.verifiedBy = data.verifiedBy;
+    this.verificationRequired = data.verificationRequired;
     this.createdByPartnerId = data.createdByPartnerId;
     this.createdAt = data.createdAt;
     this.updatedAt = data.updatedAt;
@@ -188,6 +191,21 @@ export class Dependant {
       errors.push('Spouse must be at least 18 years old');
     }
 
+    // Validate child age (1 day to 24 years)
+    if (this.relationship === DependantRelationship.CHILD && this.dateOfBirth) {
+      const today = new Date();
+      const birthDate = new Date(this.dateOfBirth);
+      const daysOld = Math.floor((today.getTime() - birthDate.getTime()) / (1000 * 60 * 60 * 24));
+
+      if (daysOld < 1) {
+        errors.push('Child age must be at least 1 day old');
+      }
+
+      if (this.age !== null && this.age >= 25) {
+        errors.push('Child age must be less than 25 years old');
+      }
+    }
+
     return {
       valid: errors.length === 0,
       errors
@@ -247,6 +265,7 @@ export class Dependant {
       isVerified: this.isVerified,
       verifiedAt: this.verifiedAt,
       verifiedBy: this.verifiedBy,
+      verificationRequired: this.verificationRequired,
       createdByPartnerId: this.createdByPartnerId,
       createdAt: this.createdAt,
       updatedAt: this.updatedAt,
@@ -268,6 +287,7 @@ export class Dependant {
       isVerified: data.isVerified,
       verifiedAt: data.verifiedAt,
       verifiedBy: data.verifiedBy,
+      verificationRequired: data.verificationRequired ?? false,
       createdByPartnerId: data.createdByPartnerId,
       createdAt: data.createdAt,
       updatedAt: data.updatedAt,

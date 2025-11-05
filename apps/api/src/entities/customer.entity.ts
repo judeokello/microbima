@@ -212,6 +212,11 @@ export class Customer {
       errors.push('Age cannot be greater than 120 years');
     }
 
+    // Business rule: Principal member must be at least 18 years old
+    if (this.dateOfBirth && this.age !== null && this.age < 18) {
+      errors.push('Principal member must be at least 18 years old');
+    }
+
     return {
       valid: errors.length === 0,
       errors

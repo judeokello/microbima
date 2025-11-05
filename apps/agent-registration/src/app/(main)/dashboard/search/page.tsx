@@ -12,6 +12,7 @@ import { searchCustomers, CustomerSearchResult, CustomerSearchPagination } from 
 
 export default function CustomerSearchPage() {
   const router = useRouter();
+  const [name, setName] = useState('');
   const [idNumber, setIdNumber] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
   const [email, setEmail] = useState('');
@@ -24,8 +25,8 @@ export default function CustomerSearchPage() {
 
   const handleSearch = async (page: number = 1) => {
     // At least one search field must be filled
-    if (!idNumber.trim() && !phoneNumber.trim() && !email.trim()) {
-      setError('Please enter at least one search criterion (ID Number, Phone Number, or Email)');
+    if (!name.trim() && !idNumber.trim() && !phoneNumber.trim() && !email.trim()) {
+      setError('Please enter at least one search criterion (Name, ID Number, Phone Number, or Email)');
       return;
     }
 
@@ -35,6 +36,7 @@ export default function CustomerSearchPage() {
       setHasSearched(true);
 
       const response = await searchCustomers(
+        name.trim() || undefined,
         idNumber.trim() || undefined,
         phoneNumber.trim() || undefined,
         email.trim() || undefined,
@@ -55,6 +57,7 @@ export default function CustomerSearchPage() {
   };
 
   const handleClear = () => {
+    setName('');
     setIdNumber('');
     setPhoneNumber('');
     setEmail('');
@@ -75,7 +78,7 @@ export default function CustomerSearchPage() {
       <div>
         <h1 className="text-3xl font-bold text-gray-900">Customer Search</h1>
         <p className="text-gray-600 mt-2">
-          Search for customers by ID number, phone number, or email address
+          Search for customers by name, ID number, phone number, or email address
         </p>
       </div>
 
@@ -88,7 +91,20 @@ export default function CustomerSearchPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="name">Name</Label>
+              <Input
+                id="name"
+                placeholder="e.g. John Doe..."
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                onKeyPress={handleKeyPress}
+                disabled={loading}
+              />
+              <p className="text-xs text-gray-500">Searches first, middle, and last name</p>
+            </div>
+
             <div className="space-y-2">
               <Label htmlFor="idNumber">ID Number</Label>
               <Input

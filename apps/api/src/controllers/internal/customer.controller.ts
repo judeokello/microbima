@@ -308,13 +308,19 @@ export class InternalCustomerController {
   }
 
   /**
-   * Search customers by ID number, phone number, or email
+   * Search customers by name, ID number, phone number, or email
    */
   @Get('search')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Search customers',
-    description: 'Search for customers using partial matching on ID number, phone number, or email. At least one search parameter is required.',
+    description: 'Search for customers using partial matching on name, ID number, phone number, or email. At least one search parameter is required.',
+  })
+  @ApiQuery({
+    name: 'name',
+    description: 'Partial name to search for (searches first, middle, and last name)',
+    required: false,
+    example: 'John',
   })
   @ApiQuery({
     name: 'idNumber',
@@ -358,6 +364,7 @@ export class InternalCustomerController {
   async searchCustomers(
     @CorrelationId() correlationId: string,
     @Req() req: any,
+    @Query('name') name?: string,
     @Query('idNumber') idNumber?: string,
     @Query('phoneNumber') phoneNumber?: string,
     @Query('email') email?: string,
@@ -365,6 +372,7 @@ export class InternalCustomerController {
     @Query('pageSize') pageSize: string = '20',
   ): Promise<CustomerSearchResponseDto> {
     return this.customerService.searchCustomers(
+      name,
       idNumber,
       phoneNumber,
       email,

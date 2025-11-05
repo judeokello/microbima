@@ -36,7 +36,22 @@ import { UpdateBeneficiaryDto } from '../dto/beneficiaries/update-beneficiary.dt
  */
 @Injectable()
 export class CustomerService {
-  private readonly logger = new Logger(CustomerService.name);
+  private readonly logger = new Logger(CustomerService.name)
+
+  /**
+   * Calculate if child requires verification (age 18-24 years old)
+   */
+  private calculateChildVerificationRequired(dateOfBirth: Date | null | undefined): boolean {
+    if (!dateOfBirth) return false;
+    const today = new Date();
+    const birthDate = new Date(dateOfBirth);
+    let age = today.getFullYear() - birthDate.getFullYear();
+    const monthDiff = today.getMonth() - birthDate.getMonth();
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+      age--;
+    }
+    return age >= 18 && age < 25;
+  }
 
   constructor(private readonly prismaService: PrismaService) {}
 
@@ -208,18 +223,22 @@ export class CustomerService {
       let createdBeneficiaries: any[] = [];
 
       if (createRequest.children && createRequest.children.length > 0) {
-        const childrenData = createRequest.children.map(child => ({
-          customerId: createdCustomer.id,
-          firstName: child.firstName,
-          middleName: child.middleName || null,
-          lastName: child.lastName,
-          dateOfBirth: child.dateOfBirth ? new Date(child.dateOfBirth) : null,
-          gender: child.gender.toUpperCase() as any,
-          idType: child.idType ? SharedMapperUtils.mapIdTypeFromDto(child.idType) as any : null,
-          idNumber: child.idNumber || null,
-          relationship: 'CHILD' as const,
-          createdByPartnerId: partnerId,
-        }));
+        const childrenData = createRequest.children.map(child => {
+          const dateOfBirth = child.dateOfBirth ? new Date(child.dateOfBirth) : null;
+          return {
+            customerId: createdCustomer.id,
+            firstName: child.firstName,
+            middleName: child.middleName || null,
+            lastName: child.lastName,
+            dateOfBirth,
+            gender: child.gender.toUpperCase() as any,
+            idType: child.idType ? SharedMapperUtils.mapIdTypeFromDto(child.idType) as any : null,
+            idNumber: child.idNumber || null,
+            relationship: 'CHILD' as const,
+            verificationRequired: this.calculateChildVerificationRequired(dateOfBirth),
+            createdByPartnerId: partnerId,
+          };
+        });
 
         await this.prismaService.dependant.createMany({
           data: childrenData,
@@ -249,6 +268,7 @@ export class CustomerService {
           idType: SharedMapperUtils.mapIdTypeFromDto(spouse.idType) as any,
           idNumber: spouse.idNumber,
           relationship: 'SPOUSE' as const,
+          verificationRequired: false,
           createdByPartnerId: partnerId,
         }));
 
@@ -542,18 +562,22 @@ export class CustomerService {
 
         // Add children if provided
         if (addRequest.children && addRequest.children.length > 0) {
-        const childrenData = addRequest.children.map(child => ({
-          customerId: customerId,
-          firstName: child.firstName,
-          middleName: child.middleName || null,
-          lastName: child.lastName,
-          dateOfBirth: child.dateOfBirth ? new Date(child.dateOfBirth) : null,
-          gender: child.gender.toUpperCase() as any,
-          idType: child.idType ? SharedMapperUtils.mapIdTypeFromDto(child.idType) as any : null,
-          idNumber: child.idNumber || null,
-          relationship: 'CHILD' as const,
-          createdByPartnerId: partnerId,
-        }));
+        const childrenData = addRequest.children.map(child => {
+          const dateOfBirth = child.dateOfBirth ? new Date(child.dateOfBirth) : null;
+          return {
+            customerId: customerId,
+            firstName: child.firstName,
+            middleName: child.middleName || null,
+            lastName: child.lastName,
+            dateOfBirth,
+            gender: child.gender.toUpperCase() as any,
+            idType: child.idType ? SharedMapperUtils.mapIdTypeFromDto(child.idType) as any : null,
+            idNumber: child.idNumber || null,
+            relationship: 'CHILD' as const,
+            verificationRequired: this.calculateChildVerificationRequired(dateOfBirth),
+            createdByPartnerId: partnerId,
+          };
+        });
 
           const createdChildren = await tx.dependant.createMany({
             data: childrenData,
@@ -596,6 +620,7 @@ export class CustomerService {
           idType: SharedMapperUtils.mapIdTypeFromDto(spouse.idType) as any,
           idNumber: spouse.idNumber,
           relationship: 'SPOUSE' as const,
+          verificationRequired: false,
           createdByPartnerId: partnerId,
         }));
 
@@ -1544,10 +1569,12 @@ export class CustomerService {
   }
 
   /**
-   * Search customers by ID number, phone number, or email
+   * Search customers by name, ID number, phone number, or email
    * Uses partial matching (LIKE query) for all search fields
+   * Name search searches across firstName, middleName, and lastName
    */
   async searchCustomers(
+    name?: string,
     idNumber?: string,
     phoneNumber?: string,
     email?: string,
@@ -1556,10 +1583,10 @@ export class CustomerService {
     correlationId: string = 'unknown'
   ) {
     try {
-      this.logger.log(`[${correlationId}] Searching customers: idNumber=${idNumber}, phoneNumber=${phoneNumber}, email=${email}`);
+      this.logger.log(`[${correlationId}] Searching customers: name=${name}, idNumber=${idNumber}, phoneNumber=${phoneNumber}, email=${email}`);
 
       // At least one search parameter must be provided
-      if (!idNumber && !phoneNumber && !email) {
+      if (!name && !idNumber && !phoneNumber && !email) {
         return {
           data: [],
           pagination: {
@@ -1577,6 +1604,32 @@ export class CustomerService {
       
       // Build OR conditions for partial matching
       const orConditions: any[] = [];
+      
+      if (name) {
+        // Search across firstName, middleName, and lastName
+        orConditions.push({
+          OR: [
+            {
+              firstName: {
+                contains: name,
+                mode: 'insensitive',
+              },
+            },
+            {
+              middleName: {
+                contains: name,
+                mode: 'insensitive',
+              },
+            },
+            {
+              lastName: {
+                contains: name,
+                mode: 'insensitive',
+              },
+            },
+          ],
+        });
+      }
       
       if (idNumber) {
         orConditions.push({
@@ -1930,6 +1983,7 @@ export class CustomerService {
         idType: d.idType ? SharedMapperUtils.mapIdTypeToDto(d.idType) : undefined,
         idNumber: d.idNumber ?? undefined,
         relationship: d.relationship,
+        verificationRequired: d.verificationRequired ?? false,
       }));
 
       // Map policies
@@ -2179,10 +2233,10 @@ export class CustomerService {
     this.logger.log(`[${correlationId}] Updating dependant ${dependantId}`);
 
     try {
-      // Get dependant to check customer access
+      // Get dependant to check customer access and relationship
       const dependant = await this.prismaService.dependant.findUnique({
         where: { id: dependantId },
-        select: { customerId: true },
+        select: { customerId: true, relationship: true },
       });
 
       if (!dependant) {
@@ -2200,7 +2254,14 @@ export class CustomerService {
       if (updateData.firstName !== undefined) updatePayload.firstName = updateData.firstName;
       if (updateData.middleName !== undefined) updatePayload.middleName = updateData.middleName;
       if (updateData.lastName !== undefined) updatePayload.lastName = updateData.lastName;
-      if (updateData.dateOfBirth !== undefined) updatePayload.dateOfBirth = new Date(updateData.dateOfBirth);
+      if (updateData.dateOfBirth !== undefined) {
+        const dateOfBirth = updateData.dateOfBirth ? new Date(updateData.dateOfBirth) : null;
+        updatePayload.dateOfBirth = dateOfBirth;
+        // Update verificationRequired for children if dateOfBirth is being updated
+        if (dependant.relationship === 'CHILD') {
+          updatePayload.verificationRequired = this.calculateChildVerificationRequired(dateOfBirth);
+        }
+      }
       if (updateData.email !== undefined) updatePayload.email = updateData.email;
       if (updateData.phoneNumber !== undefined) updatePayload.phoneNumber = updateData.phoneNumber;
       if (updateData.gender !== undefined) updatePayload.gender = SharedMapperUtils.mapGenderFromDto(updateData.gender);

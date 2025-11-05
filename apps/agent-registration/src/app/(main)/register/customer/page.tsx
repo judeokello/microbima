@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import * as Sentry from '@sentry/nextjs';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -80,16 +81,45 @@ const mapIdTypeToBackend = (frontendIdType: string): string => {
   return mapping[frontendIdType] ?? 'national';
 };
 
-const getMaxDate = () => {
+// Get minimum date for adults (18 years ago from today)
+// Used as max attribute on date inputs to prevent selecting dates that would make age < 18
+const getMinDateForAdults = () => {
+  const today = new Date();
+  const minDate = new Date(today.getFullYear() - 18, today.getMonth(), today.getDate());
+  return minDate.toISOString().split('T')[0];
+};
+
+// Calculate age from date of birth
+const calculateAge = (dateOfBirth: string): number => {
+  const birthDate = new Date(dateOfBirth);
+  const today = new Date();
+  let age = today.getFullYear() - birthDate.getFullYear();
+  const monthDiff = today.getMonth() - birthDate.getMonth();
+  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+    age--;
+  }
+  return age;
+};
+
+// Get maximum date for children (today)
+const getMaxDateForChildren = () => {
   const today = new Date();
   return today.toISOString().split('T')[0];
 };
 
-// For children - no validation, allow any date (currently unused but kept for future use)
-// const getMinDateForChildren = () => {
-//   // Set to a very old date to allow any reasonable birth date
-//   return '1900-01-01';
-// };
+// Get minimum date for children (24 years ago from today)
+const getMinDateForChildren = () => {
+  const today = new Date();
+  const minDate = new Date(today.getFullYear() - 24, today.getMonth(), today.getDate());
+  return minDate.toISOString().split('T')[0];
+};
+
+// Calculate if child requires verification (age 18-24)
+const calculateChildVerificationRequired = (dateOfBirth: string): boolean => {
+  if (!dateOfBirth) return false;
+  const age = calculateAge(dateOfBirth);
+  return age >= 18 && age < 25;
+};
 
 const initialFormData: CustomerFormData = {
   firstName: '',
@@ -149,7 +179,7 @@ export default function CustomerStep() {
     if (formData.spouses.length < 2) {
       setFormData(prev => ({
         ...prev,
-        spouses: [...prev.spouses, { firstName: '', middleName: '', lastName: '', gender: 'FEMALE', dateOfBirth: '', phoneNumber: '', idType: 'NATIONAL_ID', idNumber: '' }]
+        spouses: [...prev.spouses, { firstName: '', middleName: '', lastName: '', gender: '', dateOfBirth: '', phoneNumber: '', idType: 'NATIONAL_ID', idNumber: '' }]
       }));
     }
   };
@@ -201,73 +231,213 @@ export default function CustomerStep() {
     console.log('🔍 Using partnerId from BA info:', partnerId);
     console.log('🔍 BA info:', baInfo);
 
-    setIsSubmitting(true);
+    // Clear any previous errors
     setError(null);
 
-    try {
-      // Validate required fields
-      const requiredFields = [
-        { field: 'firstName', label: 'First Name' },
-        { field: 'lastName', label: 'Last Name' },
-        { field: 'email', label: 'Email' },
-        { field: 'phoneNumber', label: 'Phone Number' },
-        { field: 'dateOfBirth', label: 'Date of Birth' },
-        { field: 'idType', label: 'ID Type' },
-        { field: 'idNumber', label: 'ID Number' },
-      ];
+    // Validate required fields BEFORE setting isSubmitting
+    const requiredFields = [
+      { field: 'firstName', label: 'First Name' },
+      { field: 'lastName', label: 'Last Name' },
+      { field: 'email', label: 'Email' },
+      { field: 'phoneNumber', label: 'Phone Number' },
+      { field: 'dateOfBirth', label: 'Date of Birth' },
+      { field: 'idType', label: 'ID Type' },
+      { field: 'idNumber', label: 'ID Number' },
+    ];
 
-      for (const { field, label } of requiredFields) {
-        if (!formData[field as keyof CustomerFormData]?.toString().trim()) {
-          setError(`${label} is required`);
-          setIsSubmitting(false);
-          return;
+    for (const { field, label } of requiredFields) {
+      if (!formData[field as keyof CustomerFormData]?.toString().trim()) {
+        setError(`${label} is required`);
+        try {
+          Sentry.captureException(new Error('Validation error'), {
+            tags: {
+              component: 'CustomerRegistration',
+              action: 'validation_error',
+            },
+            extra: {
+              field,
+              label,
+              errorMessage: `${label} is required`,
+            },
+          });
+        } catch (sentryErr) {
+          console.error('Sentry error:', sentryErr);
         }
+        return;
       }
+    }
 
-      // Validate email format
-      if (formData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
-        setError('Please enter a valid email address');
-        setIsSubmitting(false);
+    // Validate email format
+    if (formData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+      setError('Please enter a valid email address');
+      try {
+        Sentry.captureException(new Error('Validation error'), {
+          tags: {
+            component: 'CustomerRegistration',
+            action: 'validation_error',
+          },
+          extra: {
+            field: 'email',
+            value: formData.email,
+            errorMessage: 'Please enter a valid email address',
+          },
+        });
+      } catch (sentryErr) {
+        console.error('Sentry error:', sentryErr);
+      }
+      return;
+    }
+
+    // Validate date of birth is not in the future
+    if (formData.dateOfBirth) {
+      const selectedDate = new Date(formData.dateOfBirth);
+      const today = new Date();
+      if (selectedDate > today) {
+        setError('Date of birth cannot be in the future');
+        try {
+          Sentry.captureException(new Error('Validation error'), {
+            tags: {
+              component: 'CustomerRegistration',
+              action: 'validation_error',
+            },
+            extra: {
+              field: 'dateOfBirth',
+              value: formData.dateOfBirth,
+              errorMessage: 'Date of birth cannot be in the future',
+            },
+          });
+        } catch (sentryErr) {
+          console.error('Sentry error:', sentryErr);
+        }
         return;
       }
 
-      // Validate date of birth is not in the future
-      if (formData.dateOfBirth) {
-        const selectedDate = new Date(formData.dateOfBirth);
+      // Validate principal member is at least 18 years old
+      const age = calculateAge(formData.dateOfBirth);
+      if (age < 18) {
+        setError('Minimum age is 18 years old for a Principal member');
+        try {
+          Sentry.captureException(new Error('Age validation failed'), {
+            tags: {
+              component: 'CustomerRegistration',
+              action: 'age_validation_error',
+            },
+            extra: {
+              field: 'dateOfBirth',
+              value: formData.dateOfBirth,
+              age,
+              errorMessage: 'Minimum age is 18 years old for a Principal member',
+            },
+          });
+        } catch (sentryErr) {
+          console.error('Sentry error:', sentryErr);
+        }
+        return;
+      }
+    }
+
+    // Validate phone numbers if provided
+    if (formData.phoneNumber && !validatePhoneNumber(formData.phoneNumber)) {
+      setError('Principal member phone number must be 10 digits starting with 01 or 07');
+      return;
+    }
+
+    // Validate spouse required fields
+    for (let i = 0; i < formData.spouses.length; i++) {
+      const spouse = formData.spouses[i];
+      if (!spouse.firstName?.trim()) {
+        setError(`Spouse ${i + 1} first name is required`);
+        return;
+      }
+      if (!spouse.lastName?.trim()) {
+        setError(`Spouse ${i + 1} last name is required`);
+        return;
+      }
+      if (!spouse.gender?.trim()) {
+        setError(`Spouse ${i + 1} gender is required`);
+        return;
+      }
+      if (spouse.phoneNumber && !validatePhoneNumber(spouse.phoneNumber)) {
+        setError(`Spouse ${i + 1} phone number must be 10 digits starting with 01 or 07`);
+        return;
+      }
+
+      // Validate spouse is at least 18 years old
+      if (spouse.dateOfBirth) {
+        const age = calculateAge(spouse.dateOfBirth);
+        if (age < 18) {
+          setError(`Spouse ${i + 1} minimum age is 18 years old for a spouse`);
+          return;
+        }
+      }
+    }
+
+    // Validate children phone numbers and age
+    for (let i = 0; i < formData.children.length; i++) {
+      const child = formData.children[i];
+      if (child.phoneNumber && !validatePhoneNumber(child.phoneNumber)) {
+        setError(`Child ${i + 1} phone number must be 10 digits starting with 01 or 07`);
+        return;
+      }
+
+      // Validate child age if dateOfBirth is provided
+      if (child.dateOfBirth) {
+        const age = calculateAge(child.dateOfBirth);
         const today = new Date();
-        if (selectedDate > today) {
-          setError('Date of birth cannot be in the future');
-          setIsSubmitting(false);
+        const birthDate = new Date(child.dateOfBirth);
+        const daysOld = Math.floor((today.getTime() - birthDate.getTime()) / (1000 * 60 * 60 * 24));
+
+        if (daysOld < 1) {
+          setError(`Child ${i + 1} age must be at least 1 day old`);
+          try {
+            Sentry.captureException(new Error('Child age validation failed'), {
+              tags: {
+                component: 'CustomerRegistration',
+                action: 'age_validation_error',
+              },
+              extra: {
+                childIndex: i + 1,
+                field: 'dateOfBirth',
+                value: child.dateOfBirth,
+                age,
+                daysOld,
+                errorMessage: `Child ${i + 1} age must be at least 1 day old`,
+              },
+            });
+          } catch (sentryErr) {
+            console.error('Sentry error:', sentryErr);
+          }
+          return;
+        }
+
+        if (age >= 25) {
+          setError(`Child ${i + 1} age must be less than 25 years old`);
+          try {
+            Sentry.captureException(new Error('Child age validation failed'), {
+              tags: {
+                component: 'CustomerRegistration',
+                action: 'age_validation_error',
+              },
+              extra: {
+                childIndex: i + 1,
+                field: 'dateOfBirth',
+                value: child.dateOfBirth,
+                age,
+                errorMessage: `Child ${i + 1} age must be less than 25 years old`,
+              },
+            });
+          } catch (sentryErr) {
+            console.error('Sentry error:', sentryErr);
+          }
           return;
         }
       }
+    }
 
-      // Validate phone numbers if provided
-      if (formData.phoneNumber && !validatePhoneNumber(formData.phoneNumber)) {
-        setError('Principal member phone number must be 10 digits starting with 01 or 07');
-        setIsSubmitting(false);
-        return;
-      }
+    // All validation passed, now set submitting and proceed
+    setIsSubmitting(true);
 
-      // Validate spouse phone numbers
-      for (let i = 0; i < formData.spouses.length; i++) {
-        const spouse = formData.spouses[i];
-        if (spouse.phoneNumber && !validatePhoneNumber(spouse.phoneNumber)) {
-          setError(`Spouse ${i + 1} phone number must be 10 digits starting with 01 or 07`);
-          setIsSubmitting(false);
-          return;
-        }
-      }
-
-      // Validate children phone numbers
-      for (let i = 0; i < formData.children.length; i++) {
-        const child = formData.children[i];
-        if (child.phoneNumber && !validatePhoneNumber(child.phoneNumber)) {
-          setError(`Child ${i + 1} phone number must be 10 digits starting with 01 or 07`);
-          setIsSubmitting(false);
-          return;
-        }
-      }
+    try {
 
       // Transform form data to API format
       const customerRequest: CustomerRegistrationRequest = {
@@ -287,16 +457,28 @@ export default function CustomerStep() {
           productId: 'default-product', // TODO: Get from product selection
           planId: 'default-plan', // TODO: Get from plan selection
         },
-        spouses: formData.spouses.length > 0 ? formData.spouses.map(spouse => ({
-          firstName: toTitleCase(spouse.firstName),
-          lastName: toTitleCase(spouse.lastName),
-          middleName: spouse.middleName ? toTitleCase(spouse.middleName) : undefined,
-          ...(spouse.dateOfBirth && { dateOfBirth: spouse.dateOfBirth }),
-          gender: spouse.gender.toLowerCase(),
-          phoneNumber: spouse.phoneNumber ? formatPhoneNumber(spouse.phoneNumber) : undefined,
-          idType: mapIdTypeToBackend(spouse.idType),
-          idNumber: spouse.idNumber,
-        })) : undefined,
+        spouses: formData.spouses.length > 0 ? formData.spouses.map(spouse => {
+          const baseSpouse = {
+            firstName: toTitleCase(spouse.firstName),
+            lastName: toTitleCase(spouse.lastName),
+            middleName: spouse.middleName ? toTitleCase(spouse.middleName) : undefined,
+            ...(spouse.dateOfBirth && { dateOfBirth: spouse.dateOfBirth }),
+            gender: spouse.gender.toLowerCase(),
+            phoneNumber: spouse.phoneNumber ? formatPhoneNumber(spouse.phoneNumber) : undefined,
+          };
+
+          // Only include idType and idNumber if idNumber is provided
+          if (spouse.idNumber && spouse.idNumber.trim()) {
+            return {
+              ...baseSpouse,
+              idType: mapIdTypeToBackend(spouse.idType),
+              idNumber: spouse.idNumber,
+            };
+          }
+
+          // If idNumber is empty, omit both idType and idNumber (will be null in API)
+          return baseSpouse;
+        }) : undefined,
         children: formData.children.length > 0 ? formData.children.map(child => ({
           firstName: toTitleCase(child.firstName),
           lastName: toTitleCase(child.lastName),
@@ -304,8 +486,8 @@ export default function CustomerStep() {
           ...(child.dateOfBirth && { dateOfBirth: child.dateOfBirth }),
           gender: child.gender.toLowerCase(),
           phoneNumber: child.phoneNumber ? formatPhoneNumber(child.phoneNumber) : undefined,
-          idType: mapIdTypeToBackend(child.idType),
-          idNumber: child.idNumber,
+          verificationRequired: child.dateOfBirth ? calculateChildVerificationRequired(child.dateOfBirth) : false,
+          // idType and idNumber are omitted (will be null/undefined in API)
         })) : undefined,
       };
 
@@ -457,7 +639,7 @@ export default function CustomerStep() {
                 type="date"
                 value={formData.dateOfBirth}
                 onChange={(e) => handleInputChange('dateOfBirth', e.target.value)}
-                max={getMaxDate()}
+                max={getMinDateForAdults()}
               />
             </div>
             <div>
@@ -577,12 +759,13 @@ export default function CustomerStep() {
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 border rounded-lg">
                   <div>
-                    <Label htmlFor={`spouseFirstName_${spouseIndex}`}>First Name</Label>
+                    <Label htmlFor={`spouseFirstName_${spouseIndex}`}>First Name *</Label>
                     <Input
                       id={`spouseFirstName_${spouseIndex}`}
                       value={spouse.firstName}
                       onChange={(e) => handleSpouseChange(spouseIndex, 'firstName', e.target.value)}
                       placeholder="Enter spouse first name"
+                      required
                     />
                   </div>
                   <div>
@@ -595,22 +778,24 @@ export default function CustomerStep() {
                     />
                   </div>
                   <div>
-                    <Label htmlFor={`spouseLastName_${spouseIndex}`}>Last Name</Label>
+                    <Label htmlFor={`spouseLastName_${spouseIndex}`}>Last Name *</Label>
                     <Input
                       id={`spouseLastName_${spouseIndex}`}
                       value={spouse.lastName}
                       onChange={(e) => handleSpouseChange(spouseIndex, 'lastName', e.target.value)}
                       placeholder="Enter spouse last name"
+                      required
                     />
                   </div>
                   <div>
-                    <Label htmlFor={`spouseGender_${spouseIndex}`}>Gender</Label>
+                    <Label htmlFor={`spouseGender_${spouseIndex}`}>Gender *</Label>
                     <Select
                       value={spouse.gender}
                       onValueChange={(value) => handleSpouseChange(spouseIndex, 'gender', value)}
+                      required
                     >
                       <SelectTrigger>
-                        <SelectValue placeholder="Select gender" />
+                        <SelectValue placeholder="Select Gender" />
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="MALE">Male</SelectItem>
@@ -627,6 +812,7 @@ export default function CustomerStep() {
                       type="date"
                       value={spouse.dateOfBirth}
                       onChange={(e) => handleSpouseChange(spouseIndex, 'dateOfBirth', e.target.value)}
+                      max={getMinDateForAdults()}
                     />
                   </div>
                   <div>
@@ -755,38 +941,15 @@ export default function CustomerStep() {
                       type="date"
                       value={child.dateOfBirth}
                       onChange={(e) => handleChildChange(index, 'dateOfBirth', e.target.value)}
+                      max={getMaxDateForChildren()}
+                      min={getMinDateForChildren()}
                     />
                   </div>
-                  <div>
-                    <Label htmlFor={`childIdType${index}`}>ID Type</Label>
-                    <Select value={child.idType} onValueChange={(value) => handleChildChange(index, 'idType', value)}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select ID type" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="NATIONAL_ID">National ID</SelectItem>
-                        <SelectItem value="PASSPORT">Passport</SelectItem>
-                        <SelectItem value="ALIEN">Alien ID</SelectItem>
-                        <SelectItem value="BIRTH_CERTIFICATE">Birth Certificate</SelectItem>
-                        <SelectItem value="MILITARY">Military ID</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
                   <div className="flex items-end">
-                    <div className="flex-1">
-                      <Label htmlFor={`childIdNumber${index}`}>ID Number</Label>
-                      <Input
-                        id={`childIdNumber${index}`}
-                        value={child.idNumber}
-                        onChange={(e) => handleChildChange(index, 'idNumber', e.target.value)}
-                        placeholder="Enter child ID number"
-                      />
-                    </div>
                     <Button
                       variant="outline"
                       size="sm"
                       onClick={() => removeChild(index)}
-                      className="ml-2"
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>

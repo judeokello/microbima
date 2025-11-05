@@ -199,6 +199,14 @@ export class DependantSummaryDto {
   })
   @IsString()
   relationship: string;
+
+  @ApiProperty({
+    description: 'Verification required flag (for children 18-24 years old)',
+    example: false,
+    required: false,
+  })
+  @IsOptional()
+  verificationRequired?: boolean;
 }
 
 export class CustomerDetailDataDto {

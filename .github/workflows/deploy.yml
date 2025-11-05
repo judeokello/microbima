@@ -439,6 +439,8 @@ jobs:
     needs: [deploy-staging, deploy-production]
     if: always()
     runs-on: ubuntu-latest
+    env:
+      DEPLOY_PUBLIC_API: false
     steps:
       - name: Health Check Staging
         if: github.ref == 'refs/heads/staging'
@@ -458,18 +460,30 @@ jobs:
             echo "⏭️ Skipping Internal API health check (not deployed)"
           fi
           
-          # Public API (Kong Gateway) - check deployment status
-          echo "Checking Public API..."
-          STATUS_CODE=$(curl -s -o /dev/null -w "%{http_code}" https://microbima-staging-public-api.fly.dev/api/v1/customers)
-          echo "Public API status: $STATUS_CODE"
-          
-          if [ "$STATUS_CODE" -eq "200" ] || [ "$STATUS_CODE" -eq "401" ] || [ "$STATUS_CODE" -eq "403" ]; then
-            echo "✅ Public API is healthy and proxying correctly"
-          elif [ "$STATUS_CODE" -eq "502" ] || [ "$STATUS_CODE" -eq "503" ]; then
-            echo "⚠️ Public API deployed but backend connection issues (status $STATUS_CODE)"
-            echo "   This is expected if backend is not deployed. Kong is running."
+          # Public API (Kong Gateway) - conditional check
+          if [ "$DEPLOY_PUBLIC_API" != "false" ]; then
+            echo "Checking Public API..."
+            set +e  # Don't fail on curl errors initially
+            STATUS_CODE=$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 10 --max-time 30 https://microbima-staging-public-api.fly.dev/api/v1/customers 2>/dev/null || echo "000")
+            CURL_EXIT_CODE=$?
+            set -e
+            echo "Public API status: $STATUS_CODE"
+            
+            if [ "$STATUS_CODE" = "000" ] || [ "$CURL_EXIT_CODE" -ne 0 ]; then
+              echo "❌ Public API is not reachable (service should be deployed but is not responding)"
+              echo "   This indicates a deployment issue that needs attention."
+              exit 1  # Fail the health check job
+            elif [ "$STATUS_CODE" -eq "200" ] || [ "$STATUS_CODE" -eq "401" ] || [ "$STATUS_CODE" -eq "403" ]; then
+              echo "✅ Public API is healthy and proxying correctly"
+            elif [ "$STATUS_CODE" -eq "502" ] || [ "$STATUS_CODE" -eq "503" ]; then
+              echo "⚠️ Public API deployed but backend connection issues (status $STATUS_CODE)"
+              echo "   This is expected if backend is not deployed. Kong is running."
+            else
+              echo "⚠️ Public API returned unexpected status: $STATUS_CODE"
+              echo "   This may indicate a configuration issue."
+            fi
           else
-            echo "⚠️ Public API returned status: $STATUS_CODE"
+            echo "⏭️ Skipping Public API health check (not deployed)"
           fi
           
           # TODO: Add health check when web-admin app is deployed
@@ -492,18 +506,30 @@ jobs:
           curl -f https://maishapoa-production-agent-registration.fly.dev/ || exit 1
           echo "✅ Agent Registration is healthy"
           
-          # Public API (Kong Gateway) - check deployment status
-          echo "Checking Public API..."
-          STATUS_CODE=$(curl -s -o /dev/null -w "%{http_code}" https://maishapoa-production-public-api.fly.dev/api/v1/customers)
-          echo "Public API status: $STATUS_CODE"
-          
-          if [ "$STATUS_CODE" -eq "200" ] || [ "$STATUS_CODE" -eq "401" ] || [ "$STATUS_CODE" -eq "403" ]; then
-            echo "✅ Public API is healthy and proxying correctly"
-          elif [ "$STATUS_CODE" -eq "502" ] || [ "$STATUS_CODE" -eq "503" ]; then
-            echo "⚠️ Public API deployed but backend connection issues (status $STATUS_CODE)"
-            echo "   This is expected if backend is not deployed. Kong is running."
+          # Public API (Kong Gateway) - conditional check
+          if [ "$DEPLOY_PUBLIC_API" != "false" ]; then
+            echo "Checking Public API..."
+            set +e  # Don't fail on curl errors initially
+            STATUS_CODE=$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 10 --max-time 30 https://maishapoa-production-public-api.fly.dev/api/v1/customers 2>/dev/null || echo "000")
+            CURL_EXIT_CODE=$?
+            set -e
+            echo "Public API status: $STATUS_CODE"
+            
+            if [ "$STATUS_CODE" = "000" ] || [ "$CURL_EXIT_CODE" -ne 0 ]; then
+              echo "❌ Public API is not reachable (service should be deployed but is not responding)"
+              echo "   This indicates a deployment issue that needs attention."
+              exit 1  # Fail the health check job
+            elif [ "$STATUS_CODE" -eq "200" ] || [ "$STATUS_CODE" -eq "401" ] || [ "$STATUS_CODE" -eq "403" ]; then
+              echo "✅ Public API is healthy and proxying correctly"
+            elif [ "$STATUS_CODE" -eq "502" ] || [ "$STATUS_CODE" -eq "503" ]; then
+              echo "⚠️ Public API deployed but backend connection issues (status $STATUS_CODE)"
+              echo "   This is expected if backend is not deployed. Kong is running."
+            else
+              echo "⚠️ Public API returned unexpected status: $STATUS_CODE"
+              echo "   This may indicate a configuration issue."
+            fi
           else
-            echo "⚠️ Public API returned status: $STATUS_CODE"
+            echo "⏭️ Skipping Public API health check (not deployed)"
           fi
           
           # TODO: Add health check when web-admin app is deployed

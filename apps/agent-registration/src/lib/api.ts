@@ -391,8 +391,8 @@ export interface CustomerRegistrationRequest {
     dateOfBirth?: string
     gender: string
     phoneNumber?: string
-    idType: string
-    idNumber: string
+    idType?: string
+    idNumber?: string
   }>
   children?: Array<{
     firstName: string
@@ -400,8 +400,9 @@ export interface CustomerRegistrationRequest {
     middleName?: string
     dateOfBirth?: string
     gender: string
-    idType: string
-    idNumber: string
+    idType?: string
+    idNumber?: string
+    verificationRequired?: boolean
   }>
   beneficiaries?: Array<{
     firstName: string
@@ -535,12 +536,12 @@ export interface BeneficiaryData {
   firstName: string
   lastName: string
   middleName?: string
-  dateOfBirth: string
+  dateOfBirth?: string
   gender: string
   email?: string
   phoneNumber?: string
-  idType: string
-  idNumber: string
+  idType?: string
+  idNumber?: string
   relationship: string
   relationshipDescription?: string
   percentage: number
@@ -636,6 +637,7 @@ export interface ChildData {
   gender: string
   idType?: string
   idNumber?: string
+  verificationRequired?: boolean
 }
 
 export interface AddDependantsRequest {
@@ -756,6 +758,7 @@ export interface RegistrationsChartResponse {
 }
 
 export async function searchCustomers(
+  name?: string,
   idNumber?: string,
   phoneNumber?: string,
   email?: string,
@@ -767,6 +770,7 @@ export async function searchCustomers(
 
     // Build query params
     const params = new URLSearchParams()
+    if (name) params.append('name', name)
     if (idNumber) params.append('idNumber', idNumber)
     if (phoneNumber) params.append('phoneNumber', phoneNumber)
     if (email) params.append('email', email)
@@ -890,6 +894,7 @@ export interface CustomerDetailData {
     idType?: string
     idNumber?: string
     relationship: string
+    verificationRequired?: boolean
   }>
   policies: Array<{
     id: string

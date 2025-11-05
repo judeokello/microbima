@@ -7,11 +7,11 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent } from '@/components/ui/card';
-import { Checkbox } from '@/components/ui/checkbox';
 import { Loader2 } from 'lucide-react';
 import { addBeneficiaries, BeneficiaryData } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
 import { useBrandAmbassador } from '@/hooks/useBrandAmbassador';
+import * as Sentry from '@sentry/nextjs';
 
 // Helper functions for date validation (currently unused but kept for future use)
 // const getMinDateForAdults = () => {
@@ -79,7 +79,7 @@ const initialFormData: BeneficiaryFormData = {
   relationship: '',
   customRelationship: '',
   dateOfBirth: '',
-  gender: 'MALE', // Default gender
+  gender: '', // No default - user must select
 };
 
 export default function BeneficiaryStep() {
@@ -89,7 +89,6 @@ export default function BeneficiaryStep() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [formData, setFormData] = useState<BeneficiaryFormData>(initialFormData);
-  const [skipBeneficiary, setSkipBeneficiary] = useState(false);
 
   useEffect(() => {
     // Load saved form data
@@ -109,7 +108,7 @@ export default function BeneficiaryStep() {
           relationship: parsedData.relationship ?? '',
           customRelationship: parsedData.customRelationship ?? '',
           dateOfBirth: parsedData.dateOfBirth ?? '',
-          gender: parsedData.gender ?? 'MALE',
+          gender: parsedData.gender ?? '',
         });
       } catch (error) {
         console.error('Error parsing saved beneficiary data:', error);
@@ -155,8 +154,141 @@ export default function BeneficiaryStep() {
     }
 
     console.log('✅ User session found');
-    setIsSubmitting(true);
+
+    // Clear any previous errors
     setError(null);
+
+    // Validate required fields BEFORE setting isSubmitting
+    if (!formData.firstName?.trim()) {
+      setError('First name is required');
+      try {
+        Sentry.captureException(new Error('Validation error'), {
+          tags: {
+            component: 'BeneficiaryRegistration',
+            action: 'validation_error',
+          },
+          extra: {
+            field: 'firstName',
+            errorMessage: 'First name is required',
+          },
+        });
+      } catch (sentryErr) {
+        console.error('Sentry error:', sentryErr);
+      }
+      return;
+    }
+    if (!formData.lastName?.trim()) {
+      setError('Last name is required');
+      try {
+        Sentry.captureException(new Error('Validation error'), {
+          tags: {
+            component: 'BeneficiaryRegistration',
+            action: 'validation_error',
+          },
+          extra: {
+            field: 'lastName',
+            errorMessage: 'Last name is required',
+          },
+        });
+      } catch (sentryErr) {
+        console.error('Sentry error:', sentryErr);
+      }
+      return;
+    }
+    if (!formData.gender?.trim()) {
+      setError('Gender is required');
+      try {
+        Sentry.captureException(new Error('Validation error'), {
+          tags: {
+            component: 'BeneficiaryRegistration',
+            action: 'validation_error',
+          },
+          extra: {
+            field: 'gender',
+            errorMessage: 'Gender is required',
+          },
+        });
+      } catch (sentryErr) {
+        console.error('Sentry error:', sentryErr);
+      }
+      return;
+    }
+    if (!formData.phoneNumber || formData.phoneNumber.trim() === '') {
+      setError('Phone number is required');
+      try {
+        Sentry.captureException(new Error('Validation error'), {
+          tags: {
+            component: 'BeneficiaryRegistration',
+            action: 'validation_error',
+          },
+          extra: {
+            field: 'phoneNumber',
+            errorMessage: 'Phone number is required',
+          },
+        });
+      } catch (sentryErr) {
+        console.error('Sentry error:', sentryErr);
+      }
+      return;
+    }
+    if (!validatePhoneNumber(formData.phoneNumber)) {
+      setError('Phone number must be 10 digits starting with 01 or 07');
+      try {
+        Sentry.captureException(new Error('Validation error'), {
+          tags: {
+            component: 'BeneficiaryRegistration',
+            action: 'validation_error',
+          },
+          extra: {
+            field: 'phoneNumber',
+            value: formData.phoneNumber,
+            errorMessage: 'Phone number must be 10 digits starting with 01 or 07',
+          },
+        });
+      } catch (sentryErr) {
+        console.error('Sentry error:', sentryErr);
+      }
+      return;
+    }
+    if (!formData.relationship?.trim()) {
+      setError('Relationship is required');
+      try {
+        Sentry.captureException(new Error('Validation error'), {
+          tags: {
+            component: 'BeneficiaryRegistration',
+            action: 'validation_error',
+          },
+          extra: {
+            field: 'relationship',
+            errorMessage: 'Relationship is required',
+          },
+        });
+      } catch (sentryErr) {
+        console.error('Sentry error:', sentryErr);
+      }
+      return;
+    }
+    if (formData.relationship === 'OTHER' && !formData.customRelationship?.trim()) {
+      setError('Relationship description is required when relationship is "Other"');
+      try {
+        Sentry.captureException(new Error('Validation error'), {
+          tags: {
+            component: 'BeneficiaryRegistration',
+            action: 'validation_error',
+          },
+          extra: {
+            field: 'customRelationship',
+            errorMessage: 'Relationship description is required when relationship is "Other"',
+          },
+        });
+      } catch (sentryErr) {
+        console.error('Sentry error:', sentryErr);
+      }
+      return;
+    }
+
+    // All validation passed, now set submitting and proceed
+    setIsSubmitting(true);
 
     try {
       const customerId = localStorage.getItem('customerId');
@@ -171,74 +303,52 @@ export default function BeneficiaryStep() {
       }
 
       console.log('🔍 Step 3: Processing beneficiary data...');
-      console.log('🔍 Skip beneficiary:', skipBeneficiary);
       console.log('🔍 Form data:', formData);
 
-      if (!skipBeneficiary && formData.firstName.trim()) {
-        // Validate phone number (mandatory)
-        if (!formData.phoneNumber || formData.phoneNumber.trim() === '') {
-          throw new Error('Phone number is required');
-        }
-        if (!validatePhoneNumber(formData.phoneNumber)) {
-          throw new Error('Phone number must be 10 digits starting with 01 or 07');
-        }
+      // Transform form data to API format
+      const baseBeneficiary = {
+        firstName: toTitleCase(formData.firstName),
+        lastName: toTitleCase(formData.lastName),
+        middleName: formData.middleName ? toTitleCase(formData.middleName) : undefined,
+        // dateOfBirth and email are omitted (will be null/undefined in API)
+        gender: mapGenderToBackend(formData.gender),
+        phoneNumber: formData.phoneNumber ? formatPhoneNumber(formData.phoneNumber) : undefined,
+        relationship: mapRelationshipToBackend(formData.relationship),
+        relationshipDescription: formData.relationship === 'OTHER' ? formData.customRelationship : undefined,
+        percentage: 100, // Default to 100% if only one beneficiary
+      };
 
-        // Validate date of birth if provided
-        if (formData.dateOfBirth && !formData.dateOfBirth.trim()) {
-          throw new Error('Invalid date of birth');
-        }
-        if (formData.dateOfBirth && isNaN(Date.parse(formData.dateOfBirth))) {
-          throw new Error('Invalid date of birth');
-        }
+      // Only include idType and idNumber if idNumber is provided
+      const beneficiaryData: BeneficiaryData = formData.idNumber && formData.idNumber.trim()
+        ? {
+            ...baseBeneficiary,
+            idType: mapIdTypeToBackend(formData.idType),
+            idNumber: formData.idNumber,
+          }
+        : baseBeneficiary; // If idNumber is empty, omit both idType and idNumber (will be null in API)
 
-        // Transform form data to API format
-        const beneficiaryData: BeneficiaryData = {
-          firstName: toTitleCase(formData.firstName),
-          lastName: toTitleCase(formData.lastName),
-          middleName: formData.middleName ? toTitleCase(formData.middleName) : undefined,
-          dateOfBirth: formData.dateOfBirth,
-          gender: mapGenderToBackend(formData.gender),
-          email: formData.email?.trim() || undefined,
-          phoneNumber: formData.phoneNumber ? formatPhoneNumber(formData.phoneNumber) : undefined,
-          idType: mapIdTypeToBackend(formData.idType),
-          idNumber: formData.idNumber,
-          relationship: mapRelationshipToBackend(formData.relationship),
-          relationshipDescription: formData.relationship === 'OTHER' ? formData.customRelationship : undefined,
-          percentage: 100, // Default to 100% if only one beneficiary
-        };
+      console.log('🔍 Step 4: Calling addBeneficiaries API...');
+      console.log('🔍 Raw form data:', {
+        idType: formData.idType,
+        gender: formData.gender,
+        relationship: formData.relationship,
+      });
+      console.log('🔍 Mapped beneficiary data:', beneficiaryData);
 
-        console.log('🔍 Step 4: Calling addBeneficiaries API...');
-        console.log('🔍 Raw form data:', {
-          idType: formData.idType,
-          gender: formData.gender,
-          relationship: formData.relationship,
-        });
-        console.log('🔍 Mapped beneficiary data:', beneficiaryData);
+      // Step 1: Add beneficiary to customer
+      const beneficiaryResult = await addBeneficiaries(customerId, [beneficiaryData]);
+      console.log('🔍 Beneficiary result:', beneficiaryResult);
 
-        // Step 1: Add beneficiary to customer
-        const beneficiaryResult = await addBeneficiaries(customerId, [beneficiaryData]);
-        console.log('🔍 Beneficiary result:', beneficiaryResult);
-
-        if (!beneficiaryResult.success || !beneficiaryResult.beneficiaryIds?.length) {
-          console.error('❌ Failed to add beneficiary:', beneficiaryResult.error);
-          throw new Error(beneficiaryResult.error ?? 'Failed to add beneficiary');
-        }
-
-        console.log('✅ Beneficiary added successfully');
-
-        // Step 2: Create missing requirements for beneficiary if needed
-        // This would typically be done based on partner configuration
-        // For now, we'll skip this as it's handled by the backend when creating the registration
+      if (!beneficiaryResult.success || !beneficiaryResult.beneficiaryIds?.length) {
+        console.error('❌ Failed to add beneficiary:', beneficiaryResult.error);
+        throw new Error(beneficiaryResult.error ?? 'Failed to add beneficiary');
       }
+
+      console.log('✅ Beneficiary added successfully');
 
       // Save form data for next steps
-      if (!skipBeneficiary) {
-        localStorage.setItem('beneficiaryFormData', JSON.stringify(formData));
-        console.log('✅ Beneficiary form data saved to localStorage');
-      } else {
-        localStorage.removeItem('beneficiaryFormData');
-        console.log('✅ Skipped beneficiary - removed from localStorage');
-      }
+      localStorage.setItem('beneficiaryFormData', JSON.stringify(formData));
+      console.log('✅ Beneficiary form data saved to localStorage');
 
       console.log('🔍 Step 5: Navigating to payment page...');
       console.log('🔍 ========== BENEFICIARY SUBMISSION COMPLETE ==========');
@@ -272,24 +382,12 @@ export default function BeneficiaryStep() {
     <div className="space-y-6">
       <div>
         <h2 className="text-2xl font-bold">Next of Kin Information</h2>
-        <p className="text-gray-600">Enter the next of kin details (optional)</p>
+        <p className="text-gray-600">Enter the next of kin details</p>
       </div>
 
       <Card>
         <CardContent className="p-6">
-          <div className="flex items-center space-x-2 mb-6">
-            <Checkbox
-              id="skipBeneficiary"
-              checked={skipBeneficiary}
-              onCheckedChange={(checked) => setSkipBeneficiary(checked as boolean)}
-            />
-            <Label htmlFor="skipBeneficiary" className="text-sm font-medium">
-              Skip beneficiary information (can be added later)
-            </Label>
-          </div>
-
-          {!skipBeneficiary && (
-            <div className="space-y-4">
+          <div className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
                   <Label htmlFor="firstName">First Name *</Label>
@@ -349,49 +447,28 @@ export default function BeneficiaryStep() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                  <Label htmlFor="phoneNumber">Phone Number *</Label>
-                  <Input
-                    id="phoneNumber"
-                    value={formData.phoneNumber}
-                    onChange={(e) => {
-                      const formatted = formatPhoneNumber(e.target.value);
-                      handleInputChange('phoneNumber', formatted);
-                    }}
-                    placeholder="Enter phone number (01xxxxxxxx or 07xxxxxxxx)"
-                    maxLength={10}
-                    inputMode="numeric"
-                    pattern="[0-9]*"
-                    required
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="email">Email</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    value={formData.email}
-                    onChange={(e) => handleInputChange('email', e.target.value)}
-                    placeholder="Enter email address"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="dateOfBirth">Date of Birth</Label>
-                  <Input
-                    id="dateOfBirth"
-                    type="date"
-                    value={formData.dateOfBirth}
-                    onChange={(e) => handleInputChange('dateOfBirth', e.target.value)}
-                  />
-                </div>
+              <div>
+                <Label htmlFor="phoneNumber">Phone Number *</Label>
+                <Input
+                  id="phoneNumber"
+                  value={formData.phoneNumber}
+                  onChange={(e) => {
+                    const formatted = formatPhoneNumber(e.target.value);
+                    handleInputChange('phoneNumber', formatted);
+                  }}
+                  placeholder="Enter phone number (01xxxxxxxx or 07xxxxxxxx)"
+                  maxLength={10}
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  required
+                />
               </div>
 
               <div>
-                <Label htmlFor="gender">Gender</Label>
-                <Select value={formData.gender} onValueChange={(value) => handleInputChange('gender', value)}>
+                <Label htmlFor="gender">Gender *</Label>
+                <Select value={formData.gender} onValueChange={(value) => handleInputChange('gender', value)} required>
                   <SelectTrigger>
-                    <SelectValue placeholder="Select gender" />
+                    <SelectValue placeholder="Select Gender" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="MALE">Male</SelectItem>
@@ -403,8 +480,8 @@ export default function BeneficiaryStep() {
               </div>
 
               <div>
-                <Label htmlFor="relationship">Relationship</Label>
-                <Select value={formData.relationship} onValueChange={(value) => handleInputChange('relationship', value)}>
+                <Label htmlFor="relationship">Relationship *</Label>
+                <Select value={formData.relationship} onValueChange={(value) => handleInputChange('relationship', value)} required>
                   <SelectTrigger>
                     <SelectValue placeholder="Select relationship" />
                   </SelectTrigger>
@@ -429,8 +506,7 @@ export default function BeneficiaryStep() {
                   </div>
                 )}
               </div>
-            </div>
-          )}
+          </div>
         </CardContent>
       </Card>
 
@@ -469,7 +545,7 @@ export default function BeneficiaryStep() {
           {isSubmitting ? (
             <>
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              {skipBeneficiary ? 'Skipping...' : 'Adding Beneficiary...'}
+              Adding Beneficiary...
             </>
           ) : (
             'Next: Payment & Review'

@@ -3,8 +3,9 @@
 import { useState } from 'react';
 import { useParams } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Pencil } from 'lucide-react';
+import { Pencil, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import EditDependantDialog from './edit-dependant-dialog';
 import AddChildDialog from './add-child-dialog';
 
@@ -18,6 +19,7 @@ interface ChildrenSectionProps {
     idType?: string;
     idNumber?: string;
     relationship: string;
+    verificationRequired?: boolean;
   }>;
   canEdit: boolean;
   canAdd: boolean;
@@ -110,9 +112,23 @@ export default function ChildrenSection({ dependants, canEdit, canAdd, onUpdate 
             {dependants.map((dependant) => (
               <div
                 key={dependant.id}
-                className="border rounded-lg p-4 flex items-start justify-between"
+                className="border rounded-lg p-4 flex items-start justify-between relative"
               >
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 flex-1">
+                  {dependant.verificationRequired && (
+                    <div className="absolute top-4 right-12">
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <AlertTriangle className="h-5 w-5 text-amber-500" />
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>Member verification is required</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    </div>
+                  )}
                   <div>
                     <label className="text-sm font-medium text-gray-500">First Name</label>
                     <p className="text-gray-900">{dependant.firstName}</p>

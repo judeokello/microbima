@@ -36,6 +36,38 @@ const mapIdTypeToBackend = (idType?: string): string | undefined => {
   return mapping[idType] ?? undefined;
 };
 
+// Get maximum date for children (today)
+const getMaxDateForChildren = () => {
+  const today = new Date();
+  return today.toISOString().split('T')[0];
+};
+
+// Get minimum date for children (24 years ago from today)
+const getMinDateForChildren = () => {
+  const today = new Date();
+  const minDate = new Date(today.getFullYear() - 24, today.getMonth(), today.getDate());
+  return minDate.toISOString().split('T')[0];
+};
+
+// Calculate age from date of birth
+const calculateAge = (dateOfBirth: string): number => {
+  const birthDate = new Date(dateOfBirth);
+  const today = new Date();
+  let age = today.getFullYear() - birthDate.getFullYear();
+  const monthDiff = today.getMonth() - birthDate.getMonth();
+  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+    age--;
+  }
+  return age;
+};
+
+// Calculate if child requires verification (age 18-24)
+const calculateChildVerificationRequired = (dateOfBirth: string): boolean => {
+  if (!dateOfBirth) return false;
+  const age = calculateAge(dateOfBirth);
+  return age >= 18 && age < 25;
+};
+
 export default function AddChildDialog({
   customerId,
   open,
@@ -59,15 +91,90 @@ export default function AddChildDialog({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
     setError(null);
 
     // Validate required fields
     if (!formData.firstName || !formData.lastName || !formData.gender) {
       setError('First name, last name, and gender are required');
-      setLoading(false);
       return;
     }
+
+    // Validate child age if dateOfBirth is provided
+    if (formData.dateOfBirth) {
+      const selectedDate = new Date(formData.dateOfBirth);
+      const today = new Date();
+      if (selectedDate > today) {
+        setError('Date of birth cannot be in the future');
+        try {
+          Sentry.captureException(new Error('Date of birth validation failed'), {
+            tags: {
+              component: 'AddChildDialog',
+              action: 'validation_error',
+            },
+            extra: {
+              customerId,
+              field: 'dateOfBirth',
+              value: formData.dateOfBirth,
+              errorMessage: 'Date of birth cannot be in the future',
+            },
+          });
+        } catch (sentryErr) {
+          console.error('Sentry error:', sentryErr);
+        }
+        return;
+      }
+
+      const age = calculateAge(formData.dateOfBirth);
+      const birthDate = new Date(formData.dateOfBirth);
+      const daysOld = Math.floor((today.getTime() - birthDate.getTime()) / (1000 * 60 * 60 * 24));
+
+      if (daysOld < 1) {
+        setError('Child age must be at least 1 day old');
+        try {
+          Sentry.captureException(new Error('Child age validation failed'), {
+            tags: {
+              component: 'AddChildDialog',
+              action: 'age_validation_error',
+            },
+            extra: {
+              customerId,
+              field: 'dateOfBirth',
+              value: formData.dateOfBirth,
+              age,
+              daysOld,
+              errorMessage: 'Child age must be at least 1 day old',
+            },
+          });
+        } catch (sentryErr) {
+          console.error('Sentry error:', sentryErr);
+        }
+        return;
+      }
+
+      if (age >= 25) {
+        setError('Child age must be less than 25 years old');
+        try {
+          Sentry.captureException(new Error('Child age validation failed'), {
+            tags: {
+              component: 'AddChildDialog',
+              action: 'age_validation_error',
+            },
+            extra: {
+              customerId,
+              field: 'dateOfBirth',
+              value: formData.dateOfBirth,
+              age,
+              errorMessage: 'Child age must be less than 25 years old',
+            },
+          });
+        } catch (sentryErr) {
+          console.error('Sentry error:', sentryErr);
+        }
+        return;
+      }
+    }
+
+    setLoading(true);
 
     try {
       const childData: ChildData = {
@@ -78,6 +185,7 @@ export default function AddChildDialog({
         gender: formData.gender,
         idType: mapIdTypeToBackend(formData.idType),
         idNumber: formData.idNumber || undefined,
+        verificationRequired: formData.dateOfBirth ? calculateChildVerificationRequired(formData.dateOfBirth) : false,
       };
 
       const result = await addDependants(actualCustomerId, {
@@ -174,6 +282,8 @@ export default function AddChildDialog({
                 type="date"
                 value={formData.dateOfBirth}
                 onChange={(e) => setFormData({ ...formData, dateOfBirth: e.target.value })}
+                max={getMaxDateForChildren()}
+                min={getMinDateForChildren()}
               />
             </div>
 

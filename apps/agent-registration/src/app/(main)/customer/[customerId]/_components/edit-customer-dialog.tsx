@@ -72,6 +72,25 @@ const mapGenderFromBackend = (gender?: string): string => {
   return '';
 };
 
+// Get minimum date for adults (18 years ago from today)
+const getMinDateForAdults = () => {
+  const today = new Date();
+  const minDate = new Date(today.getFullYear() - 18, today.getMonth(), today.getDate());
+  return minDate.toISOString().split('T')[0];
+};
+
+// Calculate age from date of birth
+const calculateAge = (dateOfBirth: string): number => {
+  const birthDate = new Date(dateOfBirth);
+  const today = new Date();
+  let age = today.getFullYear() - birthDate.getFullYear();
+  const monthDiff = today.getMonth() - birthDate.getMonth();
+  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+    age--;
+  }
+  return age;
+};
+
 export default function EditCustomerDialog({
   customer,
   open,
@@ -95,7 +114,6 @@ export default function EditCustomerDialog({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
     setError(null);
     setPhoneError(null);
 
@@ -104,10 +122,61 @@ export default function EditCustomerDialog({
       const phoneErr = getPhoneValidationError(formData.phoneNumber);
       if (phoneErr) {
         setPhoneError(phoneErr);
-        setLoading(false);
         return;
       }
     }
+
+    // Validate date of birth is not in the future
+    if (formData.dateOfBirth) {
+      const selectedDate = new Date(formData.dateOfBirth);
+      const today = new Date();
+      if (selectedDate > today) {
+        setError('Date of birth cannot be in the future');
+        try {
+          Sentry.captureException(new Error('Date of birth validation failed'), {
+            tags: {
+              component: 'EditCustomerDialog',
+              action: 'validation_error',
+            },
+            extra: {
+              customerId: customer.id,
+              field: 'dateOfBirth',
+              value: formData.dateOfBirth,
+              errorMessage: 'Date of birth cannot be in the future',
+            },
+          });
+        } catch (sentryErr) {
+          console.error('Sentry error:', sentryErr);
+        }
+        return;
+      }
+
+      // Validate principal member is at least 18 years old
+      const age = calculateAge(formData.dateOfBirth);
+      if (age < 18) {
+        setError('Minimum age is 18 years old for a Principal member');
+        try {
+          Sentry.captureException(new Error('Age validation failed'), {
+            tags: {
+              component: 'EditCustomerDialog',
+              action: 'age_validation_error',
+            },
+            extra: {
+              customerId: customer.id,
+              field: 'dateOfBirth',
+              value: formData.dateOfBirth,
+              age,
+              errorMessage: 'Minimum age is 18 years old for a Principal member',
+            },
+          });
+        } catch (sentryErr) {
+          console.error('Sentry error:', sentryErr);
+        }
+        return;
+      }
+    }
+
+    setLoading(true);
 
     try {
       const updateData: UpdateCustomerData = {
@@ -184,6 +253,7 @@ export default function EditCustomerDialog({
                 type="date"
                 value={formData.dateOfBirth ?? ''}
                 onChange={(e) => setFormData({ ...formData, dateOfBirth: e.target.value || undefined })}
+                max={getMinDateForAdults()}
               />
             </div>
 

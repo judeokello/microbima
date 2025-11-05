@@ -226,32 +226,66 @@ export default function PaymentStep() {
       return;
     }
 
-    setIsSubmitting(true);
+    // Clear any previous errors
     setError(null);
     setTransactionReferenceError(null);
 
-    try {
-      // Validate transaction reference before submitting
-      if (transactionReference.trim()) {
+    // Validate required data BEFORE setting isSubmitting
+    if (!customerData) {
+      setError('Customer data not found. Please start over.');
+      return;
+    }
+
+    const customerId = localStorage.getItem('customerId');
+    const registrationId = localStorage.getItem('registrationId');
+
+    if (!customerId || !registrationId) {
+      setError('Registration data not found. Please start over.');
+      return;
+    }
+
+    // Validate payment phone number
+    if (!paymentPhone || paymentPhone.trim() === '') {
+      setError('Payment phone number is required');
+      return;
+    }
+
+    // Validate transaction reference
+    if (!transactionReference || transactionReference.trim() === '') {
+      setError('Transaction reference is required');
+      return;
+    }
+
+    // Validate plan and category selection
+    if (!selectedPlan || !selectedCategory) {
+      setError('Please select an insurance plan and family category before submitting payment.');
+      return;
+    }
+
+    // Validate premium is calculated
+    if (calculatedPricing.totalDaily === 0 && calculatedPricing.totalWeekly === 0) {
+      setError('Premium amount could not be calculated. Please select a plan and category.');
+      return;
+    }
+
+    // Check transaction reference before submitting (async check)
+    if (transactionReference.trim()) {
+      try {
         const exists = await checkTransactionReferenceExists(transactionReference.trim());
         if (exists) {
           setTransactionReferenceError('This transaction reference has already been used for another payment. Please enter a different transaction reference.');
-          setIsSubmitting(false);
           return;
         }
+      } catch (error) {
+        // On validation error, don't block - fail open but warn user
+        console.warn('Failed to validate transaction reference:', error);
       }
+    }
 
-      // Validate required data
-      if (!customerData) {
-        throw new Error('Customer data not found. Please start over.');
-      }
+    // All validation passed, now set submitting and proceed
+    setIsSubmitting(true);
 
-      const customerId = localStorage.getItem('customerId');
-      const registrationId = localStorage.getItem('registrationId');
-
-      if (!customerId || !registrationId) {
-        throw new Error('Registration data not found. Please start over.');
-      }
+    try {
 
       // Process payment
       const paymentRequest: PaymentRequest = {
@@ -272,16 +306,6 @@ export default function PaymentStep() {
       console.log('Payment successful:', paymentResult);
 
       // After payment succeeds, create the policy
-      // Validate that plan and category are selected
-      if (!selectedPlan || !selectedCategory) {
-        throw new Error('Please select an insurance plan and family category before submitting payment.');
-      }
-
-      // Validate premium is calculated
-      if (calculatedPricing.totalDaily === 0 && calculatedPricing.totalWeekly === 0) {
-        throw new Error('Premium amount could not be calculated. Please select a plan and category.');
-      }
-
       // Use default package (packageId=1 is MfanisiGo)
       const packageId = 1; // MfanisiGo package
 
