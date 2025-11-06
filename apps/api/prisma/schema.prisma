@@ -396,6 +396,16 @@ enum BAPayoutStatus {
   FAILED
 }
 
+enum MpesaStatementReasonType {
+  PayBill_STK
+  Ratiba
+  Paybill_MobileApp
+  PayBill_Fuliza_STK
+  PayBill_Fuliza_Online
+  Withdrawal
+  Unmapped
+}
+
 // Agent Registration Models
 model BrandAmbassador {
   id        String  @id @default(uuid()) @db.Uuid
@@ -775,4 +785,61 @@ model PolicyTag {
 
   @@unique([policyId, tagId])
   @@map("policy_tags")
+}
+
+model MpesaPaymentReportUpload {
+  id               String   @id @default(uuid()) @db.Uuid
+  accountHolder    String   @db.VarChar(100)
+  shortCode        String?  @db.VarChar(100)
+  account          String?  @db.VarChar(50)
+  timeFrom         DateTime
+  timeTo           DateTime
+  operator         String?  @db.VarChar(100)
+  openingBalance   Decimal? @db.Decimal(10, 2)
+  closingBalance   Decimal? @db.Decimal(10, 2)
+  availableBalance Decimal? @db.Decimal(10, 2)
+  totalPaidIn      Decimal? @db.Decimal(10, 2)
+  totalWithdrawn   Decimal? @db.Decimal(10, 2)
+  filePath         String?  @db.VarChar(500) // Storage path for the uploaded file
+
+  // Relations
+  items MpesaPaymentReportItem[]
+
+  // Audit fields
+  createdBy String? // User ID who created
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("mpesa_payment_report_uploads")
+}
+
+model MpesaPaymentReportItem {
+  id                        String                    @id @default(uuid()) @db.Uuid
+  mpesaPaymentReportUploadId String                   @db.Uuid
+  transactionReference      String                    @db.VarChar(50)
+  completionTime            DateTime
+  initiationTime         DateTime
+  paymentDetails            String?                   @db.VarChar(500)
+  transactionStatus        String?                   @db.VarChar(100)
+  paidIn                   Decimal                   @db.Decimal(10, 2)
+  withdrawn                Decimal                   @db.Decimal(10, 2)
+  accountBalance           Decimal                   @db.Decimal(10, 2)
+  balanceConfirmed         String?                   @db.VarChar(20)
+  reasonType               MpesaStatementReasonType
+  otherPartyInfo           String?                   @db.VarChar(500)
+  linkedTransactionId      String?                   @db.VarChar(100)
+  accountNumber             String?                   @db.VarChar(100)
+  isProcessed               Boolean                   @default(false)
+  isMapped                  Boolean                   @default(false)
+
+  // Relations
+  mpesaPaymentReportUpload MpesaPaymentReportUpload @relation(fields: [mpesaPaymentReportUploadId], references: [id], onDelete: Cascade)
+
+  // Audit fields
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([transactionReference], name: "idx_transaction_reference")
+  @@index([mpesaPaymentReportUploadId], name: "idx_mpesa_payment_report_upload_id")
+  @@map("mpesa_payment_report_items")
 }

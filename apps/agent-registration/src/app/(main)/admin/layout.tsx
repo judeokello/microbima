@@ -9,7 +9,7 @@ import { useBAStatusCheck } from '@/hooks/useBAStatusCheck';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { LogOut, User, LayoutDashboard, Search, Home, Users, UserPlus, UsersRound, Menu, Building2 } from 'lucide-react';
+import { LogOut, User, LayoutDashboard, Search, Home, Users, UserPlus, UsersRound, Menu, Building2, Wallet } from 'lucide-react';
 
 export default function AdminLayout({
   children,
@@ -115,6 +115,16 @@ export default function AdminLayout({
         >
           <Building2 className="h-4 w-4 mr-2" />
           Underwriters
+        </Link>
+        <Link
+          href="/admin/mpesa-payments"
+          className={`flex items-center px-3 py-2 rounded-md hover:bg-white/10 transition-colors ${
+            pathname?.startsWith('/admin/mpesa-payments') ? 'bg-white/10' : ''
+          }`}
+          onClick={() => isMobile && setSidebarOpen(false)}
+        >
+          <Wallet className="h-4 w-4 mr-2" />
+          MPESA Payments
         </Link>
         <Link
           href="/dashboard/search"
