@@ -1,8 +1,12 @@
--- CreateEnum
-CREATE TYPE "MpesaStatementReasonType" AS ENUM ('PayBill_STK', 'Ratiba', 'Paybill_MobileApp', 'PayBill_Fuliza_STK', 'PayBill_Fuliza_Online', 'Withdrawal', 'Unmapped');
+-- CreateEnum (only if it doesn't exist)
+DO $$ BEGIN
+    CREATE TYPE "MpesaStatementReasonType" AS ENUM ('PayBill_STK', 'Ratiba', 'Paybill_MobileApp', 'PayBill_Fuliza_STK', 'PayBill_Fuliza_Online', 'Withdrawal', 'Unmapped');
+EXCEPTION
+    WHEN duplicate_object THEN null;
+END $$;
 
--- CreateTable
-CREATE TABLE "mpesa_payment_report_uploads" (
+-- CreateTable (only if it doesn't exist)
+CREATE TABLE IF NOT EXISTS "mpesa_payment_report_uploads" (
     "id" UUID NOT NULL DEFAULT gen_random_uuid(),
     "accountHolder" VARCHAR(100) NOT NULL,
     "shortCode" VARCHAR(100),
@@ -23,8 +27,8 @@ CREATE TABLE "mpesa_payment_report_uploads" (
     CONSTRAINT "mpesa_payment_report_uploads_pkey" PRIMARY KEY ("id")
 );
 
--- CreateTable
-CREATE TABLE "mpesa_payment_report_items" (
+-- CreateTable (only if it doesn't exist)
+CREATE TABLE IF NOT EXISTS "mpesa_payment_report_items" (
     "id" UUID NOT NULL DEFAULT gen_random_uuid(),
     "mpesaPaymentReportUploadId" UUID NOT NULL,
     "transactionReference" VARCHAR(50) NOT NULL,
@@ -48,12 +52,16 @@ CREATE TABLE "mpesa_payment_report_items" (
     CONSTRAINT "mpesa_payment_report_items_pkey" PRIMARY KEY ("id")
 );
 
--- CreateIndex
-CREATE INDEX "idx_transaction_reference" ON "mpesa_payment_report_items"("transactionReference");
+-- CreateIndex (only if it doesn't exist)
+CREATE INDEX IF NOT EXISTS "idx_transaction_reference" ON "mpesa_payment_report_items"("transactionReference");
 
--- CreateIndex
-CREATE INDEX "idx_mpesa_payment_report_upload_id" ON "mpesa_payment_report_items"("mpesaPaymentReportUploadId");
+-- CreateIndex (only if it doesn't exist)
+CREATE INDEX IF NOT EXISTS "idx_mpesa_payment_report_upload_id" ON "mpesa_payment_report_items"("mpesaPaymentReportUploadId");
 
--- AddForeignKey
-ALTER TABLE "mpesa_payment_report_items" ADD CONSTRAINT "mpesa_payment_report_items_mpesaPaymentReportUploadId_fkey" FOREIGN KEY ("mpesaPaymentReportUploadId") REFERENCES "mpesa_payment_report_uploads"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+-- AddForeignKey (only if it doesn't exist)
+DO $$ BEGIN
+    ALTER TABLE "mpesa_payment_report_items" ADD CONSTRAINT "mpesa_payment_report_items_mpesaPaymentReportUploadId_fkey" FOREIGN KEY ("mpesaPaymentReportUploadId") REFERENCES "mpesa_payment_report_uploads"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION
+    WHEN duplicate_object THEN null;
+END $$;
 
