@@ -114,13 +114,6 @@ const getMinDateForChildren = () => {
   return minDate.toISOString().split('T')[0];
 };
 
-// Calculate if child requires verification (age 18-24)
-const calculateChildVerificationRequired = (dateOfBirth: string): boolean => {
-  if (!dateOfBirth) return false;
-  const age = calculateAge(dateOfBirth);
-  return age >= 18 && age < 25;
-};
-
 const initialFormData: CustomerFormData = {
   firstName: '',
   middleName: '',
@@ -486,7 +479,7 @@ export default function CustomerStep() {
           ...(child.dateOfBirth && { dateOfBirth: child.dateOfBirth }),
           gender: child.gender.toLowerCase(),
           phoneNumber: child.phoneNumber ? formatPhoneNumber(child.phoneNumber) : undefined,
-          verificationRequired: child.dateOfBirth ? calculateChildVerificationRequired(child.dateOfBirth) : false,
+          // verificationRequired is calculated automatically by the backend based on child's age
           // idType and idNumber are omitted (will be null/undefined in API)
         })) : undefined,
       };

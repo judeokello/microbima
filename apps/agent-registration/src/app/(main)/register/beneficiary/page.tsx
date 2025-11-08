@@ -418,6 +418,67 @@ export default function BeneficiaryStep() {
                 </div>
               </div>
 
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <Label htmlFor="phoneNumber">Phone Number *</Label>
+                  <Input
+                    id="phoneNumber"
+                    value={formData.phoneNumber}
+                    onChange={(e) => {
+                      const formatted = formatPhoneNumber(e.target.value);
+                      handleInputChange('phoneNumber', formatted);
+                    }}
+                    placeholder="Enter phone number (01xxxxxxxx or 07xxxxxxxx)"
+                    maxLength={10}
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    required
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="gender">Gender *</Label>
+                  <Select value={formData.gender} onValueChange={(value) => handleInputChange('gender', value)} required>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select Gender" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="MALE">Male</SelectItem>
+                      <SelectItem value="FEMALE">Female</SelectItem>
+                      <SelectItem value="OTHER">Other</SelectItem>
+                      <SelectItem value="PREFER_NOT_TO_SAY">Prefer not to say</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label htmlFor="relationship">Relationship *</Label>
+                  <Select value={formData.relationship} onValueChange={(value) => handleInputChange('relationship', value)} required>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select relationship" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="SPOUSE">Spouse</SelectItem>
+                      <SelectItem value="CHILD">Child</SelectItem>
+                      <SelectItem value="PARENT">Parent</SelectItem>
+                      <SelectItem value="SIBLING">Sibling</SelectItem>
+                      <SelectItem value="FRIEND">Friend</SelectItem>
+                      <SelectItem value="OTHER">Other</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              {formData.relationship === 'OTHER' && (
+                <div>
+                  <Label htmlFor="customRelationship">Specify Relationship Type *</Label>
+                  <Input
+                    id="customRelationship"
+                    value={formData.customRelationship}
+                    onChange={(e) => handleInputChange('customRelationship', e.target.value)}
+                    placeholder="Enter relationship type (e.g., Cousin, Uncle, etc.)"
+                  />
+                </div>
+              )}
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="idType">ID Type </Label>
@@ -445,66 +506,6 @@ export default function BeneficiaryStep() {
                     pattern="[0-9]*"
                   />
                 </div>
-              </div>
-
-              <div>
-                <Label htmlFor="phoneNumber">Phone Number *</Label>
-                <Input
-                  id="phoneNumber"
-                  value={formData.phoneNumber}
-                  onChange={(e) => {
-                    const formatted = formatPhoneNumber(e.target.value);
-                    handleInputChange('phoneNumber', formatted);
-                  }}
-                  placeholder="Enter phone number (01xxxxxxxx or 07xxxxxxxx)"
-                  maxLength={10}
-                  inputMode="numeric"
-                  pattern="[0-9]*"
-                  required
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="gender">Gender *</Label>
-                <Select value={formData.gender} onValueChange={(value) => handleInputChange('gender', value)} required>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select Gender" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="MALE">Male</SelectItem>
-                    <SelectItem value="FEMALE">Female</SelectItem>
-                    <SelectItem value="OTHER">Other</SelectItem>
-                    <SelectItem value="PREFER_NOT_TO_SAY">Prefer not to say</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div>
-                <Label htmlFor="relationship">Relationship *</Label>
-                <Select value={formData.relationship} onValueChange={(value) => handleInputChange('relationship', value)} required>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select relationship" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="SPOUSE">Spouse</SelectItem>
-                    <SelectItem value="CHILD">Child</SelectItem>
-                    <SelectItem value="PARENT">Parent</SelectItem>
-                    <SelectItem value="SIBLING">Sibling</SelectItem>
-                    <SelectItem value="FRIEND">Friend</SelectItem>
-                    <SelectItem value="OTHER">Other</SelectItem>
-                  </SelectContent>
-                </Select>
-                {formData.relationship === 'OTHER' && (
-                  <div className="mt-2">
-                    <Label htmlFor="customRelationship">Specify Relationship Type *</Label>
-                    <Input
-                      id="customRelationship"
-                      value={formData.customRelationship}
-                      onChange={(e) => handleInputChange('customRelationship', e.target.value)}
-                      placeholder="Enter relationship type (e.g., Cousin, Uncle, etc.)"
-                    />
-                  </div>
-                )}
               </div>
           </div>
         </CardContent>
