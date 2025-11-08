@@ -1,6 +1,7 @@
 import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { SupabaseService } from './supabase.service';
+import { Prisma } from '@prisma/client';
 import { Partner, PartnerData } from '../entities/partner.entity';
 import { PartnerApiKey, PartnerApiKeyData } from '../entities/partner-api-key.entity';
 import { PartnerMapper } from '../mappers/partner.mapper';
@@ -232,7 +233,7 @@ export class PartnerManagementService {
       const hashedApiKey = PartnerApiKey.hashApiKey(plainApiKey);
 
       // Use a transaction to ensure atomicity
-      const result = await this.prismaService.$transaction(async (tx) => {
+      const result = await this.prismaService.$transaction(async (tx: Prisma.TransactionClient) => {
         // Delete any existing active API keys for this partner
         await tx.partnerApiKey.deleteMany({
           where: {

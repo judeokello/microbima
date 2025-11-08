@@ -2,6 +2,7 @@ import { Injectable, Logger, NotFoundException, BadRequestException } from '@nes
 import { ValidationException } from '../exceptions/validation.exception';
 import { ErrorCodes } from '../enums/error-codes.enum';
 import { PrismaService } from '../prisma/prisma.service';
+import { Prisma } from '@prisma/client';
 import { Customer, CustomerData } from '../entities/customer.entity';
 import { PartnerCustomer, PartnerCustomerData } from '../entities/partner-customer.entity';
 import { CustomerMapper } from '../mappers/customer.mapper';
@@ -565,7 +566,7 @@ export class CustomerService {
       }
 
       // Use transaction to add all dependants atomically
-      const result = await this.prismaService.$transaction(async (tx) => {
+      const result = await this.prismaService.$transaction(async (tx: Prisma.TransactionClient) => {
         const addedDependants: any[] = [];
         let childrenAdded = 0;
         let spousesAdded = 0;
@@ -874,7 +875,7 @@ export class CustomerService {
       }
 
       // Use transaction to add all beneficiaries atomically
-      const result = await this.prismaService.$transaction(async (tx) => {
+      const result = await this.prismaService.$transaction(async (tx: Prisma.TransactionClient) => {
         const addedBeneficiaries: any[] = [];
         let beneficiariesAdded = 0;
 

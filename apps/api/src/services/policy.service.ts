@@ -1,7 +1,7 @@
 import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { PAYMENT_CADENCE } from '../constants/payment-cadence.constants';
-import { PaymentFrequency } from '@prisma/client';
+import { PaymentFrequency, Prisma } from '@prisma/client';
 
 /**
  * Policy Service
@@ -281,7 +281,7 @@ export class PolicyService {
       }
 
       // Use transaction to ensure atomicity
-      const result = await this.prismaService.$transaction(async (tx) => {
+      const result = await this.prismaService.$transaction(async (tx: Prisma.TransactionClient) => {
         // Double-check idempotency inside transaction to prevent race conditions
         // This ensures that even if two requests pass the initial check, only one will succeed
         const existingPaymentInTx = await tx.policyPayment.findFirst({
