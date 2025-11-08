@@ -2,8 +2,6 @@ import { Injectable, Logger, NotFoundException, BadRequestException } from '@nes
 import { PrismaService } from '../prisma/prisma.service';
 import { PAYMENT_CADENCE } from '../constants/payment-cadence.constants';
 import { PaymentFrequency } from '@prisma/client';
-import { ValidationException } from '../exceptions/validation.exception';
-import { ErrorCodes } from '../enums/error-codes.enum';
 
 /**
  * Policy Service
@@ -153,10 +151,7 @@ export class PolicyService {
    * @param correlationId - Correlation ID for tracing
    * @returns Array of tag IDs
    */
-  private async createOrGetTags(
-    tags: Array<{ id?: number; name: string }>,
-    correlationId: string
-  ): Promise<number[]> {
+  private async createOrGetTags(tags: Array<{ id?: number; name: string }>): Promise<number[]> {
     if (!tags || tags.length === 0) {
       return [];
     }
@@ -285,8 +280,6 @@ export class PolicyService {
         );
       }
 
-      const plan = packageData.packagePlans[0];
-
       // Use transaction to ensure atomicity
       const result = await this.prismaService.$transaction(async (tx) => {
         // Double-check idempotency inside transaction to prevent race conditions
@@ -344,7 +337,7 @@ export class PolicyService {
 
         // Create or get tags and associate with policy
         if (data.tags && data.tags.length > 0) {
-          const tagIds = await this.createOrGetTags(data.tags, correlationId);
+          const tagIds = await this.createOrGetTags(data.tags);
 
           // Create policy_tag associations
           await Promise.all(
@@ -366,11 +359,11 @@ export class PolicyService {
             paymentType: data.paymentData.paymentType,
             transactionReference: data.paymentData.transactionReference,
             amount: data.paymentData.amount,
-            accountNumber: data.paymentData.accountNumber || null,
-            details: data.paymentData.details || null,
+            accountNumber: data.paymentData.accountNumber ?? null,
+            details: data.paymentData.details ?? null,
             expectedPaymentDate: data.paymentData.expectedPaymentDate,
-            actualPaymentDate: data.paymentData.actualPaymentDate || null,
-            paymentMessageBlob: data.paymentData.paymentMessageBlob || null,
+            actualPaymentDate: data.paymentData.actualPaymentDate ?? null,
+            paymentMessageBlob: data.paymentData.paymentMessageBlob ?? null,
           },
         });
 

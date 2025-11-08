@@ -85,7 +85,7 @@ export class ExternalIntegrationsService {
     [key: string]: any;
   } = {}): Promise<void> {
     // Skip if PostHog is not configured
-    if (!process.env.POSTHOG_KEY) {
+    if (!this.configService.posthog.enabled) {
       return;
     }
 
@@ -130,7 +130,7 @@ export class ExternalIntegrationsService {
     [key: string]: any;
   } = {}): Promise<void> {
     // Skip if PostHog is not configured
-    if (!process.env.POSTHOG_KEY) {
+    if (!this.configService.posthog.enabled) {
       return;
     }
 

@@ -31,6 +31,10 @@ export interface AppConfig {
     profilesSampleRate: number;
     enabled: boolean;
   };
+  posthog: {
+    apiKey: string;
+    enabled: boolean;
+  };
 }
 
 @Injectable()
@@ -70,6 +74,10 @@ export class ConfigurationService extends BaseConfigurationService implements On
         tracesSampleRate: parseFloat(process.env.SENTRY_TRACES_SAMPLE_RATE || '1.0'),
         profilesSampleRate: parseFloat(process.env.SENTRY_PROFILES_SAMPLE_RATE || '1.0'),
         enabled: !!process.env.SENTRY_DSN,
+      },
+      posthog: {
+        apiKey: process.env.POSTHOG_KEY || '',
+        enabled: !!process.env.POSTHOG_KEY,
       },
     };
   }
@@ -167,6 +175,13 @@ export class ConfigurationService extends BaseConfigurationService implements On
       environment: 'development',
       tracesSampleRate: 1.0,
       profilesSampleRate: 1.0,
+      enabled: false,
+    };
+  }
+
+  get posthog() {
+    return this.config?.posthog || {
+      apiKey: '',
       enabled: false,
     };
   }

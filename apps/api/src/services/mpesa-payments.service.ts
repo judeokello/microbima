@@ -1,9 +1,9 @@
 /// <reference types="multer" />
 import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { SupabaseService } from './supabase.service';
 import { MpesaStatementReasonType } from '@prisma/client';
 import * as XLSX from 'xlsx';
-import { createClient } from '@supabase/supabase-js';
 import { writeFile, mkdir } from 'fs/promises';
 import { join } from 'path';
 import { existsSync } from 'fs';
@@ -41,6 +41,9 @@ interface ExcelTransactionRow {
   accountNumber?: string;
 }
 
+type WorksheetCell = string | number | Date | null;
+type WorksheetRow = WorksheetCell[];
+
 /**
  * MPESA Payments Service
  *
@@ -50,7 +53,10 @@ interface ExcelTransactionRow {
 export class MpesaPaymentsService {
   private readonly logger = new Logger(MpesaPaymentsService.name);
 
-  constructor(private readonly prismaService: PrismaService) {}
+  constructor(
+    private readonly prismaService: PrismaService,
+    private readonly supabaseService: SupabaseService,
+  ) {}
 
   /**
    * Determine if we should use Supabase Storage based on environment
@@ -77,26 +83,14 @@ export class MpesaPaymentsService {
 
     if (this.shouldUseSupabaseStorage()) {
       // Use Supabase Storage for staging/production
-      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
-      const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-      if (!supabaseUrl || !supabaseServiceKey) {
-        throw new BadRequestException('Server configuration error - Supabase credentials not found');
-      }
-
-      const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
-        auth: {
-          autoRefreshToken: false,
-          persistSession: false,
-        },
-      });
-
+      const supabase = this.supabaseService.getClient();
       const storagePath = `statements/${userId}/${timestampedFileName}`;
 
-      const { error: uploadError } = await supabaseAdmin.storage
+      const { error: uploadError } = await supabase.storage
         .from('mpesa_statements')
         .upload(storagePath, file.buffer, {
-          contentType: file.mimetype || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          contentType:
+            file.mimetype ?? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
           upsert: false, // Don't overwrite - we've already added timestamp
         });
 
@@ -104,11 +98,6 @@ export class MpesaPaymentsService {
         this.logger.error(`[${correlationId}] Supabase Storage upload error: ${uploadError.message}`);
         throw new BadRequestException(`Failed to upload to storage: ${uploadError.message}`);
       }
-
-      // Get the file URL (for private buckets, we'll store the path)
-      const { data } = supabaseAdmin.storage
-        .from('mpesa_statements')
-        .getPublicUrl(storagePath);
 
       this.logger.log(`[${correlationId}] File stored in Supabase Storage: ${storagePath}`);
       return storagePath; // Return the storage path
@@ -130,6 +119,30 @@ export class MpesaPaymentsService {
   }
 
   /**
+   * Convert worksheet cell value to string
+   */
+  private cellToString(value: WorksheetCell | undefined): string | undefined {
+    if (value === null || value === undefined) {
+      return undefined;
+    }
+
+    return String(value);
+  }
+
+  /**
+   * Convert worksheet cell value to a trimmed string, returning undefined for empty result
+   */
+  private cellToTrimmedString(value: WorksheetCell | undefined): string | undefined {
+    const raw = this.cellToString(value);
+    if (raw === undefined) {
+      return undefined;
+    }
+
+    const trimmed = raw.trim();
+    return trimmed === '' ? undefined : trimmed;
+  }
+
+  /**
    * Map Excel reason type to enum value
    */
   private mapReasonType(reasonType: string): MpesaStatementReasonType {
@@ -148,17 +161,16 @@ export class MpesaPaymentsService {
   /**
    * Find value next to a label in a row using label matching
    */
-  private findValueByLabel(worksheet: XLSX.WorkSheet, rowIndex: number, label: string): string | null {
-    const row = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: null })[rowIndex] as any[];
-    if (!row) return null;
+  private findValueByLabel(rows: WorksheetRow[], rowIndex: number, label: string): string | null {
+    const row = rows[rowIndex];
+    if (!row) {
+      return null;
+    }
 
     for (let col = 0; col < row.length; col++) {
-      const cellValue = row[col];
-      if (cellValue && typeof cellValue === 'string' && cellValue.trim() === label) {
-        // Found the label, return the next cell value
-        if (col + 1 < row.length) {
-          return row[col + 1]?.toString() || null;
-        }
+      const cellValue = this.cellToString(row[col]);
+      if (cellValue?.trim() === label && col + 1 < row.length) {
+        return this.cellToTrimmedString(row[col + 1]) ?? null;
       }
     }
     return null;
@@ -181,7 +193,7 @@ export class MpesaPaymentsService {
       // Convert to JSON for easier parsing
       // Use raw: true to get raw cell values (numbers for dates, which we'll convert)
       // This gives us more control over date parsing
-      const rows = XLSX.utils.sheet_to_json(worksheet, {
+      const rows = XLSX.utils.sheet_to_json<WorksheetRow>(worksheet, {
         header: 1,
         defval: null,
         raw: true // Get raw values - dates will be Excel serial numbers or Date objects
@@ -190,31 +202,33 @@ export class MpesaPaymentsService {
       // Parse header rows (1-6, 0-indexed: 0-5)
       // Row 4 format: "Time Period: From 10-10-2025 00:00:00 To 13-10-2025 23:59:59"
       // Dates are in columns C and E (indices 2 and 4), but may contain "From" and "To" prefixes
-      const timeFromStr = rows[3]?.[2]?.toString() || '';
-      const timeToStr = rows[3]?.[4]?.toString() || '';
+      const timeFromStr = this.cellToString(rows[3]?.[2]) ?? '';
+      const timeToStr = this.cellToString(rows[3]?.[4]) ?? '';
 
       // Extract date from string, removing "From" and "To" prefixes if present
       const timeFromClean = timeFromStr.replace(/^From\s+/i, '').trim();
       const timeToClean = timeToStr.replace(/^To\s+/i, '').trim();
 
       const header: ExcelHeaderData = {
-        accountHolder: rows[0]?.[1]?.toString() || '', // Row 1, Column B
-        shortCode: rows[1]?.[1]?.toString() || undefined, // Row 2, Column B
-        account: rows[2]?.[1]?.toString() || undefined, // Row 3, Column B
+        accountHolder: this.cellToString(rows[0]?.[1]) ?? '', // Row 1, Column B
+        shortCode: this.cellToTrimmedString(rows[1]?.[1]), // Row 2, Column B
+        account: this.cellToTrimmedString(rows[2]?.[1]), // Row 3, Column B
         timeFrom: this.parseDateTime(timeFromClean), // Row 4, Column C
         timeTo: this.parseDateTime(timeToClean), // Row 4, Column E
-        operator: rows[4]?.[1]?.toString() || undefined, // Row 5, Column B
+        operator: this.cellToTrimmedString(rows[4]?.[1]), // Row 5, Column B
       };
 
       // Parse Date of Report from Row 5, Column F (index 5)
       // Row 5 format: "Operator: jponyango Date of Report: 13-10-2025 12:36:39"
-      const row5Text = rows[4]?.join(' ') || ''; // Join all cells in row 5 to search for date
+      const row5Text = (rows[4] ?? [])
+        .map((cell) => this.cellToString(cell) ?? '')
+        .join(' '); // Join all cells in row 5 to search for date
       const reportDateMatch = row5Text.match(/Date of Report:\s*(\d{2}-\d{2}-\d{4}\s+\d{2}:\d{2}:\d{2})/i);
       if (reportDateMatch) {
         header.reportDate = this.parseDateTime(reportDateMatch[1]);
       } else {
         // Fallback: try to parse from column F directly if it contains a date
-        const reportDateStr = rows[4]?.[5]?.toString();
+        const reportDateStr = this.cellToString(rows[4]?.[5]);
         if (reportDateStr) {
           const parsedDate = this.parseDateTime(reportDateStr);
           // Only use if it's a valid date (not the fallback current date)
@@ -227,32 +241,22 @@ export class MpesaPaymentsService {
       // Parse row 6 values directly from specific columns (0-indexed row 5)
       // Row 6 format: Opening Balance: X Closing Balance: Y Available Balance: Z Total Paid In: A Total Withdrawn: B
       // Values are in columns B, D, F, H, J (indices 1, 3, 5, 7, 9) based on user's description
-      const row6 = rows[5] || [];
+      const row6 = rows[5] ?? [];
 
       // First try direct column access (primary method based on user feedback)
       // Then fallback to label matching if direct access doesn't work
-      let openingBalanceStr = row6[1]?.toString()?.trim();
-      let closingBalanceStr = row6[3]?.toString()?.trim();
-      let availableBalanceStr = row6[5]?.toString()?.trim();
-      let totalPaidInStr = row6[7]?.toString()?.trim();
-      let totalWithdrawnStr = row6[9]?.toString()?.trim();
+      let openingBalanceStr = this.cellToTrimmedString(row6[1]);
+      let closingBalanceStr = this.cellToTrimmedString(row6[3]);
+      let availableBalanceStr = this.cellToTrimmedString(row6[5]);
+      let totalPaidInStr = this.cellToTrimmedString(row6[7]);
+      let totalWithdrawnStr = this.cellToTrimmedString(row6[9]);
 
       // Fallback to label matching if direct access didn't yield values
-      if (!openingBalanceStr || openingBalanceStr === '') {
-        openingBalanceStr = this.findValueByLabel(worksheet, 5, 'Opening Balance');
-      }
-      if (!closingBalanceStr || closingBalanceStr === '') {
-        closingBalanceStr = this.findValueByLabel(worksheet, 5, 'Closing Balance');
-      }
-      if (!availableBalanceStr || availableBalanceStr === '') {
-        availableBalanceStr = this.findValueByLabel(worksheet, 5, 'Available Balance');
-      }
-      if (!totalPaidInStr || totalPaidInStr === '') {
-        totalPaidInStr = this.findValueByLabel(worksheet, 5, 'Total Paid In');
-      }
-      if (!totalWithdrawnStr || totalWithdrawnStr === '') {
-        totalWithdrawnStr = this.findValueByLabel(worksheet, 5, 'Total Withdrawn');
-      }
+      openingBalanceStr ??= this.findValueByLabel(rows, 5, 'Opening Balance') ?? undefined;
+      closingBalanceStr ??= this.findValueByLabel(rows, 5, 'Closing Balance') ?? undefined;
+      availableBalanceStr ??= this.findValueByLabel(rows, 5, 'Available Balance') ?? undefined;
+      totalPaidInStr ??= this.findValueByLabel(rows, 5, 'Total Paid In') ?? undefined;
+      totalWithdrawnStr ??= this.findValueByLabel(rows, 5, 'Total Withdrawn') ?? undefined;
 
       header.openingBalance = openingBalanceStr ? this.parseDecimal(openingBalanceStr) : undefined;
       header.closingBalance = closingBalanceStr ? this.parseDecimal(closingBalanceStr) : undefined;
@@ -276,9 +280,9 @@ export class MpesaPaymentsService {
       // Parse transactions starting from the row after the header
       for (let i = headerRowIndex + 1; i < rows.length; i++) {
         const row = rows[i];
-        if (!row || !row[0]) continue; // Skip empty rows
+        if (!row) continue; // Skip empty rows
 
-        const transactionReference = row[0]?.toString()?.trim();
+        const transactionReference = this.cellToTrimmedString(row[0]);
         if (!transactionReference) continue; // Skip rows without receipt number
 
         // Parse dates - handle Date objects, numbers (Excel serial), or strings
@@ -289,16 +293,16 @@ export class MpesaPaymentsService {
           transactionReference,
           completionTime: this.parseDateTime(completionTimeValue ?? ''), // Column B
           initiationTime: this.parseDateTime(initiationTimeValue ?? ''), // Column C
-          paymentDetails: row[3]?.toString()?.trim() || undefined, // Column D
-          transactionStatus: row[4]?.toString()?.trim() || undefined, // Column E
-          paidIn: this.parseDecimal(row[5]?.toString() || '0'), // Column F
-          withdrawn: this.parseDecimal(row[6]?.toString() || '0'), // Column G
-          accountBalance: this.parseDecimal(row[7]?.toString() || '0'), // Column H
-          balanceConfirmed: row[8]?.toString()?.trim() || undefined, // Column I
-          reasonType: row[9]?.toString()?.trim() || 'Unmapped', // Column J
-          otherPartyInfo: row[10]?.toString()?.trim() || undefined, // Column K
-          linkedTransactionId: row[11]?.toString()?.trim() || undefined, // Column L
-          accountNumber: row[12]?.toString()?.trim() || undefined, // Column M
+          paymentDetails: this.cellToTrimmedString(row[3]), // Column D
+          transactionStatus: this.cellToTrimmedString(row[4]), // Column E
+          paidIn: this.parseDecimal(this.cellToString(row[5])), // Column F
+          withdrawn: this.parseDecimal(this.cellToString(row[6])), // Column G
+          accountBalance: this.parseDecimal(this.cellToString(row[7])), // Column H
+          balanceConfirmed: this.cellToTrimmedString(row[8]), // Column I
+          reasonType: this.cellToTrimmedString(row[9]) ?? 'Unmapped', // Column J
+          otherPartyInfo: this.cellToTrimmedString(row[10]), // Column K
+          linkedTransactionId: this.cellToTrimmedString(row[11]), // Column L
+          accountNumber: this.cellToTrimmedString(row[12]), // Column M
         };
 
         transactions.push(transaction);
@@ -361,7 +365,7 @@ export class MpesaPaymentsService {
   /**
    * Parse decimal value from string (handles commas and currency symbols)
    */
-  private parseDecimal(value: string): number {
+  private parseDecimal(value: string | undefined): number {
     if (!value) return 0;
     // Remove commas, currency symbols, and whitespace
     const cleaned = value.toString().replace(/[,\s$KES]/g, '');
