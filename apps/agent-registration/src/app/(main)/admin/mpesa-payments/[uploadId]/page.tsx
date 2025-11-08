@@ -18,6 +18,7 @@ interface MpesaPaymentUpload {
   timeFrom: string;
   timeTo: string;
   operator?: string;
+  reportDate?: string;
   openingBalance?: number;
   closingBalance?: number;
   availableBalance?: number;
@@ -73,6 +74,7 @@ export default function MpesaPaymentDetailsPage() {
   const [pagination, setPagination] = useState<UploadDetailsResponse['pagination'] | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [processedByName, setProcessedByName] = useState<string>('');
 
   const [pageSize, setPageSize] = useState(20);
   const [currentPage, setCurrentPage] = useState(1);
@@ -107,6 +109,32 @@ export default function MpesaPaymentDetailsPage() {
       setUpload(data.upload);
       setItems(data.items);
       setPagination(data.pagination);
+      // Sync currentPage with pagination.page from API
+      setCurrentPage(data.pagination.page);
+
+      // Fetch user display name for createdBy
+      if (data.upload.createdBy) {
+        try {
+          const token = await getSupabaseToken();
+          const userResponse = await fetch(`${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/users/${data.upload.createdBy}/display-name`, {
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'x-correlation-id': `req-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+            }
+          });
+          if (userResponse.ok) {
+            const userData = await userResponse.json();
+            setProcessedByName(userData.data.displayName);
+          } else {
+            setProcessedByName('Unknown');
+          }
+        } catch (err) {
+          console.error('Error fetching user display name:', err);
+          setProcessedByName('Unknown');
+        }
+      } else {
+        setProcessedByName('');
+      }
     } catch (err) {
       console.error('Error fetching upload details:', err);
       setError(err instanceof Error ? err.message : 'Failed to fetch upload details');
@@ -203,7 +231,7 @@ export default function MpesaPaymentDetailsPage() {
                 <p className="text-sm font-semibold">{upload.accountHolder}</p>
               </div>
               <div>
-                <p className="text-sm font-medium text-muted-foreground">Short Code</p>
+                <p className="text-sm font-medium text-muted-foreground">Paybill No.</p>
                 <p className="text-sm font-semibold">{upload.shortCode ?? '-'}</p>
               </div>
               <div>
@@ -211,8 +239,14 @@ export default function MpesaPaymentDetailsPage() {
                 <p className="text-sm font-semibold">{upload.account ?? '-'}</p>
               </div>
               <div>
-                <p className="text-sm font-medium text-muted-foreground">Operator</p>
+                <p className="text-sm font-medium text-muted-foreground">Mpesa Operator</p>
                 <p className="text-sm font-semibold">{upload.operator ?? '-'}</p>
+              </div>
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Date of Report</p>
+                <p className="text-sm font-semibold">
+                  {upload.reportDate ? formatDate(upload.reportDate) : '-'}
+                </p>
               </div>
               <div>
                 <p className="text-sm font-medium text-muted-foreground">Time From</p>
@@ -250,6 +284,12 @@ export default function MpesaPaymentDetailsPage() {
                 <p className="text-sm font-medium text-muted-foreground">Total Withdrawn</p>
                 <p className="text-sm font-semibold">
                   {upload.totalWithdrawn ? formatCurrency(upload.totalWithdrawn) : '-'}
+                </p>
+              </div>
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Processed By</p>
+                <p className="text-sm font-semibold">
+                  {processedByName || (upload.createdBy ? 'Loading...' : '-')}
                 </p>
               </div>
               <div>
@@ -341,7 +381,11 @@ export default function MpesaPaymentDetailsPage() {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => handlePageChange(currentPage - 1)}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        handlePageChange(currentPage - 1);
+                      }}
                       disabled={!pagination.hasPreviousPage}
                     >
                       Previous
@@ -352,7 +396,11 @@ export default function MpesaPaymentDetailsPage() {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => handlePageChange(currentPage + 1)}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        handlePageChange(currentPage + 1);
+                      }}
                       disabled={!pagination.hasNextPage}
                     >
                       Next

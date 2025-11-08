@@ -17,6 +17,7 @@ interface ExcelHeaderData {
   timeFrom: Date;
   timeTo: Date;
   operator?: string;
+  reportDate?: Date;
   openingBalance?: number;
   closingBalance?: number;
   availableBalance?: number;
@@ -178,24 +179,80 @@ export class MpesaPaymentsService {
       const worksheet = workbook.Sheets[sheetName];
 
       // Convert to JSON for easier parsing
-      const rows = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: null }) as any[];
+      // Use raw: true to get raw cell values (numbers for dates, which we'll convert)
+      // This gives us more control over date parsing
+      const rows = XLSX.utils.sheet_to_json(worksheet, { 
+        header: 1, 
+        defval: null,
+        raw: true // Get raw values - dates will be Excel serial numbers or Date objects
+      }) as any[];
 
       // Parse header rows (1-6, 0-indexed: 0-5)
+      // Row 4 format: "Time Period: From 10-10-2025 00:00:00 To 13-10-2025 23:59:59"
+      // Dates are in columns C and E (indices 2 and 4), but may contain "From" and "To" prefixes
+      const timeFromStr = rows[3]?.[2]?.toString() || '';
+      const timeToStr = rows[3]?.[4]?.toString() || '';
+      
+      // Extract date from string, removing "From" and "To" prefixes if present
+      const timeFromClean = timeFromStr.replace(/^From\s+/i, '').trim();
+      const timeToClean = timeToStr.replace(/^To\s+/i, '').trim();
+      
       const header: ExcelHeaderData = {
         accountHolder: rows[0]?.[1]?.toString() || '', // Row 1, Column B
         shortCode: rows[1]?.[1]?.toString() || undefined, // Row 2, Column B
         account: rows[2]?.[1]?.toString() || undefined, // Row 3, Column B
-        timeFrom: this.parseDateTime(rows[3]?.[3]?.toString() || ''), // Row 4, Column D
-        timeTo: this.parseDateTime(rows[3]?.[5]?.toString() || ''), // Row 4, Column F
+        timeFrom: this.parseDateTime(timeFromClean), // Row 4, Column C
+        timeTo: this.parseDateTime(timeToClean), // Row 4, Column E
         operator: rows[4]?.[1]?.toString() || undefined, // Row 5, Column B
       };
 
-      // Parse row 6 using label matching
-      const openingBalanceStr = this.findValueByLabel(worksheet, 5, 'Opening Balance'); // Row 6 (0-indexed: 5)
-      const closingBalanceStr = this.findValueByLabel(worksheet, 5, 'Closing Balance');
-      const availableBalanceStr = this.findValueByLabel(worksheet, 5, 'Available Balance');
-      const totalPaidInStr = this.findValueByLabel(worksheet, 5, 'Total Paid In');
-      const totalWithdrawnStr = this.findValueByLabel(worksheet, 5, 'Total Withdrawn');
+      // Parse Date of Report from Row 5, Column F (index 5)
+      // Row 5 format: "Operator: jponyango Date of Report: 13-10-2025 12:36:39"
+      const row5Text = rows[4]?.join(' ') || ''; // Join all cells in row 5 to search for date
+      const reportDateMatch = row5Text.match(/Date of Report:\s*(\d{2}-\d{2}-\d{4}\s+\d{2}:\d{2}:\d{2})/i);
+      if (reportDateMatch) {
+        header.reportDate = this.parseDateTime(reportDateMatch[1]);
+      } else {
+        // Fallback: try to parse from column F directly if it contains a date
+        const reportDateStr = rows[4]?.[5]?.toString();
+        if (reportDateStr) {
+          const parsedDate = this.parseDateTime(reportDateStr);
+          // Only use if it's a valid date (not the fallback current date)
+          if (parsedDate && parsedDate.getTime() !== new Date().getTime()) {
+            header.reportDate = parsedDate;
+          }
+        }
+      }
+
+      // Parse row 6 values directly from specific columns (0-indexed row 5)
+      // Row 6 format: Opening Balance: X Closing Balance: Y Available Balance: Z Total Paid In: A Total Withdrawn: B
+      // Values are in columns B, D, F, H, J (indices 1, 3, 5, 7, 9) based on user's description
+      const row6 = rows[5] || [];
+      
+      // First try direct column access (primary method based on user feedback)
+      // Then fallback to label matching if direct access doesn't work
+      let openingBalanceStr = row6[1]?.toString()?.trim();
+      let closingBalanceStr = row6[3]?.toString()?.trim();
+      let availableBalanceStr = row6[5]?.toString()?.trim();
+      let totalPaidInStr = row6[7]?.toString()?.trim();
+      let totalWithdrawnStr = row6[9]?.toString()?.trim();
+      
+      // Fallback to label matching if direct access didn't yield values
+      if (!openingBalanceStr || openingBalanceStr === '') {
+        openingBalanceStr = this.findValueByLabel(worksheet, 5, 'Opening Balance');
+      }
+      if (!closingBalanceStr || closingBalanceStr === '') {
+        closingBalanceStr = this.findValueByLabel(worksheet, 5, 'Closing Balance');
+      }
+      if (!availableBalanceStr || availableBalanceStr === '') {
+        availableBalanceStr = this.findValueByLabel(worksheet, 5, 'Available Balance');
+      }
+      if (!totalPaidInStr || totalPaidInStr === '') {
+        totalPaidInStr = this.findValueByLabel(worksheet, 5, 'Total Paid In');
+      }
+      if (!totalWithdrawnStr || totalWithdrawnStr === '') {
+        totalWithdrawnStr = this.findValueByLabel(worksheet, 5, 'Total Withdrawn');
+      }
 
       header.openingBalance = openingBalanceStr ? this.parseDecimal(openingBalanceStr) : undefined;
       header.closingBalance = closingBalanceStr ? this.parseDecimal(closingBalanceStr) : undefined;
@@ -224,10 +281,14 @@ export class MpesaPaymentsService {
         const transactionReference = row[0]?.toString()?.trim();
         if (!transactionReference) continue; // Skip rows without receipt number
 
+        // Parse dates - handle Date objects, numbers (Excel serial), or strings
+        const completionTimeValue = row[1];
+        const initiationTimeValue = row[2];
+        
         const transaction: ExcelTransactionRow = {
           transactionReference,
-          completionTime: this.parseDateTime(row[1]?.toString() || ''), // Column B
-          initiationTime: this.parseDateTime(row[2]?.toString() || ''), // Column C
+          completionTime: this.parseDateTime(completionTimeValue ?? ''), // Column B
+          initiationTime: this.parseDateTime(initiationTimeValue ?? ''), // Column C
           paymentDetails: row[3]?.toString()?.trim() || undefined, // Column D
           transactionStatus: row[4]?.toString()?.trim() || undefined, // Column E
           paidIn: this.parseDecimal(row[5]?.toString() || '0'), // Column F
@@ -309,59 +370,82 @@ export class MpesaPaymentsService {
   }
 
   /**
-   * Parse datetime from string (handles various formats)
+   * Parse datetime from string or Date object (handles various formats)
+   * IMPORTANT: We use DD-MM-YYYY format (not MM-DD-YYYY)
    */
-  private parseDateTime(value: string): Date {
-    if (!value) return new Date();
-    
-    // Try parsing as ISO string first
-    const isoDate = new Date(value);
-    if (!isNaN(isoDate.getTime())) {
-      return isoDate;
+  private parseDateTime(value: string | Date | number): Date {
+    // Handle Date objects directly
+    if (value instanceof Date) {
+      return value;
     }
+    
+    // Handle numbers (Excel date serial numbers)
+    if (typeof value === 'number') {
+      if (value > 0 && value < 100000) {
+        // Excel dates are days since 1900-01-01
+        const excelEpoch = new Date(1899, 11, 30);
+        return new Date(excelEpoch.getTime() + value * 86400000);
+      }
+      // If it's a timestamp (milliseconds since epoch), use it directly
+      if (value > 1000000000000) {
+        return new Date(value);
+      }
+    }
+    
+    if (!value || (typeof value === 'string' && value.trim() === '')) {
+      return new Date();
+    }
+    
+    const trimmed = typeof value === 'string' ? value.trim() : String(value).trim();
 
-    // Try parsing as Excel date number
-    const excelDate = parseFloat(value);
-    if (!isNaN(excelDate) && excelDate > 0) {
+    // Try parsing as Excel date number (if it's a string that looks like a number)
+    const excelDate = parseFloat(trimmed);
+    if (!isNaN(excelDate) && excelDate > 0 && excelDate < 100000 && trimmed.match(/^\d+(\.\d+)?$/)) {
       // Excel dates are days since 1900-01-01
       const excelEpoch = new Date(1899, 11, 30);
       return new Date(excelEpoch.getTime() + excelDate * 86400000);
     }
 
-    // Try common date formats
-    const formats = [
-      /(\d{2})-(\d{2})-(\d{4})\s+(\d{2}):(\d{2}):(\d{2})/, // DD-MM-YYYY HH:MM:SS
-      /(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2}):(\d{2})/, // YYYY-MM-DD HH:MM:SS
-    ];
-
-    for (const format of formats) {
-      const match = value.match(format);
-      if (match) {
-        if (format === formats[0]) {
-          // DD-MM-YYYY format
-          return new Date(
-            parseInt(match[3]),
-            parseInt(match[2]) - 1,
-            parseInt(match[1]),
-            parseInt(match[4]),
-            parseInt(match[5]),
-            parseInt(match[6])
-          );
-        } else {
-          // YYYY-MM-DD format
-          return new Date(
-            parseInt(match[1]),
-            parseInt(match[2]) - 1,
-            parseInt(match[3]),
-            parseInt(match[4]),
-            parseInt(match[5]),
-            parseInt(match[6])
-          );
-        }
+    // Try DD-MM-YYYY format FIRST (this is our primary format)
+    // Format: DD-MM-YYYY HH:MM:SS or DD-MM-YYYY
+    const ddMmYyyyMatch = trimmed.match(/^(\d{2})-(\d{2})-(\d{4})(?:\s+(\d{2}):(\d{2}):(\d{2}))?$/);
+    if (ddMmYyyyMatch) {
+      const day = parseInt(ddMmYyyyMatch[1], 10);
+      const month = parseInt(ddMmYyyyMatch[2], 10);
+      const year = parseInt(ddMmYyyyMatch[3], 10);
+      const hours = ddMmYyyyMatch[4] ? parseInt(ddMmYyyyMatch[4], 10) : 0;
+      const minutes = ddMmYyyyMatch[5] ? parseInt(ddMmYyyyMatch[5], 10) : 0;
+      const seconds = ddMmYyyyMatch[6] ? parseInt(ddMmYyyyMatch[6], 10) : 0;
+      
+      // Validate date (day should be 1-31, month should be 1-12)
+      if (day >= 1 && day <= 31 && month >= 1 && month <= 12) {
+        return new Date(year, month - 1, day, hours, minutes, seconds);
       }
     }
 
-    // Fallback to current date
+    // Try YYYY-MM-DD format (ISO format)
+    const yyyyMmDdMatch = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})(?:\s+(\d{2}):(\d{2}):(\d{2}))?$/);
+    if (yyyyMmDdMatch) {
+      const year = parseInt(yyyyMmDdMatch[1], 10);
+      const month = parseInt(yyyyMmDdMatch[2], 10);
+      const day = parseInt(yyyyMmDdMatch[3], 10);
+      const hours = yyyyMmDdMatch[4] ? parseInt(yyyyMmDdMatch[4], 10) : 0;
+      const minutes = yyyyMmDdMatch[5] ? parseInt(yyyyMmDdMatch[5], 10) : 0;
+      const seconds = yyyyMmDdMatch[6] ? parseInt(yyyyMmDdMatch[6], 10) : 0;
+      
+      return new Date(year, month - 1, day, hours, minutes, seconds);
+    }
+
+    // Try ISO string format (only if it's clearly an ISO format to avoid MM-DD-YYYY misinterpretation)
+    if (trimmed.includes('T') || trimmed.match(/^\d{4}-\d{2}-\d{2}T/)) {
+      const isoDate = new Date(trimmed);
+      if (!isNaN(isoDate.getTime())) {
+        return isoDate;
+      }
+    }
+
+    // Fallback: log warning and return current date
+    this.logger.warn(`Could not parse date: "${value}" (type: ${typeof value})`);
     return new Date();
   }
 
@@ -406,6 +490,7 @@ export class MpesaPaymentsService {
         timeFrom: header.timeFrom,
         timeTo: header.timeTo,
         operator: header.operator,
+        reportDate: header.reportDate,
         openingBalance: header.openingBalance,
         closingBalance: header.closingBalance,
         availableBalance: header.availableBalance,
@@ -451,6 +536,7 @@ export class MpesaPaymentsService {
         timeFrom: upload.timeFrom,
         timeTo: upload.timeTo,
         operator: upload.operator ?? undefined,
+        reportDate: upload.reportDate ?? undefined,
         openingBalance: upload.openingBalance ? Number(upload.openingBalance) : undefined,
         closingBalance: upload.closingBalance ? Number(upload.closingBalance) : undefined,
         availableBalance: upload.availableBalance ? Number(upload.availableBalance) : undefined,
@@ -497,6 +583,7 @@ export class MpesaPaymentsService {
         timeFrom: u.timeFrom,
         timeTo: u.timeTo,
         operator: u.operator ?? undefined,
+        reportDate: u.reportDate ?? undefined,
         openingBalance: u.openingBalance ? Number(u.openingBalance) : undefined,
         closingBalance: u.closingBalance ? Number(u.closingBalance) : undefined,
         availableBalance: u.availableBalance ? Number(u.availableBalance) : undefined,
@@ -598,6 +685,7 @@ export class MpesaPaymentsService {
           timeFrom: upload.timeFrom,
           timeTo: upload.timeTo,
           operator: upload.operator ?? undefined,
+          reportDate: upload.reportDate ?? undefined,
           openingBalance: upload.openingBalance ? Number(upload.openingBalance) : undefined,
           closingBalance: upload.closingBalance ? Number(upload.closingBalance) : undefined,
           availableBalance: upload.availableBalance ? Number(upload.availableBalance) : undefined,

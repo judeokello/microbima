@@ -420,7 +420,7 @@ export default function BeneficiaryStep() {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <Label htmlFor="idType">ID Type *</Label>
+                  <Label htmlFor="idType">ID Type </Label>
                   <Select value={formData.idType} onValueChange={(value) => handleInputChange('idType', value)}>
                     <SelectTrigger>
                       <SelectValue placeholder="Select ID type" />

@@ -121,3 +121,7 @@ prisma/migrations/
 
 .staging-api-secrets.txt
 .production-agentreg-secrets.txt
+
+# mpesa statement uploads folder (local only, 
+# the staging and production files are uploaded on supabase storage)
+apps/api/public/mpesa_statements/

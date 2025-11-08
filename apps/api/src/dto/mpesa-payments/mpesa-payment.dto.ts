@@ -165,6 +165,13 @@ export class MpesaPaymentReportUploadDto {
   operator?: string;
 
   @ApiProperty({
+    description: 'Date of Report',
+    example: '2025-10-13T12:36:39Z',
+    required: false,
+  })
+  reportDate?: Date;
+
+  @ApiProperty({
     description: 'Opening balance',
     example: 4040.0,
     required: false,

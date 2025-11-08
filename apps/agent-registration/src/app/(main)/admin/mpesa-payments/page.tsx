@@ -23,6 +23,7 @@ interface MpesaPaymentUpload {
   availableBalance?: number;
   totalPaidIn?: number;
   totalWithdrawn?: number;
+  createdBy?: string;
   createdAt: string;
 }
 
@@ -40,6 +41,15 @@ interface UploadsResponse {
   pagination: PaginationInfo;
 }
 
+interface UserDisplayNameResponse {
+  status: number;
+  data: {
+    userId: string;
+    displayName: string;
+    email: string;
+  };
+}
+
 export default function MpesaPaymentsPage() {
   const router = useRouter();
   const [uploads, setUploads] = useState<MpesaPaymentUpload[]>([]);
@@ -48,6 +58,7 @@ export default function MpesaPaymentsPage() {
   const [error, setError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [processedByMap, setProcessedByMap] = useState<Map<string, string>>(new Map());
 
   const [pageSize, setPageSize] = useState(20);
   const [currentPage, setCurrentPage] = useState(1);
@@ -75,12 +86,51 @@ export default function MpesaPaymentsPage() {
       });
 
       if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        // Try to parse error response body for detailed error message
+        let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+        try {
+          const errorData = await response.json();
+          if (errorData.error?.message) {
+            errorMessage = errorData.error.message;
+          } else if (errorData.message) {
+            errorMessage = errorData.message;
+          } else if (errorData.error) {
+            errorMessage = typeof errorData.error === 'string' ? errorData.error : JSON.stringify(errorData.error);
+          }
+        } catch {
+          // If parsing fails, use the status text
+        }
+        throw new Error(errorMessage);
       }
 
       const data: UploadsResponse = await response.json();
       setUploads(data.data);
       setPagination(data.pagination);
+
+      // Fetch user display names for createdBy fields
+      const userIds = [...new Set(data.data.map(u => u.createdBy).filter((id): id is string => id !== undefined && id !== null))];
+      const token = await getSupabaseToken();
+      const displayNamePromises = userIds.map(async (userId) => {
+        try {
+          const userResponse = await fetch(`${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/users/${userId}/display-name`, {
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'x-correlation-id': `req-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+            }
+          });
+          if (userResponse.ok) {
+            const userData: UserDisplayNameResponse = await userResponse.json();
+            return [userId, userData.data.displayName] as [string, string];
+          }
+        } catch (err) {
+          console.error(`Error fetching display name for user ${userId}:`, err);
+        }
+        return [userId, 'Unknown'] as [string, string];
+      });
+
+      const displayNames = await Promise.all(displayNamePromises);
+      const newMap = new Map(displayNames);
+      setProcessedByMap(newMap);
     } catch (err) {
       console.error('Error fetching uploads:', err);
       setError(err instanceof Error ? err.message : 'Failed to fetch uploads');
@@ -198,10 +248,18 @@ export default function MpesaPaymentsPage() {
             onChange={handleFileUpload}
             className="hidden"
             id="file-upload"
+            disabled={uploading}
+            aria-label="Upload MPESA statement file"
+            title="Upload MPESA statement file"
           />
           <Button
-            onClick={() => fileInputRef.current?.click()}
+            onClick={() => {
+              if (!uploading && fileInputRef.current) {
+                fileInputRef.current.click();
+              }
+            }}
             disabled={uploading}
+            type="button"
           >
             {uploading ? (
               <>
@@ -250,8 +308,7 @@ export default function MpesaPaymentsPage() {
                   <TableHeader>
                     <TableRow>
                       <TableHead>Account Holder</TableHead>
-                      <TableHead>Short Code</TableHead>
-                      <TableHead>Account</TableHead>
+                      <TableHead>PayBill</TableHead>
                       <TableHead>Time From</TableHead>
                       <TableHead>Time To</TableHead>
                       <TableHead>Operator</TableHead>
@@ -260,6 +317,7 @@ export default function MpesaPaymentsPage() {
                       <TableHead>Available Balance</TableHead>
                       <TableHead>Total Paid In</TableHead>
                       <TableHead>Total Withdrawn</TableHead>
+                      <TableHead>Processed By</TableHead>
                       <TableHead>Created At</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -274,7 +332,6 @@ export default function MpesaPaymentsPage() {
                           <span className="text-blue-600 hover:underline">{upload.accountHolder}</span>
                         </TableCell>
                         <TableCell>{upload.shortCode ?? '-'}</TableCell>
-                        <TableCell>{upload.account ?? '-'}</TableCell>
                         <TableCell>{formatDate(upload.timeFrom)}</TableCell>
                         <TableCell>{formatDate(upload.timeTo)}</TableCell>
                         <TableCell>{upload.operator ?? '-'}</TableCell>
@@ -283,6 +340,9 @@ export default function MpesaPaymentsPage() {
                         <TableCell>{formatCurrency(upload.availableBalance)}</TableCell>
                         <TableCell>{formatCurrency(upload.totalPaidIn)}</TableCell>
                         <TableCell>{formatCurrency(upload.totalWithdrawn)}</TableCell>
+                        <TableCell>
+                          {upload.createdBy ? (processedByMap.get(upload.createdBy) ?? 'Unknown') : '-'}
+                        </TableCell>
                         <TableCell>{formatDate(upload.createdAt)}</TableCell>
                       </TableRow>
                     ))}

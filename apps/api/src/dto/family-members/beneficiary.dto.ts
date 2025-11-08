@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsString, IsEmail, IsIn, IsOptional, IsNumber, Min, Max, ValidateNested } from 'class-validator';
+import { IsString, IsEmail, IsIn, IsOptional, IsNumber, Min, Max, ValidateNested, ValidateIf } from 'class-validator';
 import { Type } from 'class-transformer';
 import { AddressDto } from '../common/address.dto';
 import { IsDateStringFriendly } from '../../decorators/validators/is-date-string-friendly.decorator';
@@ -81,17 +81,23 @@ export class BeneficiaryDto {
   @ApiProperty({
     description: 'Type of identification document',
     example: 'national',
-    enum: ['national', 'alien', 'passport', 'birth_certificate', 'military']
+    enum: ['national', 'alien', 'passport', 'birth_certificate', 'military'],
+    required: false,
   })
+  @ValidateIf((o) => o.idNumber !== undefined && o.idNumber !== null && o.idNumber !== '')
   @IsIn(['national', 'alien', 'passport', 'birth_certificate', 'military'])
-  idType: string;
+  @IsOptional()
+  idType?: string;
 
   @ApiProperty({
     description: 'Identification number',
-    example: '12345678'
+    example: '12345678',
+    required: false,
   })
+  @ValidateIf((o) => o.idType !== undefined && o.idType !== null && o.idType !== '')
   @IsString()
-  idNumber: string;
+  @IsOptional()
+  idNumber?: string;
 
   @ApiProperty({
     description: 'Percentage of benefits this beneficiary will receive',

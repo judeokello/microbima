@@ -256,21 +256,26 @@ export class CustomerService {
       }
 
       if (createRequest.spouses && createRequest.spouses.length > 0) {
-        const spousesData = createRequest.spouses.map(spouse => ({
-          customerId: createdCustomer.id,
-          firstName: spouse.firstName,
-          middleName: spouse.middleName || null,
-          lastName: spouse.lastName,
-          dateOfBirth: spouse.dateOfBirth ? new Date(spouse.dateOfBirth) : null,
-          gender: spouse.gender.toUpperCase() as any,
-          email: spouse.email || null,
-          phoneNumber: spouse.phoneNumber || null,
-          idType: SharedMapperUtils.mapIdTypeFromDto(spouse.idType) as any,
-          idNumber: spouse.idNumber,
-          relationship: 'SPOUSE' as const,
-          verificationRequired: false,
-          createdByPartnerId: partnerId,
-        }));
+        const spousesData = createRequest.spouses.map((spouse) => {
+          const mappedIdType = SharedMapperUtils.mapIdTypeFromDto(spouse.idType);
+          const trimmedIdNumber = spouse.idNumber?.trim();
+
+          return {
+            customerId: createdCustomer.id,
+            firstName: spouse.firstName,
+            middleName: spouse.middleName || null,
+            lastName: spouse.lastName,
+            dateOfBirth: spouse.dateOfBirth ? new Date(spouse.dateOfBirth) : null,
+            gender: spouse.gender.toUpperCase() as any,
+            email: spouse.email || null,
+            phoneNumber: spouse.phoneNumber || null,
+            idType: trimmedIdNumber ? (mappedIdType as any) : null,
+            idNumber: trimmedIdNumber || null,
+            relationship: 'SPOUSE' as const,
+            verificationRequired: false,
+            createdByPartnerId: partnerId,
+          };
+        });
 
         await this.prismaService.dependant.createMany({
           data: spousesData,
@@ -288,19 +293,24 @@ export class CustomerService {
       }
 
       if (createRequest.beneficiaries && createRequest.beneficiaries.length > 0) {
-        const beneficiariesData = createRequest.beneficiaries.map(beneficiary => ({
-          customerId: createdCustomer.id,
-          firstName: beneficiary.firstName,
-          middleName: beneficiary.middleName || null,
-          lastName: beneficiary.lastName,
-          dateOfBirth: new Date(beneficiary.dateOfBirth),
-          gender: beneficiary.gender.toUpperCase() as any,
-          idType: SharedMapperUtils.mapIdTypeFromDto(beneficiary.idType) as any,
-          idNumber: beneficiary.idNumber,
-          relationship: beneficiary.relationship,
-          percentage: beneficiary.percentage,
-          createdByPartnerId: partnerId,
-        }));
+        const beneficiariesData = createRequest.beneficiaries.map((beneficiary) => {
+          const trimmedIdNumber = beneficiary.idNumber?.trim();
+          const mappedIdType = SharedMapperUtils.mapIdTypeFromDto(beneficiary.idType);
+
+          return {
+            customerId: createdCustomer.id,
+            firstName: beneficiary.firstName,
+            middleName: beneficiary.middleName || null,
+            lastName: beneficiary.lastName,
+            dateOfBirth: new Date(beneficiary.dateOfBirth),
+            gender: beneficiary.gender.toUpperCase() as any,
+            idType: trimmedIdNumber ? (mappedIdType as any) : null,
+            idNumber: trimmedIdNumber || null,
+            relationship: beneficiary.relationship,
+            percentage: beneficiary.percentage,
+            createdByPartnerId: partnerId,
+          };
+        });
 
         await this.prismaService.beneficiary.createMany({
           data: beneficiariesData,
@@ -608,21 +618,26 @@ export class CustomerService {
 
         // Add spouses if provided
         if (addRequest.spouses && addRequest.spouses.length > 0) {
-        const spousesData = addRequest.spouses.map(spouse => ({
-          customerId: customerId,
-          firstName: spouse.firstName,
-          middleName: spouse.middleName || null,
-          lastName: spouse.lastName,
-          dateOfBirth: spouse.dateOfBirth ? new Date(spouse.dateOfBirth) : null,
-          gender: spouse.gender.toUpperCase() as any,
-          email: spouse.email || null,
-          phoneNumber: spouse.phoneNumber || null,
-          idType: SharedMapperUtils.mapIdTypeFromDto(spouse.idType) as any,
-          idNumber: spouse.idNumber,
-          relationship: 'SPOUSE' as const,
-          verificationRequired: false,
-          createdByPartnerId: partnerId,
-        }));
+          const spousesData = addRequest.spouses.map((spouse) => {
+            const trimmedIdNumber = spouse.idNumber?.trim();
+            const mappedIdType = SharedMapperUtils.mapIdTypeFromDto(spouse.idType);
+
+            return {
+              customerId: customerId,
+              firstName: spouse.firstName,
+              middleName: spouse.middleName || null,
+              lastName: spouse.lastName,
+              dateOfBirth: spouse.dateOfBirth ? new Date(spouse.dateOfBirth) : null,
+              gender: spouse.gender.toUpperCase() as any,
+              email: spouse.email || null,
+              phoneNumber: spouse.phoneNumber || null,
+              idType: trimmedIdNumber ? (mappedIdType as any) : null,
+              idNumber: trimmedIdNumber || null,
+              relationship: 'SPOUSE' as const,
+              verificationRequired: false,
+              createdByPartnerId: partnerId,
+            };
+          });
 
           const createdSpouses = await tx.dependant.createMany({
             data: spousesData,
@@ -649,8 +664,8 @@ export class CustomerService {
             dateOfBirth: spouse.dateOfBirth?.toISOString().split('T')[0] ?? null,
             gender: spouse.gender,
             email: spouse.email,
-            idType: SharedMapperUtils.mapIdTypeFromDto(spouse.idType),
-            idNumber: spouse.idNumber,
+            idType: SharedMapperUtils.mapIdTypeToDto(spouse.idType),
+            idNumber: spouse.idNumber ?? null,
           })));
         }
 
@@ -863,22 +878,27 @@ export class CustomerService {
         const addedBeneficiaries: any[] = [];
         let beneficiariesAdded = 0;
 
-        const beneficiariesData = addRequest.beneficiaries.map(beneficiary => ({
-          customerId: customerId,
-          firstName: beneficiary.firstName,
-          middleName: beneficiary.middleName || null,
-          lastName: beneficiary.lastName,
-          dateOfBirth: beneficiary.dateOfBirth ? new Date(beneficiary.dateOfBirth) : null,
-          gender: beneficiary.gender.toUpperCase() as any,
-          email: beneficiary.email || null,
-          phoneNumber: beneficiary.phoneNumber || null,
-          idType: SharedMapperUtils.mapIdTypeFromDto(beneficiary.idType) as any,
-          idNumber: beneficiary.idNumber,
-          relationship: beneficiary.relationship,
-          relationshipDescription: beneficiary.relationshipDescription || null,
-          percentage: beneficiary.percentage,
-          createdByPartnerId: partnerId,
-        }));
+        const beneficiariesData = addRequest.beneficiaries.map((beneficiary) => {
+          const trimmedIdNumber = beneficiary.idNumber?.trim();
+          const mappedIdType = SharedMapperUtils.mapIdTypeFromDto(beneficiary.idType);
+
+          return {
+            customerId: customerId,
+            firstName: beneficiary.firstName,
+            middleName: beneficiary.middleName || null,
+            lastName: beneficiary.lastName,
+            dateOfBirth: beneficiary.dateOfBirth ? new Date(beneficiary.dateOfBirth) : null,
+            gender: beneficiary.gender.toUpperCase() as any,
+            email: beneficiary.email || null,
+            phoneNumber: beneficiary.phoneNumber || null,
+            idType: trimmedIdNumber ? (mappedIdType as any) : null,
+            idNumber: trimmedIdNumber || null,
+            relationship: beneficiary.relationship,
+            relationshipDescription: beneficiary.relationshipDescription || null,
+            percentage: beneficiary.percentage,
+            createdByPartnerId: partnerId,
+          };
+        });
 
         const createdBeneficiaries = await tx.beneficiary.createMany({
           data: beneficiariesData,
@@ -896,20 +916,22 @@ export class CustomerService {
         });
 
         beneficiariesAdded = createdBeneficiaries.count;
-        addedBeneficiaries.push(...beneficiariesWithIds.map((beneficiary: any) => ({
-          beneficiaryId: beneficiary.id,
-          firstName: beneficiary.firstName,
-          lastName: beneficiary.lastName,
-          dateOfBirth: beneficiary.dateOfBirth?.toISOString().split('T')[0] ?? null,
-          gender: beneficiary.gender,
-          email: beneficiary.email,
-          phoneNumber: beneficiary.phoneNumber,
-          idType: beneficiary.idType,
-          idNumber: beneficiary.idNumber,
-          relationship: beneficiary.relationship,
-          relationshipDescription: beneficiary.relationshipDescription,
-          percentage: beneficiary.percentage,
-        })));
+        addedBeneficiaries.push(
+          ...beneficiariesWithIds.map((beneficiary: any) => ({
+            beneficiaryId: beneficiary.id,
+            firstName: beneficiary.firstName,
+            lastName: beneficiary.lastName,
+            dateOfBirth: beneficiary.dateOfBirth?.toISOString().split('T')[0] ?? null,
+            gender: beneficiary.gender,
+            email: beneficiary.email,
+            phoneNumber: beneficiary.phoneNumber,
+            idType: SharedMapperUtils.mapIdTypeToDto(beneficiary.idType),
+            idNumber: beneficiary.idNumber ?? undefined,
+            relationship: beneficiary.relationship,
+            relationshipDescription: beneficiary.relationshipDescription,
+            percentage: beneficiary.percentage,
+          }))
+        );
 
         return {
           partnerCustomerId: partnerCustomer.partnerCustomerId,
@@ -1968,7 +1990,7 @@ export class CustomerService {
         phoneNumber: b.phoneNumber ?? undefined,
         gender: b.gender ? SharedMapperUtils.mapGenderToDto(b.gender) : undefined,
         idType: SharedMapperUtils.mapIdTypeToDto(b.idType),
-        idNumber: b.idNumber,
+        idNumber: b.idNumber ?? undefined,
       }));
 
       // Map dependants
@@ -2196,8 +2218,13 @@ export class CustomerService {
       if (updateData.email !== undefined) updatePayload.email = updateData.email;
       if (updateData.phoneNumber !== undefined) updatePayload.phoneNumber = updateData.phoneNumber;
       if (updateData.gender !== undefined) updatePayload.gender = SharedMapperUtils.mapGenderFromDto(updateData.gender);
-      if (updateData.idType !== undefined) updatePayload.idType = SharedMapperUtils.mapIdTypeFromDto(updateData.idType);
-      if (updateData.idNumber !== undefined) updatePayload.idNumber = updateData.idNumber;
+      if (updateData.idType !== undefined) {
+        updatePayload.idType = SharedMapperUtils.mapIdTypeFromDto(updateData.idType);
+      }
+      if (updateData.idNumber !== undefined) {
+        const trimmedIdNumber = updateData.idNumber?.trim();
+        updatePayload.idNumber = trimmedIdNumber && trimmedIdNumber.length > 0 ? trimmedIdNumber : null;
+      }
       updatePayload.updatedBy = userId;
 
       // Update customer
@@ -2265,8 +2292,13 @@ export class CustomerService {
       if (updateData.email !== undefined) updatePayload.email = updateData.email;
       if (updateData.phoneNumber !== undefined) updatePayload.phoneNumber = updateData.phoneNumber;
       if (updateData.gender !== undefined) updatePayload.gender = SharedMapperUtils.mapGenderFromDto(updateData.gender);
-      if (updateData.idType !== undefined) updatePayload.idType = SharedMapperUtils.mapIdTypeFromDto(updateData.idType);
-      if (updateData.idNumber !== undefined) updatePayload.idNumber = updateData.idNumber;
+      if (updateData.idType !== undefined) {
+        updatePayload.idType = SharedMapperUtils.mapIdTypeFromDto(updateData.idType);
+      }
+      if (updateData.idNumber !== undefined) {
+        const trimmedIdNumber = updateData.idNumber?.trim();
+        updatePayload.idNumber = trimmedIdNumber && trimmedIdNumber.length > 0 ? trimmedIdNumber : null;
+      }
 
       // Update dependant
       const updated = await this.prismaService.dependant.update({
@@ -2339,8 +2371,13 @@ export class CustomerService {
       if (updateData.email !== undefined) updatePayload.email = updateData.email;
       if (updateData.phoneNumber !== undefined) updatePayload.phoneNumber = updateData.phoneNumber;
       if (updateData.gender !== undefined) updatePayload.gender = SharedMapperUtils.mapGenderFromDto(updateData.gender);
-      if (updateData.idType !== undefined) updatePayload.idType = SharedMapperUtils.mapIdTypeFromDto(updateData.idType);
-      if (updateData.idNumber !== undefined) updatePayload.idNumber = updateData.idNumber;
+      if (updateData.idType !== undefined) {
+        updatePayload.idType = SharedMapperUtils.mapIdTypeFromDto(updateData.idType);
+      }
+      if (updateData.idNumber !== undefined) {
+        const trimmedIdNumber = updateData.idNumber?.trim();
+        updatePayload.idNumber = trimmedIdNumber && trimmedIdNumber.length > 0 ? trimmedIdNumber : null;
+      }
       if (updateData.relationship !== undefined) updatePayload.relationship = updateData.relationship;
       if (updateData.relationshipDescription !== undefined) updatePayload.relationshipDescription = updateData.relationshipDescription;
       if (updateData.percentage !== undefined) updatePayload.percentage = updateData.percentage;

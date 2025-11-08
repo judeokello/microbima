@@ -44,7 +44,11 @@ export class SharedMapperUtils {
    * @param idType - ID type string from DTO
    * @returns Prisma IdType enum value
    */
-  static mapIdTypeFromDto(idType: string): IdType {
+  static mapIdTypeFromDto(idType?: string | null): IdType | null {
+    if (!idType) {
+      return null;
+    }
+
     switch (idType.toLowerCase()) {
       case 'national':
         return IdType.NATIONAL_ID;
@@ -57,7 +61,7 @@ export class SharedMapperUtils {
       case 'military':
         return IdType.MILITARY;
       default:
-        return IdType.NATIONAL_ID; // Default fallback
+        return IdType.NATIONAL_ID; // Default fallback when provided but unrecognized
     }
   }
 
@@ -66,7 +70,11 @@ export class SharedMapperUtils {
    * @param idType - Prisma IdType enum value
    * @returns ID type string for DTO
    */
-  static mapIdTypeToDto(idType: IdType): string {
+  static mapIdTypeToDto(idType?: IdType | null): string | undefined {
+    if (!idType) {
+      return undefined;
+    }
+
     switch (idType) {
       case IdType.NATIONAL_ID:
         return 'national';

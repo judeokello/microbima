@@ -8,14 +8,14 @@ export interface BeneficiaryData {
   lastName: string;
   dateOfBirth?: Date | null;
   gender?: Gender | null;
-  idType: IdType;
-  idNumber: string;
+  idType?: IdType | null;
+  idNumber?: string | null;
   relationship?: string | null;
   percentage?: number | null;
   isVerified: boolean;
   verifiedAt?: Date | null;
   verifiedBy?: string | null;
-  createdByPartnerId: string;
+  createdByPartnerId: number;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -29,14 +29,14 @@ export class Beneficiary {
   lastName: string;
   dateOfBirth?: Date | null;
   gender?: Gender | null;
-  idType: IdType;
-  idNumber: string;
+  idType?: IdType | null;
+  idNumber?: string | null;
   relationship?: string | null;
   percentage?: number | null;
   isVerified: boolean;
   verifiedAt?: Date | null;
   verifiedBy?: string | null;
-  createdByPartnerId: string;
+  createdByPartnerId: number;
   createdAt: Date;
   updatedAt: Date;
 
@@ -48,8 +48,8 @@ export class Beneficiary {
     this.lastName = data.lastName;
     this.dateOfBirth = data.dateOfBirth;
     this.gender = data.gender;
-    this.idType = data.idType;
-    this.idNumber = data.idNumber;
+    this.idType = data.idType ?? null;
+    this.idNumber = data.idNumber ?? null;
     this.relationship = data.relationship;
     this.percentage = data.percentage;
     this.isVerified = data.isVerified;
@@ -129,8 +129,11 @@ export class Beneficiary {
       errors.push('Last name is required');
     }
 
-    if (!this.idNumber || this.idNumber.trim().length === 0) {
-      errors.push('ID number is required');
+    const hasIdNumber = !!(this.idNumber && this.idNumber.trim().length > 0);
+    const hasIdType = !!this.idType;
+
+    if (hasIdNumber !== hasIdType) {
+      errors.push('ID number and ID type must both be provided together');
     }
 
     if (!this.createdByPartnerId) {
@@ -218,8 +221,8 @@ export class Beneficiary {
       lastName: this.lastName,
       dateOfBirth: this.dateOfBirth,
       gender: this.gender,
-      idType: this.idType,
-      idNumber: this.idNumber,
+      idType: this.idType ?? null,
+      idNumber: this.idNumber ?? null,
       relationship: this.relationship,
       percentage: this.percentage,
       isVerified: this.isVerified,

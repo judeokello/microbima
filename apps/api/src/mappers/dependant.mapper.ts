@@ -82,7 +82,7 @@ export class DependantMapper {
       gender: SharedMapperUtils.mapGenderFromDto(dto.gender),
       idType: SharedMapperUtils.mapIdTypeFromDto(dto.idType),
       verificationRequired: false, // Spouses don't require verification
-      idNumber: dto.idNumber,
+      idNumber: dto.idNumber || null,
       relationship: DependantRelationship.SPOUSE,
       isVerified: isVerified,
       verifiedAt: isVerified ? new Date() : null,

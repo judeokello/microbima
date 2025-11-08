@@ -2,7 +2,7 @@ import { Customer, CustomerData } from '../entities/customer.entity';
 import { PrincipalMemberDto } from '../dto/principal-member/principal-member.dto';
 import { CreatePrincipalMemberRequestDto } from '../dto/principal-member/create-principal-member-request.dto';
 import { CreatePrincipalMemberResponseDto } from '../dto/principal-member/create-principal-member-response.dto';
-import { CustomerStatus, OnboardingStep } from '@prisma/client';
+import { CustomerStatus, OnboardingStep, IdType } from '@prisma/client';
 import { SharedMapperUtils } from './shared.mapper.utils';
 
 /**
@@ -29,7 +29,7 @@ export class CustomerMapper {
       phoneNumber: dto.phoneNumber || '',
       dateOfBirth: dto.dateOfBirth ? new Date(dto.dateOfBirth) : null,
       gender: SharedMapperUtils.mapGenderFromDto(dto.gender),
-      idType: SharedMapperUtils.mapIdTypeFromDto(dto.idType),
+      idType: SharedMapperUtils.mapIdTypeFromDto(dto.idType) ?? IdType.NATIONAL_ID,
       idNumber: dto.idNumber,
       status: CustomerStatus.PENDING_KYC,
       onboardingStep: OnboardingStep.BASIC_INFO,
@@ -155,7 +155,7 @@ export class CustomerMapper {
       gender: SharedMapperUtils.mapGenderToDto(customer.gender),
       email: customer.email || undefined,
       phoneNumber: customer.phoneNumber || undefined,
-      idType: SharedMapperUtils.mapIdTypeToDto(customer.idType),
+      idType: SharedMapperUtils.mapIdTypeToDto(customer.idType) ?? 'national',
       idNumber: customer.idNumber,
       partnerCustomerId: '', // This would need to be retrieved from PartnerCustomer table
     };

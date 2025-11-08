@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsString, IsEmail, IsIn, IsOptional } from 'class-validator';
+import { IsString, IsEmail, IsIn, IsOptional, ValidateIf } from 'class-validator';
 import { IsDateStringFriendly } from '../../decorators/validators/is-date-string-friendly.decorator';
 
 export class SpouseDto {
@@ -64,17 +64,23 @@ export class SpouseDto {
   @ApiProperty({
     description: 'Type of identification document',
     example: 'national',
-    enum: ['national', 'alien', 'passport', 'birth_certificate', 'military']
+    enum: ['national', 'alien', 'passport', 'birth_certificate', 'military'],
+    required: false,
   })
+  @ValidateIf((o) => o.idNumber !== undefined && o.idNumber !== null && o.idNumber !== '')
   @IsIn(['national', 'alien', 'passport', 'birth_certificate', 'military'])
-  idType: string;
+  @IsOptional()
+  idType?: string;
 
   @ApiProperty({
     description: 'Identification number',
-    example: '11223344'
+    example: '11223344',
+    required: false,
   })
+  @ValidateIf((o) => o.idType !== undefined && o.idType !== null && o.idType !== '')
+  @IsOptional()
   @IsString()
-  idNumber: string;
+  idNumber?: string;
 
   @ApiProperty({
     description: 'Verification status of the spouse',

@@ -104,16 +104,20 @@ export class BeneficiarySummaryDto {
   @ApiProperty({
     description: 'ID type',
     example: 'national',
+    required: false,
   })
+  @IsOptional()
   @IsString()
-  idType: string;
+  idType?: string;
 
   @ApiProperty({
     description: 'ID number',
     example: '12345678',
+    required: false,
   })
+  @IsOptional()
   @IsString()
-  idNumber: string;
+  idNumber?: string;
 }
 
 export class DependantSummaryDto {

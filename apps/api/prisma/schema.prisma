@@ -206,8 +206,8 @@ model Beneficiary {
   gender                  Gender? // Optional field
   email                   String?   @db.VarChar(100) // Optional email
   phoneNumber             String?   @db.VarChar(20) // Optional phone number
-  idType                  IdType
-  idNumber                String    @db.VarChar(20) // Max 20 characters
+  idType                  IdType?
+  idNumber                String?   @db.VarChar(20) // Max 20 characters
   relationship            String? // Relationship to principal member
   relationshipDescription String? // Optional description for "other" relationship
   percentage              Int? // Percentage of benefits (1-100)
@@ -788,19 +788,20 @@ model PolicyTag {
 }
 
 model MpesaPaymentReportUpload {
-  id               String   @id @default(uuid()) @db.Uuid
-  accountHolder    String   @db.VarChar(100)
-  shortCode        String?  @db.VarChar(100)
-  account          String?  @db.VarChar(50)
+  id               String    @id @default(uuid()) @db.Uuid
+  accountHolder    String    @db.VarChar(100)
+  shortCode        String?   @db.VarChar(100)
+  account          String?   @db.VarChar(50)
   timeFrom         DateTime
   timeTo           DateTime
-  operator         String?  @db.VarChar(100)
-  openingBalance   Decimal? @db.Decimal(10, 2)
-  closingBalance   Decimal? @db.Decimal(10, 2)
-  availableBalance Decimal? @db.Decimal(10, 2)
-  totalPaidIn      Decimal? @db.Decimal(10, 2)
-  totalWithdrawn   Decimal? @db.Decimal(10, 2)
-  filePath         String?  @db.VarChar(500) // Storage path for the uploaded file
+  operator         String?   @db.VarChar(100)
+  reportDate       DateTime? // Date of Report from Row 5, column F
+  openingBalance   Decimal?  @db.Decimal(10, 2)
+  closingBalance   Decimal?  @db.Decimal(10, 2)
+  availableBalance Decimal?  @db.Decimal(10, 2)
+  totalPaidIn      Decimal?  @db.Decimal(10, 2)
+  totalWithdrawn   Decimal?  @db.Decimal(10, 2)
+  filePath         String?   @db.VarChar(500) // Storage path for the uploaded file
 
   // Relations
   items MpesaPaymentReportItem[]

@@ -114,9 +114,13 @@ export default function EditBeneficiaryDialog({
     }
 
     try {
+      const trimmedIdNumber = formData.idNumber?.trim() ?? '';
+      const hasIdNumber = trimmedIdNumber.length > 0;
+
       const updateData: UpdateBeneficiaryData = {
         ...formData,
-        idType: mapIdTypeToBackend(formData.idType ?? 'NATIONAL_ID'),
+        idNumber: hasIdNumber ? trimmedIdNumber : undefined,
+        idType: hasIdNumber ? mapIdTypeToBackend(formData.idType ?? 'NATIONAL_ID') : undefined,
       };
 
       await updateBeneficiary(actualCustomerId, beneficiary.id, updateData);

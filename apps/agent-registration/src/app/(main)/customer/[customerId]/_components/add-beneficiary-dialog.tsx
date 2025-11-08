@@ -104,6 +104,9 @@ export default function AddBeneficiaryDialog({
     }
 
     try {
+      const trimmedIdNumber = formData.idNumber.trim();
+      const hasIdNumber = trimmedIdNumber.length > 0;
+
       const beneficiaryData: BeneficiaryData = {
         firstName: formData.firstName,
         lastName: formData.lastName,
@@ -112,11 +115,15 @@ export default function AddBeneficiaryDialog({
         gender: formData.gender,
         email: undefined,
         phoneNumber: formData.phoneNumber,
-        idType: mapIdTypeToBackend(formData.idType),
-        idNumber: formData.idNumber || '',
         relationship: formData.relationship,
         relationshipDescription: formData.relationship === 'other' ? (formData.relationshipDescription || undefined) : undefined,
         percentage: formData.percentage,
+        ...(hasIdNumber
+          ? {
+              idType: mapIdTypeToBackend(formData.idType),
+              idNumber: trimmedIdNumber,
+            }
+          : {}),
       };
 
       const result = await addBeneficiaries(actualCustomerId, [beneficiaryData]);
