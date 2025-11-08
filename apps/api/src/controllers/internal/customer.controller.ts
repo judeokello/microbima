@@ -121,7 +121,7 @@ export class InternalCustomerController {
     @Query('toDate') toDate?: string,
   ): Promise<BrandAmbassadorRegistrationsResponseDto> {
     const userId = req.user?.id;
-    
+
     if (!userId) {
       throw new UnauthorizedException('User ID not found in request');
     }
@@ -167,7 +167,7 @@ export class InternalCustomerController {
     @Query('period') period: '7d' | '30d' | '90d' = '30d',
   ): Promise<RegistrationsChartResponseDto> {
     const userId = req.user?.id || 'system';
-    
+
     return this.customerService.getRegistrationsChartData(userId, period, correlationId);
   }
 
@@ -198,11 +198,11 @@ export class InternalCustomerController {
     @Req() req: any,
   ): Promise<BrandAmbassadorDashboardStatsDto> {
     const userId = req.user?.id || 'system';
-    
+
     // Get Brand Ambassador info to derive partnerId
     const baInfo = await this.partnerManagementService.getBrandAmbassadorByUserId(userId);
     const partnerId = baInfo.partnerId;
-    
+
     return this.customerService.getBrandAmbassadorDashboardStats(partnerId, correlationId);
   }
 
@@ -241,7 +241,7 @@ export class InternalCustomerController {
     @Query('period') period: '7d' | '30d' | '90d' = '30d',
   ): Promise<RegistrationsChartResponseDto> {
     const userId = req.user?.id || 'system';
-    
+
     // No userId filter - get all registrations
     return this.customerService.getRegistrationsChartData(undefined, period, correlationId);
   }
@@ -273,7 +273,7 @@ export class InternalCustomerController {
     @Req() req: any,
   ) {
     const userId = req.user?.id || 'system';
-    
+
     return this.customerService.getDashboardStats(correlationId);
   }
 
@@ -303,7 +303,7 @@ export class InternalCustomerController {
     @Req() req: any,
   ) {
     const userId = req.user?.id || 'system';
-    
+
     return this.customerService.getBrandAmbassadorsForFilter(correlationId);
   }
 
@@ -444,7 +444,7 @@ export class InternalCustomerController {
     @Query('createdBy') createdBy?: string,
   ): Promise<AdminCustomersResponseDto> {
     const userId = req.user?.id || 'system';
-    
+
     return this.customerService.getAllCustomers(
       parseInt(page),
       parseInt(pageSize),
@@ -504,7 +504,7 @@ export class InternalCustomerController {
     @Query('toDate') toDate?: string,
   ) {
     const userId = req.user?.id || 'system';
-    
+
     const exportData = await this.customerService.exportCustomersToCSV(
       fromDate,
       toDate,
@@ -549,11 +549,11 @@ export class InternalCustomerController {
   ): Promise<CreatePrincipalMemberResponseDto> {
     // Extract user ID from authenticated user
     const userId = req.user?.id || 'system';
-    
+
     // Get Brand Ambassador info to derive partnerId
     const baInfo = await this.partnerManagementService.getBrandAmbassadorByUserId(userId);
     const partnerId = baInfo.partnerId;
-    
+
     return this.customerService.createCustomer(
       createRequest,
       partnerId,
@@ -606,11 +606,11 @@ export class InternalCustomerController {
   ): Promise<AddBeneficiariesResponseDto> {
     // Extract user ID from authenticated user
     const userId = req.user?.id || 'system';
-    
+
     // Get Brand Ambassador info to derive partnerId
     const baInfo = await this.partnerManagementService.getBrandAmbassadorByUserId(userId);
     const partnerId = baInfo.partnerId;
-    
+
     return this.customerService.addBeneficiaries(
       customerId,
       addRequest,
@@ -777,11 +777,11 @@ export class InternalCustomerController {
   ): Promise<AddDependantsResponseDto> {
     // Extract user ID from authenticated user
     const userId = req.user?.id || 'system';
-    
+
     // Get Brand Ambassador info to derive partnerId
     const baInfo = await this.partnerManagementService.getBrandAmbassadorByUserId(userId);
     const partnerId = baInfo.partnerId;
-    
+
     return this.customerService.addDependants(
       customerId,
       addRequest,

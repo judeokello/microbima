@@ -250,14 +250,14 @@ export class UnderwriterService {
         `[${correlationId}] Error creating underwriter: ${error instanceof Error ? error.message : 'Unknown error'}`,
         error instanceof Error ? error.stack : undefined
       );
-      
+
       // Log Prisma error details if available
       if (error && typeof error === 'object' && 'meta' in error) {
         this.logger.error(
           `[${correlationId}] Prisma error meta: ${JSON.stringify((error as any).meta)}`
         );
       }
-      
+
       // Re-throw with more context if it's a Prisma error
       if (error instanceof Error) {
         // Check for specific Prisma error patterns
@@ -277,7 +277,7 @@ export class UnderwriterService {
           throw new Error('Required field is missing');
         }
       }
-      
+
       throw error;
     }
   }

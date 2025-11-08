@@ -36,7 +36,7 @@ import { UpdateBeneficiaryDto } from '../dto/beneficiaries/update-beneficiary.dt
  */
 @Injectable()
 export class CustomerService {
-  private readonly logger = new Logger(CustomerService.name)
+  private readonly logger = new Logger(CustomerService.name);
 
   /**
    * Calculate if child requires verification (age 18-24 years old)
@@ -200,7 +200,7 @@ export class CustomerService {
       // Create package scheme customer relationship (replacement for partner_customers)
       // Use provided packageSchemeId or default to 1 (MfanisiGo -> OOD Drivers)
       const packageSchemeId = createRequest.packageSchemeId ?? 1;
-      
+
       // Insert into package_scheme_customers table immediately after partner_customers
       try {
         await this.prismaService.packageSchemeCustomer.create({
@@ -1064,7 +1064,7 @@ export class CustomerService {
       this.logger.log(`[${correlationId}] Getting brand ambassador registrations for user ${userId}, page ${page}, pageSize ${pageSize}`);
 
       const skip = (page - 1) * pageSize;
-      
+
       // Build date filter
       const dateFilter: any = {};
       if (fromDate) {
@@ -1159,7 +1159,7 @@ export class CustomerService {
       // Calculate date range based on period
       const now = new Date();
       const startDate = new Date();
-      
+
       switch (period) {
         case '7d':
           startDate.setDate(now.getDate() - 7);
@@ -1171,7 +1171,7 @@ export class CustomerService {
           startDate.setDate(now.getDate() - 90);
           break;
       }
-      
+
       startDate.setHours(0, 0, 0, 0);
 
       // Build where clause
@@ -1200,7 +1200,7 @@ export class CustomerService {
 
       // Group by date
       const dailyCounts = new Map<string, number>();
-      
+
       // Initialize all dates in range with 0
       const currentDate = new Date(startDate);
       while (currentDate <= now) {
@@ -1254,22 +1254,22 @@ export class CustomerService {
       const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
       const yesterday = new Date(today);
       yesterday.setDate(yesterday.getDate() - 1);
-      
+
       // This week (Monday to Sunday)
       const thisWeekStart = new Date(today);
       const dayOfWeek = today.getDay();
       const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1; // Sunday = 0, Monday = 1
       thisWeekStart.setDate(today.getDate() - daysToMonday);
       thisWeekStart.setHours(0, 0, 0, 0);
-      
+
       const thisWeekEnd = new Date(thisWeekStart);
       thisWeekEnd.setDate(thisWeekStart.getDate() + 6);
       thisWeekEnd.setHours(23, 59, 59, 999);
-      
+
       // Last week
       const lastWeekStart = new Date(thisWeekStart);
       lastWeekStart.setDate(thisWeekStart.getDate() - 7);
-      
+
       const lastWeekEnd = new Date(thisWeekEnd);
       lastWeekEnd.setDate(thisWeekEnd.getDate() - 7);
 
@@ -1291,7 +1291,7 @@ export class CustomerService {
             }
           }
         }),
-        
+
         // Registered yesterday
         this.prismaService.customer.count({
           where: {
@@ -1302,7 +1302,7 @@ export class CustomerService {
             }
           }
         }),
-        
+
         // Registered this week
         this.prismaService.customer.count({
           where: {
@@ -1313,7 +1313,7 @@ export class CustomerService {
             }
           }
         }),
-        
+
         // Registered last week
         this.prismaService.customer.count({
           where: {
@@ -1324,7 +1324,7 @@ export class CustomerService {
             }
           }
         }),
-        
+
         // Total registrations by this partner
         this.prismaService.customer.count({
           where: {
@@ -1368,15 +1368,15 @@ export class CustomerService {
       ] = await Promise.all([
         // Total agents count
         this.prismaService.brandAmbassador.count(),
-        
+
         // Active agents count
         this.prismaService.brandAmbassador.count({
           where: { isActive: true }
         }),
-        
+
         // Total customers count
         this.prismaService.customer.count(),
-        
+
         // Registrations today count
         this.prismaService.customer.count({
           where: {
@@ -1386,7 +1386,7 @@ export class CustomerService {
             }
           }
         }),
-        
+
         // Pending MRs count (customers with missing requirements)
         this.prismaService.customer.count({
           where: { hasMissingRequirements: true }
@@ -1462,7 +1462,7 @@ export class CustomerService {
       this.logger.log(`[${correlationId}] Getting all customers, page ${page}, pageSize ${pageSize}`);
 
       const skip = (page - 1) * pageSize;
-      
+
       // Build date filter
       const dateFilter: any = {};
       if (fromDate) {
@@ -1479,7 +1479,7 @@ export class CustomerService {
       }
 
       // Get brand ambassadors for filtering if createdBy is specified
-      let brandAmbassadorFilter: any = {};
+      const brandAmbassadorFilter: any = {};
       if (createdBy) {
         const brandAmbassadors = await this.prismaService.brandAmbassador.findMany({
           where: {
@@ -1492,7 +1492,7 @@ export class CustomerService {
             partnerId: true,
           },
         });
-        
+
         if (brandAmbassadors.length > 0) {
           whereClause.createdByPartnerId = {
             in: brandAmbassadors.map(ba => ba.partnerId),
@@ -1623,10 +1623,10 @@ export class CustomerService {
       }
 
       const skip = (page - 1) * pageSize;
-      
+
       // Build OR conditions for partial matching
       const orConditions: any[] = [];
-      
+
       if (name) {
         // Search across firstName, middleName, and lastName
         orConditions.push({
@@ -1652,7 +1652,7 @@ export class CustomerService {
           ],
         });
       }
-      
+
       if (idNumber) {
         orConditions.push({
           idNumber: {
@@ -1661,7 +1661,7 @@ export class CustomerService {
           },
         });
       }
-      
+
       if (phoneNumber) {
         orConditions.push({
           phoneNumber: {
@@ -1670,7 +1670,7 @@ export class CustomerService {
           },
         });
       }
-      
+
       if (email) {
         orConditions.push({
           email: {
@@ -1874,7 +1874,7 @@ export class CustomerService {
     }
 
     const cleanPhone = phoneNumber.replace(/\D/g, '');
-    
+
     if (cleanPhone.length < 7) {
       return cleanPhone.substring(0, 4) + '***';
     }

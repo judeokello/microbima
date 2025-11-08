@@ -57,7 +57,3 @@ export class CreateBrandAmbassadorResponseDto {
   updatedAt: Date;
 }
 
-
-
-
-

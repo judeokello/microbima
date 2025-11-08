@@ -12,7 +12,7 @@ export interface BAUser {
 
 /**
  * BA Authorization Guard
- * 
+ *
  * Validates that the authenticated user has the required roles and permissions
  * to access agent registration endpoints.
  */

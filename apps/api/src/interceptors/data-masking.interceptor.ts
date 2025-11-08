@@ -17,7 +17,7 @@ export interface BAUser {
 
 /**
  * Data Masking Interceptor
- * 
+ *
  * Masks sensitive customer data when accessed by Brand Ambassadors
  * to comply with privacy requirements.
  */
@@ -34,7 +34,7 @@ export class DataMaskingInterceptor implements NestInterceptor {
           if (user && user.roles.includes('brand_ambassador') && !user.roles.includes('registration_admin')) {
             return this.maskSensitiveData(data);
           }
-          
+
           return data;
         } catch (error) {
           Sentry.captureException(error, {
@@ -42,7 +42,7 @@ export class DataMaskingInterceptor implements NestInterceptor {
               operation: 'DataMaskingInterceptor.intercept',
             },
           });
-          
+
           // Return original data if masking fails
           return data;
         }
@@ -108,13 +108,13 @@ export class DataMaskingInterceptor implements NestInterceptor {
       ...customer,
       // Mask phone number (show last 4 digits)
       phoneNumber: customer.phoneNumber ? this.maskPhoneNumber(customer.phoneNumber) : customer.phoneNumber,
-      
+
       // Mask email (show first 2 characters and domain)
       email: customer.email ? this.maskEmail(customer.email) : customer.email,
-      
+
       // Mask ID number (show last 4 digits)
       idNumber: customer.idNumber ? this.maskIdNumber(customer.idNumber) : customer.idNumber,
-      
+
       // Keep other fields as-is (firstName, lastName, etc. are needed for BA operations)
     };
   }
@@ -126,7 +126,7 @@ export class DataMaskingInterceptor implements NestInterceptor {
     if (!phoneNumber || phoneNumber.length <= 4) {
       return phoneNumber;
     }
-    
+
     const masked = '*'.repeat(phoneNumber.length - 4);
     return masked + phoneNumber.slice(-4);
   }
@@ -155,7 +155,7 @@ export class DataMaskingInterceptor implements NestInterceptor {
     if (!idNumber || idNumber.length <= 4) {
       return idNumber;
     }
-    
+
     const masked = '*'.repeat(idNumber.length - 4);
     return masked + idNumber.slice(-4);
   }

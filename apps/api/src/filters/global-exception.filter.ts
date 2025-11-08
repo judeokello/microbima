@@ -99,7 +99,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       }
 
       // Handle Prisma validation errors (like Invalid Date)
-      if (exception.message.includes('Invalid value for argument') || 
+      if (exception.message.includes('Invalid value for argument') ||
           exception.message.includes('Provided Date object is invalid')) {
         return HttpStatus.UNPROCESSABLE_ENTITY; // 422 for validation errors
       }
@@ -148,7 +148,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       }
 
       // Handle Prisma validation errors (like Invalid Date)
-      if (exception.message.includes('Invalid value for argument') || 
+      if (exception.message.includes('Invalid value for argument') ||
           exception.message.includes('Provided Date object is invalid')) {
         return ErrorCodes.VALIDATION_ERROR;
       }
@@ -198,7 +198,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       }
 
       // Handle Prisma validation errors (like Invalid Date)
-      if (exception.message.includes('Invalid value for argument') || 
+      if (exception.message.includes('Invalid value for argument') ||
           exception.message.includes('Provided Date object is invalid')) {
         if (process.env.NODE_ENV === 'production') {
           return 'Invalid data provided. Please check your input and try again.';

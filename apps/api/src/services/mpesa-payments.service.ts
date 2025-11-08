@@ -56,7 +56,7 @@ export class MpesaPaymentsService {
    * Determine if we should use Supabase Storage based on environment
    */
   private shouldUseSupabaseStorage(): boolean {
-    const nodeEnv = process.env.NODE_ENV as string | undefined;
+    const nodeEnv = process.env.NODE_ENV;
     return nodeEnv === 'staging' || nodeEnv === 'production';
   }
 
@@ -134,14 +134,14 @@ export class MpesaPaymentsService {
    */
   private mapReasonType(reasonType: string): MpesaStatementReasonType {
     const normalized = reasonType.trim();
-    
+
     if (normalized === 'Pay Utility') return MpesaStatementReasonType.PayBill_STK;
     if (normalized === 'Standing Order Pay Bill') return MpesaStatementReasonType.Ratiba;
     if (normalized === 'Pay Bill Online') return MpesaStatementReasonType.Paybill_MobileApp;
     if (normalized === 'Pay Utility with OD via STK') return MpesaStatementReasonType.PayBill_Fuliza_STK;
     if (normalized === 'Pay Utility with OD Online') return MpesaStatementReasonType.PayBill_Fuliza_Online;
     if (normalized === 'Utility Account to Organization Settlement Account') return MpesaStatementReasonType.Withdrawal;
-    
+
     return MpesaStatementReasonType.Unmapped;
   }
 
@@ -181,22 +181,22 @@ export class MpesaPaymentsService {
       // Convert to JSON for easier parsing
       // Use raw: true to get raw cell values (numbers for dates, which we'll convert)
       // This gives us more control over date parsing
-      const rows = XLSX.utils.sheet_to_json(worksheet, { 
-        header: 1, 
+      const rows = XLSX.utils.sheet_to_json(worksheet, {
+        header: 1,
         defval: null,
         raw: true // Get raw values - dates will be Excel serial numbers or Date objects
-      }) as any[];
+      });
 
       // Parse header rows (1-6, 0-indexed: 0-5)
       // Row 4 format: "Time Period: From 10-10-2025 00:00:00 To 13-10-2025 23:59:59"
       // Dates are in columns C and E (indices 2 and 4), but may contain "From" and "To" prefixes
       const timeFromStr = rows[3]?.[2]?.toString() || '';
       const timeToStr = rows[3]?.[4]?.toString() || '';
-      
+
       // Extract date from string, removing "From" and "To" prefixes if present
       const timeFromClean = timeFromStr.replace(/^From\s+/i, '').trim();
       const timeToClean = timeToStr.replace(/^To\s+/i, '').trim();
-      
+
       const header: ExcelHeaderData = {
         accountHolder: rows[0]?.[1]?.toString() || '', // Row 1, Column B
         shortCode: rows[1]?.[1]?.toString() || undefined, // Row 2, Column B
@@ -228,7 +228,7 @@ export class MpesaPaymentsService {
       // Row 6 format: Opening Balance: X Closing Balance: Y Available Balance: Z Total Paid In: A Total Withdrawn: B
       // Values are in columns B, D, F, H, J (indices 1, 3, 5, 7, 9) based on user's description
       const row6 = rows[5] || [];
-      
+
       // First try direct column access (primary method based on user feedback)
       // Then fallback to label matching if direct access doesn't work
       let openingBalanceStr = row6[1]?.toString()?.trim();
@@ -236,7 +236,7 @@ export class MpesaPaymentsService {
       let availableBalanceStr = row6[5]?.toString()?.trim();
       let totalPaidInStr = row6[7]?.toString()?.trim();
       let totalWithdrawnStr = row6[9]?.toString()?.trim();
-      
+
       // Fallback to label matching if direct access didn't yield values
       if (!openingBalanceStr || openingBalanceStr === '') {
         openingBalanceStr = this.findValueByLabel(worksheet, 5, 'Opening Balance');
@@ -284,7 +284,7 @@ export class MpesaPaymentsService {
         // Parse dates - handle Date objects, numbers (Excel serial), or strings
         const completionTimeValue = row[1];
         const initiationTimeValue = row[2];
-        
+
         const transaction: ExcelTransactionRow = {
           transactionReference,
           completionTime: this.parseDateTime(completionTimeValue ?? ''), // Column B
@@ -327,12 +327,12 @@ export class MpesaPaymentsService {
         `[${correlationId}] Error parsing Excel file: ${error instanceof Error ? error.message : 'Unknown error'}`,
         error instanceof Error ? error.stack : undefined
       );
-      
+
       // If it's already a ValidationException, re-throw it
       if (error instanceof ValidationException) {
         throw error;
       }
-      
+
       // Check for common Excel parsing errors
       if (error instanceof Error) {
         if (error.message.includes('Cannot read') || error.message.includes('Unexpected')) {
@@ -341,7 +341,7 @@ export class MpesaPaymentsService {
             'The Excel file does not meet the required format. Please ensure the file is a valid MPESA statement with the correct structure (rows 1-6 contain header information, row 7+ contains transactions).'
           );
         }
-        
+
         if (error.message.includes('corrupt') || error.message.includes('invalid')) {
           throw new ValidationException(
             ErrorCodes.INVALID_FORMAT,
@@ -349,7 +349,7 @@ export class MpesaPaymentsService {
           );
         }
       }
-      
+
       // Generic parsing error
       throw new ValidationException(
         ErrorCodes.INVALID_FORMAT,
@@ -378,7 +378,7 @@ export class MpesaPaymentsService {
     if (value instanceof Date) {
       return value;
     }
-    
+
     // Handle numbers (Excel date serial numbers)
     if (typeof value === 'number') {
       if (value > 0 && value < 100000) {
@@ -391,11 +391,11 @@ export class MpesaPaymentsService {
         return new Date(value);
       }
     }
-    
+
     if (!value || (typeof value === 'string' && value.trim() === '')) {
       return new Date();
     }
-    
+
     const trimmed = typeof value === 'string' ? value.trim() : String(value).trim();
 
     // Try parsing as Excel date number (if it's a string that looks like a number)
@@ -416,7 +416,7 @@ export class MpesaPaymentsService {
       const hours = ddMmYyyyMatch[4] ? parseInt(ddMmYyyyMatch[4], 10) : 0;
       const minutes = ddMmYyyyMatch[5] ? parseInt(ddMmYyyyMatch[5], 10) : 0;
       const seconds = ddMmYyyyMatch[6] ? parseInt(ddMmYyyyMatch[6], 10) : 0;
-      
+
       // Validate date (day should be 1-31, month should be 1-12)
       if (day >= 1 && day <= 31 && month >= 1 && month <= 12) {
         return new Date(year, month - 1, day, hours, minutes, seconds);
@@ -432,7 +432,7 @@ export class MpesaPaymentsService {
       const hours = yyyyMmDdMatch[4] ? parseInt(yyyyMmDdMatch[4], 10) : 0;
       const minutes = yyyyMmDdMatch[5] ? parseInt(yyyyMmDdMatch[5], 10) : 0;
       const seconds = yyyyMmDdMatch[6] ? parseInt(yyyyMmDdMatch[6], 10) : 0;
-      
+
       return new Date(year, month - 1, day, hours, minutes, seconds);
     }
 

@@ -38,17 +38,3 @@ export class BrandAmbassadorDashboardStatsDto {
   myTotalRegistrations: number;
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-

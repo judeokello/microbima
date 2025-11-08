@@ -83,7 +83,3 @@ export class CreateBrandAmbassadorRequestDto {
   createdBy?: string;
 }
 
-
-
-
-

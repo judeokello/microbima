@@ -87,11 +87,11 @@ export class SupabaseAuthMiddleware implements NestMiddleware {
       next();
     } catch (error) {
       console.error('Supabase auth middleware error:', error);
-      
+
       if (error instanceof UnauthorizedException) {
         throw error;
       }
-      
+
       throw new UnauthorizedException('Authentication failed');
     }
   }

@@ -5,7 +5,7 @@ import { registerDecorator, ValidationOptions, ValidationArguments } from 'class
  * Validates that the string is a valid ISO 8601 date string
  */
 export function IsDateStringFriendly(validationOptions?: ValidationOptions) {
-  return function (object: Object, propertyName: string) {
+  return function (object: object, propertyName: string) {
     registerDecorator({
       name: 'isDateStringFriendly',
       target: object.constructor,

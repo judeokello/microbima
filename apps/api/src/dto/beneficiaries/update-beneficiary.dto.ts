@@ -117,4 +117,3 @@ export class UpdateBeneficiaryDto {
   percentage?: number;
 }
 
-

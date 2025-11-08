@@ -96,7 +96,7 @@ export class AgentRegistrationController {
   ): Promise<AgentRegistrationResponseDto> {
     // Extract user ID from authenticated user
     const userId = req.user?.id || 'system';
-    
+
     return this.agentRegistrationService.createRegistration(dto, userId);
   }
 
@@ -140,7 +140,7 @@ export class AgentRegistrationController {
     // TODO: Extract user ID and role from JWT token
     const userId = 'system'; // Placeholder until auth is implemented
     const isAdmin = false; // TODO: Check user role
-    
+
     return this.agentRegistrationService.getRegistrationById(id, userId, isAdmin);
   }
 
@@ -184,7 +184,7 @@ export class AgentRegistrationController {
   ): Promise<AgentRegistrationResponseDto> {
     // TODO: Extract user ID from JWT token
     const userId = 'system'; // Placeholder until auth is implemented
-    
+
     return this.agentRegistrationService.updateRegistration(id, dto, userId);
   }
 
@@ -247,10 +247,10 @@ export class AgentRegistrationController {
     // TODO: Extract user ID and role from JWT token
     const userId = 'system'; // Placeholder until auth is implemented
     const isAdmin = false; // TODO: Check user role
-    
+
     const limitNum = limit ? parseInt(limit, 10) : 50;
     const offsetNum = offset ? parseInt(offset, 10) : 0;
-    
+
     return this.agentRegistrationService.getRegistrationsByBA(baId, userId, isAdmin, limitNum, offsetNum);
   }
 
@@ -287,7 +287,7 @@ export class AgentRegistrationController {
   ): Promise<MissingRequirementResponseDto> {
     // TODO: Extract user ID from JWT token
     const userId = 'system'; // Placeholder until auth is implemented
-    
+
     return this.missingRequirementService.createMissingRequirement(dto, userId);
   }
 
@@ -329,7 +329,7 @@ export class AgentRegistrationController {
   ): Promise<MissingRequirementResponseDto> {
     // TODO: Extract user ID from JWT token
     const userId = 'system'; // Placeholder until auth is implemented
-    
+
     return this.missingRequirementService.getMissingRequirementById(id, userId);
   }
 
@@ -372,7 +372,7 @@ export class AgentRegistrationController {
   ): Promise<MissingRequirementResponseDto> {
     // TODO: Extract user ID from JWT token
     const userId = 'system'; // Placeholder until auth is implemented
-    
+
     return this.missingRequirementService.updateMissingRequirement(id, dto, userId);
   }
 
@@ -434,10 +434,10 @@ export class AgentRegistrationController {
   ): Promise<{ missingRequirements: MissingRequirementResponseDto[]; total: number }> {
     // TODO: Extract user ID from JWT token
     const userId = 'system'; // Placeholder until auth is implemented
-    
+
     const limitNum = limit ? parseInt(limit, 10) : 50;
     const offsetNum = offset ? parseInt(offset, 10) : 0;
-    
+
     return this.missingRequirementService.getMissingRequirementsByRegistration(
       registrationId,
       userId,
@@ -504,11 +504,11 @@ export class AgentRegistrationController {
   ): Promise<{ missingRequirements: MissingRequirementResponseDto[]; total: number }> {
     // TODO: Extract user ID from JWT token
     const userId = 'system'; // Placeholder until auth is implemented
-    
+
     const partnerIdNum = partnerId ? parseInt(partnerId, 10) : undefined;
     const limitNum = limit ? parseInt(limit, 10) : 50;
     const offsetNum = offset ? parseInt(offset, 10) : 0;
-    
+
     return this.missingRequirementService.getPendingMissingRequirements(
       userId,
       partnerIdNum,

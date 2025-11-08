@@ -23,6 +23,13 @@ export class PolicyService {
   constructor(private readonly prismaService: PrismaService) {}
 
   /**
+   * Escape user-provided strings for safe RegExp construction
+   */
+  private escapeRegExp(value: string): string {
+    return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  }
+
+  /**
    * Generate policy number based on package format
    * @param packageId - Package ID
    * @param correlationId - Correlation ID for tracing
@@ -68,29 +75,30 @@ export class PolicyService {
       });
 
       // Extract the sequence number from the last policy number, or start at 1
+      let digitWidth = 3;
       let sequenceNumber = 1;
       if (lastPolicy && lastPolicy.policyNumber) {
         // Extract numeric part from policy number (e.g., "MP/MFG/001" -> 1, "MP/MFG/1234" -> 1234)
         const format = packageData.policyNumberFormat;
-        const match = format.match(/{auto-increasing-policy-number}/);
-        if (match) {
-          // Try to extract number from last policy number using the format
-          // Replace the format pattern with a regex capture group
-          const regexPattern = format
-            .replace(/{auto-increasing-policy-number}/, '(\\d+)')
-            .replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); // Escape special regex characters
+        const placeholder = '{auto-increasing-policy-number}';
 
-          const regex = new RegExp(`^${regexPattern}$`);
+        if (format.includes(placeholder)) {
+          // Try to extract number from last policy number using the format
+          const [prefix, suffix = ''] = format.split(placeholder);
+          const regex = new RegExp(
+            `^${this.escapeRegExp(prefix)}(\\d+)${this.escapeRegExp(suffix)}$`
+          );
           const lastMatch = lastPolicy.policyNumber.match(regex);
 
           if (lastMatch && lastMatch[1]) {
             sequenceNumber = parseInt(lastMatch[1], 10) + 1;
+            digitWidth = lastMatch[1].length;
           }
         }
       }
 
       // Format sequence number with leading zeros (e.g., 001, 002, ..., 1234)
-      const formattedSequence = sequenceNumber.toString().padStart(3, '0');
+      const formattedSequence = sequenceNumber.toString().padStart(digitWidth, '0');
 
       // Replace placeholder in format
       const policyNumber = packageData.policyNumberFormat.replace(
@@ -237,7 +245,7 @@ export class PolicyService {
       this.logger.log(
         `[${correlationId}] Policy payment with transaction reference ${data.paymentData.transactionReference} already exists. Returning existing policy ${existingPayment.policy.id}`
       );
-      
+
       // Return the existing policy and payment
       return {
         policy: existingPayment.policy,

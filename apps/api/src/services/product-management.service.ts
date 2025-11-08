@@ -798,7 +798,7 @@ export class ProductManagementService {
         `[${correlationId}] Error creating package: ${error instanceof Error ? error.message : 'Unknown error'}`,
         error instanceof Error ? error.stack : undefined
       );
-      
+
       // Re-throw with more context if it's a Prisma error
       if (error instanceof Error) {
         if (error.message.includes('Unique constraint failed')) {
@@ -808,7 +808,7 @@ export class ProductManagementService {
           throw new Error('Invalid underwriter ID');
         }
       }
-      
+
       throw error;
     }
   }
@@ -888,7 +888,7 @@ export class ProductManagementService {
         `[${correlationId}] Error creating scheme: ${error instanceof Error ? error.message : 'Unknown error'}`,
         error instanceof Error ? error.stack : undefined
       );
-      
+
       // Re-throw with more context if it's a Prisma error
       if (error instanceof Error) {
         if (error.message.includes('Unique constraint failed')) {
@@ -898,7 +898,7 @@ export class ProductManagementService {
           throw new Error('Invalid package ID');
         }
       }
-      
+
       throw error;
     }
   }

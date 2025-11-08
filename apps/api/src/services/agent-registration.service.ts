@@ -53,7 +53,7 @@ export class AgentRegistrationService {
 
       // Derive partner ID from BA record (Option A implementation)
       const partnerId = ba.partnerId;
-      
+
       // If partnerId is provided, validate it matches the BA's partner
       if (dto.partnerId && ba.partnerId !== parseInt(dto.partnerId)) {
         throw new BadRequestException('Partner mismatch - provided partnerId does not match BA record');

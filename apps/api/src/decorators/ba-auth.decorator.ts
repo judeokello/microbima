@@ -60,8 +60,8 @@ export const BAOnly = () => BAAuth({ allowBA: true, requireOwnership: true });
 /**
  * Decorator for mixed access (admins and BAs with ownership)
  */
-export const AdminOrBA = () => BAAuth({ 
-  roles: ['registration_admin', 'system_admin'], 
-  allowBA: true, 
-  requireOwnership: true 
+export const AdminOrBA = () => BAAuth({
+  roles: ['registration_admin', 'system_admin'],
+  allowBA: true,
+  requireOwnership: true
 });

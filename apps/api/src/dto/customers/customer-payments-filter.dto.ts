@@ -166,4 +166,3 @@ export class CustomerPoliciesResponseDto {
   data: PolicyOptionDto[];
 }
 
-
