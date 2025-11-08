@@ -4,6 +4,7 @@
   "description": "MicroBima Backend API - Core system with internal and public APIs",
   "private": true,
   "scripts": {
+    "postinstall": "prisma generate",
     "build": "nest build",
     "build:sentry": "nest build && sentry-cli sourcemaps upload --dist dist --include-sourcemaps dist",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
