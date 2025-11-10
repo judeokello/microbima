@@ -97,13 +97,6 @@ interface SchemeContactsResponse {
   data: SchemeContact[];
 }
 
-interface SchemeContactResponse {
-  status: number;
-  correlationId: string;
-  message: string;
-  data: SchemeContact;
-}
-
 export default function SchemeDetailPage() {
   const router = useRouter();
   const params = useParams();
@@ -333,12 +326,12 @@ export default function SchemeDetailPage() {
       setEditingContact(contact);
       setContactFormData({
         firstName: contact.firstName,
-        otherName: contact.otherName || '',
-        phoneNumber: contact.phoneNumber || '',
-        phoneNumber2: contact.phoneNumber2 || '',
-        email: contact.email || '',
-        designation: contact.designation || '',
-        notes: contact.notes || '',
+        otherName: contact.otherName ?? '',
+        phoneNumber: contact.phoneNumber ?? '',
+        phoneNumber2: contact.phoneNumber2 ?? '',
+        email: contact.email ?? '',
+        designation: contact.designation ?? '',
+        notes: contact.notes ?? '',
       });
     } else {
       setEditingContact(null);
@@ -623,9 +616,9 @@ export default function SchemeDetailPage() {
                 <div>
                   <Label>Payment Frequency</Label>
                   <p className="text-sm font-medium">
-                    {scheme.frequency ? 
-                      scheme.frequency === 'CUSTOM' 
-                        ? `Custom (${scheme.paymentCadence} days)` 
+                    {scheme.frequency ?
+                      scheme.frequency === 'CUSTOM'
+                        ? `Custom (${scheme.paymentCadence} days)`
                         : `${scheme.frequency.charAt(0) + scheme.frequency.slice(1).toLowerCase()} (${scheme.paymentCadence} days)`
                       : 'Not set'}
                   </p>
@@ -775,8 +768,8 @@ export default function SchemeDetailPage() {
                 Manage contact persons for this scheme (Maximum 5 contacts)
               </CardDescription>
             </div>
-            <Button 
-              onClick={() => handleOpenContactDialog()} 
+            <Button
+              onClick={() => handleOpenContactDialog()}
               disabled={contacts.length >= 5}
             >
               <Plus className="h-4 w-4 mr-2" />
@@ -813,8 +806,8 @@ export default function SchemeDetailPage() {
                           {contact.phoneNumber2 && <span className="text-sm text-muted-foreground">{contact.phoneNumber2}</span>}
                         </div>
                       </TableCell>
-                      <TableCell>{contact.email || '-'}</TableCell>
-                      <TableCell>{contact.designation || '-'}</TableCell>
+                      <TableCell>{contact.email ?? '-'}</TableCell>
+                      <TableCell>{contact.designation ?? '-'}</TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
                           <Button

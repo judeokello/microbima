@@ -26,7 +26,7 @@ import {
 } from '@nestjs/swagger';
 import { CustomerService } from '../../services/customer.service';
 import { PartnerManagementService } from '../../services/partner-management.service';
-import { PrismaService } from '../../services/prisma.service';
+import { PrismaService } from '../../prisma/prisma.service';
 // TODO: Create UpdatePrincipalMemberRequestDto when implementing update functionality
 // import { UpdatePrincipalMemberRequestDto } from '../../dto/principal-member/update-principal-member-request.dto';
 import { PrincipalMemberDto } from '../../dto/principal-member/principal-member.dto';

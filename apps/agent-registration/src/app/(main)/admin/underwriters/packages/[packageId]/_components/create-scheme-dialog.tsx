@@ -75,7 +75,15 @@ export default function CreateSchemeDialog({
       const token = await getSupabaseToken();
 
       // Prepare payload
-      const payload: any = {
+      const payload: {
+        schemeName: string;
+        description: string;
+        isActive: boolean;
+        packageId: number;
+        isPostpaid?: boolean;
+        frequency?: string;
+        paymentCadence?: number;
+      } = {
         schemeName: formData.schemeName,
         description: formData.description,
         isActive: formData.isActive,

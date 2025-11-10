@@ -103,7 +103,7 @@ export class PolicyController {
       status: result.policy.status,
       productName: result.policy.productName,
       premium: Number(result.policy.premium),
-      startDate: result.policy.startDate.toISOString(),
+      startDate: result.policy.startDate?.toISOString() ?? '',
       endDate: result.policy.endDate?.toISOString() ?? '',
     };
 

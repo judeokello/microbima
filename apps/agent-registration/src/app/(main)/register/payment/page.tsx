@@ -121,7 +121,7 @@ export default function PaymentStep() {
       case 'MONTHLY': return 31;
       case 'QUARTERLY': return 90;
       case 'ANNUALLY': return 365;
-      case 'CUSTOM': return cadence || 0;
+      case 'CUSTOM': return cadence ?? 0;
       default: return 0;
     }
   };
@@ -235,10 +235,10 @@ export default function PaymentStep() {
         .then(data => {
           if (data && data.data) {
             const scheme = data.data;
-            setIsPostpaidScheme(scheme.isPostpaid || false);
+            setIsPostpaidScheme(scheme.isPostpaid ?? false);
             setSchemeFrequency(scheme.frequency);
             setSchemeCadence(scheme.paymentCadence);
-            
+
             // If postpaid, set the frequency to the scheme's frequency
             if (scheme.isPostpaid && scheme.frequency) {
               setSelectedFrequency(scheme.frequency);
@@ -411,7 +411,7 @@ export default function PaymentStep() {
 
       // Use selected frequency from the dropdown
       const frequency = selectedFrequency as 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'QUARTERLY' | 'ANNUALLY' | 'CUSTOM';
-      
+
       // Determine premium amount based on frequency
       // For now, using weekly if selected, otherwise daily
       const premium = frequency === 'WEEKLY' ? calculatedPricing.totalWeekly : calculatedPricing.totalDaily;
@@ -546,8 +546,8 @@ export default function PaymentStep() {
               {/* Payment Frequency */}
               <div>
                 <Label htmlFor="paymentFrequency">Payment Frequency</Label>
-                <Select 
-                  value={selectedFrequency} 
+                <Select
+                  value={selectedFrequency}
                   onValueChange={setSelectedFrequency}
                   disabled={isPostpaidScheme}
                 >
@@ -565,7 +565,7 @@ export default function PaymentStep() {
                 </Select>
                 {isPostpaidScheme && schemeFrequency && (
                   <p className="text-xs text-muted-foreground mt-1">
-                    Frequency is set by the scheme: {formatFrequencyDisplay(schemeFrequency, schemeCadence || undefined)}
+                    Frequency is set by the scheme: {formatFrequencyDisplay(schemeFrequency, schemeCadence ?? undefined)}
                   </p>
                 )}
               </div>

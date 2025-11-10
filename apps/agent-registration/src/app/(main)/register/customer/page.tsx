@@ -163,15 +163,16 @@ export default function CustomerStep() {
   // Load packages on mount and restore last selections from localStorage
   useEffect(() => {
     fetchPackages();
-    
+
     const savedPackageId = localStorage.getItem('lastSelectedPackageId');
     const savedSchemeId = localStorage.getItem('lastSelectedSchemeId');
-    
+
     if (savedPackageId) {
       const pkgId = parseInt(savedPackageId);
       setSelectedPackageId(pkgId);
       fetchSchemes(pkgId, savedSchemeId ? parseInt(savedSchemeId) : null);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Helper to get Supabase token for API calls
@@ -193,13 +194,13 @@ export default function CustomerStep() {
           }
         }
       );
-      
+
       if (!response.ok) {
         throw new Error('Failed to fetch packages');
       }
-      
+
       const data = await response.json();
-      setPackages(data.data || []);
+      setPackages(data.data ?? []);
     } catch (err) {
       console.error('Error fetching packages:', err);
       Sentry.captureException(err, {
@@ -223,16 +224,16 @@ export default function CustomerStep() {
           }
         }
       );
-      
+
       if (!response.ok) {
         throw new Error('Failed to fetch schemes');
       }
-      
+
       const data = await response.json();
-      setSchemes(data.data || []);
-      
+      setSchemes(data.data ?? []);
+
       // If preselected scheme exists and is in the list, select it
-      if (preselectedSchemeId && data.data?.some((s: any) => s.id === preselectedSchemeId)) {
+      if (preselectedSchemeId && data.data?.some((s: { id: number }) => s.id === preselectedSchemeId)) {
         setSelectedSchemeId(preselectedSchemeId);
       }
     } catch (err) {
@@ -359,7 +360,7 @@ export default function CustomerStep() {
     // Get packageSchemeId from the selected scheme
     const selectedScheme = schemes.find(s => s.id === selectedSchemeId);
     const packageSchemeId = selectedScheme?.packageSchemeId;
-    
+
     if (!packageSchemeId) {
       setError('Invalid package/scheme combination. Please select again.');
       Sentry.captureException(new Error('Package scheme ID lookup failed'), {
@@ -720,7 +721,7 @@ export default function CustomerStep() {
             {/* Package Dropdown */}
             <div>
               <Label htmlFor="package">Package *</Label>
-              <Select value={selectedPackageId?.toString() || ''} onValueChange={handlePackageChange}>
+              <Select value={selectedPackageId?.toString() ?? ''} onValueChange={handlePackageChange}>
                 <SelectTrigger id="package">
                   <SelectValue placeholder="Select package" />
                 </SelectTrigger>
@@ -735,8 +736,8 @@ export default function CustomerStep() {
             {/* Scheme Dropdown */}
             <div>
               <Label htmlFor="scheme">Scheme *</Label>
-              <Select 
-                value={selectedSchemeId?.toString() || ''} 
+              <Select
+                value={selectedSchemeId?.toString() ?? ''}
                 onValueChange={handleSchemeChange}
                 disabled={!selectedPackageId || loadingSchemes}
               >
