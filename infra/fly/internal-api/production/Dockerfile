@@ -21,6 +21,7 @@ RUN npm install -g pnpm@10.17.1
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY packages/common-config/package.json ./packages/common-config/
 COPY apps/api/package.json ./apps/api/
+COPY apps/api/prisma ./apps/api/prisma
 
 # Install dependencies
 RUN pnpm install --frozen-lockfile

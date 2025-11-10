@@ -427,12 +427,15 @@ export default function PackageDetailPage() {
             </div>
 
             <div className="md:col-span-2">
-              <Label>Description</Label>
+              <Label htmlFor="package-description">Description</Label>
               {editing ? (
                 <textarea
+                  id="package-description"
                   value={formData.description}
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                   className="w-full min-h-[100px] px-3 py-2 border rounded-md"
+                  placeholder="Enter package description"
+                  aria-label="Package description"
                   required
                 />
               ) : (
@@ -446,12 +449,14 @@ export default function PackageDetailPage() {
             </div>
 
             <div>
-              <Label>Status</Label>
+              <Label htmlFor="package-status">Status</Label>
               {editing ? (
                 <select
+                  id="package-status"
                   value={formData.isActive ? 'true' : 'false'}
                   onChange={(e) => setFormData({ ...formData, isActive: e.target.value === 'true' })}
                   className="w-full px-3 py-2 border rounded-md"
+                  aria-label="Package status"
                 >
                   <option value="true">Active</option>
                   <option value="false">Inactive</option>
