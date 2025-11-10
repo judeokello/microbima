@@ -108,6 +108,7 @@ export class ProductManagementService {
         id: ps.scheme.id,
         name: ps.scheme.schemeName,
         description: ps.scheme.description,
+        packageSchemeId: ps.id, // Include junction table ID for scheme assignment
       }));
 
       this.logger.log(`[${correlationId}] Found ${schemes.length} active schemes for package ${packageId}`);

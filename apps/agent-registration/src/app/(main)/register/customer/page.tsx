@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import * as Sentry from '@sentry/nextjs';
+import { supabase } from '@/lib/supabase';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -138,6 +139,13 @@ export default function CustomerStep() {
   const [formData, setFormData] = useState<CustomerFormData>(initialFormData);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
+  // Package and scheme selection state
+  const [packages, setPackages] = useState<Array<{id: number, name: string}>>([]);
+  const [schemes, setSchemes] = useState<Array<{id: number, schemeName: string, packageSchemeId?: number}>>([]);
+  const [selectedPackageId, setSelectedPackageId] = useState<number | null>(null);
+  const [selectedSchemeId, setSelectedSchemeId] = useState<number | null>(null);
+  const [loadingSchemes, setLoadingSchemes] = useState(false);
+
   // Handle success notification from payment page
   useEffect(() => {
     const success = searchParams.get('success');
@@ -151,6 +159,110 @@ export default function CustomerStep() {
       router.replace('/register/customer');
     }
   }, [searchParams, router]);
+
+  // Load packages on mount and restore last selections from localStorage
+  useEffect(() => {
+    fetchPackages();
+    
+    const savedPackageId = localStorage.getItem('lastSelectedPackageId');
+    const savedSchemeId = localStorage.getItem('lastSelectedSchemeId');
+    
+    if (savedPackageId) {
+      const pkgId = parseInt(savedPackageId);
+      setSelectedPackageId(pkgId);
+      fetchSchemes(pkgId, savedSchemeId ? parseInt(savedSchemeId) : null);
+    }
+  }, []);
+
+  // Helper to get Supabase token for API calls
+  const getSupabaseToken = async () => {
+    const { data: session } = await supabase.auth.getSession();
+    return session.session?.access_token;
+  };
+
+  // Fetch all active packages
+  const fetchPackages = async () => {
+    try {
+      const token = await getSupabaseToken();
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/product-management/packages`,
+        {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'x-correlation-id': `req-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+          }
+        }
+      );
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch packages');
+      }
+      
+      const data = await response.json();
+      setPackages(data.data || []);
+    } catch (err) {
+      console.error('Error fetching packages:', err);
+      Sentry.captureException(err, {
+        tags: { component: 'CustomerStep', action: 'fetchPackages' }
+      });
+      setError('Failed to load packages. Please refresh the page.');
+    }
+  };
+
+  // Fetch schemes for a selected package
+  const fetchSchemes = async (packageId: number, preselectedSchemeId?: number | null) => {
+    setLoadingSchemes(true);
+    try {
+      const token = await getSupabaseToken();
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/product-management/packages/${packageId}/schemes`,
+        {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'x-correlation-id': `req-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+          }
+        }
+      );
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch schemes');
+      }
+      
+      const data = await response.json();
+      setSchemes(data.data || []);
+      
+      // If preselected scheme exists and is in the list, select it
+      if (preselectedSchemeId && data.data?.some((s: any) => s.id === preselectedSchemeId)) {
+        setSelectedSchemeId(preselectedSchemeId);
+      }
+    } catch (err) {
+      console.error('Error fetching schemes:', err);
+      Sentry.captureException(err, {
+        tags: { component: 'CustomerStep', action: 'fetchSchemes' }
+      });
+      setError('Failed to load schemes for this package.');
+    } finally {
+      setLoadingSchemes(false);
+    }
+  };
+
+  // Handle package selection change
+  const handlePackageChange = (value: string) => {
+    const packageId = parseInt(value);
+    setSelectedPackageId(packageId);
+    setSelectedSchemeId(null); // Reset scheme when package changes
+    setSchemes([]); // Clear schemes
+    fetchSchemes(packageId);
+    localStorage.setItem('lastSelectedPackageId', value);
+    localStorage.removeItem('lastSelectedSchemeId'); // Clear saved scheme
+  };
+
+  // Handle scheme selection change
+  const handleSchemeChange = (value: string) => {
+    const schemeId = parseInt(value);
+    setSelectedSchemeId(schemeId);
+    localStorage.setItem('lastSelectedSchemeId', value);
+  };
 
   const handleInputChange = (field: keyof CustomerFormData, value: string) => {
     setFormData(prev => ({
@@ -226,6 +338,44 @@ export default function CustomerStep() {
 
     // Clear any previous errors
     setError(null);
+
+    // Validate package and scheme selection
+    if (!selectedPackageId || !selectedSchemeId) {
+      setError('Please select both a package and a scheme before continuing');
+      Sentry.captureException(new Error('Package/Scheme validation error'), {
+        tags: {
+          component: 'CustomerRegistration',
+          action: 'validation_error',
+        },
+        extra: {
+          selectedPackageId,
+          selectedSchemeId,
+          errorMessage: 'Package and scheme selection required',
+        },
+      });
+      return;
+    }
+
+    // Get packageSchemeId from the selected scheme
+    const selectedScheme = schemes.find(s => s.id === selectedSchemeId);
+    const packageSchemeId = selectedScheme?.packageSchemeId;
+    
+    if (!packageSchemeId) {
+      setError('Invalid package/scheme combination. Please select again.');
+      Sentry.captureException(new Error('Package scheme ID lookup failed'), {
+        tags: {
+          component: 'CustomerRegistration',
+          action: 'validation_error',
+        },
+        extra: {
+          selectedPackageId,
+          selectedSchemeId,
+          schemes: schemes.length,
+          errorMessage: 'Package scheme ID not found',
+        },
+      });
+      return;
+    }
 
     // Validate required fields BEFORE setting isSubmitting
     const requiredFields = [
@@ -450,6 +600,7 @@ export default function CustomerStep() {
           productId: 'default-product', // TODO: Get from product selection
           planId: 'default-plan', // TODO: Get from plan selection
         },
+        packageSchemeId, // Required field for scheme assignment
         spouses: formData.spouses.length > 0 ? formData.spouses.map(spouse => {
           const baseSpouse = {
             firstName: toTitleCase(spouse.firstName),
@@ -558,6 +709,53 @@ export default function CustomerStep() {
           </AlertDescription>
         </Alert>
       )}
+
+      {/* Product Selection */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Select Product</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Package Dropdown */}
+            <div>
+              <Label htmlFor="package">Package *</Label>
+              <Select value={selectedPackageId?.toString() || ''} onValueChange={handlePackageChange}>
+                <SelectTrigger id="package">
+                  <SelectValue placeholder="Select package" />
+                </SelectTrigger>
+                <SelectContent>
+                  {packages.map(pkg => (
+                    <SelectItem key={pkg.id} value={pkg.id.toString()}>{pkg.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Scheme Dropdown */}
+            <div>
+              <Label htmlFor="scheme">Scheme *</Label>
+              <Select 
+                value={selectedSchemeId?.toString() || ''} 
+                onValueChange={handleSchemeChange}
+                disabled={!selectedPackageId || loadingSchemes}
+              >
+                <SelectTrigger id="scheme">
+                  <SelectValue placeholder={loadingSchemes ? "Loading..." : "Select scheme"} />
+                </SelectTrigger>
+                <SelectContent>
+                  {schemes.map(scheme => (
+                    <SelectItem key={scheme.id} value={scheme.id.toString()}>{scheme.schemeName}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {selectedPackageId && schemes.length === 0 && !loadingSchemes && (
+                <p className="text-sm text-red-500 mt-1">This package has no schemes. Please select another package.</p>
+              )}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Personal Information */}
       <Card>

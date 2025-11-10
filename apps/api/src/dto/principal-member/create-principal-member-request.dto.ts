@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsString, IsArray, IsOptional, ValidateNested, MaxLength, IsNumber } from 'class-validator';
+import { IsString, IsArray, IsOptional, ValidateNested, MaxLength, IsNumber, IsNotEmpty, IsInt } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ProductDto } from '../common/product.dto';
 import { PrincipalMemberDto } from './principal-member.dto';
@@ -76,11 +76,11 @@ export class CreatePrincipalMemberRequestDto {
   referredBy?: string;
 
   @ApiProperty({
-    description: 'Package scheme ID to assign customer to. Defaults to 1 if not provided.',
+    description: 'Package scheme ID to assign customer to (REQUIRED)',
     example: 1,
-    required: false
+    required: true
   })
-  @IsOptional()
-  @IsNumber()
-  packageSchemeId?: number;
+  @IsNotEmpty()
+  @IsInt()
+  packageSchemeId: number;
 }

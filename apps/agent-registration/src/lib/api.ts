@@ -384,6 +384,7 @@ export interface CustomerRegistrationRequest {
     productId: string
     planId: string
   }
+  packageSchemeId: number // Required: Package scheme ID for customer assignment
   spouses?: Array<{
     firstName: string
     lastName: string

@@ -10,6 +10,13 @@ export class SchemeDetailDto {
   id: number;
 
   @ApiProperty({
+    description: 'Package scheme junction table ID (for customer assignment)',
+    example: 1,
+    required: false,
+  })
+  packageSchemeId?: number;
+
+  @ApiProperty({
     description: 'Scheme name',
     example: 'Corporate Scheme',
   })
