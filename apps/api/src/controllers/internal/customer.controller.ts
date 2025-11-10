@@ -13,6 +13,7 @@ import {
   Req,
   Res,
   UnauthorizedException,
+  NotFoundException,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -25,6 +26,7 @@ import {
 } from '@nestjs/swagger';
 import { CustomerService } from '../../services/customer.service';
 import { PartnerManagementService } from '../../services/partner-management.service';
+import { PrismaService } from '../../services/prisma.service';
 // TODO: Create UpdatePrincipalMemberRequestDto when implementing update functionality
 // import { UpdatePrincipalMemberRequestDto } from '../../dto/principal-member/update-principal-member-request.dto';
 import { PrincipalMemberDto } from '../../dto/principal-member/principal-member.dto';
@@ -68,6 +70,7 @@ export class InternalCustomerController {
   constructor(
     private readonly customerService: CustomerService,
     private readonly partnerManagementService: PartnerManagementService,
+    private readonly prismaService: PrismaService,
   ) {}
 
   /**
@@ -679,6 +682,64 @@ export class InternalCustomerController {
     const userId = req.user?.id || 'system';
     const userRoles = req.user?.roles || [];
     return this.customerService.getCustomerPolicies(customerId, userId, userRoles, correlationId);
+  }
+
+  /**
+   * Get customer's scheme information
+   */
+  @Get(':customerId/scheme')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Get customer scheme information (Internal)',
+    description: 'Gets the scheme information for a customer if they belong to one.',
+  })
+  @ApiParam({
+    name: 'customerId',
+    description: 'Customer ID',
+    example: '123e4567-e89b-12d3-a456-426614174000',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Scheme information retrieved successfully',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Customer not found or not in a scheme',
+  })
+  async getCustomerScheme(
+    @Param('customerId') customerId: string,
+    @CorrelationId() correlationId: string,
+  ): Promise<any> {
+    const schemeCustomer = await this.prismaService.packageSchemeCustomer.findFirst({
+      where: { customerId },
+      include: {
+        packageScheme: {
+          include: {
+            scheme: {
+              select: {
+                id: true,
+                schemeName: true,
+                isPostpaid: true,
+                frequency: true,
+                paymentCadence: true,
+                paymentAcNumber: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!schemeCustomer) {
+      throw new NotFoundException('Customer not found or not enrolled in a scheme');
+    }
+
+    return {
+      status: HttpStatus.OK,
+      correlationId,
+      message: 'Scheme information retrieved successfully',
+      data: schemeCustomer.packageScheme.scheme,
+    };
   }
 
   /**

@@ -5,6 +5,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Loader2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import * as Sentry from '@sentry/nextjs';
@@ -26,9 +27,21 @@ export default function CreateSchemeDialog({
     schemeName: '',
     description: '',
     isActive: true,
+    isPostpaid: false,
+    frequency: '' as string,
+    paymentCadence: '' as string,
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const frequencyOptions = [
+    { value: 'DAILY', label: 'Daily', days: 1 },
+    { value: 'WEEKLY', label: 'Weekly', days: 7 },
+    { value: 'MONTHLY', label: 'Monthly', days: 31 },
+    { value: 'QUARTERLY', label: 'Quarterly', days: 90 },
+    { value: 'ANNUALLY', label: 'Yearly', days: 365 },
+    { value: 'CUSTOM', label: 'Custom', days: null },
+  ];
 
   const getSupabaseToken = async () => {
     const { data: session } = await supabase.auth.getSession();
@@ -46,7 +59,38 @@ export default function CreateSchemeDialog({
         throw new Error('All fields are required');
       }
 
+      // Validate postpaid requirements
+      if (formData.isPostpaid) {
+        if (!formData.frequency) {
+          throw new Error('Payment frequency is required for postpaid schemes');
+        }
+        if (formData.frequency === 'CUSTOM' && !formData.paymentCadence) {
+          throw new Error('Payment cadence is required when frequency is Custom');
+        }
+        if (formData.frequency === 'CUSTOM' && parseInt(formData.paymentCadence) > 999) {
+          throw new Error('Payment cadence cannot exceed 999 days');
+        }
+      }
+
       const token = await getSupabaseToken();
+
+      // Prepare payload
+      const payload: any = {
+        schemeName: formData.schemeName,
+        description: formData.description,
+        isActive: formData.isActive,
+        packageId: packageId,
+      };
+
+      // Add postpaid fields if checked
+      if (formData.isPostpaid) {
+        payload.isPostpaid = true;
+        payload.frequency = formData.frequency;
+        if (formData.frequency === 'CUSTOM') {
+          payload.paymentCadence = parseInt(formData.paymentCadence);
+        }
+      }
+
       const response = await fetch(`${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/product-management/schemes`, {
         method: 'POST',
         headers: {
@@ -54,12 +98,7 @@ export default function CreateSchemeDialog({
           'Authorization': `Bearer ${token}`,
           'x-correlation-id': `req-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
         },
-        body: JSON.stringify({
-          schemeName: formData.schemeName,
-          description: formData.description,
-          isActive: formData.isActive,
-          packageId: packageId,
-        }),
+        body: JSON.stringify(payload),
       });
 
       if (!response.ok) {
@@ -90,6 +129,9 @@ export default function CreateSchemeDialog({
         schemeName: '',
         description: '',
         isActive: true,
+        isPostpaid: false,
+        frequency: '',
+        paymentCadence: '',
       });
 
       onSuccess();
@@ -167,6 +209,67 @@ export default function CreateSchemeDialog({
                 </Label>
               </div>
             </div>
+
+            <div>
+              <div className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  id="isPostpaid"
+                  checked={formData.isPostpaid}
+                  onChange={(e) => setFormData({ ...formData, isPostpaid: e.target.checked, frequency: '', paymentCadence: '' })}
+                  className="h-4 w-4"
+                />
+                <Label htmlFor="isPostpaid" className="font-normal cursor-pointer">
+                  Postpaid
+                </Label>
+              </div>
+              <p className="text-xs text-gray-500 mt-1 ml-6">
+                Enable if payments are collected after service delivery
+              </p>
+            </div>
+
+            {formData.isPostpaid && (
+              <>
+                <div>
+                  <Label htmlFor="frequency">Payment Frequency *</Label>
+                  <Select
+                    value={formData.frequency}
+                    onValueChange={(value) => setFormData({ ...formData, frequency: value, paymentCadence: value !== 'CUSTOM' ? '' : formData.paymentCadence })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select frequency" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {frequencyOptions.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}{option.days !== null ? ` (${option.days} day${option.days !== 1 ? 's' : ''})` : ''}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {formData.frequency === 'CUSTOM' && (
+                  <div>
+                    <Label htmlFor="paymentCadence">Payment Cadence (days) *</Label>
+                    <Input
+                      id="paymentCadence"
+                      type="number"
+                      value={formData.paymentCadence}
+                      onChange={(e) => setFormData({ ...formData, paymentCadence: e.target.value })}
+                      placeholder="Enter number of days"
+                      min={1}
+                      max={999}
+                      maxLength={3}
+                      required={formData.frequency === 'CUSTOM'}
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      Enter the number of days between payments (max 999)
+                    </p>
+                  </div>
+                )}
+              </>
+            )}
           </div>
 
           {error && (

@@ -18,6 +18,8 @@ import { ProductManagementService } from './services/product-management.service'
 import { PolicyService } from './services/policy.service';
 import { UnderwriterService } from './services/underwriter.service';
 import { MpesaPaymentsService } from './services/mpesa-payments.service';
+import { PaymentAccountNumberService } from './services/payment-account-number.service';
+import { SchemeContactService } from './services/scheme-contact.service';
 import { CustomerController } from './controllers/customer.controller';
 import { InternalCustomerController } from './controllers/internal/customer.controller';
 import { InternalPartnerManagementController } from './controllers/internal/partner-management.controller';
@@ -40,7 +42,7 @@ import { MpesaPaymentsController } from './controllers/internal/mpesa-payments.c
     PrismaModule
   ],
   controllers: [AppController, CustomerController, InternalCustomerController, InternalPartnerManagementController, PublicPartnerManagementController, SupabaseTestController, ConnectionMonitorController, SosController, AgentRegistrationController, BootstrapController, ProductManagementController, PolicyController, UnderwriterController, UserController, MpesaPaymentsController],
-  providers: [AppService, ExternalIntegrationsService, CustomerService, PartnerManagementService, SupabaseService, SosService, AgentRegistrationService, MissingRequirementService, ProductManagementService, PolicyService, UnderwriterService, MpesaPaymentsService],
+  providers: [AppService, ExternalIntegrationsService, CustomerService, PartnerManagementService, SupabaseService, SosService, AgentRegistrationService, MissingRequirementService, ProductManagementService, PolicyService, UnderwriterService, MpesaPaymentsService, PaymentAccountNumberService, SchemeContactService],
   exports: [PrismaModule], // Export PrismaModule so middleware can access PrismaService
 })
 export class AppModule implements NestModule {

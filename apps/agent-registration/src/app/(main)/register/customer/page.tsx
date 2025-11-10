@@ -673,6 +673,7 @@ export default function CustomerStep() {
               value={formData.idNumber}
               onChange={(e) => handleInputChange('idNumber', e.target.value)}
               placeholder="Enter ID number"
+              maxLength={10}
             />
           </div>
         </CardContent>
@@ -846,6 +847,7 @@ export default function CustomerStep() {
                         value={spouse.idNumber}
                         onChange={(e) => handleSpouseChange(spouseIndex, 'idNumber', e.target.value)}
                         placeholder="Enter spouse ID number"
+                        maxLength={10}
                       />
                     </div>
                     <Button

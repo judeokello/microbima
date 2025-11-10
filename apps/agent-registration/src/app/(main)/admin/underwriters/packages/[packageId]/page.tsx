@@ -33,6 +33,7 @@ interface Scheme {
   schemeName: string;
   description: string;
   isActive: boolean;
+  isPostpaid: boolean;
   customersCount: number;
 }
 
@@ -544,9 +545,16 @@ export default function PackageDetailPage() {
                       onClick={() => router.push(`/admin/underwriters/packages/${packageId}/schemes/${scheme.id}`)}
                     >
                       <TableCell className="font-medium">
-                        <span className="text-blue-600 hover:underline">
-                          {scheme.schemeName}
-                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-blue-600 hover:underline">
+                            {scheme.schemeName}
+                          </span>
+                          {scheme.isPostpaid && (
+                            <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200">
+                              Postpaid
+                            </Badge>
+                          )}
+                        </div>
                       </TableCell>
                       <TableCell>{scheme.customersCount}</TableCell>
                       <TableCell>

@@ -106,6 +106,40 @@ export default function PaymentStep() {
     totalWeekly: 0
   });
 
+  // Payment frequency state
+  const [selectedFrequency, setSelectedFrequency] = useState<string>('');
+  const [customCadence, setCustomCadence] = useState<string>('');
+  const [isPostpaidScheme, setIsPostpaidScheme] = useState<boolean>(false);
+  const [schemeFrequency, setSchemeFrequency] = useState<string | null>(null);
+  const [schemeCadence, setSchemeCadence] = useState<number | null>(null);
+
+  // Helper function to get days for a frequency
+  const getFrequencyDays = (frequency: string, cadence?: number): number => {
+    switch (frequency) {
+      case 'DAILY': return 1;
+      case 'WEEKLY': return 7;
+      case 'MONTHLY': return 31;
+      case 'QUARTERLY': return 90;
+      case 'ANNUALLY': return 365;
+      case 'CUSTOM': return cadence || 0;
+      default: return 0;
+    }
+  };
+
+  // Format frequency display with days
+  const formatFrequencyDisplay = (frequency: string, cadence?: number): string => {
+    const days = getFrequencyDays(frequency, cadence);
+    switch (frequency) {
+      case 'DAILY': return `Daily (${days} day)`;
+      case 'WEEKLY': return `Weekly (${days} days)`;
+      case 'MONTHLY': return `Monthly (${days} days)`;
+      case 'QUARTERLY': return `Quarterly (${days} days)`;
+      case 'ANNUALLY': return `Yearly (${days} days)`;
+      case 'CUSTOM': return `Custom (${cadence} days)`;
+      default: return 'Select Frequency';
+    }
+  };
+
   // Calculate payment end date (276 days from now)
   const calculatePaymentEndDate = () => {
     const currentDate = new Date();
@@ -166,6 +200,7 @@ export default function PaymentStep() {
     // Load saved form data
     const savedCustomerData = localStorage.getItem('customerFormData');
     const savedBeneficiaryData = localStorage.getItem('beneficiaryFormData');
+    const customerId = localStorage.getItem('customerId');
 
     if (savedCustomerData) {
       const customer = JSON.parse(savedCustomerData);
@@ -182,6 +217,39 @@ export default function PaymentStep() {
       .then(response => response.json())
       .then(data => setPricingData(data))
       .catch(error => console.error('Error loading pricing data:', error));
+
+    // Fetch customer's scheme information if they belong to one
+    if (customerId) {
+      fetch(`${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/customers/${customerId}/scheme`, {
+        headers: {
+          'x-correlation-id': `req-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+        }
+      })
+        .then(response => {
+          if (response.ok) {
+            return response.json();
+          }
+          // Customer may not belong to a scheme, which is fine
+          return null;
+        })
+        .then(data => {
+          if (data && data.data) {
+            const scheme = data.data;
+            setIsPostpaidScheme(scheme.isPostpaid || false);
+            setSchemeFrequency(scheme.frequency);
+            setSchemeCadence(scheme.paymentCadence);
+            
+            // If postpaid, set the frequency to the scheme's frequency
+            if (scheme.isPostpaid && scheme.frequency) {
+              setSelectedFrequency(scheme.frequency);
+              if (scheme.frequency === 'CUSTOM' && scheme.paymentCadence) {
+                setCustomCadence(scheme.paymentCadence.toString());
+              }
+            }
+          }
+        })
+        .catch(error => console.error('Error loading scheme data:', error));
+    }
   }, []);
 
   // Calculate pricing when selections change
@@ -268,6 +336,18 @@ export default function PaymentStep() {
       return;
     }
 
+    // Validate payment frequency
+    if (!selectedFrequency) {
+      setError('Please select a payment frequency.');
+      return;
+    }
+
+    // Validate custom cadence if custom frequency is selected
+    if (selectedFrequency === 'CUSTOM' && (!customCadence || parseInt(customCadence) < 1)) {
+      setError('Please enter a valid cadence (number of days) for custom payment frequency.');
+      return;
+    }
+
     // Check transaction reference before submitting (async check)
     if (transactionReference.trim()) {
       try {
@@ -329,16 +409,18 @@ export default function PaymentStep() {
         console.warn(`Using fallback packagePlanId: ${packagePlanId} for plan: ${selectedPlan}`);
       }
 
-      // Determine frequency and premium amount
-      // Prefer weekly if available, otherwise use daily
-      const frequency = calculatedPricing.totalWeekly > 0 ? 'WEEKLY' : 'DAILY';
+      // Use selected frequency from the dropdown
+      const frequency = selectedFrequency as 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'QUARTERLY' | 'ANNUALLY' | 'CUSTOM';
+      
+      // Determine premium amount based on frequency
+      // For now, using weekly if selected, otherwise daily
       const premium = frequency === 'WEEKLY' ? calculatedPricing.totalWeekly : calculatedPricing.totalDaily;
 
       const policyRequest: CreatePolicyRequest = {
         customerId,
         packageId,
         packagePlanId,
-        frequency: frequency as 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'QUARTERLY' | 'ANNUALLY' | 'CUSTOM',
+        frequency,
         premium,
         productName: `MfanisiGo ${selectedPlan.charAt(0).toUpperCase() + selectedPlan.slice(1)}`,
         paymentData: {
@@ -350,6 +432,8 @@ export default function PaymentStep() {
           expectedPaymentDate: new Date().toISOString(),
           actualPaymentDate: new Date().toISOString(),
         },
+        // Add customDays if CUSTOM frequency is selected
+        ...(frequency === 'CUSTOM' && customCadence ? { customDays: parseInt(customCadence) } : {}),
       };
 
       console.log('Creating policy with payment:', policyRequest);
@@ -458,6 +542,58 @@ export default function PaymentStep() {
                   </SelectContent>
                 </Select>
               </div>
+
+              {/* Payment Frequency */}
+              <div>
+                <Label htmlFor="paymentFrequency">Payment Frequency</Label>
+                <Select 
+                  value={selectedFrequency} 
+                  onValueChange={setSelectedFrequency}
+                  disabled={isPostpaidScheme}
+                >
+                  <SelectTrigger id="paymentFrequency">
+                    <SelectValue placeholder="Select Frequency" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="DAILY">{formatFrequencyDisplay('DAILY')}</SelectItem>
+                    <SelectItem value="WEEKLY">{formatFrequencyDisplay('WEEKLY')}</SelectItem>
+                    <SelectItem value="MONTHLY">{formatFrequencyDisplay('MONTHLY')}</SelectItem>
+                    <SelectItem value="QUARTERLY">{formatFrequencyDisplay('QUARTERLY')}</SelectItem>
+                    <SelectItem value="ANNUALLY">{formatFrequencyDisplay('ANNUALLY')}</SelectItem>
+                    {!isPostpaidScheme && <SelectItem value="CUSTOM">Custom</SelectItem>}
+                  </SelectContent>
+                </Select>
+                {isPostpaidScheme && schemeFrequency && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Frequency is set by the scheme: {formatFrequencyDisplay(schemeFrequency, schemeCadence || undefined)}
+                  </p>
+                )}
+              </div>
+
+              {/* Custom Cadence Input */}
+              {selectedFrequency === 'CUSTOM' && !isPostpaidScheme && (
+                <div>
+                  <Label htmlFor="customCadence">Cadence (Days)</Label>
+                  <Input
+                    id="customCadence"
+                    type="text"
+                    value={customCadence}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      // Only allow digits, max 3 characters
+                      if (/^\d{0,3}$/.test(value)) {
+                        setCustomCadence(value);
+                      }
+                    }}
+                    placeholder="Enter number of days"
+                    maxLength={3}
+                    required
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Enter the number of days between payments (1-999)
+                  </p>
+                </div>
+              )}
             </div>
 
             {/* Additional Spouse Checkbox */}
@@ -663,6 +799,7 @@ export default function PaymentStep() {
                   placeholder="Enter transaction reference"
                   required
                   className={transactionReferenceError ? 'border-red-500' : ''}
+                  maxLength={15}
                 />
                 {isCheckingTransaction && (
                   <div className="absolute right-3 top-1/2 transform -translate-y-1/2">

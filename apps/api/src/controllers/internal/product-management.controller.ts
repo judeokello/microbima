@@ -3,6 +3,7 @@ import {
   Get,
   Post,
   Put,
+  Delete,
   Body,
   Param,
   Query,
@@ -20,6 +21,7 @@ import {
   ApiBearerAuth,
 } from '@nestjs/swagger';
 import { ProductManagementService } from '../../services/product-management.service';
+import { SchemeContactService } from '../../services/scheme-contact.service';
 import {
   PackagesResponseDto,
   SchemesResponseDto,
@@ -43,6 +45,12 @@ import { CorrelationId } from '../../decorators/correlation-id.decorator';
 import { UserId } from '../../decorators/user.decorator';
 import { CreatePackageRequestDto } from '../../dto/packages/package.dto';
 import { CreateSchemeRequestDto } from '../../dto/schemes/scheme.dto';
+import {
+  CreateSchemeContactDto,
+  UpdateSchemeContactDto,
+  SchemeContactResponseDto,
+  SchemeContactsListResponseDto,
+} from '../../dto/scheme-contacts/scheme-contact.dto';
 
 /**
  * Internal Product Management Controller
@@ -62,7 +70,10 @@ import { CreateSchemeRequestDto } from '../../dto/schemes/scheme.dto';
 @ApiBearerAuth()
 @Controller('internal/product-management')
 export class ProductManagementController {
-  constructor(private readonly productManagementService: ProductManagementService) {}
+  constructor(
+    private readonly productManagementService: ProductManagementService,
+    private readonly schemeContactService: SchemeContactService
+  ) {}
 
   /**
    * Get all active packages
@@ -709,6 +720,195 @@ export class ProductManagementController {
       correlationId: correlationId || 'unknown',
       message: 'Customers retrieved successfully',
       ...result,
+    };
+  }
+
+  /**
+   * Create a contact for a scheme
+   */
+  @Post('schemes/:schemeId/contacts')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({
+    summary: 'Create a scheme contact',
+    description: 'Create a new contact for a scheme. Maximum 5 contacts per scheme.',
+  })
+  @ApiParam({
+    name: 'schemeId',
+    description: 'Scheme ID',
+    type: Number,
+    example: 1,
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'Contact created successfully',
+    type: SchemeContactResponseDto,
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Bad request - Maximum 5 contacts per scheme',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Scheme not found',
+  })
+  async createSchemeContact(
+    @Param('schemeId', ParseIntPipe) schemeId: number,
+    @Body() createDto: CreateSchemeContactDto,
+    @UserId() userId: string,
+    @CorrelationId() correlationId?: string
+  ): Promise<SchemeContactResponseDto> {
+    const contact = await this.schemeContactService.createContact(
+      { ...createDto, schemeId },
+      userId,
+      correlationId || 'unknown'
+    );
+
+    return {
+      status: HttpStatus.CREATED,
+      correlationId: correlationId || 'unknown',
+      message: 'Contact created successfully',
+      data: contact,
+    };
+  }
+
+  /**
+   * Get all contacts for a scheme
+   */
+  @Get('schemes/:schemeId/contacts')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Get scheme contacts',
+    description: 'Retrieve all contacts for a specific scheme.',
+  })
+  @ApiParam({
+    name: 'schemeId',
+    description: 'Scheme ID',
+    type: Number,
+    example: 1,
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Contacts retrieved successfully',
+    type: SchemeContactsListResponseDto,
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Scheme not found',
+  })
+  async getSchemeContacts(
+    @Param('schemeId', ParseIntPipe) schemeId: number,
+    @CorrelationId() correlationId?: string
+  ): Promise<SchemeContactsListResponseDto> {
+    const contacts = await this.schemeContactService.getContactsByScheme(
+      schemeId,
+      correlationId || 'unknown'
+    );
+
+    return {
+      status: HttpStatus.OK,
+      correlationId: correlationId || 'unknown',
+      message: 'Contacts retrieved successfully',
+      data: contacts,
+    };
+  }
+
+  /**
+   * Update a scheme contact
+   */
+  @Put('schemes/:schemeId/contacts/:contactId')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Update a scheme contact',
+    description: 'Update an existing scheme contact.',
+  })
+  @ApiParam({
+    name: 'schemeId',
+    description: 'Scheme ID',
+    type: Number,
+    example: 1,
+  })
+  @ApiParam({
+    name: 'contactId',
+    description: 'Contact ID',
+    type: Number,
+    example: 1,
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Contact updated successfully',
+    type: SchemeContactResponseDto,
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Contact not found',
+  })
+  async updateSchemeContact(
+    @Param('schemeId', ParseIntPipe) schemeId: number,
+    @Param('contactId', ParseIntPipe) contactId: number,
+    @Body() updateDto: UpdateSchemeContactDto,
+    @UserId() userId: string,
+    @CorrelationId() correlationId?: string
+  ): Promise<SchemeContactResponseDto> {
+    const contact = await this.schemeContactService.updateContact(
+      contactId,
+      updateDto,
+      userId,
+      correlationId || 'unknown'
+    );
+
+    return {
+      status: HttpStatus.OK,
+      correlationId: correlationId || 'unknown',
+      message: 'Contact updated successfully',
+      data: contact,
+    };
+  }
+
+  /**
+   * Delete a scheme contact
+   */
+  @Delete('schemes/:schemeId/contacts/:contactId')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Delete a scheme contact',
+    description: 'Delete a scheme contact (hard delete).',
+  })
+  @ApiParam({
+    name: 'schemeId',
+    description: 'Scheme ID',
+    type: Number,
+    example: 1,
+  })
+  @ApiParam({
+    name: 'contactId',
+    description: 'Contact ID',
+    type: Number,
+    example: 1,
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Contact deleted successfully',
+    type: SchemeContactResponseDto,
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Contact not found',
+  })
+  async deleteSchemeContact(
+    @Param('schemeId', ParseIntPipe) schemeId: number,
+    @Param('contactId', ParseIntPipe) contactId: number,
+    @CorrelationId() correlationId?: string
+  ): Promise<SchemeContactResponseDto> {
+    const contact = await this.schemeContactService.deleteContact(
+      contactId,
+      correlationId || 'unknown'
+    );
+
+    return {
+      status: HttpStatus.OK,
+      correlationId: correlationId || 'unknown',
+      message: 'Contact deleted successfully',
+      data: contact,
     };
   }
 }

@@ -2,6 +2,9 @@ import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { ValidationException } from '../exceptions/validation.exception';
 import { ErrorCodes } from '../enums/error-codes.enum';
+import { PaymentAccountNumberService } from './payment-account-number.service';
+import { PaymentFrequency } from '@prisma/client';
+import * as Sentry from '@sentry/nestjs';
 
 /**
  * Product Management Service
@@ -13,12 +16,16 @@ import { ErrorCodes } from '../enums/error-codes.enum';
  * - Scheme retrieval for packages
  * - Plan retrieval for packages
  * - Tag management (search, create, retrieve by scheme)
+ * - Postpaid scheme support with payment account numbers
  */
 @Injectable()
 export class ProductManagementService {
   private readonly logger = new Logger(ProductManagementService.name);
 
-  constructor(private readonly prismaService: PrismaService) {}
+  constructor(
+    private readonly prismaService: PrismaService,
+    private readonly paymentAccountNumberService: PaymentAccountNumberService
+  ) {}
 
   /**
    * Get all active packages
@@ -825,6 +832,9 @@ export class ProductManagementService {
       schemeName: string;
       description: string;
       isActive?: boolean;
+      isPostpaid?: boolean;
+      frequency?: PaymentFrequency;
+      paymentCadence?: number;
       packageId?: number;
     },
     userId: string,
@@ -833,7 +843,10 @@ export class ProductManagementService {
     this.logger.log(`[${correlationId}] Creating scheme: ${data.schemeName}`);
 
     try {
-      // Pre-save validation: Check for duplicates (schemeName must be unique)
+      // Pre-save validation
+      const validationErrors: Record<string, string> = {};
+
+      // Check for duplicate scheme name
       const existingScheme = await this.prismaService.scheme.findFirst({
         where: {
           schemeName: {
@@ -844,50 +857,137 @@ export class ProductManagementService {
       });
 
       if (existingScheme) {
-        throw ValidationException.forField(
-          'schemeName',
-          'A scheme with this name already exists',
-          ErrorCodes.VALIDATION_ERROR
-        );
+        validationErrors['schemeName'] = 'A scheme with this name already exists';
       }
 
-      // Create the scheme
-      const scheme = await this.prismaService.scheme.create({
-        data: {
-          schemeName: data.schemeName,
-          description: data.description,
-          isActive: data.isActive ?? true, // Default to true
-          createdBy: userId,
-        },
-      });
+      // Validate postpaid requirements
+      if (data.isPostpaid) {
+        if (!data.frequency) {
+          validationErrors['frequency'] = 'Payment frequency is required for postpaid schemes';
+        }
 
-      this.logger.log(`[${correlationId}] Created scheme with ID ${scheme.id}`);
+        if (data.frequency === PaymentFrequency.CUSTOM && !data.paymentCadence) {
+          validationErrors['paymentCadence'] = 'Payment cadence is required when frequency is CUSTOM';
+        }
+      }
 
-      // Link scheme to package if packageId is provided
-      if (data.packageId) {
-        await this.prismaService.packageScheme.create({
+      // Throw all validation errors at once
+      if (Object.keys(validationErrors).length > 0) {
+        throw ValidationException.withMultipleErrors(validationErrors);
+      }
+
+      // Generate payment account number for postpaid schemes
+      let paymentAcNumber: string | undefined;
+      if (data.isPostpaid) {
+        await this.prismaService.$transaction(async (tx) => {
+          paymentAcNumber = await this.paymentAccountNumberService.generateForScheme(
+            tx,
+            correlationId
+          );
+
+          // Create the scheme
+          const scheme = await tx.scheme.create({
+            data: {
+              schemeName: data.schemeName,
+              description: data.description,
+              isActive: data.isActive ?? true,
+              isPostpaid: data.isPostpaid ?? false,
+              frequency: data.frequency || null,
+              paymentCadence: data.paymentCadence || null,
+              paymentAcNumber: paymentAcNumber || null,
+              createdBy: userId,
+            },
+          });
+
+          this.logger.log(
+            `[${correlationId}] Created postpaid scheme with ID ${scheme.id} and payment account number ${paymentAcNumber}`
+          );
+
+          // Link scheme to package if packageId is provided
+          if (data.packageId) {
+            await tx.packageScheme.create({
+              data: {
+                packageId: data.packageId,
+                schemeId: scheme.id,
+              },
+            });
+            this.logger.log(`[${correlationId}] Linked scheme ${scheme.id} to package ${data.packageId}`);
+          }
+
+          return scheme;
+        });
+
+        // Retrieve the created scheme to return
+        const createdScheme = await this.prismaService.scheme.findFirst({
+          where: { paymentAcNumber },
+        });
+
+        return {
+          id: createdScheme!.id,
+          schemeName: createdScheme!.schemeName,
+          description: createdScheme!.description,
+          isActive: createdScheme!.isActive,
+          isPostpaid: createdScheme!.isPostpaid,
+          frequency: createdScheme!.frequency,
+          paymentCadence: createdScheme!.paymentCadence,
+          paymentAcNumber: createdScheme!.paymentAcNumber,
+          createdBy: createdScheme!.createdBy,
+          createdAt: createdScheme!.createdAt.toISOString(),
+          updatedAt: createdScheme!.updatedAt.toISOString(),
+        };
+      } else {
+        // Create non-postpaid scheme (no payment account number needed)
+        const scheme = await this.prismaService.scheme.create({
           data: {
-            packageId: data.packageId,
-            schemeId: scheme.id,
+            schemeName: data.schemeName,
+            description: data.description,
+            isActive: data.isActive ?? true,
+            isPostpaid: false,
+            createdBy: userId,
           },
         });
-        this.logger.log(`[${correlationId}] Linked scheme ${scheme.id} to package ${data.packageId}`);
-      }
 
-      return {
-        id: scheme.id,
-        schemeName: scheme.schemeName,
-        description: scheme.description,
-        isActive: scheme.isActive,
-        createdBy: scheme.createdBy,
-        createdAt: scheme.createdAt.toISOString(),
-        updatedAt: scheme.updatedAt.toISOString(),
-      };
+        this.logger.log(`[${correlationId}] Created scheme with ID ${scheme.id}`);
+
+        // Link scheme to package if packageId is provided
+        if (data.packageId) {
+          await this.prismaService.packageScheme.create({
+            data: {
+              packageId: data.packageId,
+              schemeId: scheme.id,
+            },
+          });
+          this.logger.log(`[${correlationId}] Linked scheme ${scheme.id} to package ${data.packageId}`);
+        }
+
+        return {
+          id: scheme.id,
+          schemeName: scheme.schemeName,
+          description: scheme.description,
+          isActive: scheme.isActive,
+          isPostpaid: scheme.isPostpaid,
+          frequency: scheme.frequency,
+          paymentCadence: scheme.paymentCadence,
+          paymentAcNumber: scheme.paymentAcNumber,
+          createdBy: scheme.createdBy,
+          createdAt: scheme.createdAt.toISOString(),
+          updatedAt: scheme.updatedAt.toISOString(),
+        };
+      }
     } catch (error) {
       this.logger.error(
         `[${correlationId}] Error creating scheme: ${error instanceof Error ? error.message : 'Unknown error'}`,
         error instanceof Error ? error.stack : undefined
       );
+
+      Sentry.captureException(error, {
+        tags: {
+          service: 'ProductManagementService',
+          operation: 'createScheme',
+          correlationId,
+        },
+        extra: { schemeName: data.schemeName, isPostpaid: data.isPostpaid },
+      });
 
       // Re-throw with more context if it's a Prisma error
       if (error instanceof Error) {

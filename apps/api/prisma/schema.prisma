@@ -266,15 +266,16 @@ model KYCVerification {
 }
 
 model Policy {
-  id            String       @id @default(uuid()) @db.Uuid
-  policyNumber  String       @unique
-  status        PolicyStatus @default(PENDING_ACTIVATION)
-  customerId    String       @db.Uuid
-  packageId     Int
-  packagePlanId Int?
+  id              String       @id @default(uuid()) @db.Uuid
+  policyNumber    String       @unique
+  status          PolicyStatus @default(PENDING_ACTIVATION)
+  customerId      String       @db.Uuid
+  packageId       Int
+  packagePlanId   Int?
+  paymentAcNumber String?      @unique @db.VarChar(50)
 
   productName    String
-  startDate      DateTime
+  startDate      DateTime?
   endDate        DateTime?
   premium        Decimal          @db.Decimal(10, 2)
   frequency      PaymentFrequency
@@ -625,9 +626,16 @@ model Scheme {
   description String  @db.VarChar(300)
   isActive    Boolean @default(true)
 
+  // Postpaid scheme fields
+  isPostpaid      Boolean           @default(false)
+  frequency       PaymentFrequency?
+  paymentCadence  Int?
+  paymentAcNumber String?           @unique @db.VarChar(50)
+
   // Relations
   packageSchemes PackageScheme[]
   schemeTags     SchemeTag[]
+  schemeContacts SchemeContact[]
 
   // Audit fields
   createdAt DateTime @default(now())
@@ -843,4 +851,34 @@ model MpesaPaymentReportItem {
   @@index([transactionReference], name: "idx_transaction_reference")
   @@index([mpesaPaymentReportUploadId], name: "idx_mpesa_payment_report_upload_id")
   @@map("mpesa_payment_report_items")
+}
+
+model SchemeContact {
+  id           Int     @id @default(autoincrement())
+  schemeId     Int
+  firstName    String  @db.VarChar(50)
+  otherName    String? @db.VarChar(50)
+  phoneNumber  String? @db.VarChar(15)
+  phoneNumber2 String? @db.VarChar(15)
+  email        String? @db.VarChar(100)
+  designation  String? @db.VarChar(100)
+  notes        String? @db.VarChar(500)
+
+  // Relations
+  scheme Scheme @relation(fields: [schemeId], references: [id], onDelete: Cascade)
+
+  // Audit fields
+  createdAt DateTime  @default(now())
+  createdBy String    @db.Uuid
+  updatedAt DateTime? @updatedAt
+
+  @@map("scheme_contacts")
+}
+
+model PaymentAccountNumberSequence {
+  id            Int      @id @default(1)
+  currentValue  Int      @default(221)
+  lastUpdatedAt DateTime @default(now()) @updatedAt
+
+  @@map("payment_account_number_sequences")
 }

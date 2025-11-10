@@ -11,7 +11,13 @@ describe('PolicyService - generatePolicyNumber', () => {
     },
   };
 
-  const policyService = new PolicyService(prismaMock as any);
+  const paymentAccountNumberServiceMock = {
+    generateForPolicy: jest.fn(),
+    generateForScheme: jest.fn(),
+    customerHasExistingPolicies: jest.fn(),
+  };
+
+  const policyService = new PolicyService(prismaMock as any, paymentAccountNumberServiceMock as any);
 
   beforeEach(() => {
     jest.clearAllMocks();
