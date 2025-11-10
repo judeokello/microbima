@@ -141,7 +141,7 @@ export default function CustomerStep() {
 
   // Package and scheme selection state
   const [packages, setPackages] = useState<Array<{id: number, name: string}>>([]);
-  const [schemes, setSchemes] = useState<Array<{id: number, schemeName: string, packageSchemeId?: number}>>([]);
+  const [schemes, setSchemes] = useState<Array<{id: number, name: string, description?: string, packageSchemeId?: number}>>([]);
   const [selectedPackageId, setSelectedPackageId] = useState<number | null>(null);
   const [selectedSchemeId, setSelectedSchemeId] = useState<number | null>(null);
   const [loadingSchemes, setLoadingSchemes] = useState(false);
@@ -746,7 +746,7 @@ export default function CustomerStep() {
                 </SelectTrigger>
                 <SelectContent>
                   {schemes.map(scheme => (
-                    <SelectItem key={scheme.id} value={scheme.id.toString()}>{scheme.schemeName}</SelectItem>
+                    <SelectItem key={scheme.id} value={scheme.id.toString()}>{scheme.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
