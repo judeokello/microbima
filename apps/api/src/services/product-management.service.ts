@@ -4,6 +4,7 @@ import { ValidationException } from '../exceptions/validation.exception';
 import { ErrorCodes } from '../enums/error-codes.enum';
 import { PaymentAccountNumberService } from './payment-account-number.service';
 import { PaymentFrequency } from '@prisma/client';
+import { PAYMENT_CADENCE } from '../constants/payment-cadence.constants';
 import * as Sentry from '@sentry/nestjs';
 
 /**
@@ -870,13 +871,25 @@ export class ProductManagementService {
       }
 
       // Validate postpaid requirements
+      let calculatedPaymentCadence: number | null = null;
       if (data.isPostpaid) {
         if (!data.frequency) {
           validationErrors['frequency'] = 'Payment frequency is required for postpaid schemes';
-        }
-
-        if (data.frequency === PaymentFrequency.CUSTOM && !data.paymentCadence) {
-          validationErrors['paymentCadence'] = 'Payment cadence is required when frequency is CUSTOM';
+        } else {
+          // Calculate payment cadence from frequency if not CUSTOM
+          if (data.frequency === PaymentFrequency.CUSTOM) {
+            if (!data.paymentCadence) {
+              validationErrors['paymentCadence'] = 'Payment cadence is required when frequency is CUSTOM';
+            } else {
+              calculatedPaymentCadence = data.paymentCadence;
+            }
+          } else {
+            // Calculate cadence from frequency constants
+            calculatedPaymentCadence = PAYMENT_CADENCE[data.frequency];
+            if (!calculatedPaymentCadence) {
+              validationErrors['frequency'] = `Invalid payment frequency: ${data.frequency}`;
+            }
+          }
         }
       }
 
@@ -902,7 +915,7 @@ export class ProductManagementService {
               isActive: data.isActive ?? true,
               isPostpaid: data.isPostpaid ?? false,
               frequency: data.frequency || null,
-              paymentCadence: data.paymentCadence || null,
+              paymentCadence: calculatedPaymentCadence,
               paymentAcNumber: paymentAcNumber || null,
               createdBy: userId,
             },

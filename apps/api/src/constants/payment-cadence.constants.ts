@@ -16,7 +16,7 @@
 export const PAYMENT_CADENCE = {
   DAILY: 1,
   WEEKLY: 7,
-  MONTHLY: 30,
+  MONTHLY: 31,
   QUARTERLY: 90,
   ANNUALLY: 365,
 } as const;

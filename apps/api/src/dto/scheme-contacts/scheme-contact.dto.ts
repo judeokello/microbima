@@ -1,13 +1,8 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsString, IsOptional, MaxLength, IsEmail } from 'class-validator';
+import { IsKenyanPhone } from '../../decorators/validators/is-kenyan-phone.decorator';
 
 export class CreateSchemeContactDto {
-  @ApiProperty({
-    description: 'Scheme ID',
-    example: 1,
-  })
-  schemeId: number;
-
   @ApiProperty({
     description: 'Contact first name',
     example: 'John',
@@ -27,22 +22,22 @@ export class CreateSchemeContactDto {
   otherName?: string;
 
   @ApiProperty({
-    description: 'Primary phone number',
-    example: '+254700123456',
-    required: false,
+    description: 'Primary phone number (10 digits starting with 01 or 07)',
+    example: '0712345678',
   })
-  @IsOptional()
   @IsString()
+  @IsKenyanPhone()
   @MaxLength(15)
-  phoneNumber?: string;
+  phoneNumber: string;
 
   @ApiProperty({
-    description: 'Secondary phone number',
-    example: '+254711234567',
+    description: 'Secondary phone number (10 digits starting with 01 or 07)',
+    example: '0123456789',
     required: false,
   })
   @IsOptional()
   @IsString()
+  @IsKenyanPhone()
   @MaxLength(15)
   phoneNumber2?: string;
 
@@ -99,22 +94,24 @@ export class UpdateSchemeContactDto {
   otherName?: string;
 
   @ApiProperty({
-    description: 'Primary phone number',
-    example: '+254700123456',
+    description: 'Primary phone number (10 digits starting with 01 or 07)',
+    example: '0712345678',
     required: false,
   })
   @IsOptional()
   @IsString()
+  @IsKenyanPhone()
   @MaxLength(15)
   phoneNumber?: string;
 
   @ApiProperty({
-    description: 'Secondary phone number',
-    example: '+254711234567',
+    description: 'Secondary phone number (10 digits starting with 01 or 07)',
+    example: '0123456789',
     required: false,
   })
   @IsOptional()
   @IsString()
+  @IsKenyanPhone()
   @MaxLength(15)
   phoneNumber2?: string;
 

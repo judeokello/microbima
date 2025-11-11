@@ -14,6 +14,7 @@ import { supabase } from '@/lib/supabase';
 import * as Sentry from '@sentry/nextjs';
 import { formatDate } from '@/lib/utils';
 import { TruncatedDescription } from '../../../../[underwriterId]/_components/truncated-description';
+import { validatePhoneNumber } from '@/lib/phone-validation';
 
 interface Scheme {
   id: number;
@@ -131,6 +132,7 @@ export default function SchemeDetailPage() {
     notes: '',
   });
   const [contactLoading, setContactLoading] = useState(false);
+  const [contactDialogError, setContactDialogError] = useState<string | null>(null);
 
   const getSupabaseToken = async () => {
     const { data: session } = await supabase.auth.getSession();
@@ -351,6 +353,7 @@ export default function SchemeDetailPage() {
   const handleCloseContactDialog = () => {
     setContactDialogOpen(false);
     setEditingContact(null);
+    setContactDialogError(null);
     setContactFormData({
       firstName: '',
       otherName: '',
@@ -363,20 +366,40 @@ export default function SchemeDetailPage() {
   };
 
   const handleSaveContact = async () => {
+    // Clear previous errors
+    setContactDialogError(null);
+
+    // Validate required fields
     if (!contactFormData.firstName.trim()) {
-      setError('First name is required');
+      setContactDialogError('First name is required');
+      return;
+    }
+
+    if (!contactFormData.phoneNumber.trim()) {
+      setContactDialogError('Phone number is required');
+      return;
+    }
+
+    if (!validatePhoneNumber(contactFormData.phoneNumber)) {
+      setContactDialogError('Phone number must be 10 digits starting with 01 or 07');
+      return;
+    }
+
+    // Validate phoneNumber2 if provided
+    if (contactFormData.phoneNumber2 && !validatePhoneNumber(contactFormData.phoneNumber2)) {
+      setContactDialogError('Alternate phone number must be 10 digits starting with 01 or 07');
       return;
     }
 
     // Check if we're at the 5 contact limit when adding a new contact
     if (!editingContact && contacts.length >= 5) {
-      setError('Maximum of 5 contacts allowed per scheme');
+      setContactDialogError('Maximum of 5 contacts allowed per scheme');
       return;
     }
 
     try {
       setContactLoading(true);
-      setError(null);
+      setContactDialogError(null);
 
       const token = await getSupabaseToken();
       const url = editingContact
@@ -395,7 +418,21 @@ export default function SchemeDetailPage() {
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error?.message ?? `HTTP ${response.status}: ${response.statusText}`);
+        // Extract validation errors if present
+        let errorMessage = errorData.error?.message ?? `HTTP ${response.status}: ${response.statusText}`;
+        if (errorData.error?.details) {
+          // Handle multiple field errors
+          const details = errorData.error.details;
+          if (typeof details === 'object') {
+            const fieldErrors = Object.entries(details)
+              .map(([field, message]) => `${field}: ${message}`)
+              .join(', ');
+            errorMessage = fieldErrors || errorMessage;
+          } else {
+            errorMessage = details || errorMessage;
+          }
+        }
+        throw new Error(errorMessage);
       }
 
       handleCloseContactDialog();
@@ -414,7 +451,7 @@ export default function SchemeDetailPage() {
           },
         });
       }
-      setError(err instanceof Error ? err.message : 'Failed to save contact');
+      setContactDialogError(err instanceof Error ? err.message : 'Failed to save contact');
     } finally {
       setContactLoading(false);
     }
@@ -845,12 +882,22 @@ export default function SchemeDetailPage() {
             </DialogDescription>
           </DialogHeader>
 
+          {contactDialogError && (
+            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md text-sm">
+              {contactDialogError}
+            </div>
+          )}
+
           <div className="space-y-4">
             <div>
               <Label>First Name *</Label>
               <Input
                 value={contactFormData.firstName}
-                onChange={(e) => setContactFormData({ ...contactFormData, firstName: e.target.value })}
+                onChange={(e) => {
+                  setContactFormData({ ...contactFormData, firstName: e.target.value });
+                  // Clear error when user starts typing
+                  if (contactDialogError) setContactDialogError(null);
+                }}
                 placeholder="Enter first name"
                 maxLength={50}
                 required
@@ -868,12 +915,17 @@ export default function SchemeDetailPage() {
             </div>
 
             <div>
-              <Label>Phone Number</Label>
+              <Label>Phone Number *</Label>
               <Input
                 value={contactFormData.phoneNumber}
-                onChange={(e) => setContactFormData({ ...contactFormData, phoneNumber: e.target.value })}
-                placeholder="Enter phone number"
+                onChange={(e) => {
+                  setContactFormData({ ...contactFormData, phoneNumber: e.target.value });
+                  // Clear error when user starts typing
+                  if (contactDialogError) setContactDialogError(null);
+                }}
+                placeholder="Enter phone number (e.g., 0712345678)"
                 maxLength={15}
+                required
               />
             </div>
 
@@ -881,8 +933,12 @@ export default function SchemeDetailPage() {
               <Label>Alternate Phone Number</Label>
               <Input
                 value={contactFormData.phoneNumber2}
-                onChange={(e) => setContactFormData({ ...contactFormData, phoneNumber2: e.target.value })}
-                placeholder="Enter alternate phone"
+                onChange={(e) => {
+                  setContactFormData({ ...contactFormData, phoneNumber2: e.target.value });
+                  // Clear error when user starts typing
+                  if (contactDialogError) setContactDialogError(null);
+                }}
+                placeholder="Enter alternate phone (e.g., 0123456789)"
                 maxLength={15}
               />
             </div>
