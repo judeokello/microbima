@@ -17,7 +17,7 @@ interface NextOfKinSectionProps {
     dateOfBirth?: string;
     phoneNumber?: string;
     gender?: string;
-    idType: string;
+    idType?: string | null;
     idNumber: string;
   }>;
   canEdit: boolean;
@@ -44,7 +44,8 @@ export default function NextOfKinSection({ beneficiaries, canEdit, canAdd, onUpd
     }
   };
 
-  const formatIdType = (idType: string) => {
+  const formatIdType = (idType?: string | null) => {
+    if (!idType) return 'N/A';
     return idType
       .split('_')
       .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
