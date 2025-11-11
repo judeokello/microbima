@@ -882,7 +882,7 @@ export interface CustomerDetailData {
     lastName: string
     dateOfBirth?: string
     phoneNumber?: string
-    idType: string
+    idType?: string | null
     idNumber: string
   }>
   dependants: Array<{

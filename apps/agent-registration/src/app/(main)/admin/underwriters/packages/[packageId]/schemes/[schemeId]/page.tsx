@@ -427,9 +427,9 @@ export default function SchemeDetailPage() {
             const fieldErrors = Object.entries(details)
               .map(([field, message]) => `${field}: ${message}`)
               .join(', ');
-            errorMessage = fieldErrors || errorMessage;
+            errorMessage = fieldErrors ?? errorMessage;
           } else {
-            errorMessage = details || errorMessage;
+            errorMessage = details ?? errorMessage;
           }
         }
         throw new Error(errorMessage);

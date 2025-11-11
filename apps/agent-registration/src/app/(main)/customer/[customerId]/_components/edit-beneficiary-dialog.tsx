@@ -27,7 +27,7 @@ interface EditBeneficiaryDialogProps {
     dateOfBirth?: string;
     phoneNumber?: string;
     gender?: string;
-    idType: string;
+    idType?: string | null;
     idNumber: string;
   };
   customerId: string;
@@ -47,7 +47,8 @@ const mapIdTypeToBackend = (idType: string): string => {
   return mapping[idType] ?? 'national';
 };
 
-const mapIdTypeFromBackend = (idType: string): string => {
+const mapIdTypeFromBackend = (idType?: string | null): string => {
+  if (!idType) return 'NATIONAL_ID';
   // Handle both lowercase DTO format and uppercase enum format
   const upperType = idType.toUpperCase();
   if (['NATIONAL_ID', 'PASSPORT', 'ALIEN', 'BIRTH_CERTIFICATE', 'MILITARY'].includes(upperType)) {
