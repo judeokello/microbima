@@ -111,7 +111,7 @@ export default function BeneficiaryStep() {
           gender: parsedData.gender ?? '',
         });
       } catch (error) {
-        console.error('Error parsing saved beneficiary data:', error);
+        console.error('Error parsing saved NoK data:', error);
         // Keep default form data if parsing fails
       }
     }
@@ -302,7 +302,7 @@ export default function BeneficiaryStep() {
         throw new Error('Customer registration not found. Please start from the beginning.');
       }
 
-      console.log('🔍 Step 3: Processing beneficiary data...');
+      console.log('🔍 Step 3: Processing NoK data...');
       console.log('🔍 Form data:', formData);
 
       // Transform form data to API format
@@ -315,7 +315,7 @@ export default function BeneficiaryStep() {
         phoneNumber: formData.phoneNumber ? formatPhoneNumber(formData.phoneNumber) : undefined,
         relationship: mapRelationshipToBackend(formData.relationship),
         relationshipDescription: formData.relationship === 'OTHER' ? formData.customRelationship : undefined,
-        percentage: 100, // Default to 100% if only one beneficiary
+        percentage: 100, // Default to 100% if only one NoK
       };
 
       // Only include idType and idNumber if idNumber is provided
@@ -333,31 +333,31 @@ export default function BeneficiaryStep() {
         gender: formData.gender,
         relationship: formData.relationship,
       });
-      console.log('🔍 Mapped beneficiary data:', beneficiaryData);
+      console.log('🔍 Mapped NoK data:', beneficiaryData);
 
-      // Step 1: Add beneficiary to customer
+      // Step 1: Add NoK to customer
       const beneficiaryResult = await addBeneficiaries(customerId, [beneficiaryData]);
       console.log('🔍 Beneficiary result:', beneficiaryResult);
 
       if (!beneficiaryResult.success || !beneficiaryResult.beneficiaryIds?.length) {
-        console.error('❌ Failed to add beneficiary:', beneficiaryResult.error);
-        throw new Error(beneficiaryResult.error ?? 'Failed to add beneficiary');
+        console.error('❌ Failed to add NoK:', beneficiaryResult.error);
+        throw new Error(beneficiaryResult.error ?? 'Failed to add NoK');
       }
 
-      console.log('✅ Beneficiary added successfully');
+      console.log('✅ NoK added successfully');
 
       // Save form data for next steps
       localStorage.setItem('beneficiaryFormData', JSON.stringify(formData));
-      console.log('✅ Beneficiary form data saved to localStorage');
+      console.log('✅ NoK form data saved to localStorage');
 
       console.log('🔍 Step 5: Navigating to payment page...');
-      console.log('🔍 ========== BENEFICIARY SUBMISSION COMPLETE ==========');
+      console.log('🔍 ========== NoK SUBMISSION COMPLETE ==========');
 
       // Navigate to next step
       router.push('/register/payment');
 
     } catch (error) {
-      console.error('Error processing beneficiary:', error);
+      console.error('Error processing NoK:', error);
 
       // Transform API validation errors into user-friendly messages
       let errorMessage = error instanceof Error ? error.message : 'An unexpected error occurred';
@@ -522,7 +522,7 @@ export default function BeneficiaryStep() {
             </div>
             <div className="ml-3">
               <h3 className="text-sm font-medium text-red-800">
-                Beneficiary Processing Failed
+                Next of Kin Processing Failed
               </h3>
               <div className="mt-2 text-sm text-red-700">
                 {error}
@@ -546,7 +546,7 @@ export default function BeneficiaryStep() {
           {isSubmitting ? (
             <>
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Adding Beneficiary...
+              Adding Next of Kin...
             </>
           ) : (
             'Next: Payment & Review'

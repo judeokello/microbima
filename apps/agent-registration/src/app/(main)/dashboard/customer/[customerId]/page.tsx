@@ -122,13 +122,6 @@ export default function CustomerDetailPage() {
             onUpdate={loadCustomerDetails}
           />
 
-          <NextOfKinSection
-            beneficiaries={customerData.beneficiaries}
-            canEdit={canEdit}
-            canAdd={canEdit}
-            onUpdate={loadCustomerDetails}
-          />
-
           <SpouseSection
             dependants={customerData.dependants.filter((d) => d.relationship === 'SPOUSE')}
             canEdit={canEdit}
@@ -138,6 +131,13 @@ export default function CustomerDetailPage() {
 
           <ChildrenSection
             dependants={customerData.dependants.filter((d) => d.relationship === 'CHILD')}
+            canEdit={canEdit}
+            canAdd={canEdit}
+            onUpdate={loadCustomerDetails}
+          />
+
+          <NextOfKinSection
+            beneficiaries={customerData.beneficiaries}
             canEdit={canEdit}
             canAdd={canEdit}
             onUpdate={loadCustomerDetails}

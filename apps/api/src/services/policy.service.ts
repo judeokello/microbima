@@ -37,6 +37,7 @@ export class PolicyService {
    * @param packageId - Package ID
    * @param correlationId - Correlation ID for tracing
    * @returns Generated policy number
+   * @deprecated Use generatePolicyNumberInTransaction for transaction-safe generation
    */
   private async generatePolicyNumber(
     packageId: number,
@@ -120,6 +121,211 @@ export class PolicyService {
       );
       throw error;
     }
+  }
+
+  /**
+   * Generate policy number inside a transaction with duplicate detection and retry logic
+   * This method ensures thread-safe policy number generation by:
+   * 1. Using the transaction client to read the latest committed state
+   * 2. Checking for existing policy with the same number before creating
+   * 3. Retrying with next sequence number if duplicate detected
+   * 
+   * @param packageId - Package ID
+   * @param tx - Prisma transaction client
+   * @param correlationId - Correlation ID for tracing
+   * @param maxRetries - Maximum number of retries if duplicate detected (default: 5)
+   * @returns Generated unique policy number
+   */
+  private async generatePolicyNumberInTransaction(
+    packageId: number,
+    tx: Prisma.TransactionClient,
+    correlationId: string,
+    maxRetries: number = 5
+  ): Promise<string> {
+    this.logger.log(`[${correlationId}] Generating policy number for package ${packageId} (transaction-safe)`);
+
+    // Get package with policy number format (outside retry loop as it doesn't change)
+    const packageData = await tx.package.findUnique({
+      where: { id: packageId },
+      select: {
+        id: true,
+        policyNumberFormat: true,
+      },
+    });
+
+    if (!packageData) {
+      throw new NotFoundException(`Package with ID ${packageId} not found`);
+    }
+
+    if (!packageData.policyNumberFormat) {
+      throw new BadRequestException(
+        `Package ${packageId} does not have a policy number format configured`
+      );
+    }
+
+    const placeholder = '{auto-increasing-policy-number}';
+    if (!packageData.policyNumberFormat.includes(placeholder)) {
+      throw new BadRequestException(
+        `Package ${packageId} policy number format does not contain the required placeholder: ${placeholder}`
+      );
+    }
+
+    // Retry logic to handle race conditions
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      // Find the last policy for this package to get the current sequence number
+      // Using transaction client ensures we see committed data
+      const lastPolicy = await tx.policy.findFirst({
+        where: {
+          packageId: packageId,
+        },
+        select: {
+          policyNumber: true,
+          id: true,
+          createdAt: true,
+        },
+        orderBy: {
+          createdAt: 'desc',
+        },
+      });
+
+      // Log what we found for debugging
+      this.logger.log(
+        `[${correlationId}] Policy number generation attempt ${attempt + 1}: ` +
+        `Last policy: ${lastPolicy ? `id=${lastPolicy.id}, policyNumber="${lastPolicy.policyNumber}", createdAt=${lastPolicy.createdAt}` : 'none found'}`
+      );
+
+      // Extract the sequence number from the last policy number, or start at 1
+      let digitWidth = 3;
+      let sequenceNumber = 1;
+      if (lastPolicy && lastPolicy.policyNumber) {
+        // Skip empty or invalid policy numbers (e.g., '', 'EMPTY', etc.)
+        // These are typically postpaid policies that haven't been activated yet
+        const policyNumberTrimmed = lastPolicy.policyNumber.trim();
+        if (policyNumberTrimmed === '' || policyNumberTrimmed.toUpperCase() === 'EMPTY') {
+          this.logger.warn(
+            `[${correlationId}] Last policy has empty/invalid policy number "${lastPolicy.policyNumber}" (id: ${lastPolicy.id}). ` +
+            `This is likely a postpaid policy. Searching for last valid policy number...`
+          );
+
+          // Find the last policy with a valid policy number (skip empty/invalid ones)
+          const lastValidPolicy = await tx.policy.findFirst({
+            where: {
+              packageId: packageId,
+              policyNumber: {
+                not: {
+                  in: ['', 'EMPTY'],
+                },
+              },
+            },
+            select: {
+              policyNumber: true,
+              id: true,
+            },
+            orderBy: {
+              createdAt: 'desc',
+            },
+          });
+
+          if (lastValidPolicy && lastValidPolicy.policyNumber) {
+            this.logger.log(
+              `[${correlationId}] Found last valid policy: id=${lastValidPolicy.id}, policyNumber="${lastValidPolicy.policyNumber}"`
+            );
+            // Use the valid policy number to extract sequence
+            const [prefix, suffix = ''] = packageData.policyNumberFormat.split(placeholder);
+            const regex = new RegExp(
+              `^${this.escapeRegExp(prefix)}(\\d+)${this.escapeRegExp(suffix)}$`
+            );
+            const lastMatch = lastValidPolicy.policyNumber.match(regex);
+
+            if (lastMatch && lastMatch[1]) {
+              sequenceNumber = parseInt(lastMatch[1], 10) + 1;
+              digitWidth = lastMatch[1].length;
+              this.logger.log(
+                `[${correlationId}] Extracted sequence ${sequenceNumber} from valid policy number "${lastValidPolicy.policyNumber}"`
+              );
+            }
+          } else {
+            this.logger.log(
+              `[${correlationId}] No valid policy numbers found for package ${packageId}, starting from sequence 1`
+            );
+          }
+        } else {
+          // Extract numeric part from policy number (e.g., "MP/MFG/001" -> 1, "MP/MFG/1234" -> 1234)
+          const [prefix, suffix = ''] = packageData.policyNumberFormat.split(placeholder);
+          const regex = new RegExp(
+            `^${this.escapeRegExp(prefix)}(\\d+)${this.escapeRegExp(suffix)}$`
+          );
+          const lastMatch = lastPolicy.policyNumber.match(regex);
+
+          if (lastMatch && lastMatch[1]) {
+            sequenceNumber = parseInt(lastMatch[1], 10) + 1;
+            digitWidth = lastMatch[1].length;
+            this.logger.log(
+              `[${correlationId}] Extracted sequence ${sequenceNumber} from policy number "${lastPolicy.policyNumber}"`
+            );
+          } else {
+            this.logger.warn(
+              `[${correlationId}] Could not parse sequence from policy number "${lastPolicy.policyNumber}" ` +
+              `using format "${packageData.policyNumberFormat}". Starting from sequence 1.`
+            );
+          }
+        }
+      }
+
+      // Add attempt offset to handle concurrent requests generating same sequence
+      // This ensures we try different numbers even if multiple requests read the same last policy
+      sequenceNumber += attempt;
+
+      // Format sequence number with leading zeros (e.g., 001, 002, ..., 1234)
+      const formattedSequence = sequenceNumber.toString().padStart(digitWidth, '0');
+
+      // Replace placeholder in format
+      const policyNumber = packageData.policyNumberFormat.replace(
+        placeholder,
+        formattedSequence
+      );
+
+      // Check if this policy number already exists (race condition check)
+      this.logger.log(
+        `[${correlationId}] Checking if policy number "${policyNumber}" already exists...`
+      );
+      
+      const existingPolicy = await tx.policy.findUnique({
+        where: {
+          policyNumber: policyNumber,
+        },
+        select: {
+          id: true,
+          policyNumber: true,
+          customerId: true,
+          packageId: true,
+          createdAt: true,
+          status: true,
+        },
+      });
+
+      if (!existingPolicy) {
+        // Policy number is available, return it
+        this.logger.log(
+          `[${correlationId}] ✓ Policy number "${policyNumber}" is available (sequence: ${sequenceNumber}, attempt: ${attempt + 1})`
+        );
+        return policyNumber;
+      }
+
+      // Policy number exists, log details and continue to next iteration to try next sequence
+      this.logger.warn(
+        `[${correlationId}] ✗ Policy number "${policyNumber}" already exists! ` +
+        `Existing policy: id=${existingPolicy.id}, customerId=${existingPolicy.customerId}, ` +
+        `packageId=${existingPolicy.packageId}, status=${existingPolicy.status}, ` +
+        `createdAt=${existingPolicy.createdAt}. ` +
+        `Retrying with next sequence (attempt: ${attempt + 1}/${maxRetries})`
+      );
+    }
+
+    // If we've exhausted retries, throw an error
+    throw new Error(
+      `[${correlationId}] Failed to generate unique policy number after ${maxRetries} attempts. This indicates a high concurrency issue.`
+    );
   }
 
   /**
@@ -312,8 +518,18 @@ export class PolicyService {
       );
 
       // Use transaction to ensure atomicity
+      this.logger.log(
+        `[${correlationId}] Starting transaction to create policy: ` +
+        `customerId=${data.customerId}, packageId=${data.packageId}, ` +
+        `transactionReference=${data.paymentData.transactionReference}`
+      );
+
       const result = await this.prismaService.$transaction(async (tx: Prisma.TransactionClient) => {
         // Double-check idempotency inside transaction to prevent race conditions
+        this.logger.log(
+          `[${correlationId}] Checking idempotency inside transaction for transactionReference: ${data.paymentData.transactionReference}`
+        );
+        
         const existingPaymentInTx = await tx.policyPayment.findFirst({
           where: {
             transactionReference: data.paymentData.transactionReference,
@@ -325,13 +541,19 @@ export class PolicyService {
 
         if (existingPaymentInTx) {
           this.logger.log(
-            `[${correlationId}] Policy payment with transaction reference ${data.paymentData.transactionReference} already exists (race condition detected). Returning existing policy ${existingPaymentInTx.policy.id}`
+            `[${correlationId}] ✓ Idempotency check: Policy payment with transaction reference ${data.paymentData.transactionReference} already exists ` +
+            `(race condition detected). Returning existing policy ${existingPaymentInTx.policy.id} ` +
+            `with policyNumber="${existingPaymentInTx.policy.policyNumber}"`
           );
           return {
             policy: existingPaymentInTx.policy,
             policyPayment: existingPaymentInTx,
           };
         }
+
+        this.logger.log(
+          `[${correlationId}] ✓ Idempotency check passed: No existing payment found for transactionReference ${data.paymentData.transactionReference}. Proceeding with policy creation.`
+        );
 
         // Determine payment account number based on postpaid status
         let paymentAcNumber: string | null = null;
@@ -387,8 +609,13 @@ export class PolicyService {
           endDate = null; // Will be set on activation
           status = 'PENDING_ACTIVATION';
         } else {
-          // Prepaid: generate policy number, set dates, will activate immediately
-          policyNumber = await this.generatePolicyNumber(data.packageId, correlationId);
+          // Prepaid: generate policy number inside transaction to prevent race conditions
+          // This ensures thread-safe policy number generation even under high concurrency
+          policyNumber = await this.generatePolicyNumberInTransaction(
+            data.packageId,
+            tx,
+            correlationId
+          );
           startDate = new Date();
           startDate.setHours(0, 0, 0, 0);
           endDate = new Date(startDate);
@@ -398,22 +625,181 @@ export class PolicyService {
         }
 
         // Create policy
-        const policy = await tx.policy.create({
-          data: {
-            policyNumber,
-            status,
-            customerId: data.customerId,
-            packageId: data.packageId,
-            packagePlanId: data.packagePlanId,
-            productName: data.productName,
-            startDate: startDate as any, // Type assertion: DB schema supports null, Prisma client needs regeneration
-            endDate: endDate as any, // Type assertion: DB schema supports null, Prisma client needs regeneration
-            premium: data.premium,
-            frequency,
-            paymentCadence,
-            paymentAcNumber,
-          },
-        });
+        // Note: For postpaid schemes, policyNumber is empty string which may cause unique constraint issues
+        // if multiple postpaid policies exist. This should be handled during activation when policy numbers are assigned.
+        this.logger.log(
+          `[${correlationId}] Attempting to create policy with: ` +
+          `policyNumber="${policyNumber}", customerId=${data.customerId}, ` +
+          `packageId=${data.packageId}, isPostpaid=${isPostpaidScheme}, ` +
+          `status=${status}, startDate=${startDate}, endDate=${endDate}`
+        );
+
+        // Check for existing policies with same policy number before creation (additional safety check)
+        if (policyNumber && policyNumber.trim() !== '') {
+          const preCheckExisting = await tx.policy.findUnique({
+            where: { policyNumber },
+            select: { id: true, policyNumber: true, customerId: true, createdAt: true },
+          });
+          
+          if (preCheckExisting) {
+            this.logger.error(
+              `[${correlationId}] CRITICAL: Policy number "${policyNumber}" exists before creation attempt! ` +
+              `Existing policy: id=${preCheckExisting.id}, customerId=${preCheckExisting.customerId}, ` +
+              `createdAt=${preCheckExisting.createdAt}`
+            );
+          }
+        }
+
+        let policy;
+        try {
+          policy = await tx.policy.create({
+            data: {
+              policyNumber,
+              status,
+              customerId: data.customerId,
+              packageId: data.packageId,
+              packagePlanId: data.packagePlanId,
+              productName: data.productName,
+              startDate: startDate as any, // Type assertion: DB schema supports null, Prisma client needs regeneration
+              endDate: endDate as any, // Type assertion: DB schema supports null, Prisma client needs regeneration
+              premium: data.premium,
+              frequency,
+              paymentCadence,
+              paymentAcNumber,
+            },
+          });
+          
+          this.logger.log(
+            `[${correlationId}] ✓ Successfully created policy: id=${policy.id}, policyNumber="${policy.policyNumber}"`
+          );
+        } catch (createError: any) {
+          // Handle unique constraint violation on policyNumber (race condition safety net)
+          if (
+            createError?.code === 'P2002' &&
+            createError?.meta?.target?.includes('policyNumber')
+          ) {
+            // Query for existing policy with this number to get full details
+            let existingPolicyDetails = null;
+            try {
+              existingPolicyDetails = await tx.policy.findUnique({
+                where: { policyNumber },
+                select: {
+                  id: true,
+                  policyNumber: true,
+                  customerId: true,
+                  packageId: true,
+                  status: true,
+                  createdAt: true,
+                  updatedAt: true,
+                },
+              });
+            } catch (queryError) {
+              this.logger.warn(
+                `[${correlationId}] Could not query existing policy details: ${queryError instanceof Error ? queryError.message : 'Unknown error'}`
+              );
+            }
+
+            // Also check for all policies with empty/invalid policy numbers
+            let emptyPolicyCount = 0;
+            try {
+              const emptyPolicies = await tx.policy.findMany({
+                where: {
+                  packageId: data.packageId,
+                  OR: [
+                    { policyNumber: '' },
+                    { policyNumber: 'EMPTY' },
+                  ],
+                },
+                select: { id: true, policyNumber: true, customerId: true, createdAt: true },
+              });
+              emptyPolicyCount = emptyPolicies.length;
+              
+              if (emptyPolicyCount > 0) {
+                this.logger.warn(
+                  `[${correlationId}] Found ${emptyPolicyCount} policies with empty/invalid policy numbers for package ${data.packageId}: ` +
+                  emptyPolicies.map(p => `id=${p.id}, policyNumber="${p.policyNumber}", customerId=${p.customerId}`).join('; ')
+                );
+              }
+            } catch (queryError) {
+              // Ignore query errors for this diagnostic query
+            }
+
+            this.logger.error(
+              `[${correlationId}] ✗✗✗ UNIQUE CONSTRAINT VIOLATION on policyNumber "${policyNumber}" ✗✗✗\n` +
+              `  Attempted to create policy for: customerId=${data.customerId}, packageId=${data.packageId}, isPostpaid=${isPostpaidScheme}\n` +
+              `  Error code: ${createError?.code}, Target: ${JSON.stringify(createError?.meta?.target)}\n` +
+              (existingPolicyDetails
+                ? `  Existing policy with this number: id=${existingPolicyDetails.id}, customerId=${existingPolicyDetails.customerId}, ` +
+                  `packageId=${existingPolicyDetails.packageId}, status=${existingPolicyDetails.status}, ` +
+                  `createdAt=${existingPolicyDetails.createdAt}, updatedAt=${existingPolicyDetails.updatedAt}\n`
+                : `  Could not retrieve existing policy details\n`) +
+              `  Empty/invalid policy count for package: ${emptyPolicyCount}\n` +
+              `  This indicates a race condition or data inconsistency. Retrying with new policy number...`,
+              createError instanceof Error ? createError.stack : undefined
+            );
+
+            // Report to Sentry with comprehensive context
+            Sentry.captureException(createError, {
+              tags: {
+                service: 'PolicyService',
+                operation: 'createPolicyWithPayment',
+                correlationId,
+                errorType: 'unique_constraint_violation',
+                field: 'policyNumber',
+                isPostpaidScheme: String(isPostpaidScheme),
+              },
+              extra: {
+                attemptedPolicyNumber: policyNumber,
+                packageId: data.packageId,
+                customerId: data.customerId,
+                isPostpaidScheme,
+                environment: process.env.NODE_ENV,
+                existingPolicyDetails,
+                emptyPolicyCount,
+                errorCode: createError?.code,
+                errorTarget: createError?.meta?.target,
+              },
+            });
+
+            // For prepaid schemes, retry with a new policy number
+            if (!isPostpaidScheme) {
+              policyNumber = await this.generatePolicyNumberInTransaction(
+                data.packageId,
+                tx,
+                correlationId
+              );
+
+              // Retry policy creation with new policy number
+              policy = await tx.policy.create({
+                data: {
+                  policyNumber,
+                  status,
+                  customerId: data.customerId,
+                  packageId: data.packageId,
+                  packagePlanId: data.packagePlanId,
+                  productName: data.productName,
+                  startDate: startDate as any,
+                  endDate: endDate as any,
+                  premium: data.premium,
+                  frequency,
+                  paymentCadence,
+                  paymentAcNumber,
+                },
+              });
+
+              this.logger.log(
+                `[${correlationId}] Successfully created policy with retried policy number: ${policyNumber}`
+              );
+            } else {
+              // For postpaid schemes, this shouldn't happen as they use empty string
+              // but if it does, rethrow the error
+              throw createError;
+            }
+          } else {
+            // Rethrow other errors
+            throw createError;
+          }
+        }
 
         this.logger.log(
           `[${correlationId}] Created policy ${policy.id} (postpaid: ${isPostpaidScheme}, policy number: ${policyNumber || 'not assigned'})`
