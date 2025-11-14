@@ -650,7 +650,7 @@ export class PolicyService {
           }
         }
 
-        let policy;
+        let policy: Prisma.PolicyGetPayload<{}>;
         try {
           policy = await tx.policy.create({
             data: {
