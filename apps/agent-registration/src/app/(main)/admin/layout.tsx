@@ -86,16 +86,7 @@ export default function AdminLayout({
           <Users className="h-4 w-4 mr-2" />
           Customers
         </Link>
-        <Link
-          href="/admin/ba-registration"
-          className={`flex items-center px-3 py-2 rounded-md hover:bg-white/10 transition-colors ${
-            pathname === '/admin/ba-registration' ? 'bg-white/10' : ''
-          }`}
-          onClick={() => isMobile && setSidebarOpen(false)}
-        >
-          <UserPlus className="h-4 w-4 mr-2" />
-          Register Agent
-        </Link>
+
         <Link
           href="/admin/ba-management"
           className={`flex items-center px-3 py-2 rounded-md hover:bg-white/10 transition-colors ${

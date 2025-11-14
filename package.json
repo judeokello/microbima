@@ -14,6 +14,8 @@
     "dev:agent": "./start-agent.sh",
     "stop": "./stop-dev.sh",
     "status": "./check-status.sh",
+    "check:watch": "./scripts/check-watch-mode.sh",
+    "check:watcher-limits": "./scripts/check-file-watcher-limits.sh",
     "build": "turbo run build",
     "test": "turbo run test",
     "lint": "turbo run lint",

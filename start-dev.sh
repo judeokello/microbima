@@ -61,10 +61,12 @@ PROJECT_ROOT="$SCRIPT_DIR"
 
 # Start API server if not already running
 if [ "$API_RUNNING" = false ]; then
-    echo "🔧 Starting API server..."
+    echo "🔧 Starting API server (watch mode enabled)..."
     cd "$PROJECT_ROOT/apps/api"
-    PORT=3001 pnpm start:dev &
+    # Run in background but keep output visible for watch mode messages
+    PORT=3001 pnpm start:dev > "$PROJECT_ROOT/.api.log" 2>&1 &
     API_PID=$!
+    echo "   📋 API logs: tail -f $PROJECT_ROOT/.api.log"
     cd "$PROJECT_ROOT"
 else
     echo "⏭️  Skipping API startup (already running)"
@@ -76,10 +78,14 @@ sleep 5
 
 # Start Agent Registration app if not already running
 if [ "$AGENT_RUNNING" = false ]; then
-    echo "🌐 Starting Agent Registration app..."
+    echo "🌐 Starting Agent Registration app (hot reload enabled)..."
     cd "$PROJECT_ROOT/apps/agent-registration"
-    pnpm dev &
+    # Write watch mode indicator to log file
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] 🔥 WATCH MODE ENABLED - Hot reload active (next dev --turbopack)" > "$PROJECT_ROOT/.agent-registration.log"
+    # Run in background but keep output visible for hot reload messages
+    pnpm dev >> "$PROJECT_ROOT/.agent-registration.log" 2>&1 &
     AGENT_PID=$!
+    echo "   📋 Agent logs: tail -f $PROJECT_ROOT/.agent-registration.log"
     cd "$PROJECT_ROOT"
 else
     echo "⏭️  Skipping Agent Registration startup (already running)"
@@ -123,7 +129,19 @@ echo "🎉 Development environment is ready!"
 echo "📡 API: http://localhost:3001"
 echo "🌐 Agent Registration: http://localhost:3000"
 echo ""
+echo "💡 Hot reload is enabled - changes will automatically reload"
+echo "📋 View logs:"
+echo "   API: tail -f $PROJECT_ROOT/.api.log"
+echo "   Agent: tail -f $PROJECT_ROOT/.agent-registration.log"
+echo ""
 echo "Press Ctrl+C to stop both applications"
 
-# Wait for user to stop
-wait
+# Keep script running and wait for background processes
+# This ensures proper signal handling for watch mode
+if [ -n "$API_PID" ] && [ -n "$AGENT_PID" ]; then
+    wait $API_PID $AGENT_PID
+elif [ -n "$API_PID" ]; then
+    wait $API_PID
+elif [ -n "$AGENT_PID" ]; then
+    wait $AGENT_PID
+fi

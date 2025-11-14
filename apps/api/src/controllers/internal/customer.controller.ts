@@ -999,4 +999,96 @@ export class InternalCustomerController {
     // TODO: Implement deleteCustomer method in CustomerService
     throw new Error('Delete customer functionality not yet implemented');
   }
+
+  /**
+   * Get customer debug data (Internal - Admin only)
+   * Returns raw database records for troubleshooting
+   * @param customerId - Customer ID
+   * @param correlationId - Correlation ID from request header
+   */
+  @Get(':customerId/debug')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Get customer debug data (Internal - Admin only)',
+    description: 'Returns raw database records for a customer including customer, dependants, policies, policy payments, and policy members. Used for troubleshooting.',
+  })
+  @ApiParam({
+    name: 'customerId',
+    description: 'Customer ID',
+    example: '123e4567-e89b-12d3-a456-426614174000',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Debug data retrieved successfully',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Customer not found',
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Unauthorized',
+  })
+  async getCustomerDebugData(
+    @Param('customerId') customerId: string,
+    @CorrelationId() correlationId: string,
+  ): Promise<any> {
+    // Get customer record
+    const customer = await this.prismaService.customer.findUnique({
+      where: { id: customerId },
+      include: {
+        address: true,
+        onboardingProgress: true,
+        kycVerification: true,
+      },
+    });
+
+    if (!customer) {
+      throw new NotFoundException(`Customer with ID ${customerId} not found`);
+    }
+
+    // Get all dependants for this customer
+    const dependants = await this.prismaService.dependant.findMany({
+      where: { customerId },
+    });
+
+    // Get all policies for this customer
+    const policies = await this.prismaService.policy.findMany({
+      where: { customerId },
+      include: {
+        package: true,
+        packagePlan: true,
+      },
+    });
+
+    // Get all policy payments for customer's policies
+    const policyIds = policies.map(p => p.id);
+    const policyPayments = policyIds.length > 0
+      ? await this.prismaService.policyPayment.findMany({
+          where: { policyId: { in: policyIds } },
+        })
+      : [];
+
+    // Get all policy member principals for this customer
+    const policyMemberPrincipals = await this.prismaService.policyMemberPrincipal.findMany({
+      where: { customerId },
+    });
+
+    // Get all policy member dependants via customer's dependants
+    const dependantIds = dependants.map(d => d.id);
+    const policyMemberDependants = dependantIds.length > 0
+      ? await this.prismaService.policyMemberDependant.findMany({
+          where: { dependantId: { in: dependantIds } },
+        })
+      : [];
+
+    return {
+      customer,
+      dependants,
+      policies,
+      policyPayments,
+      policyMemberPrincipals,
+      policyMemberDependants,
+    };
+  }
 }

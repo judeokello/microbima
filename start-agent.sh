@@ -18,12 +18,15 @@ fi
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$SCRIPT_DIR"
 
-# Start Agent Registration app in background
+# Start Agent Registration app in background with hot reload
 cd "$PROJECT_ROOT/apps/agent-registration"
-pnpm dev > "$PROJECT_ROOT/.agent-registration.log" 2>&1 &
+echo "💡 Hot reload enabled - file changes will trigger automatic refresh"
+# Write watch mode indicator to log file
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] 🔥 WATCH MODE ENABLED - Hot reload active (next dev --turbopack)" > "$PROJECT_ROOT/.agent-registration.log"
+pnpm dev >> "$PROJECT_ROOT/.agent-registration.log" 2>&1 &
 AGENT_PID=$!
 
-echo "⏳ Waiting for Next.js to start..."
+echo "⏳ Waiting for Next.js to start (hot reload active)..."
 sleep 5
 
 # Ping the app to trigger initial compilation (this makes Next.js bind to the port)

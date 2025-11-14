@@ -157,7 +157,7 @@ export default function BARegistrationPage() {
     <div className="max-w-2xl mx-auto">
       <Card>
         <CardHeader>
-          <CardTitle>Register Agent</CardTitle>
+          <CardTitle>678</CardTitle>
           <CardDescription>
             Create a new agent account with partner assignment.
           </CardDescription>

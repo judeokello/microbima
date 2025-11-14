@@ -18,12 +18,13 @@ fi
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$SCRIPT_DIR"
 
-# Start API server in background
+# Start API server in background with watch mode
 cd "$PROJECT_ROOT/apps/api"
+echo "💡 Watch mode enabled - file changes will trigger automatic reload"
 PORT=3001 pnpm start:dev > "$PROJECT_ROOT/.api.log" 2>&1 &
 API_PID=$!
 
-echo "⏳ Waiting for API to start..."
+echo "⏳ Waiting for API to start (watch mode active)..."
 sleep 8
 
 # Check if API is ready

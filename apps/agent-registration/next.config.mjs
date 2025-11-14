@@ -2,7 +2,9 @@ import { withSentryConfig } from '@sentry/nextjs';
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  output: 'standalone',
+  // Only use standalone output in production builds (not in development)
+  // This allows hot reload to work properly in development mode
+  ...(process.env.NODE_ENV === 'production' && { output: 'standalone' }),
   eslint: {
     // Don't fail build on ESLint errors
     ignoreDuringBuilds: false,

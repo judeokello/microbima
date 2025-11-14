@@ -1056,6 +1056,55 @@ export async function getCustomerPolicies(customerId: string): Promise<CustomerP
   }
 }
 
+export interface CustomerDebugData {
+  customer: any; // Raw customer record
+  dependants: any[]; // Raw dependant records
+  policies: any[]; // Raw policy records
+  policyPayments: any[]; // Raw policy payment records
+  policyMemberPrincipals: any[]; // Raw principal member records
+  policyMemberDependants: any[]; // Raw dependant member records
+}
+
+export interface CustomerDebugResponse {
+  status: number
+  correlationId: string
+  message: string
+  data: CustomerDebugData
+}
+
+export async function getCustomerDebugData(customerId: string): Promise<CustomerDebugResponse> {
+  try {
+    const token = await getSupabaseToken()
+
+    const response = await fetch(
+      `${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/customers/${customerId}/debug`,
+      {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'x-correlation-id': `customer-debug-${Date.now()}`
+        }
+      }
+    )
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      throw new Error(errorData.error?.message ?? `HTTP ${response.status}: ${response.statusText}`)
+    }
+
+    const data = await response.json()
+    return {
+      status: response.status,
+      correlationId: response.headers.get('x-correlation-id') ?? `customer-debug-${Date.now()}`,
+      message: 'Debug data retrieved successfully',
+      data,
+    }
+  } catch (error) {
+    console.error('Error fetching customer debug data:', error)
+    throw error
+  }
+}
+
 export async function getCustomerPayments(
   customerId: string,
   filters: PaymentFilter
