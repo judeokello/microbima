@@ -296,6 +296,7 @@ model Policy {
 
 enum CustomerStatus {
   PENDING_KYC
+  PENDING_ACTIVATION
   KYC_VERIFIED
   ACTIVE
   SUSPENDED

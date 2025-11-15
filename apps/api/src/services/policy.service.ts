@@ -899,6 +899,7 @@ export class PolicyService {
    * Similar to policy number generation but for members
    * @param packageId - Package ID
    * @param policyNumber - Policy number to include in member number format (can be null for postpaid)
+   * @param memberSequence - Optional member sequence number (00 for principal, 01+ for dependants). If not provided, will auto-increment from last member.
    * @param tx - Prisma transaction client
    * @param correlationId - Correlation ID for tracing
    * @returns Generated member number
@@ -907,17 +908,19 @@ export class PolicyService {
     packageId: number,
     policyNumber: string | null,
     tx: Prisma.TransactionClient,
-    correlationId: string
+    correlationId: string,
+    memberSequence?: number
   ): Promise<string> {
     this.logger.log(`[${correlationId}] Generating member number for package ${packageId}`);
 
     try {
-      // Get package with member number format
+      // Get package with both member number format and policy number format
       const packageData = await tx.package.findUnique({
         where: { id: packageId },
         select: {
           id: true,
           memberNumberFormat: true,
+          policyNumberFormat: true,
         },
       });
 
@@ -931,74 +934,113 @@ export class PolicyService {
         );
       }
 
-      // Find the last member (principal or dependant) for this package
-      const lastPrincipal = await tx.policyMemberPrincipal.findFirst({
-        orderBy: {
-          createdAt: 'desc',
-        },
-        select: {
-          memberNumber: true,
-        },
-      });
+      // Determine member sequence number
+      let sequenceNumber: number;
+      let digitWidth = 2; // Default to 2 digits (00, 01, 02, etc.)
 
-      const lastDependant = await tx.policyMemberDependant.findFirst({
-        orderBy: {
-          createdAt: 'desc',
-        },
-        select: {
-          memberNumber: true,
-        },
-      });
+      if (memberSequence !== undefined) {
+        // Use provided sequence (for principal: 0 -> 00, dependants: 1 -> 01, 2 -> 02, etc.)
+        sequenceNumber = memberSequence;
+      } else {
+        // Auto-increment from last member (fallback for backward compatibility)
+        const lastPrincipal = await tx.policyMemberPrincipal.findFirst({
+          orderBy: {
+            createdAt: 'desc',
+          },
+          select: {
+            memberNumber: true,
+          },
+        });
 
-      // Determine which member number is most recent
-      let lastMemberNumber: string | null = null;
-      if (lastPrincipal && lastDependant) {
-        // Both exist, use the most recent
-        lastMemberNumber = lastPrincipal.memberNumber > lastDependant.memberNumber
-          ? lastPrincipal.memberNumber
-          : lastDependant.memberNumber;
-      } else if (lastPrincipal) {
-        lastMemberNumber = lastPrincipal.memberNumber;
-      } else if (lastDependant) {
-        lastMemberNumber = lastDependant.memberNumber;
-      }
+        const lastDependant = await tx.policyMemberDependant.findFirst({
+          orderBy: {
+            createdAt: 'desc',
+          },
+          select: {
+            memberNumber: true,
+          },
+        });
 
-      // Extract the sequence number from the last member number, or start at 1
-      let digitWidth = 3;
-      let sequenceNumber = 1;
-      if (lastMemberNumber) {
-        const format = packageData.memberNumberFormat;
-        const placeholder = '{auto-increasing-member-number}';
+        // Determine which member number is most recent
+        let lastMemberNumber: string | null = null;
+        if (lastPrincipal && lastDependant) {
+          lastMemberNumber = lastPrincipal.memberNumber > lastDependant.memberNumber
+            ? lastPrincipal.memberNumber
+            : lastDependant.memberNumber;
+        } else if (lastPrincipal) {
+          lastMemberNumber = lastPrincipal.memberNumber;
+        } else if (lastDependant) {
+          lastMemberNumber = lastDependant.memberNumber;
+        }
 
-        if (format.includes(placeholder)) {
-          const [prefix, suffix = ''] = format.split(placeholder);
-          const regex = new RegExp(
-            `^${this.escapeRegExp(prefix)}(\\d+)${this.escapeRegExp(suffix)}$`
-          );
-          const lastMatch = lastMemberNumber.match(regex);
+        // Extract the sequence number from the last member number, or start at 0 (for principal)
+        sequenceNumber = 0; // Start at 0 for principal
+        if (lastMemberNumber) {
+          const format = packageData.memberNumberFormat;
+          const placeholder = '{auto-increasing-member-number}';
 
-          if (lastMatch && lastMatch[1]) {
-            sequenceNumber = parseInt(lastMatch[1], 10) + 1;
-            digitWidth = lastMatch[1].length;
+          if (format.includes(placeholder)) {
+            const [prefix, suffix = ''] = format.split(placeholder);
+            const regex = new RegExp(
+              `^${this.escapeRegExp(prefix)}(\\d+)${this.escapeRegExp(suffix)}$`
+            );
+            const lastMatch = lastMemberNumber.match(regex);
+
+            if (lastMatch && lastMatch[1]) {
+              sequenceNumber = parseInt(lastMatch[1], 10) + 1;
+              digitWidth = lastMatch[1].length;
+            }
           }
         }
       }
 
-      // Format sequence number with leading zeros
+      // Format sequence number with leading zeros (always 2 digits: 00, 01, 02, etc.)
       const formattedSequence = sequenceNumber.toString().padStart(digitWidth, '0');
 
       // Replace placeholders in format
-      // First replace policy number placeholder (if present)
+      // First replace policy number placeholder (if present) with extracted numeric part
       let memberNumber = packageData.memberNumberFormat;
       if (memberNumber.includes('{auto-increasing-policy-number}')) {
-        if (policyNumber) {
+        if (policyNumber && packageData.policyNumberFormat) {
+          // Extract numeric part from policy number using policyNumberFormat
+          const placeholder = '{auto-increasing-policy-number}';
+          const [prefix, suffix = ''] = packageData.policyNumberFormat.split(placeholder);
+          const regex = new RegExp(
+            `^${this.escapeRegExp(prefix)}(\\d+)${this.escapeRegExp(suffix)}$`
+          );
+          const match = policyNumber.match(regex);
+
+          if (match && match[1]) {
+            // Extract numeric part (e.g., "007" from "MP/MFG/007")
+            const extractedPolicyNumber = match[1];
+            memberNumber = memberNumber.replace(
+              '{auto-increasing-policy-number}',
+              extractedPolicyNumber
+            );
+            this.logger.log(
+              `[${correlationId}] Extracted policy number part "${extractedPolicyNumber}" from policy number "${policyNumber}" using format "${packageData.policyNumberFormat}"`
+            );
+          } else {
+            // Fallback: use full policy number if extraction fails
+            this.logger.warn(
+              `[${correlationId}] Could not extract numeric part from policy number "${policyNumber}" using format "${packageData.policyNumberFormat}". Using full policy number.`
+            );
+            memberNumber = memberNumber.replace(
+              '{auto-increasing-policy-number}',
+              policyNumber
+            );
+          }
+        } else if (policyNumber) {
+          // No policyNumberFormat available, use full policy number (fallback)
+          this.logger.warn(
+            `[${correlationId}] Policy number format not available for package ${packageId}. Using full policy number "${policyNumber}".`
+          );
           memberNumber = memberNumber.replace(
             '{auto-increasing-policy-number}',
             policyNumber
           );
         } else {
-          // For postpaid policies with NULL policy number, use empty string or a placeholder
-          // This should not happen if format requires policy number, but handle gracefully
+          // For postpaid policies with NULL policy number, use empty string
           this.logger.warn(
             `[${correlationId}] Member number format includes policy number placeholder but policy number is NULL. Using empty string.`
           );
@@ -1191,11 +1233,13 @@ export class PolicyService {
         );
 
         // Create PolicyMemberPrincipal record (for both prepaid and postpaid)
+        // Principal always gets sequence 0 (formatted as 00)
         const principalMemberNumber = await this.generateMemberNumber(
           policy.packageId,
           policyNumber,
           txClient,
-          correlationId
+          correlationId,
+          0 // Principal member sequence: 0 -> 00
         );
 
         await txClient.policyMemberPrincipal.create({
@@ -1211,17 +1255,21 @@ export class PolicyService {
         );
 
         // Create PolicyMemberDependant records for each dependant
+        // Dependants get sequential numbers starting from 1 (formatted as 01, 02, etc.)
         if (policy.customer.dependants && policy.customer.dependants.length > 0) {
           this.logger.log(
             `[${correlationId}] Creating member records for ${policy.customer.dependants.length} dependants`
           );
 
-          for (const dependant of policy.customer.dependants) {
+          for (let i = 0; i < policy.customer.dependants.length; i++) {
+            const dependant = policy.customer.dependants[i];
+            // Dependants start at sequence 1 (formatted as 01), then 2 (02), etc.
             const dependantMemberNumber = await this.generateMemberNumber(
               policy.packageId,
               policyNumber,
               txClient,
-              correlationId
+              correlationId,
+              i + 1 // Dependant sequence: 1 -> 01, 2 -> 02, etc.
             );
 
             await txClient.policyMemberDependant.create({

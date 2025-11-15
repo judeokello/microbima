@@ -31,7 +31,7 @@ export class CustomerMapper {
       gender: SharedMapperUtils.mapGenderFromDto(dto.gender),
       idType: SharedMapperUtils.mapIdTypeFromDto(dto.idType) ?? IdType.NATIONAL_ID,
       idNumber: dto.idNumber,
-      status: CustomerStatus.PENDING_KYC,
+      status: CustomerStatus.PENDING_ACTIVATION,
       onboardingStep: OnboardingStep.BASIC_INFO,
       createdByPartnerId: partnerId,
       createdAt: new Date(),

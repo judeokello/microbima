@@ -1,0 +1,3 @@
+-- Add PENDING_ACTIVATION to CustomerStatus enum
+ALTER TYPE "public"."CustomerStatus" ADD VALUE IF NOT EXISTS 'PENDING_ACTIVATION';
+
