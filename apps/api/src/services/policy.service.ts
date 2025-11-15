@@ -1051,14 +1051,42 @@ export class PolicyService {
           throw new NotFoundException(`Policy with ID ${policyId} not found`);
         }
 
-        // Check if policy already has a policy number (already activated)
-        if (policy.policyNumber) {
+        // Check if customer is in a postpaid scheme
+        const customerScheme = await txClient.packageSchemeCustomer.findFirst({
+          where: { customerId: policy.customerId },
+          include: {
+            packageScheme: {
+              include: {
+                scheme: {
+                  select: { isPostpaid: true },
+                },
+              },
+            },
+          },
+        });
+
+        const isPostpaidScheme = customerScheme?.packageScheme?.scheme?.isPostpaid ?? false;
+
+        this.logger.log(
+          `[${correlationId}] Customer ${policy.customerId} is ${isPostpaidScheme ? 'in a POSTPAID' : 'NOT in a postpaid'} scheme`
+        );
+
+        // GENERAL RULE: Always check policy_member_principals table first
+        // If a record exists, it means the policy was activated before and member records were created
+        // In this case, we only update the status to ACTIVE and don't touch policy number or member records
+        const existingPrincipalMember = await txClient.policyMemberPrincipal.findFirst({
+          where: { customerId: policy.customerId },
+        });
+
+        if (existingPrincipalMember) {
           this.logger.log(
-            `[${correlationId}] Policy ${policyId} already has policy number ${policy.policyNumber}. ` +
-            'Updating status to ACTIVE only.'
+            `[${correlationId}] Policy ${policyId} already has member records in policy_member_principals table. ` +
+            `Policy was previously activated. Only updating status to ACTIVE. ` +
+            `Policy number: ${policy.policyNumber ?? 'NULL (postpaid)'}, ` +
+            `Member record ID: ${existingPrincipalMember.id}`
           );
 
-          // Just update status to ACTIVE
+          // Only update status to ACTIVE - don't touch policy number, dates, or member records
           const updatedPolicy = await txClient.policy.update({
             where: { id: policyId },
             data: {
@@ -1069,19 +1097,48 @@ export class PolicyService {
           return updatedPolicy;
         }
 
-        // Policy doesn't have a policy number yet - full activation
-        this.logger.log(`[${correlationId}] Policy ${policyId} needs full activation`);
+        // No member records exist - this is a new activation
+        // For prepaid: policy number will be generated, dates will be set
+        // For postpaid: policy number will be NULL, but member records will still be created
+        this.logger.log(
+          `[${correlationId}] Policy ${policyId} needs full activation - no member records found. ` +
+          `Policy number: ${policy.policyNumber ?? 'NULL (will remain NULL for postpaid)'}`
+        );
 
-        // Generate policy number
-        const policyNumber = await this.generatePolicyNumber(policy.packageId, correlationId);
+        // Generate policy number if it doesn't exist (prepaid schemes only)
+        // Postpaid schemes will have NULL policy number - DO NOT generate
+        let policyNumber = policy.policyNumber;
+        if (!policyNumber) {
+          if (!isPostpaidScheme) {
+            // Only generate policy number for prepaid schemes
+            policyNumber = await this.generatePolicyNumber(policy.packageId, correlationId);
+            this.logger.log(
+              `[${correlationId}] Generated policy number for prepaid policy: ${policyNumber}`
+            );
+          } else {
+            // Postpaid scheme - keep policy number as NULL
+            this.logger.log(
+              `[${correlationId}] Postpaid policy - keeping policy number as NULL`
+            );
+          }
+        }
 
-        // Set start and end dates
-        const startDate = new Date();
-        startDate.setHours(0, 0, 0, 0);
+        // Set start and end dates if they don't exist
+        let startDate = policy.startDate;
+        let endDate = policy.endDate;
+        
+        if (!startDate || !endDate) {
+          startDate = new Date();
+          startDate.setHours(0, 0, 0, 0);
 
-        const endDate = new Date(startDate);
-        endDate.setFullYear(endDate.getFullYear() + 1);
-        endDate.setHours(23, 59, 59, 999);
+          endDate = new Date(startDate);
+          endDate.setFullYear(endDate.getFullYear() + 1);
+          endDate.setHours(23, 59, 59, 999);
+          
+          this.logger.log(
+            `[${correlationId}] Set policy dates - start: ${startDate.toISOString()}, end: ${endDate.toISOString()}`
+          );
+        }
 
         // Update policy with policy number, dates, and status
         const updatedPolicy = await txClient.policy.update({
@@ -1095,10 +1152,10 @@ export class PolicyService {
         });
 
         this.logger.log(
-          `[${correlationId}] Policy ${policyId} updated with policy number ${policyNumber}`
+          `[${correlationId}] Policy ${policyId} updated with policy number ${policyNumber ?? 'NULL'} and status ACTIVE`
         );
 
-        // Create PolicyMemberPrincipal record
+        // Create PolicyMemberPrincipal record (for both prepaid and postpaid)
         const principalMemberNumber = await this.generateMemberNumber(
           policy.packageId,
           txClient,
@@ -1142,6 +1199,23 @@ export class PolicyService {
               `for dependant ${dependant.id}`
             );
           }
+        }
+
+        // Update customer status to ACTIVE if this is the first policy
+        const customerPoliciesCount = await txClient.policy.count({
+          where: { customerId: policy.customerId },
+        });
+
+        if (customerPoliciesCount === 1) {
+          // This is the first policy - update customer status to ACTIVE
+          await txClient.customer.update({
+            where: { id: policy.customerId },
+            data: { status: 'ACTIVE' },
+          });
+          
+          this.logger.log(
+            `[${correlationId}] Updated customer ${policy.customerId} status to ACTIVE (first policy)`
+          );
         }
 
         this.logger.log(`[${correlationId}] Policy ${policyId} fully activated successfully`);

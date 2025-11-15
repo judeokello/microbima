@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigurationService } from '../config/configuration.service';
+import * as Sentry from '@sentry/nestjs';
 
 /**
  * External Integrations Service
@@ -44,18 +45,17 @@ export class ExternalIntegrationsService {
       // Fire and forget - don't await
       setImmediate(async () => {
         try {
-          // TODO: Implement actual Sentry integration
-          // await Sentry.captureException(error, {
-          //   tags: {
-          //     correlationId: context.correlationId,
-          //     endpoint: context.requestUrl,
-          //     method: context.requestMethod,
-          //   },
-          //   extra: {
-          //     userId: context.userId,
-          //     ...context,
-          //   },
-          // });
+          Sentry.captureException(error, {
+            tags: {
+              correlationId: context.correlationId,
+              endpoint: context.requestUrl,
+              method: context.requestMethod,
+            },
+            extra: {
+              userId: context.userId,
+              ...context,
+            },
+          });
 
           this.logger.debug(
             `[${context.correlationId || 'unknown'}] Error reported to Sentry: ${error.message}`,
