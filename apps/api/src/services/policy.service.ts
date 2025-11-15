@@ -898,12 +898,14 @@ export class PolicyService {
    * Generate member number based on package format
    * Similar to policy number generation but for members
    * @param packageId - Package ID
+   * @param policyNumber - Policy number to include in member number format (can be null for postpaid)
    * @param tx - Prisma transaction client
    * @param correlationId - Correlation ID for tracing
    * @returns Generated member number
    */
   private async generateMemberNumber(
     packageId: number,
+    policyNumber: string | null,
     tx: Prisma.TransactionClient,
     correlationId: string
   ): Promise<string> {
@@ -985,14 +987,47 @@ export class PolicyService {
       // Format sequence number with leading zeros
       const formattedSequence = sequenceNumber.toString().padStart(digitWidth, '0');
 
-      // Replace placeholder in format
-      const memberNumber = packageData.memberNumberFormat.replace(
+      // Replace placeholders in format
+      // First replace policy number placeholder (if present)
+      let memberNumber = packageData.memberNumberFormat;
+      if (memberNumber.includes('{auto-increasing-policy-number}')) {
+        if (policyNumber) {
+          memberNumber = memberNumber.replace(
+            '{auto-increasing-policy-number}',
+            policyNumber
+          );
+        } else {
+          // For postpaid policies with NULL policy number, use empty string or a placeholder
+          // This should not happen if format requires policy number, but handle gracefully
+          this.logger.warn(
+            `[${correlationId}] Member number format includes policy number placeholder but policy number is NULL. Using empty string.`
+          );
+          memberNumber = memberNumber.replace(
+            '{auto-increasing-policy-number}',
+            ''
+          );
+        }
+      }
+
+      // Then replace member number placeholder
+      memberNumber = memberNumber.replace(
         '{auto-increasing-member-number}',
         formattedSequence
       );
 
+      // Validate length (memberNumber column is VarChar(50))
+      if (memberNumber.length > 50) {
+        this.logger.error(
+          `[${correlationId}] Generated member number exceeds 50 characters: ${memberNumber} (length: ${memberNumber.length})`
+        );
+        throw new BadRequestException(
+          `Generated member number "${memberNumber}" exceeds maximum length of 50 characters. ` +
+          `Please adjust the memberNumberFormat for package ${packageId}.`
+        );
+      }
+
       this.logger.log(
-        `[${correlationId}] Generated member number: ${memberNumber} (sequence: ${sequenceNumber})`
+        `[${correlationId}] Generated member number: ${memberNumber} (sequence: ${sequenceNumber}, length: ${memberNumber.length})`
       );
       return memberNumber;
     } catch (error) {
@@ -1158,6 +1193,7 @@ export class PolicyService {
         // Create PolicyMemberPrincipal record (for both prepaid and postpaid)
         const principalMemberNumber = await this.generateMemberNumber(
           policy.packageId,
+          policyNumber,
           txClient,
           correlationId
         );
@@ -1183,6 +1219,7 @@ export class PolicyService {
           for (const dependant of policy.customer.dependants) {
             const dependantMemberNumber = await this.generateMemberNumber(
               policy.packageId,
+              policyNumber,
               txClient,
               correlationId
             );

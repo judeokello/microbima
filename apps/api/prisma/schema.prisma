@@ -705,7 +705,7 @@ model PackagePlan {
 model PolicyMemberPrincipal {
   id           Int    @id @default(autoincrement())
   customerId   String @db.Uuid
-  memberNumber String @db.VarChar(20)
+  memberNumber String @db.VarChar(50)
 
   // Relations
   customer Customer @relation(fields: [customerId], references: [id])
@@ -719,7 +719,7 @@ model PolicyMemberPrincipal {
 model PolicyMemberDependant {
   id           Int    @id @default(autoincrement())
   dependantId  String @db.Uuid
-  memberNumber String @db.VarChar(20)
+  memberNumber String @db.VarChar(50)
 
   // Relations
   dependant Dependant @relation(fields: [dependantId], references: [id])
