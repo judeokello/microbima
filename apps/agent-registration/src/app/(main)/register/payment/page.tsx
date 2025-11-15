@@ -51,14 +51,16 @@ interface CustomerFormData {
   state: string;
   postalCode: string;
   country: string;
-  spouse: {
+  spouses: Array<{
     firstName: string;
     middleName: string;
     lastName: string;
     gender: string;
     dateOfBirth: string;
     phoneNumber: string;
-  } | null;
+    idType?: string;
+    idNumber?: string;
+  }>;
   children: Array<{
     firstName: string;
     middleName: string;
@@ -351,7 +353,8 @@ export default function PaymentStep() {
     // Check transaction reference before submitting (async check)
     if (transactionReference.trim()) {
       try {
-        const exists = await checkTransactionReferenceExists(transactionReference.trim());
+        // Ensure uppercase when checking
+        const exists = await checkTransactionReferenceExists(transactionReference.trim().toUpperCase());
         if (exists) {
           setTransactionReferenceError('This transaction reference has already been used for another payment. Please enter a different transaction reference.');
           return;
@@ -425,7 +428,7 @@ export default function PaymentStep() {
         productName: `MfanisiGo ${selectedPlan.charAt(0).toUpperCase() + selectedPlan.slice(1)}`,
         paymentData: {
           paymentType: paymentType as 'MPESA' | 'SASAPAY',
-          transactionReference,
+          transactionReference: transactionReference.toUpperCase(), // Ensure uppercase when saving
           amount: premium,
           accountNumber: paymentPhone,
           details: `Payment for policy registration - ${customerData.firstName} ${customerData.lastName}`,
@@ -484,7 +487,7 @@ export default function PaymentStep() {
     );
   }
 
-  const hasSpouse = customerData.spouse && customerData.spouse.firstName;
+  const spousesCount = customerData.spouses.filter(spouse => spouse.firstName).length;
   const childrenCount = customerData.children.filter(child => child.firstName).length;
 
   return (
@@ -676,13 +679,17 @@ export default function PaymentStep() {
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            {hasSpouse && (
+            {spousesCount > 0 && (
               <div className="p-4 bg-green-50 rounded-lg">
-                <h4 className="font-semibold text-green-900">Spouse</h4>
-                <p className="text-green-700">{customerData.spouse!.firstName} {customerData.spouse!.middleName} {customerData.spouse!.lastName}</p>
-                {customerData.spouse!.phoneNumber && (
-                  <p className="text-sm text-green-600">Phone: {customerData.spouse!.phoneNumber}</p>
-                )}
+                <h4 className="font-semibold text-green-900">Spouses ({spousesCount})</h4>
+                {customerData.spouses.filter(spouse => spouse.firstName).map((spouse, index) => (
+                  <p key={index} className="text-green-700">
+                    {spouse.firstName} {spouse.middleName} {spouse.lastName}
+                    {spouse.phoneNumber && (
+                      <span className="text-sm text-green-600 ml-2">• Phone: {spouse.phoneNumber}</span>
+                    )}
+                  </p>
+                ))}
               </div>
             )}
 
@@ -697,7 +704,7 @@ export default function PaymentStep() {
               </div>
             )}
 
-            {!hasSpouse && childrenCount === 0 && (
+            {spousesCount === 0 && childrenCount === 0 && (
               <p className="text-gray-500 italic">No dependants added</p>
             )}
           </div>
@@ -793,8 +800,10 @@ export default function PaymentStep() {
                   id="transactionReference"
                   value={transactionReference}
                   onChange={(e) => {
-                    setTransactionReference(e.target.value);
-                    validateTransactionReference(e.target.value);
+                    // Capitalize letters as user types
+                    const capitalizedValue = e.target.value.toUpperCase();
+                    setTransactionReference(capitalizedValue);
+                    validateTransactionReference(capitalizedValue);
                   }}
                   placeholder="Enter transaction reference"
                   required

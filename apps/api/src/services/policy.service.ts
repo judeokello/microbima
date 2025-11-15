@@ -428,6 +428,9 @@ export class PolicyService {
     },
     correlationId: string
   ) {
+    // Capitalize transaction reference to ensure consistency in database
+    const capitalizedTransactionReference = data.paymentData.transactionReference.trim().toUpperCase();
+    data.paymentData.transactionReference = capitalizedTransactionReference;
     // Idempotency check: Check if a policy payment already exists with this transaction reference
     // This prevents duplicate policy creation if the same request is submitted multiple times
     const existingPayment = await this.prismaService.policyPayment.findFirst({
@@ -616,10 +619,10 @@ export class PolicyService {
             correlationId
           );
           startDate = new Date();
-          startDate.setHours(0, 0, 0, 0);
+          startDate.setUTCHours(0, 0, 0, 0);
           endDate = new Date(startDate);
           endDate.setFullYear(endDate.getFullYear() + 1);
-          endDate.setHours(23, 59, 59, 999);
+          endDate.setUTCHours(23, 59, 59, 999);
           status = 'PENDING_ACTIVATION'; // Will be updated to ACTIVE by activatePolicy
         }
 
@@ -873,13 +876,15 @@ export class PolicyService {
     transactionReference: string,
     correlationId: string
   ): Promise<boolean> {
+    // Capitalize transaction reference for consistent lookup
+    const capitalizedTransactionReference = transactionReference.trim().toUpperCase();
     this.logger.log(
-      `[${correlationId}] Checking if transaction reference exists: ${transactionReference}`
+      `[${correlationId}] Checking if transaction reference exists: ${capitalizedTransactionReference}`
     );
 
     const existingPayment = await this.prismaService.policyPayment.findFirst({
       where: {
-        transactionReference: transactionReference.trim(),
+        transactionReference: capitalizedTransactionReference,
       },
       select: {
         id: true,
@@ -888,7 +893,7 @@ export class PolicyService {
 
     const exists = !!existingPayment;
     this.logger.log(
-      `[${correlationId}] Transaction reference ${transactionReference} ${exists ? 'exists' : 'does not exist'}`
+      `[${correlationId}] Transaction reference ${capitalizedTransactionReference} ${exists ? 'exists' : 'does not exist'}`
     );
 
     return exists;
@@ -1206,11 +1211,11 @@ export class PolicyService {
         
         if (!startDate || !endDate) {
           startDate = new Date();
-          startDate.setHours(0, 0, 0, 0);
+          startDate.setUTCHours(0, 0, 0, 0);
 
           endDate = new Date(startDate);
           endDate.setFullYear(endDate.getFullYear() + 1);
-          endDate.setHours(23, 59, 59, 999);
+          endDate.setUTCHours(23, 59, 59, 999);
           
           this.logger.log(
             `[${correlationId}] Set policy dates - start: ${startDate.toISOString()}, end: ${endDate.toISOString()}`

@@ -158,6 +158,101 @@ export class GlobalExceptionFilter implements ExceptionFilter {
   }
 
   /**
+   * Transform field path to user-friendly field name
+   * Examples:
+   * - "spouses.0.gender" -> "Spouse 1 gender"
+   * - "children.2.firstName" -> "Child 3 first name"
+   * - "principalMember.email" -> "Principal member email"
+   */
+  private transformFieldPath(fieldPath: string): string {
+    // Handle array indices (spouses.0, children.1, etc.)
+    const spouseMatch = fieldPath.match(/^spouses\.(\d+)\.(.+)$/);
+    if (spouseMatch) {
+      const index = parseInt(spouseMatch[1], 10) + 1; // Convert 0-based to 1-based
+      const field = spouseMatch[2].replace(/([A-Z])/g, ' $1').toLowerCase().trim();
+      return `Spouse ${index} ${field}`;
+    }
+
+    const childMatch = fieldPath.match(/^children\.(\d+)\.(.+)$/);
+    if (childMatch) {
+      const index = parseInt(childMatch[1], 10) + 1; // Convert 0-based to 1-based
+      const field = childMatch[2].replace(/([A-Z])/g, ' $1').toLowerCase().trim();
+      return `Child ${index} ${field}`;
+    }
+
+    const beneficiaryMatch = fieldPath.match(/^beneficiaries\.(\d+)\.(.+)$/);
+    if (beneficiaryMatch) {
+      const index = parseInt(beneficiaryMatch[1], 10) + 1;
+      const field = beneficiaryMatch[2].replace(/([A-Z])/g, ' $1').toLowerCase().trim();
+      return `Beneficiary ${index} ${field}`;
+    }
+
+    // Handle nested objects (principalMember.email, etc.)
+    const nestedMatch = fieldPath.match(/^(.+)\.(.+)$/);
+    if (nestedMatch) {
+      const parent = nestedMatch[1].replace(/([A-Z])/g, ' $1').toLowerCase().trim();
+      const field = nestedMatch[2].replace(/([A-Z])/g, ' $1').toLowerCase().trim();
+      return `${parent} ${field}`;
+    }
+
+    // Default: capitalize first letter and add spaces before capitals
+    return fieldPath.replace(/([A-Z])/g, ' $1').toLowerCase().trim();
+  }
+
+  /**
+   * Transform class-validator error message to user-friendly format
+   */
+  private transformValidationMessage(errorMessage: string): string {
+    // Extract field path and error message
+    // Format: "spouses.0.gender must be one of the following values: male, female"
+    const match = errorMessage.match(/^([^\s]+)\s+(.+)$/);
+    if (match) {
+      const fieldPath = match[1];
+      const errorText = match[2];
+      const friendlyFieldName = this.transformFieldPath(fieldPath);
+
+      // Transform common error messages
+      if (errorText.includes('must be one of the following values')) {
+        // For gender fields, use "is missing" wording as requested
+        if (fieldPath.includes('gender')) {
+          return `${friendlyFieldName} is missing`;
+        }
+        // Extract allowed values from error message if possible
+        const valuesMatch = errorText.match(/values:\s*(.+)$/);
+        if (valuesMatch) {
+          const allowedValues = valuesMatch[1].trim();
+          return `${friendlyFieldName} must be ${allowedValues}`;
+        }
+        return `${friendlyFieldName} is invalid`;
+      }
+      if (errorText.includes('must be a string')) {
+        // Check if this is actually a missing field error
+        if (errorText.includes('should not be empty') || errorText.includes('is required')) {
+          return `${friendlyFieldName} is required`;
+        }
+        return `${friendlyFieldName} must be text`;
+      }
+      if (errorText.includes('should not be empty') || errorText.includes('should not be null') || errorText.includes('should not be undefined')) {
+        return `${friendlyFieldName} is required`;
+      }
+      if (errorText.includes('must be an email')) {
+        return `${friendlyFieldName} must be a valid email address`;
+      }
+      if (errorText.includes('must be a valid date')) {
+        return `${friendlyFieldName} must be a valid date`;
+      }
+      if (errorText.includes('is required')) {
+        return `${friendlyFieldName} is required`;
+      }
+
+      // Default: use friendly field name with error text
+      return `${friendlyFieldName} ${errorText}`;
+    }
+
+    return errorMessage;
+  }
+
+  /**
    * Get error message from exception
    */
   private getErrorMessage(exception: unknown): string {
@@ -170,9 +265,24 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       if (typeof response === 'object' && response !== null) {
         const errorObj = (response as any).error;
         if (errorObj && errorObj.message) {
+          // Handle class-validator error arrays
+          if (Array.isArray(errorObj.message)) {
+            if (errorObj.message.length === 1) {
+              return this.transformValidationMessage(errorObj.message[0]);
+            }
+            return `${errorObj.message.length} fields failed validation`;
+          }
           return errorObj.message;
         }
-        return (response as any).message || exception.message;
+        const message = (response as any).message;
+        // Handle class-validator error arrays
+        if (Array.isArray(message)) {
+          if (message.length === 1) {
+            return this.transformValidationMessage(message[0]);
+          }
+          return `${message.length} fields failed validation`;
+        }
+        return message || exception.message;
       }
       return exception.message;
     }
@@ -249,6 +359,25 @@ export class GlobalExceptionFilter implements ExceptionFilter {
         const errorObj = (response as any).error;
         if (errorObj && errorObj.details) {
           return errorObj.details;
+        }
+
+        // Handle class-validator error arrays - transform to friendly format
+        const message = errorObj?.message || (response as any).message;
+        if (Array.isArray(message)) {
+          const details: Record<string, string> = {};
+          message.forEach((errorMsg: string) => {
+            // Extract field path from error message
+            const match = errorMsg.match(/^([^\s]+)\s+(.+)$/);
+            if (match) {
+              const fieldPath = match[1];
+              const friendlyFieldName = this.transformFieldPath(fieldPath);
+              details[fieldPath] = this.transformValidationMessage(errorMsg);
+            } else {
+              // Fallback: use error message as-is
+              details['unknown'] = errorMsg;
+            }
+          });
+          return details;
         }
         return undefined;
       }

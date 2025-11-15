@@ -160,6 +160,71 @@ Before submitting code, verify:
 - [ ] Includes proper error handling tests
 - [ ] Updates documentation if needed
 
+## Timezone Handling Standards
+
+### MANDATORY: Always Use UTC for Date/Time Operations
+
+The database stores all dates/times in UTC. To ensure consistency and avoid timezone conversion bugs, **ALWAYS** use UTC methods when manipulating dates.
+
+#### 1. Use UTC Methods for Time Setting
+```typescript
+// ✅ CORRECT: Use UTC methods
+const startDate = new Date();
+startDate.setUTCHours(0, 0, 0, 0);
+endDate.setUTCHours(23, 59, 59, 999);
+
+// ❌ WRONG: Local timezone methods cause timezone conversion issues
+startDate.setHours(0, 0, 0, 0); // Creates dates in server's local timezone
+endDate.setHours(23, 59, 59, 999);
+```
+
+#### 2. Use Date.UTC() for Date Construction with Time Components
+```typescript
+// ✅ CORRECT: Create dates in UTC
+const date = new Date(Date.UTC(year, month - 1, day, hours, minutes, seconds));
+
+// ❌ WRONG: Creates dates in local timezone
+const date = new Date(year, month - 1, day, hours, minutes, seconds);
+```
+
+#### 3. Methods That Must Use UTC Versions
+- `setHours()` → `setUTCHours()`
+- `setMinutes()` → `setUTCMinutes()`
+- `setSeconds()` → `setUTCSeconds()`
+- `setMilliseconds()` → `setUTCMilliseconds()`
+- `getHours()` → `getUTCHours()` (when comparing/storing)
+- `getMinutes()` → `getUTCMinutes()` (when comparing/storing)
+- `getSeconds()` → `getUTCSeconds()` (when comparing/storing)
+- `getMilliseconds()` → `getUTCMilliseconds()` (when comparing/storing)
+
+#### 4. Date Construction Patterns
+```typescript
+// ✅ CORRECT: For dates with time components
+const date = new Date(Date.UTC(2025, 0, 15, 0, 0, 0)); // Jan 15, 2025 00:00:00 UTC
+
+// ✅ CORRECT: For date-only operations (setDate is fine)
+const date = new Date();
+date.setDate(date.getDate() + 7); // Adding days is fine
+
+// ✅ CORRECT: ISO string parsing (already UTC)
+const date = new Date('2025-01-15T00:00:00Z');
+```
+
+#### 5. Why This Matters
+- Database stores dates in UTC
+- Server may run in different timezones (EAT, UTC, etc.)
+- Using local timezone methods causes dates to shift when stored/retrieved
+- Example: `setHours(0, 0, 0, 0)` in EAT (UTC+3) creates `21:00:00 UTC` the previous day
+
+#### 6. Code Review Checklist
+Before submitting code, verify:
+- [ ] All `setHours()` calls use `setUTCHours()`
+- [ ] All `setMinutes()` calls use `setUTCMinutes()`
+- [ ] All `setSeconds()` calls use `setUTCSeconds()`
+- [ ] All `setMilliseconds()` calls use `setUTCMilliseconds()`
+- [ ] Date construction with time components uses `Date.UTC()`
+- [ ] Date comparisons use UTC methods when appropriate
+
 ## Related Files
 - `src/enums/error-codes.enum.ts` - Error code definitions
 - `src/exceptions/validation.exception.ts` - Validation exception class

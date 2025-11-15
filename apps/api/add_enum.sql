@@ -1,3 +1,0 @@
-ALTER TYPE "public"."PolicyStatus" ADD VALUE IF NOT EXISTS 'PENDING_ACTIVATION';
-
-

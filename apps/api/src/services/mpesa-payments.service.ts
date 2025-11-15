@@ -423,7 +423,8 @@ export class MpesaPaymentsService {
 
       // Validate date (day should be 1-31, month should be 1-12)
       if (day >= 1 && day <= 31 && month >= 1 && month <= 12) {
-        return new Date(year, month - 1, day, hours, minutes, seconds);
+        // Use Date.UTC to create dates in UTC timezone (matching database storage)
+        return new Date(Date.UTC(year, month - 1, day, hours, minutes, seconds));
       }
     }
 
@@ -437,7 +438,8 @@ export class MpesaPaymentsService {
       const minutes = yyyyMmDdMatch[5] ? parseInt(yyyyMmDdMatch[5], 10) : 0;
       const seconds = yyyyMmDdMatch[6] ? parseInt(yyyyMmDdMatch[6], 10) : 0;
 
-      return new Date(year, month - 1, day, hours, minutes, seconds);
+      // Use Date.UTC to create dates in UTC timezone (matching database storage)
+      return new Date(Date.UTC(year, month - 1, day, hours, minutes, seconds));
     }
 
     // Try ISO string format (only if it's clearly an ISO format to avoid MM-DD-YYYY misinterpretation)

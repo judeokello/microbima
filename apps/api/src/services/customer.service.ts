@@ -1173,7 +1173,7 @@ export class CustomerService {
           break;
       }
 
-      startDate.setHours(0, 0, 0, 0);
+      startDate.setUTCHours(0, 0, 0, 0);
 
       // Build where clause
       const whereClause: any = {
@@ -1261,11 +1261,11 @@ export class CustomerService {
       const dayOfWeek = today.getDay();
       const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1; // Sunday = 0, Monday = 1
       thisWeekStart.setDate(today.getDate() - daysToMonday);
-      thisWeekStart.setHours(0, 0, 0, 0);
+      thisWeekStart.setUTCHours(0, 0, 0, 0);
 
       const thisWeekEnd = new Date(thisWeekStart);
       thisWeekEnd.setDate(thisWeekStart.getDate() + 6);
-      thisWeekEnd.setHours(23, 59, 59, 999);
+      thisWeekEnd.setUTCHours(23, 59, 59, 999);
 
       // Last week
       const lastWeekStart = new Date(thisWeekStart);
