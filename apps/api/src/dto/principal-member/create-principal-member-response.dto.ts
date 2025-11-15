@@ -14,7 +14,7 @@ export class PolicyInfoDto {
     example: 'POL-MFG-1755245811023-5193'
   })
   @IsString()
-  policyNumber: string;
+  policyNumber: string | null;
 
   @ApiProperty({
     description: 'Product code',

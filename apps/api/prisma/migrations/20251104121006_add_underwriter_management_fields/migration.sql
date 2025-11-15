@@ -6,8 +6,14 @@ DO $$
 DECLARE
     first_user_id TEXT;
 BEGIN
-    -- Get first user ID from auth.users
-    SELECT id INTO first_user_id FROM auth.users ORDER BY created_at ASC LIMIT 1;
+    -- Check if auth.users table exists (for shadow database compatibility)
+    IF EXISTS (SELECT FROM information_schema.tables WHERE table_schema = 'auth' AND table_name = 'users') THEN
+        -- Get first user ID from auth.users
+        SELECT id INTO first_user_id FROM auth.users ORDER BY created_at ASC LIMIT 1;
+    ELSE
+        -- For shadow database or environments without auth.users, use placeholder
+        first_user_id := '00000000-0000-0000-0000-000000000000';
+    END IF;
     
     -- If no user exists, use a placeholder (shouldn't happen in production)
     IF first_user_id IS NULL THEN

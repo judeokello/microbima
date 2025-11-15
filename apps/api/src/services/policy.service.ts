@@ -129,7 +129,7 @@ export class PolicyService {
    * 1. Using the transaction client to read the latest committed state
    * 2. Checking for existing policy with the same number before creating
    * 3. Retrying with next sequence number if duplicate detected
-   * 
+   *
    * @param packageId - Package ID
    * @param tx - Prisma transaction client
    * @param correlationId - Correlation ID for tracing
@@ -198,24 +198,23 @@ export class PolicyService {
       let digitWidth = 3;
       let sequenceNumber = 1;
       if (lastPolicy && lastPolicy.policyNumber) {
-        // Skip empty or invalid policy numbers (e.g., '', 'EMPTY', etc.)
+        // Skip empty or invalid policy numbers (e.g., null, '', 'EMPTY', etc.)
         // These are typically postpaid policies that haven't been activated yet
         const policyNumberTrimmed = lastPolicy.policyNumber.trim();
         if (policyNumberTrimmed === '' || policyNumberTrimmed.toUpperCase() === 'EMPTY') {
           this.logger.warn(
             `[${correlationId}] Last policy has empty/invalid policy number "${lastPolicy.policyNumber}" (id: ${lastPolicy.id}). ` +
-            `This is likely a postpaid policy. Searching for last valid policy number...`
+            'This is likely a postpaid policy. Searching for last valid policy number...'
           );
 
-          // Find the last policy with a valid policy number (skip empty/invalid ones)
+          // Find the last policy with a valid policy number (skip null/empty/invalid ones)
           const lastValidPolicy = await tx.policy.findFirst({
             where: {
               packageId: packageId,
-              policyNumber: {
-                not: {
-                  in: ['', 'EMPTY'],
-                },
-              },
+              AND: [
+                { policyNumber: { notIn: ['', 'EMPTY'] } },
+                { NOT: [{ policyNumber: null as any }] },
+              ],
             },
             select: {
               policyNumber: true,
@@ -289,7 +288,7 @@ export class PolicyService {
       this.logger.log(
         `[${correlationId}] Checking if policy number "${policyNumber}" already exists...`
       );
-      
+
       const existingPolicy = await tx.policy.findUnique({
         where: {
           policyNumber: policyNumber,
@@ -529,7 +528,7 @@ export class PolicyService {
         this.logger.log(
           `[${correlationId}] Checking idempotency inside transaction for transactionReference: ${data.paymentData.transactionReference}`
         );
-        
+
         const existingPaymentInTx = await tx.policyPayment.findFirst({
           where: {
             transactionReference: data.paymentData.transactionReference,
@@ -557,7 +556,7 @@ export class PolicyService {
 
         // Determine payment account number based on postpaid status
         let paymentAcNumber: string | null = null;
-        
+
         if (!isPostpaidScheme) {
           // For prepaid schemes, generate payment account number
           const isFirstPolicy = !(await this.paymentAccountNumberService.customerHasExistingPolicies(
@@ -597,14 +596,14 @@ export class PolicyService {
 
         // For postpaid schemes: no policy number, null dates, PENDING_ACTIVATION
         // For prepaid schemes: generate policy number, set proper dates, will activate after creation
-        let policyNumber: string;
+        let policyNumber: string | null;
         let startDate: Date | null;
         let endDate: Date | null;
         let status: 'PENDING_ACTIVATION' | 'ACTIVE';
 
         if (isPostpaidScheme) {
           // Postpaid: no policy number yet, null dates (will be set on activation)
-          policyNumber = ''; // Empty string, will be generated upon activation
+          policyNumber = null; // Null, will be generated upon activation
           startDate = null; // Will be set on activation
           endDate = null; // Will be set on activation
           status = 'PENDING_ACTIVATION';
@@ -625,22 +624,21 @@ export class PolicyService {
         }
 
         // Create policy
-        // Note: For postpaid schemes, policyNumber is empty string which may cause unique constraint issues
-        // if multiple postpaid policies exist. This should be handled during activation when policy numbers are assigned.
+        // Note: For postpaid schemes, policyNumber is null until activation when policy numbers are assigned.
         this.logger.log(
           `[${correlationId}] Attempting to create policy with: ` +
-          `policyNumber="${policyNumber}", customerId=${data.customerId}, ` +
+          `policyNumber="${policyNumber ?? 'null'}", customerId=${data.customerId}, ` +
           `packageId=${data.packageId}, isPostpaid=${isPostpaidScheme}, ` +
           `status=${status}, startDate=${startDate}, endDate=${endDate}`
         );
 
         // Check for existing policies with same policy number before creation (additional safety check)
-        if (policyNumber && policyNumber.trim() !== '') {
+        if (policyNumber !== null) {
           const preCheckExisting = await tx.policy.findUnique({
-            where: { policyNumber },
+            where: { policyNumber: policyNumber },
             select: { id: true, policyNumber: true, customerId: true, createdAt: true },
           });
-          
+
           if (preCheckExisting) {
             this.logger.error(
               `[${correlationId}] CRITICAL: Policy number "${policyNumber}" exists before creation attempt! ` +
@@ -650,11 +648,11 @@ export class PolicyService {
           }
         }
 
-        let policy: Prisma.PolicyGetPayload<{}>;
+        let policy: Awaited<ReturnType<typeof tx.policy.create>>;
         try {
           policy = await tx.policy.create({
             data: {
-              policyNumber,
+              policyNumber: policyNumber as any,
               status,
               customerId: data.customerId,
               packageId: data.packageId,
@@ -668,7 +666,7 @@ export class PolicyService {
               paymentAcNumber,
             },
           });
-          
+
           this.logger.log(
             `[${correlationId}] ✓ Successfully created policy: id=${policy.id}, policyNumber="${policy.policyNumber}"`
           );
@@ -681,8 +679,11 @@ export class PolicyService {
             // Query for existing policy with this number to get full details
             let existingPolicyDetails = null;
             try {
+              if (policyNumber === null) {
+                throw new Error('Cannot query for policy with null policy number');
+              }
               existingPolicyDetails = await tx.policy.findUnique({
-                where: { policyNumber },
+                where: { policyNumber: policyNumber },
                 select: {
                   id: true,
                   policyNumber: true,
@@ -699,13 +700,14 @@ export class PolicyService {
               );
             }
 
-            // Also check for all policies with empty/invalid policy numbers
+            // Also check for all policies with null/invalid policy numbers
             let emptyPolicyCount = 0;
             try {
               const emptyPolicies = await tx.policy.findMany({
                 where: {
                   packageId: data.packageId,
                   OR: [
+                    { policyNumber: null as any },
                     { policyNumber: '' },
                     { policyNumber: 'EMPTY' },
                   ],
@@ -713,11 +715,11 @@ export class PolicyService {
                 select: { id: true, policyNumber: true, customerId: true, createdAt: true },
               });
               emptyPolicyCount = emptyPolicies.length;
-              
+
               if (emptyPolicyCount > 0) {
                 this.logger.warn(
-                  `[${correlationId}] Found ${emptyPolicyCount} policies with empty/invalid policy numbers for package ${data.packageId}: ` +
-                  emptyPolicies.map(p => `id=${p.id}, policyNumber="${p.policyNumber}", customerId=${p.customerId}`).join('; ')
+                  `[${correlationId}] Found ${emptyPolicyCount} policies with null/invalid policy numbers for package ${data.packageId}: ` +
+                  emptyPolicies.map(p => `id=${p.id}, policyNumber="${p.policyNumber ?? 'null'}", customerId=${p.customerId}`).join('; ')
                 );
               }
             } catch (queryError) {
@@ -732,9 +734,9 @@ export class PolicyService {
                 ? `  Existing policy with this number: id=${existingPolicyDetails.id}, customerId=${existingPolicyDetails.customerId}, ` +
                   `packageId=${existingPolicyDetails.packageId}, status=${existingPolicyDetails.status}, ` +
                   `createdAt=${existingPolicyDetails.createdAt}, updatedAt=${existingPolicyDetails.updatedAt}\n`
-                : `  Could not retrieve existing policy details\n`) +
+                : '  Could not retrieve existing policy details\n') +
               `  Empty/invalid policy count for package: ${emptyPolicyCount}\n` +
-              `  This indicates a race condition or data inconsistency. Retrying with new policy number...`,
+              '  This indicates a race condition or data inconsistency. Retrying with new policy number...',
               createError instanceof Error ? createError.stack : undefined
             );
 
@@ -772,7 +774,7 @@ export class PolicyService {
               // Retry policy creation with new policy number
               policy = await tx.policy.create({
                 data: {
-                  policyNumber,
+                  policyNumber: policyNumber as any,
                   status,
                   customerId: data.customerId,
                   packageId: data.packageId,
@@ -802,7 +804,7 @@ export class PolicyService {
         }
 
         this.logger.log(
-          `[${correlationId}] Created policy ${policy.id} (postpaid: ${isPostpaidScheme}, policy number: ${policyNumber || 'not assigned'})`
+          `[${correlationId}] Created policy ${policy.id} (postpaid: ${isPostpaidScheme}, policy number: ${policyNumber ?? 'not assigned'})`
         );
 
         // Create or get tags and associate with policy
@@ -1050,10 +1052,10 @@ export class PolicyService {
         }
 
         // Check if policy already has a policy number (already activated)
-        if (policy.policyNumber && policy.policyNumber.trim() !== '') {
+        if (policy.policyNumber) {
           this.logger.log(
             `[${correlationId}] Policy ${policyId} already has policy number ${policy.policyNumber}. ` +
-            `Updating status to ACTIVE only.`
+            'Updating status to ACTIVE only.'
           );
 
           // Just update status to ACTIVE

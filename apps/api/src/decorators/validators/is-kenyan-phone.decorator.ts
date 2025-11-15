@@ -3,7 +3,7 @@ import { registerDecorator, ValidationOptions, ValidationArguments } from 'class
 /**
  * Custom decorator for Kenyan phone number validation
  * Validates that the phone number is 10 digits starting with 01 or 07
- * 
+ *
  * This matches the validation used in the frontend (/register/customer page)
  */
 export function IsKenyanPhone(validationOptions?: ValidationOptions) {

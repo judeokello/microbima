@@ -189,10 +189,11 @@ export class PolicyResponseDto {
   id: string;
 
   @ApiProperty({
-    description: 'Policy number',
+    description: 'Policy number (null for postpaid policies until activation)',
     example: 'MP/MFG/001',
+    nullable: true,
   })
-  policyNumber: string;
+  policyNumber: string | null;
 
   @ApiProperty({
     description: 'Policy status',

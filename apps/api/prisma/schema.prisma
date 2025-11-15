@@ -267,7 +267,7 @@ model KYCVerification {
 
 model Policy {
   id              String       @id @default(uuid()) @db.Uuid
-  policyNumber    String       @unique
+  policyNumber    String?      @unique
   status          PolicyStatus @default(PENDING_ACTIVATION)
   customerId      String       @db.Uuid
   packageId       Int

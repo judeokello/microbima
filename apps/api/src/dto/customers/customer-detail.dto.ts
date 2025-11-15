@@ -16,7 +16,7 @@ export class PolicySummaryDto {
     example: 'MP/MFG/001',
   })
   @IsString()
-  policyNumber: string;
+  policyNumber: string | null;
 
   @ApiProperty({
     description: 'Package name',
