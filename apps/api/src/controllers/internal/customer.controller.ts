@@ -725,6 +725,11 @@ export class InternalCustomerController {
                 paymentAcNumber: true,
               },
             },
+            package: {
+              select: {
+                id: true,
+              },
+            },
           },
         },
       },
@@ -738,7 +743,11 @@ export class InternalCustomerController {
       status: HttpStatus.OK,
       correlationId,
       message: 'Scheme information retrieved successfully',
-      data: schemeCustomer.packageScheme.scheme,
+      data: {
+        ...schemeCustomer.packageScheme.scheme,
+        packageId: schemeCustomer.packageScheme.packageId,
+        packageSchemeId: schemeCustomer.packageSchemeId,
+      },
     };
   }
 

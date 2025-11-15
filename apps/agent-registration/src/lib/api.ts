@@ -606,8 +606,7 @@ export async function addBeneficiaries(customerId: string, beneficiaries: Benefi
     const result = await response.json()
     return {
       success: true,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      beneficiaryIds: result.data?.beneficiaries?.addedBeneficiaries?.map((b: any) => b.beneficiaryId) ?? []
+      beneficiaryIds: result.data?.beneficiaries?.addedBeneficiaries?.map((b: { beneficiaryId: string }) => b.beneficiaryId) ?? []
     }
   } catch (error) {
     console.error('Error adding beneficiaries:', error)
@@ -1057,12 +1056,12 @@ export async function getCustomerPolicies(customerId: string): Promise<CustomerP
 }
 
 export interface CustomerDebugData {
-  customer: any; // Raw customer record
-  dependants: any[]; // Raw dependant records
-  policies: any[]; // Raw policy records
-  policyPayments: any[]; // Raw policy payment records
-  policyMemberPrincipals: any[]; // Raw principal member records
-  policyMemberDependants: any[]; // Raw dependant member records
+  customer: Record<string, unknown>; // Raw customer record
+  dependants?: Record<string, unknown>[]; // Raw dependant records
+  policies?: Record<string, unknown>[]; // Raw policy records
+  policyPayments?: Record<string, unknown>[]; // Raw policy payment records
+  policyMemberPrincipals?: Record<string, unknown>[]; // Raw principal member records
+  policyMemberDependants?: Record<string, unknown>[]; // Raw dependant member records
 }
 
 export interface CustomerDebugResponse {

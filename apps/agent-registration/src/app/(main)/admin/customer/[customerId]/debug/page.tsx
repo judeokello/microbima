@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Loader2, ArrowLeft } from 'lucide-react';
-import { getCustomerDebugData } from '@/lib/api';
+import { getCustomerDebugData, CustomerDebugData } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
 import * as Sentry from '@sentry/nextjs';
 
@@ -15,7 +15,7 @@ export default function CustomerDebugPage() {
   const { isAdmin } = useAuth();
   const customerId = params.customerId as string;
 
-  const [debugData, setDebugData] = useState<any>(null);
+  const [debugData, setDebugData] = useState<CustomerDebugData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -118,7 +118,7 @@ export default function CustomerDebugPage() {
     );
   }
 
-  const formatJson = (data: any) => {
+  const formatJson = (data: unknown) => {
     return JSON.stringify(data, null, 2);
   };
 

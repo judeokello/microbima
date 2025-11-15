@@ -12,6 +12,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { CheckCircle, CreditCard, Users, User, Loader2 } from 'lucide-react';
 import { processPayment, PaymentRequest, createPolicy, CreatePolicyRequest, getPackagePlans, Plan, checkTransactionReferenceExists } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
+import { supabase } from '@/lib/supabase';
 
 interface InsurancePricing {
   plans: {
@@ -389,8 +390,43 @@ export default function PaymentStep() {
       console.log('Payment successful:', paymentResult);
 
       // After payment succeeds, create the policy
-      // Use default package (packageId=1 is MfanisiGo)
-      const packageId = 1; // MfanisiGo package
+      // Get customer's packageId from their package scheme
+      let packageId: number;
+      try {
+        // Get Supabase token for authenticated request
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session?.access_token) {
+          throw new Error('No valid session found');
+        }
+
+        const schemeResponse = await fetch(
+          `${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/customers/${customerId}/scheme`,
+          {
+            headers: {
+              'Authorization': `Bearer ${session.access_token}`,
+              'x-correlation-id': `req-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+            }
+          }
+        );
+
+        if (schemeResponse.ok) {
+          const schemeData = await schemeResponse.json();
+          packageId = schemeData.data?.packageId;
+
+          if (!packageId) {
+            throw new Error('PackageId not found in scheme data');
+          }
+
+          console.log(`Retrieved packageId ${packageId} from customer's scheme`);
+        } else {
+          throw new Error(`Failed to fetch customer scheme: ${schemeResponse.status}`);
+        }
+      } catch (schemeError) {
+        console.error('Error fetching customer scheme:', schemeError);
+        setError('Failed to determine package from customer scheme. Please ensure customer is enrolled in a scheme.');
+        setIsSubmitting(false);
+        return;
+      }
 
       // Fetch plans for the package to get the correct packagePlanId
       let packagePlanId: number;
@@ -407,9 +443,9 @@ export default function PaymentStep() {
         console.log(`Mapped plan "${selectedPlan}" to packagePlanId: ${packagePlanId}`);
       } catch (planError) {
         console.error('Failed to fetch plans:', planError);
-        // Fallback: use ID 1 for Silver, 2 for Gold (based on seed data order)
-        packagePlanId = selectedPlan.toLowerCase() === 'silver' ? 1 : 2;
-        console.warn(`Using fallback packagePlanId: ${packagePlanId} for plan: ${selectedPlan}`);
+        setError(`Failed to fetch plans for package ${packageId}. Please try again.`);
+        setIsSubmitting(false);
+        return;
       }
 
       // Use selected frequency from the dropdown

@@ -9,7 +9,7 @@ import { useBAStatusCheck } from '@/hooks/useBAStatusCheck';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { LogOut, User, LayoutDashboard, Search, Home, Users, UserPlus, UsersRound, Menu, Building2, Wallet } from 'lucide-react';
+import { LogOut, User, LayoutDashboard, Search, Home, Users, UsersRound, Menu, Building2, Wallet } from 'lucide-react';
 
 export default function AdminLayout({
   children,
