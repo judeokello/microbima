@@ -91,7 +91,7 @@ export default function LoginPage() {
           <CardHeader>
             <CardTitle className="text-2xl text-center">Sign In</CardTitle>
             <CardDescription className="text-center">
-              Sign in to your MicroBima Agent Registration account
+              Sign in to your Maisha Poa Agent Registration account
             </CardDescription>
           </CardHeader>
           <CardContent>
