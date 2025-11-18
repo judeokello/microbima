@@ -192,7 +192,7 @@ export class CustomerService {
         throw new BadRequestException(partnerCustomerValidation.errors.join(', '));
       }
 
-      const createdPartnerCustomer = await this.prismaService.partnerCustomer.create({
+      await this.prismaService.partnerCustomer.create({
         data: {
           partnerId: partnerCustomerEntity.partnerId,
           customerId: partnerCustomerEntity.customerId,
@@ -1482,7 +1482,6 @@ export class CustomerService {
       }
 
       // Get brand ambassadors for filtering if createdBy is specified
-      const brandAmbassadorFilter: any = {};
       if (createdBy) {
         const brandAmbassadors = await this.prismaService.brandAmbassador.findMany({
           where: {

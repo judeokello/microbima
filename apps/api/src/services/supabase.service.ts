@@ -38,7 +38,7 @@ export class SupabaseService {
    */
   async testConnection(): Promise<{ success: boolean; error?: string }> {
     try {
-      const { data, error } = await this.supabase
+      const { error } = await this.supabase
         .from('partners')
         .select('count')
         .limit(1);

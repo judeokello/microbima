@@ -241,8 +241,6 @@ export class InternalCustomerController {
     @Req() req: any,
     @Query('period') period: '7d' | '30d' | '90d' = '30d',
   ): Promise<RegistrationsChartResponseDto> {
-    const userId = req.user?.id ?? 'system';
-
     // No userId filter - get all registrations
     return this.customerService.getRegistrationsChartData(undefined, period, correlationId);
   }
@@ -271,10 +269,8 @@ export class InternalCustomerController {
   })
   async getDashboardStats(
     @CorrelationId() correlationId: string,
-    @Req() req: any,
+    @Req() _req: any,
   ) {
-    const userId = req.user?.id ?? 'system';
-
     return this.customerService.getDashboardStats(correlationId);
   }
 
@@ -301,10 +297,8 @@ export class InternalCustomerController {
   })
   async getBrandAmbassadorsForFilter(
     @CorrelationId() correlationId: string,
-    @Req() req: any,
+    @Req() _req: any,
   ) {
-    const userId = req.user?.id ?? 'system';
-
     return this.customerService.getBrandAmbassadorsForFilter(correlationId);
   }
 
@@ -444,8 +438,6 @@ export class InternalCustomerController {
     @Query('toDate') toDate?: string,
     @Query('createdBy') createdBy?: string,
   ): Promise<AdminCustomersResponseDto> {
-    const userId = req.user?.id ?? 'system';
-
     return this.customerService.getAllCustomers(
       parseInt(page),
       parseInt(pageSize),
@@ -504,8 +496,6 @@ export class InternalCustomerController {
     @Query('fromDate') fromDate?: string,
     @Query('toDate') toDate?: string,
   ) {
-    const userId = req.user?.id ?? 'system';
-
     const exportData = await this.customerService.exportCustomersToCSV(
       fromDate,
       toDate,

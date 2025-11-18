@@ -1,4 +1,4 @@
-import { PartnerApiKey, PartnerApiKeyData } from '../entities/partner-api-key.entity';
+// Partner API Key Mapper - no entity imports needed as we work with data objects
 
 /**
  * Mapper for converting between PartnerApiKey entities and DTOs

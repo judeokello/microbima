@@ -1,4 +1,3 @@
-import { CustomerStatus, OnboardingStep } from '@prisma/client';
 
 export interface PartnerData {
   id: number;

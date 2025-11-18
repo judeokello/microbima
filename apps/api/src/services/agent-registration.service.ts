@@ -378,7 +378,7 @@ export class AgentRegistrationService {
   /**
    * Map Prisma result to response DTO
    */
-  private mapToResponseDto(registration: any, isAdmin: boolean = false): AgentRegistrationResponseDto {
+  private mapToResponseDto(registration: any, _isAdmin: boolean = false): AgentRegistrationResponseDto {
     return {
       id: registration.id,
       baId: registration.baId,

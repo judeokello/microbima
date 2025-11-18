@@ -1,8 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsNumber, IsString, IsArray, ValidateNested } from 'class-validator';
+import { IsNumber, IsString, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
-import { ChildDto } from '../family-members/child.dto';
-import { SpouseDto } from '../family-members/spouse.dto';
 
 export class DependantWithIdDto {
   @ApiProperty({

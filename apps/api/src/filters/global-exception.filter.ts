@@ -370,7 +370,6 @@ export class GlobalExceptionFilter implements ExceptionFilter {
             const match = errorMsg.match(/^([^\s]+)\s+(.+)$/);
             if (match) {
               const fieldPath = match[1];
-              const friendlyFieldName = this.transformFieldPath(fieldPath);
               details[fieldPath] = this.transformValidationMessage(errorMsg);
             } else {
               // Fallback: use error message as-is

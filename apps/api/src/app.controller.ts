@@ -1,5 +1,5 @@
 import { Controller, Get } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import * as Sentry from '@sentry/nestjs';
 import { AppService } from './app.service';
 import { ConfigurationService } from './config/configuration.service';

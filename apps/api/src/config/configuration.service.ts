@@ -1,5 +1,5 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
-import { BaseConfigurationService, BaseConfigOptions } from '@microbima/common-config';
+import { BaseConfigurationService } from '@microbima/common-config';
 import { getDatabaseConfig, validateDatabaseConfig, DatabaseConfig } from './database.config';
 
 export interface AppConfig {

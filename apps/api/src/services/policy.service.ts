@@ -725,7 +725,7 @@ export class PolicyService {
                   emptyPolicies.map(p => `id=${p.id}, policyNumber="${p.policyNumber ?? 'null'}", customerId=${p.customerId}`).join('; ')
                 );
               }
-            } catch (queryError) {
+            } catch {
               // Ignore query errors for this diagnostic query
             }
 

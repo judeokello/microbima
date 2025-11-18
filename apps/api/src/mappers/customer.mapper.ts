@@ -1,6 +1,5 @@
 import { Customer, CustomerData } from '../entities/customer.entity';
 import { PrincipalMemberDto } from '../dto/principal-member/principal-member.dto';
-import { CreatePrincipalMemberRequestDto } from '../dto/principal-member/create-principal-member-request.dto';
 import { CreatePrincipalMemberResponseDto } from '../dto/principal-member/create-principal-member-response.dto';
 import { CustomerStatus, OnboardingStep, IdType } from '@prisma/client';
 import { SharedMapperUtils } from './shared.mapper.utils';

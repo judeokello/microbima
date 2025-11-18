@@ -1,4 +1,4 @@
-import { Request, Response } from 'express';
+// Types for Express Request/Response extensions
 
 export interface AuthenticatedUser {
   id: string;

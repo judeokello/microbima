@@ -133,7 +133,7 @@ export class AgentRegistrationController {
   })
   async getRegistration(
     @Param('id') id: string,
-    @CorrelationId() correlationId: string,
+    @CorrelationId() _correlationId: string,
   ): Promise<AgentRegistrationResponseDto> {
     // TODO: Extract user ID and role from JWT token
     const userId = 'system'; // Placeholder until auth is implemented
@@ -178,7 +178,7 @@ export class AgentRegistrationController {
   async updateRegistration(
     @Param('id') id: string,
     @Body() dto: UpdateAgentRegistrationDto,
-    @CorrelationId() correlationId: string,
+    @CorrelationId() _correlationId: string,
   ): Promise<AgentRegistrationResponseDto> {
     // TODO: Extract user ID from JWT token
     const userId = 'system'; // Placeholder until auth is implemented
@@ -281,7 +281,7 @@ export class AgentRegistrationController {
   })
   async createMissingRequirement(
     @Body() dto: CreateMissingRequirementDto,
-    @CorrelationId() correlationId: string,
+    @CorrelationId() _correlationId: string,
   ): Promise<MissingRequirementResponseDto> {
     // TODO: Extract user ID from JWT token
     const userId = 'system'; // Placeholder until auth is implemented
@@ -323,7 +323,7 @@ export class AgentRegistrationController {
   })
   async getMissingRequirement(
     @Param('id') id: string,
-    @CorrelationId() correlationId: string,
+    @CorrelationId() _correlationId: string,
   ): Promise<MissingRequirementResponseDto> {
     // TODO: Extract user ID from JWT token
     const userId = 'system'; // Placeholder until auth is implemented
@@ -366,7 +366,7 @@ export class AgentRegistrationController {
   async updateMissingRequirement(
     @Param('id') id: string,
     @Body() dto: UpdateMissingRequirementDto,
-    @CorrelationId() correlationId: string,
+    @CorrelationId() _correlationId: string,
   ): Promise<MissingRequirementResponseDto> {
     // TODO: Extract user ID from JWT token
     const userId = 'system'; // Placeholder until auth is implemented

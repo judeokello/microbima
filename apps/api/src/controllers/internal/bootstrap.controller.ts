@@ -113,7 +113,7 @@ export class BootstrapController {
       this.logger.log(`[${correlationId}] Seeding bootstrap data for user: ${body.userId}`);
 
       // Seed Maisha Poa partner
-      const partner = await this.prisma.partner.upsert({
+      await this.prisma.partner.upsert({
         where: { id: 1 },
         update: {},
         create: {

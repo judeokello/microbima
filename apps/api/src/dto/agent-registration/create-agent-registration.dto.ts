@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsString, IsUUID, IsEnum, IsOptional, IsDateString, IsBoolean } from 'class-validator';
+import { IsString, IsUUID, IsEnum, IsOptional, IsDateString } from 'class-validator';
 import { RegistrationStatus } from '@prisma/client';
 
 export class CreateAgentRegistrationDto {
