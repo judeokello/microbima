@@ -637,7 +637,7 @@ export interface ChildData {
   gender: string
   idType?: string
   idNumber?: string
-  verificationRequired?: boolean
+  // verificationRequired is calculated automatically by the backend based on child's age
 }
 
 export interface AddDependantsRequest {

@@ -1,23 +1,7 @@
 import { Injectable, NestMiddleware, UnauthorizedException } from '@nestjs/common';
 import { Request, Response, NextFunction } from 'express';
 import { SupabaseService } from '../services/supabase.service';
-
-// Extend the Express Request interface to include user
-declare global {
-  namespace Express {
-    interface Request {
-      user?: AuthenticatedUser;
-    }
-  }
-}
-
-export interface AuthenticatedUser {
-  id: string;
-  email: string;
-  roles: string[];
-  baId?: string;
-  partnerId?: number;
-}
+import { AuthenticatedUser } from '../types/express';
 
 @Injectable()
 export class SupabaseAuthMiddleware implements NestMiddleware {
@@ -61,13 +45,13 @@ export class SupabaseAuthMiddleware implements NestMiddleware {
       console.log('Token validated successfully for user:', user.email);
 
       // Extract user metadata
-      const userMetadata = user.user_metadata || {};
-      const roles = userMetadata.roles || [];
+      const userMetadata = user.user_metadata ?? {};
+      const roles = userMetadata.roles ?? [];
 
       // Create authenticated user object
       const authenticatedUser: AuthenticatedUser = {
         id: user.id,
-        email: user.email || '',
+        email: user.email ?? '',
         roles,
         baId: userMetadata.baId,
         partnerId: userMetadata.partnerId ? parseInt(userMetadata.partnerId) : undefined,

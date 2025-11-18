@@ -1,5 +1,5 @@
 import { createParamDecorator, ExecutionContext } from '@nestjs/common';
-import { AuthenticatedUser } from '../middleware/supabase-auth.middleware';
+import { AuthenticatedUser } from '../types/express';
 
 /**
  * User Decorator

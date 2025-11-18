@@ -1163,7 +1163,7 @@ export class PolicyService {
         if (existingPrincipalMember) {
           this.logger.log(
             `[${correlationId}] Policy ${policyId} already has member records in policy_member_principals table. ` +
-            `Policy was previously activated. Only updating status to ACTIVE. ` +
+            'Policy was previously activated. Only updating status to ACTIVE. ' +
             `Policy number: ${policy.policyNumber ?? 'NULL (postpaid)'}, ` +
             `Member record ID: ${existingPrincipalMember.id}`
           );
@@ -1208,7 +1208,7 @@ export class PolicyService {
         // Set start and end dates if they don't exist
         let startDate = policy.startDate;
         let endDate = policy.endDate;
-        
+
         if (!startDate || !endDate) {
           startDate = new Date();
           startDate.setUTCHours(0, 0, 0, 0);
@@ -1216,7 +1216,7 @@ export class PolicyService {
           endDate = new Date(startDate);
           endDate.setFullYear(endDate.getFullYear() + 1);
           endDate.setUTCHours(23, 59, 59, 999);
-          
+
           this.logger.log(
             `[${correlationId}] Set policy dates - start: ${startDate.toISOString()}, end: ${endDate.toISOString()}`
           );
@@ -1302,7 +1302,7 @@ export class PolicyService {
             where: { id: policy.customerId },
             data: { status: 'ACTIVE' },
           });
-          
+
           this.logger.log(
             `[${correlationId}] Updated customer ${policy.customerId} status to ACTIVE (first policy)`
           );
