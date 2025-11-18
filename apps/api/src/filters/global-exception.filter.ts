@@ -9,7 +9,7 @@ import {
 import { Request, Response } from 'express';
 import { SentryExceptionCaptured } from '@sentry/nestjs';
 import { ExternalIntegrationsService } from '../services/external-integrations.service';
-import { ErrorCodes, ERROR_CODE_STATUS_MAP } from '../enums/error-codes.enum';
+import { ErrorCodes } from '../enums/error-codes.enum';
 import { ValidationException } from '../exceptions/validation.exception';
 
 /**
@@ -282,7 +282,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
           }
           return `${message.length} fields failed validation`;
         }
-        return message || exception.message;
+        return message ?? exception.message;
       }
       return exception.message;
     }
@@ -362,7 +362,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
         }
 
         // Handle class-validator error arrays - transform to friendly format
-        const message = errorObj?.message || (response as any).message;
+        const message = errorObj?.message ?? (response as any).message;
         if (Array.isArray(message)) {
           const details: Record<string, string> = {};
           message.forEach((errorMsg: string) => {

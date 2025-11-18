@@ -1,5 +1,5 @@
 import { Controller, Post, Get, Body, HttpException, HttpStatus } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { SupabaseService } from '../../services/supabase.service';
 import { CreatePartnerRequestDto } from '../../dto/partner-management/create-partner-request.dto';
 

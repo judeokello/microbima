@@ -1,8 +1,7 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateAgentRegistrationDto, UpdateAgentRegistrationDto, AgentRegistrationResponseDto } from '../dto/agent-registration';
-import { CreateMissingRequirementDto, UpdateMissingRequirementDto, MissingRequirementResponseDto } from '../dto/missing-requirement';
-import { RegistrationStatus, RegistrationEntityKind, RegistrationMissingStatus } from '@prisma/client';
+import { RegistrationStatus, RegistrationMissingStatus } from '@prisma/client';
 import * as Sentry from '@sentry/nestjs';
 
 @Injectable()
@@ -26,17 +25,15 @@ export class AgentRegistrationService {
       });
 
       // If not found by ID, try to find by userId (if baId is actually a user ID)
-      if (!ba) {
-        ba = await this.prisma.brandAmbassador.findFirst({
-          where: {
-            userId: dto.baId,
-            isActive: true,
-          },
-          include: {
-            partner: true,
-          },
-        });
-      }
+      ba ??= await this.prisma.brandAmbassador.findFirst({
+        where: {
+          userId: dto.baId,
+          isActive: true,
+        },
+        include: {
+          partner: true,
+        },
+      });
 
       if (!ba) {
         throw new BadRequestException('Brand Ambassador not found or inactive');
@@ -65,7 +62,7 @@ export class AgentRegistrationService {
           baId: ba.id, // Use the actual Brand Ambassador ID
           customerId: dto.customerId,
           partnerId: partnerId, // Use partner ID from BA record
-          registrationStatus: dto.registrationStatus || RegistrationStatus.IN_PROGRESS,
+          registrationStatus: dto.registrationStatus ?? RegistrationStatus.IN_PROGRESS,
           completedAt: dto.completedAt ? new Date(dto.completedAt) : null,
         },
         include: {

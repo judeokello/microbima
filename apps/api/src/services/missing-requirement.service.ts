@@ -39,7 +39,7 @@ export class MissingRequirementService {
           entityKind: dto.entityKind,
           entityId: dto.entityId,
           fieldPath: dto.fieldPath,
-          status: dto.status || RegistrationMissingStatus.PENDING,
+          status: dto.status ?? RegistrationMissingStatus.PENDING,
         },
       });
 

@@ -58,12 +58,12 @@ export class ExternalIntegrationsService {
           });
 
           this.logger.debug(
-            `[${context.correlationId || 'unknown'}] Error reported to Sentry: ${error.message}`,
+            `[${context.correlationId ?? 'unknown'}] Error reported to Sentry: ${error.message}`,
           );
         } catch (sentryError) {
           // Log but don't throw - external service failures shouldn't break the app
           this.logger.error(
-            `[${context.correlationId || 'unknown'}] Failed to report error to Sentry: ${sentryError instanceof Error ? sentryError.message : 'Unknown error'}`,
+            `[${context.correlationId ?? 'unknown'}] Failed to report error to Sentry: ${sentryError instanceof Error ? sentryError.message : 'Unknown error'}`,
           );
         }
       });
@@ -104,12 +104,12 @@ export class ExternalIntegrationsService {
           // });
 
           this.logger.debug(
-            `[${context.correlationId || 'unknown'}] Event tracked to PostHog: ${eventName}`,
+            `[${context.correlationId ?? 'unknown'}] Event tracked to PostHog: ${eventName}`,
           );
         } catch (posthogError) {
           // Log but don't throw - external service failures shouldn't break the app
           this.logger.error(
-            `[${context.correlationId || 'unknown'}] Failed to track event to PostHog: ${posthogError instanceof Error ? posthogError.message : 'Unknown error'}`,
+            `[${context.correlationId ?? 'unknown'}] Failed to track event to PostHog: ${posthogError instanceof Error ? posthogError.message : 'Unknown error'}`,
           );
         }
       });
@@ -148,12 +148,12 @@ export class ExternalIntegrationsService {
           // });
 
           this.logger.debug(
-            `[${context.correlationId || 'unknown'}] User identified to PostHog: ${userId}`,
+            `[${context.correlationId ?? 'unknown'}] User identified to PostHog: ${userId}`,
           );
         } catch (posthogError) {
           // Log but don't throw - external service failures shouldn't break the app
           this.logger.error(
-            `[${context.correlationId || 'unknown'}] Failed to identify user to PostHog: ${posthogError instanceof Error ? posthogError.message : 'Unknown error'}`,
+            `[${context.correlationId ?? 'unknown'}] Failed to identify user to PostHog: ${posthogError instanceof Error ? posthogError.message : 'Unknown error'}`,
           );
         }
       });

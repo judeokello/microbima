@@ -30,7 +30,7 @@ export const getDatabaseConfig = (): DatabaseConfig => {
       };
     default: // development
       return {
-        url: process.env.DATABASE_URL || 'postgresql://localhost:5432/microbima_dev',
+        url: process.env.DATABASE_URL ?? 'postgresql://localhost:5432/microbima_dev',
         poolSize: 5,
         ssl: false,
         timeout: 10000,

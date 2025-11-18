@@ -9,7 +9,6 @@ import {
   Query,
   HttpStatus,
   HttpCode,
-  UseGuards,
   Req,
   Res,
   UnauthorizedException,
@@ -21,7 +20,6 @@ import {
   ApiResponse,
   ApiParam,
   ApiQuery,
-  ApiSecurity,
   ApiBearerAuth,
 } from '@nestjs/swagger';
 import { CustomerService } from '../../services/customer.service';
@@ -169,7 +167,7 @@ export class InternalCustomerController {
     @Req() req: any,
     @Query('period') period: '7d' | '30d' | '90d' = '30d',
   ): Promise<RegistrationsChartResponseDto> {
-    const userId = req.user?.id || 'system';
+    const userId = req.user?.id ?? 'system';
 
     return this.customerService.getRegistrationsChartData(userId, period, correlationId);
   }
@@ -200,7 +198,7 @@ export class InternalCustomerController {
     @CorrelationId() correlationId: string,
     @Req() req: any,
   ): Promise<BrandAmbassadorDashboardStatsDto> {
-    const userId = req.user?.id || 'system';
+    const userId = req.user?.id ?? 'system';
 
     // Get Brand Ambassador info to derive partnerId
     const baInfo = await this.partnerManagementService.getBrandAmbassadorByUserId(userId);
@@ -243,7 +241,7 @@ export class InternalCustomerController {
     @Req() req: any,
     @Query('period') period: '7d' | '30d' | '90d' = '30d',
   ): Promise<RegistrationsChartResponseDto> {
-    const userId = req.user?.id || 'system';
+    const userId = req.user?.id ?? 'system';
 
     // No userId filter - get all registrations
     return this.customerService.getRegistrationsChartData(undefined, period, correlationId);
@@ -275,7 +273,7 @@ export class InternalCustomerController {
     @CorrelationId() correlationId: string,
     @Req() req: any,
   ) {
-    const userId = req.user?.id || 'system';
+    const userId = req.user?.id ?? 'system';
 
     return this.customerService.getDashboardStats(correlationId);
   }
@@ -305,7 +303,7 @@ export class InternalCustomerController {
     @CorrelationId() correlationId: string,
     @Req() req: any,
   ) {
-    const userId = req.user?.id || 'system';
+    const userId = req.user?.id ?? 'system';
 
     return this.customerService.getBrandAmbassadorsForFilter(correlationId);
   }
@@ -446,7 +444,7 @@ export class InternalCustomerController {
     @Query('toDate') toDate?: string,
     @Query('createdBy') createdBy?: string,
   ): Promise<AdminCustomersResponseDto> {
-    const userId = req.user?.id || 'system';
+    const userId = req.user?.id ?? 'system';
 
     return this.customerService.getAllCustomers(
       parseInt(page),
@@ -506,7 +504,7 @@ export class InternalCustomerController {
     @Query('fromDate') fromDate?: string,
     @Query('toDate') toDate?: string,
   ) {
-    const userId = req.user?.id || 'system';
+    const userId = req.user?.id ?? 'system';
 
     const exportData = await this.customerService.exportCustomersToCSV(
       fromDate,
@@ -551,7 +549,7 @@ export class InternalCustomerController {
     @Req() req: any, // Add request object to access authenticated user
   ): Promise<CreatePrincipalMemberResponseDto> {
     // Extract user ID from authenticated user
-    const userId = req.user?.id || 'system';
+    const userId = req.user?.id ?? 'system';
 
     // Get Brand Ambassador info to derive partnerId
     const baInfo = await this.partnerManagementService.getBrandAmbassadorByUserId(userId);
@@ -608,7 +606,7 @@ export class InternalCustomerController {
     @Req() req: any, // Add request object to access authenticated user
   ): Promise<AddBeneficiariesResponseDto> {
     // Extract user ID from authenticated user
-    const userId = req.user?.id || 'system';
+    const userId = req.user?.id ?? 'system';
 
     // Get Brand Ambassador info to derive partnerId
     const baInfo = await this.partnerManagementService.getBrandAmbassadorByUserId(userId);
@@ -650,8 +648,8 @@ export class InternalCustomerController {
     @CorrelationId() correlationId: string,
     @Req() req: any,
   ): Promise<CustomerDetailResponseDto> {
-    const userId = req.user?.id || 'system';
-    const userRoles = req.user?.roles || [];
+    const userId = req.user?.id ?? 'system';
+    const userRoles = req.user?.roles ?? [];
     return this.customerService.getCustomerDetails(customerId, userId, userRoles, correlationId);
   }
 
@@ -679,8 +677,8 @@ export class InternalCustomerController {
     @CorrelationId() correlationId: string,
     @Req() req: any,
   ): Promise<CustomerPoliciesResponseDto> {
-    const userId = req.user?.id || 'system';
-    const userRoles = req.user?.roles || [];
+    const userId = req.user?.id ?? 'system';
+    const userRoles = req.user?.roles ?? [];
     return this.customerService.getCustomerPolicies(customerId, userId, userRoles, correlationId);
   }
 
@@ -791,8 +789,8 @@ export class InternalCustomerController {
     @CorrelationId() correlationId: string,
     @Req() req: any,
   ): Promise<CustomerPaymentsResponseDto> {
-    const userId = req.user?.id || 'system';
-    const userRoles = req.user?.roles || [];
+    const userId = req.user?.id ?? 'system';
+    const userRoles = req.user?.roles ?? [];
     return this.customerService.getCustomerPayments(
       customerId,
       userId,
@@ -846,7 +844,7 @@ export class InternalCustomerController {
     @Req() req: any,
   ): Promise<AddDependantsResponseDto> {
     // Extract user ID from authenticated user
-    const userId = req.user?.id || 'system';
+    const userId = req.user?.id ?? 'system';
 
     // Get Brand Ambassador info to derive partnerId
     const baInfo = await this.partnerManagementService.getBrandAmbassadorByUserId(userId);
@@ -901,8 +899,8 @@ export class InternalCustomerController {
     @CorrelationId() correlationId: string,
     @Req() req: any,
   ): Promise<PrincipalMemberDto> {
-    const userId = req.user?.id || 'system';
-    const userRoles = req.user?.roles || [];
+    const userId = req.user?.id ?? 'system';
+    const userRoles = req.user?.roles ?? [];
     return this.customerService.updateCustomer(customerId, updateRequest, userId, userRoles, correlationId);
   }
 
@@ -930,8 +928,8 @@ export class InternalCustomerController {
     @CorrelationId() correlationId: string,
     @Req() req: any,
   ): Promise<any> {
-    const userId = req.user?.id || 'system';
-    const userRoles = req.user?.roles || [];
+    const userId = req.user?.id ?? 'system';
+    const userRoles = req.user?.roles ?? [];
     return this.customerService.updateDependant(dependantId, updateRequest, userId, userRoles, correlationId);
   }
 
@@ -965,8 +963,8 @@ export class InternalCustomerController {
     @CorrelationId() correlationId: string,
     @Req() req: any,
   ): Promise<any> {
-    const userId = req.user?.id || 'system';
-    const userRoles = req.user?.roles || [];
+    const userId = req.user?.id ?? 'system';
+    const userRoles = req.user?.roles ?? [];
     return this.customerService.updateBeneficiary(customerId, beneficiaryId, updateRequest, userId, userRoles, correlationId);
   }
 
@@ -1001,9 +999,9 @@ export class InternalCustomerController {
     description: 'Unauthorized - invalid or inactive API key',
   })
   async deleteCustomer(
-    @Param('customerId') customerId: string,
-    @PartnerId() partnerId: string,
-    @CorrelationId() correlationId: string,
+    @Param('customerId') _customerId: string,
+    @PartnerId() _partnerId: string,
+    @CorrelationId() _correlationId: string,
   ): Promise<void> {
     // TODO: Implement deleteCustomer method in CustomerService
     throw new Error('Delete customer functionality not yet implemented');
@@ -1040,7 +1038,7 @@ export class InternalCustomerController {
   })
   async getCustomerDebugData(
     @Param('customerId') customerId: string,
-    @CorrelationId() correlationId: string,
+    @CorrelationId() _correlationId: string,
   ): Promise<any> {
     // Get customer record
     const customer = await this.prismaService.customer.findUnique({

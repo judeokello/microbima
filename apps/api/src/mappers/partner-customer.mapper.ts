@@ -40,8 +40,8 @@ export class PartnerCustomerMapper {
    * For now, it's a placeholder that would need to be implemented with actual database access
    */
   static async getPartnerCustomerId(
-    customerId: string,
-    partnerId: number
+    _customerId: string,
+    _partnerId: number
   ): Promise<string | null> {
     // This would need to be implemented with actual database access
     // For now, returning null as a placeholder
@@ -59,8 +59,8 @@ export class PartnerCustomerMapper {
    * For now, it's a placeholder that would need to be implemented with actual database access
    */
   static async isPartnerCustomerIdUnique(
-    partnerId: number,
-    partnerCustomerId: string
+    _partnerId: number,
+    _partnerCustomerId: string
   ): Promise<boolean> {
     // This would need to be implemented with actual database access
     // For now, returning true as a placeholder

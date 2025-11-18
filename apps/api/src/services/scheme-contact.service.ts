@@ -74,12 +74,12 @@ export class SchemeContactService {
         data: {
           schemeId: data.schemeId,
           firstName: data.firstName,
-          otherName: data.otherName || null,
-          phoneNumber: data.phoneNumber || null,
-          phoneNumber2: data.phoneNumber2 || null,
-          email: data.email || null,
-          designation: data.designation || null,
-          notes: data.notes || null,
+          otherName: data.otherName ?? null,
+          phoneNumber: data.phoneNumber ?? null,
+          phoneNumber2: data.phoneNumber2 ?? null,
+          email: data.email ?? null,
+          designation: data.designation ?? null,
+          notes: data.notes ?? null,
           createdBy: userId,
         },
       });

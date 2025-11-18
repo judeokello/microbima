@@ -50,7 +50,7 @@ export class ConfigurationService extends BaseConfigurationService implements On
   }
 
   protected getDefaultApiPrefix(): string {
-    return process.env.API_PREFIX || 'api';
+    return process.env.API_PREFIX ?? 'api';
   }
 
   onModuleInit() {
@@ -65,18 +65,18 @@ export class ConfigurationService extends BaseConfigurationService implements On
       ...baseConfig,
       database: getDatabaseConfig(),
       jwt: {
-        secret: process.env.JWT_SECRET || this.getDefaultJwtSecret(baseConfig.environment),
-        expiresIn: process.env.JWT_EXPIRES_IN || this.getDefaultJwtExpiry(baseConfig.environment),
+        secret: process.env.JWT_SECRET ?? this.getDefaultJwtSecret(baseConfig.environment),
+        expiresIn: process.env.JWT_EXPIRES_IN ?? this.getDefaultJwtExpiry(baseConfig.environment),
       },
       sentry: {
-        dsn: process.env.SENTRY_DSN || '',
-        environment: process.env.SENTRY_ENVIRONMENT || baseConfig.environment,
-        tracesSampleRate: parseFloat(process.env.SENTRY_TRACES_SAMPLE_RATE || '1.0'),
-        profilesSampleRate: parseFloat(process.env.SENTRY_PROFILES_SAMPLE_RATE || '1.0'),
+        dsn: process.env.SENTRY_DSN ?? '',
+        environment: process.env.SENTRY_ENVIRONMENT ?? baseConfig.environment,
+        tracesSampleRate: parseFloat(process.env.SENTRY_TRACES_SAMPLE_RATE ?? '1.0'),
+        profilesSampleRate: parseFloat(process.env.SENTRY_PROFILES_SAMPLE_RATE ?? '1.0'),
         enabled: !!process.env.SENTRY_DSN,
       },
       posthog: {
-        apiKey: process.env.POSTHOG_KEY || '',
+        apiKey: process.env.POSTHOG_KEY ?? '',
         enabled: !!process.env.POSTHOG_KEY,
       },
     };
@@ -124,45 +124,45 @@ export class ConfigurationService extends BaseConfigurationService implements On
 
   // Public getters for configuration values
   get environment(): string {
-    return this.config?.environment || 'development';
+    return this.config?.environment ?? 'development';
   }
 
   get port(): number {
     // Always read from environment variable to ensure we get the latest value
-    return parseInt(process.env.PORT || '3001', 10);
+    return parseInt(process.env.PORT ?? '3001', 10);
   }
 
   get apiPrefix(): string {
-    return this.config?.apiPrefix || 'api';
+    return this.config?.apiPrefix ?? 'api';
   }
 
   get database(): DatabaseConfig {
-    return this.config?.database || getDatabaseConfig();
+    return this.config?.database ?? getDatabaseConfig();
   }
 
   get jwt() {
-    return this.config?.jwt || {
+    return this.config?.jwt ?? {
       secret: 'dev-secret-key-change-in-production',
       expiresIn: '24h'
     };
   }
 
   get cors() {
-    return this.config?.cors || {
+    return this.config?.cors ?? {
       origin: ['http://localhost:3000', 'http://localhost:3001'],
       credentials: true
     };
   }
 
   get rateLimit() {
-    return this.config?.rateLimit || {
+    return this.config?.rateLimit ?? {
       windowMs: 900000,
       max: 100
     };
   }
 
   get logging() {
-    return this.config?.logging || {
+    return this.config?.logging ?? {
       level: 'debug',
       enableConsole: true,
       enableFile: false
@@ -170,7 +170,7 @@ export class ConfigurationService extends BaseConfigurationService implements On
   }
 
   get sentry() {
-    return this.config?.sentry || {
+    return this.config?.sentry ?? {
       dsn: '',
       environment: 'development',
       tracesSampleRate: 1.0,
@@ -180,7 +180,7 @@ export class ConfigurationService extends BaseConfigurationService implements On
   }
 
   get posthog() {
-    return this.config?.posthog || {
+    return this.config?.posthog ?? {
       apiKey: '',
       enabled: false,
     };

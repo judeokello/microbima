@@ -230,7 +230,7 @@ export class PaymentAccountNumberService {
     correlationId: string
   ): Promise<boolean> {
     try {
-      const prisma = tx || this.prismaService;
+      const prisma = tx ?? this.prismaService;
 
       const policyCount = await prisma.policy.count({
         where: { customerId },

@@ -3,10 +3,9 @@ import { ValidationException } from '../exceptions/validation.exception';
 import { ErrorCodes } from '../enums/error-codes.enum';
 import { PrismaService } from '../prisma/prisma.service';
 import { Prisma } from '@prisma/client';
-import { Customer, CustomerData } from '../entities/customer.entity';
-import { PartnerCustomer, PartnerCustomerData } from '../entities/partner-customer.entity';
+import { Customer } from '../entities/customer.entity';
+import { PartnerCustomer } from '../entities/partner-customer.entity';
 import { CustomerMapper } from '../mappers/customer.mapper';
-import { PartnerCustomerMapper } from '../mappers/partner-customer.mapper';
 import { CreatePrincipalMemberRequestDto } from '../dto/principal-member/create-principal-member-request.dto';
 import { CreatePrincipalMemberResponseDto } from '../dto/principal-member/create-principal-member-response.dto';
 import { PrincipalMemberDto } from '../dto/principal-member/principal-member.dto';
@@ -16,6 +15,9 @@ import { GetDependantsResponseDto } from '../dto/dependants/get-dependants-respo
 import { AddBeneficiariesRequestDto } from '../dto/beneficiaries/add-beneficiaries-request.dto';
 import { AddBeneficiariesResponseDto } from '../dto/beneficiaries/add-beneficiaries-response.dto';
 import { GetBeneficiariesResponseDto } from '../dto/beneficiaries/get-beneficiaries-response.dto';
+import { ChildDto } from '../dto/family-members/child.dto';
+import { SpouseDto } from '../dto/family-members/spouse.dto';
+import { BeneficiaryDto } from '../dto/family-members/beneficiary.dto';
 import { SharedMapperUtils } from '../mappers/shared.mapper.utils';
 import { CustomerDetailResponseDto, CustomerDetailDataDto } from '../dto/customers/customer-detail.dto';
 import { CustomerPoliciesResponseDto, CustomerPaymentsResponseDto, PolicyOptionDto, PaymentDto } from '../dto/customers/customer-payments-filter.dto';
@@ -157,7 +159,7 @@ export class CustomerService {
           firstName: customerEntity.firstName,
           middleName: customerEntity.middleName,
           lastName: customerEntity.lastName,
-          email: customerEntity.email || null,
+          email: customerEntity.email ?? null,
           phoneNumber: customerEntity.phoneNumber,
           dateOfBirth: customerEntity.dateOfBirth,
           gender: customerEntity.gender,
@@ -166,7 +168,7 @@ export class CustomerService {
           status: customerEntity.status,
           onboardingStep: customerEntity.onboardingStep,
           createdByPartnerId: partnerId,
-          createdBy: userId || null, // User ID who created the customer
+          createdBy: userId ?? null, // User ID who created the customer
         },
       });
 
@@ -224,17 +226,17 @@ export class CustomerService {
       let createdBeneficiaries: any[] = [];
 
       if (createRequest.children && createRequest.children.length > 0) {
-        const childrenData = createRequest.children.map(child => {
+        const childrenData = createRequest.children.map((child: ChildDto) => {
           const dateOfBirth = child.dateOfBirth ? new Date(child.dateOfBirth) : null;
           return {
             customerId: createdCustomer.id,
             firstName: child.firstName,
-            middleName: child.middleName || null,
+            middleName: child.middleName ?? null,
             lastName: child.lastName,
             dateOfBirth,
-            gender: child.gender.toUpperCase() as any,
+            gender: SharedMapperUtils.mapGenderFromDto(child.gender),
             idType: child.idType ? SharedMapperUtils.mapIdTypeFromDto(child.idType) as any : null,
-            idNumber: child.idNumber || null,
+            idNumber: child.idNumber ?? null,
             relationship: 'CHILD' as const,
             verificationRequired: this.calculateChildVerificationRequired(dateOfBirth),
             createdByPartnerId: partnerId,
@@ -257,21 +259,21 @@ export class CustomerService {
       }
 
       if (createRequest.spouses && createRequest.spouses.length > 0) {
-        const spousesData = createRequest.spouses.map((spouse) => {
+        const spousesData = createRequest.spouses.map((spouse: SpouseDto) => {
           const mappedIdType = SharedMapperUtils.mapIdTypeFromDto(spouse.idType);
           const trimmedIdNumber = spouse.idNumber?.trim();
 
           return {
             customerId: createdCustomer.id,
             firstName: spouse.firstName,
-            middleName: spouse.middleName || null,
+            middleName: spouse.middleName ?? null,
             lastName: spouse.lastName,
             dateOfBirth: spouse.dateOfBirth ? new Date(spouse.dateOfBirth) : null,
-            gender: spouse.gender.toUpperCase() as any,
-            email: spouse.email || null,
-            phoneNumber: spouse.phoneNumber || null,
+            gender: SharedMapperUtils.mapGenderFromDto(spouse.gender),
+            email: spouse.email ?? null,
+            phoneNumber: spouse.phoneNumber ?? null,
             idType: trimmedIdNumber ? (mappedIdType as any) : null,
-            idNumber: trimmedIdNumber || null,
+            idNumber: trimmedIdNumber ?? null,
             relationship: 'SPOUSE' as const,
             verificationRequired: false,
             createdByPartnerId: partnerId,
@@ -294,19 +296,19 @@ export class CustomerService {
       }
 
       if (createRequest.beneficiaries && createRequest.beneficiaries.length > 0) {
-        const beneficiariesData = createRequest.beneficiaries.map((beneficiary) => {
+        const beneficiariesData = createRequest.beneficiaries.map((beneficiary: BeneficiaryDto) => {
           const trimmedIdNumber = beneficiary.idNumber?.trim();
           const mappedIdType = SharedMapperUtils.mapIdTypeFromDto(beneficiary.idType);
 
           return {
             customerId: createdCustomer.id,
             firstName: beneficiary.firstName,
-            middleName: beneficiary.middleName || null,
+            middleName: beneficiary.middleName ?? null,
             lastName: beneficiary.lastName,
             dateOfBirth: new Date(beneficiary.dateOfBirth),
-            gender: beneficiary.gender.toUpperCase() as any,
+            gender: SharedMapperUtils.mapGenderFromDto(beneficiary.gender),
             idType: trimmedIdNumber ? (mappedIdType as any) : null,
-            idNumber: trimmedIdNumber || null,
+            idNumber: trimmedIdNumber ?? null,
             relationship: beneficiary.relationship,
             percentage: beneficiary.percentage,
             createdByPartnerId: partnerId,
@@ -578,12 +580,12 @@ export class CustomerService {
           return {
             customerId: customerId,
             firstName: child.firstName,
-            middleName: child.middleName || null,
+            middleName: child.middleName ?? null,
             lastName: child.lastName,
             dateOfBirth,
             gender: child.gender.toUpperCase() as any,
             idType: child.idType ? SharedMapperUtils.mapIdTypeFromDto(child.idType) as any : null,
-            idNumber: child.idNumber || null,
+            idNumber: child.idNumber ?? null,
             relationship: 'CHILD' as const,
             verificationRequired: this.calculateChildVerificationRequired(dateOfBirth),
             createdByPartnerId: partnerId,
@@ -626,14 +628,14 @@ export class CustomerService {
             return {
               customerId: customerId,
               firstName: spouse.firstName,
-              middleName: spouse.middleName || null,
+              middleName: spouse.middleName ?? null,
               lastName: spouse.lastName,
               dateOfBirth: spouse.dateOfBirth ? new Date(spouse.dateOfBirth) : null,
               gender: spouse.gender.toUpperCase() as any,
-              email: spouse.email || null,
-              phoneNumber: spouse.phoneNumber || null,
+              email: spouse.email ?? null,
+              phoneNumber: spouse.phoneNumber ?? null,
               idType: trimmedIdNumber ? (mappedIdType as any) : null,
-              idNumber: trimmedIdNumber || null,
+              idNumber: trimmedIdNumber ?? null,
               relationship: 'SPOUSE' as const,
               verificationRequired: false,
               createdByPartnerId: partnerId,
@@ -886,16 +888,16 @@ export class CustomerService {
           return {
             customerId: customerId,
             firstName: beneficiary.firstName,
-            middleName: beneficiary.middleName || null,
+            middleName: beneficiary.middleName ?? null,
             lastName: beneficiary.lastName,
             dateOfBirth: beneficiary.dateOfBirth ? new Date(beneficiary.dateOfBirth) : null,
             gender: beneficiary.gender.toUpperCase() as any,
-            email: beneficiary.email || null,
-            phoneNumber: beneficiary.phoneNumber || null,
+            email: beneficiary.email ?? null,
+            phoneNumber: beneficiary.phoneNumber ?? null,
             idType: trimmedIdNumber ? (mappedIdType as any) : null,
-            idNumber: trimmedIdNumber || null,
+            idNumber: trimmedIdNumber ?? null,
             relationship: beneficiary.relationship,
-            relationshipDescription: beneficiary.relationshipDescription || null,
+            relationshipDescription: beneficiary.relationshipDescription ?? null,
             percentage: beneficiary.percentage,
             createdByPartnerId: partnerId,
           };
@@ -1119,7 +1121,7 @@ export class CustomerService {
         middleName: customer.middleName ?? undefined,
         lastName: customer.lastName,
         phoneNumber: customer.phoneNumber, // Unmasked
-        gender: customer.gender?.toLowerCase() || 'unknown',
+        gender: customer.gender?.toLowerCase() ?? 'unknown',
         createdAt: customer.createdAt.toISOString(),
         idType: customer.idType,
         idNumber: customer.idNumber, // Unmasked
@@ -1566,7 +1568,7 @@ export class CustomerService {
         id: customer.id,
         fullName: this.formatFullName(customer.firstName, customer.middleName, customer.lastName),
         phoneNumber: customer.phoneNumber,
-        gender: customer.gender?.toLowerCase() || 'unknown',
+        gender: customer.gender?.toLowerCase() ?? 'unknown',
         createdAt: customer.createdAt.toISOString(),
         registeredBy: customer.createdBy ? (baMap.get(customer.createdBy) ?? 'Unknown') : 'Unknown',
         idType: customer.idType,
@@ -1843,9 +1845,9 @@ export class CustomerService {
         customer.id,
         this.formatFullName(customer.firstName, customer.middleName, customer.lastName),
         customer.phoneNumber,
-        customer.gender?.toLowerCase() || 'unknown',
+        customer.gender?.toLowerCase() ?? 'unknown',
         customer.createdAt.toISOString(),
-        baMap.get(customer.createdByPartnerId) || 'Unknown',
+        baMap.get(customer.createdByPartnerId) ?? 'Unknown',
         customer.idType,
         customer.idNumber,
         customer.hasMissingRequirements ? 'Yes' : 'No',

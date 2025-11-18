@@ -92,12 +92,12 @@ export class UnderwriterController {
     const result = await this.underwriterService.getUnderwriters(
       pageNum,
       pageSizeNum,
-      correlationId || 'unknown'
+      correlationId ?? 'unknown'
     );
 
     return {
       status: HttpStatus.OK,
-      correlationId: correlationId || 'unknown',
+      correlationId: correlationId ?? 'unknown',
       message: 'Underwriters retrieved successfully',
       ...result,
     };
@@ -138,12 +138,12 @@ export class UnderwriterController {
   ): Promise<UnderwriterResponseDto> {
     const underwriter = await this.underwriterService.getUnderwriterById(
       id,
-      correlationId || 'unknown'
+      correlationId ?? 'unknown'
     );
 
     return {
       status: HttpStatus.OK,
-      correlationId: correlationId || 'unknown',
+      correlationId: correlationId ?? 'unknown',
       message: 'Underwriter retrieved successfully',
       data: underwriter,
     };
@@ -187,12 +187,12 @@ export class UnderwriterController {
         isActive: createRequest.isActive,
       },
       userId,
-      correlationId || 'unknown'
+      correlationId ?? 'unknown'
     );
 
     return {
       status: HttpStatus.CREATED,
-      correlationId: correlationId || 'unknown',
+      correlationId: correlationId ?? 'unknown',
       message: 'Underwriter created successfully',
       data: underwriter,
     };
@@ -246,12 +246,12 @@ export class UnderwriterController {
         logoPath: updateRequest.logoPath,
         isActive: updateRequest.isActive,
       },
-      correlationId || 'unknown'
+      correlationId ?? 'unknown'
     );
 
     return {
       status: HttpStatus.OK,
-      correlationId: correlationId || 'unknown',
+      correlationId: correlationId ?? 'unknown',
       message: 'Underwriter updated successfully',
       data: underwriter,
     };
@@ -292,12 +292,12 @@ export class UnderwriterController {
   ): Promise<UnderwriterPackagesResponseDto> {
     const packages = await this.underwriterService.getUnderwriterPackages(
       id,
-      correlationId || 'unknown'
+      correlationId ?? 'unknown'
     );
 
     return {
       status: HttpStatus.OK,
-      correlationId: correlationId || 'unknown',
+      correlationId: correlationId ?? 'unknown',
       message: 'Packages retrieved successfully',
       data: packages,
     };

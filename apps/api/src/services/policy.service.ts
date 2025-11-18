@@ -590,8 +590,8 @@ export class PolicyService {
         let paymentCadence = this.calculatePaymentCadence(data.frequency, data.customDays);
 
         if (isPostpaidScheme && customerScheme?.packageScheme?.scheme) {
-          frequency = customerScheme.packageScheme.scheme.frequency || data.frequency;
-          paymentCadence = customerScheme.packageScheme.scheme.paymentCadence || paymentCadence;
+          frequency = customerScheme.packageScheme.scheme.frequency ?? data.frequency;
+          paymentCadence = customerScheme.packageScheme.scheme.paymentCadence ?? paymentCadence;
           this.logger.log(
             `[${correlationId}] Using scheme's payment settings - frequency: ${frequency}, cadence: ${paymentCadence}`
           );

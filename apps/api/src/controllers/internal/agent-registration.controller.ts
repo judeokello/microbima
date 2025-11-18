@@ -3,13 +3,11 @@ import {
   Get,
   Post,
   Put,
-  Delete,
   Body,
   Param,
   Query,
   HttpStatus,
   HttpCode,
-  UseGuards,
   UseInterceptors,
   Req,
 } from '@nestjs/common';
@@ -34,7 +32,7 @@ import {
   MissingRequirementResponseDto,
 } from '../../dto/missing-requirement';
 import { CorrelationId } from '../../decorators/correlation-id.decorator';
-import { BAAuth, AdminOnly, BAOnly, AdminOrBA } from '../../decorators/ba-auth.decorator';
+import { BAAuth, AdminOnly, AdminOrBA } from '../../decorators/ba-auth.decorator';
 import { DataMaskingInterceptor } from '../../interceptors/data-masking.interceptor';
 import { EnableDataMasking } from '../../decorators/data-masking.decorator';
 
@@ -95,7 +93,7 @@ export class AgentRegistrationController {
     @Req() req: any, // Add request object to access authenticated user
   ): Promise<AgentRegistrationResponseDto> {
     // Extract user ID from authenticated user
-    const userId = req.user?.id || 'system';
+    const userId = req.user?.id ?? 'system';
 
     return this.agentRegistrationService.createRegistration(dto, userId);
   }

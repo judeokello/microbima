@@ -76,7 +76,7 @@ export class BAAuthorizationGuard implements CanActivate {
       // Check ownership requirements
       if (requireOwnership) {
         const params = request.params;
-        const baId = params.baId || params.id;
+        const baId = params.baId ?? params.id;
 
         if (user.roles.includes('brand_ambassador')) {
           // BAs can only access their own data

@@ -99,12 +99,12 @@ export class MpesaPaymentsController {
     const result = await this.mpesaPaymentsService.uploadAndParseStatement(
       file,
       userId,
-      correlationId || 'unknown'
+      correlationId ?? 'unknown'
     );
 
     return {
       status: HttpStatus.CREATED,
-      correlationId: correlationId || 'unknown',
+      correlationId: correlationId ?? 'unknown',
       message: 'File uploaded and parsed successfully',
       ...result,
     };
@@ -154,12 +154,12 @@ export class MpesaPaymentsController {
     const result = await this.mpesaPaymentsService.getUploads(
       pageNum,
       pageSizeNum,
-      correlationId || 'unknown'
+      correlationId ?? 'unknown'
     );
 
     return {
       status: HttpStatus.OK,
-      correlationId: correlationId || 'unknown',
+      correlationId: correlationId ?? 'unknown',
       message: 'Uploads retrieved successfully',
       ...result,
     };
@@ -221,12 +221,12 @@ export class MpesaPaymentsController {
       id,
       pageNum,
       pageSizeNum,
-      correlationId || 'unknown'
+      correlationId ?? 'unknown'
     );
 
     return {
       status: HttpStatus.OK,
-      correlationId: correlationId || 'unknown',
+      correlationId: correlationId ?? 'unknown',
       message: 'Upload details retrieved successfully',
       ...result,
     };
