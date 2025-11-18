@@ -179,6 +179,12 @@ export class PackageSchemeDto {
   isActive: boolean;
 
   @ApiProperty({
+    description: 'Whether the scheme is postpaid',
+    example: false,
+  })
+  isPostpaid: boolean;
+
+  @ApiProperty({
     description: 'Number of customers in this scheme',
     example: 50,
   })

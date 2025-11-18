@@ -164,6 +164,8 @@ export default function PackageDetailPage() {
       }
 
       const data: SchemesResponse = await response.json();
+      console.log('📋 Schemes data received:', data.data);
+      console.log('📋 First scheme isPostpaid:', data.data[0]?.isPostpaid);
       setSchemes(data.data);
     } catch (err) {
       console.error('Error fetching schemes:', err);

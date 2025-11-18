@@ -470,6 +470,7 @@ export class ProductManagementService {
               schemeName: true,
               description: true,
               isActive: true,
+              isPostpaid: true,
             },
           },
           packageSchemeCustomers: {
@@ -490,6 +491,7 @@ export class ProductManagementService {
         schemeName: ps.scheme.schemeName,
         description: ps.scheme.description,
         isActive: ps.scheme.isActive,
+        isPostpaid: ps.scheme.isPostpaid,
         customersCount: ps.packageSchemeCustomers.length,
       }));
 
