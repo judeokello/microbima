@@ -125,3 +125,7 @@ prisma/migrations/
 # mpesa statement uploads folder (local only, 
 # the staging and production files are uploaded on supabase storage)
 apps/api/public/mpesa_statements/
+
+
+# fly secrets backup
+fly-secrets-backup/

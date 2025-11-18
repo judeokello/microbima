@@ -1,4 +1,4 @@
-app = "microbima-staging-internal-api"
+app = "maishapoa-staging-internal-api"
 primary_region = "fra"
 
 [build]
