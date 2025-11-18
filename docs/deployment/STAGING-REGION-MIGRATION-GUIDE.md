@@ -28,13 +28,13 @@ Before migrating, verify where your apps actually are:
 
 ```bash
 # Check app regions
-flyctl status -a microbima-staging-internal-api
+flyctl status -a maishapoa-staging-internal-api
 flyctl status -a maishapoa-staging-agent-registration
 flyctl status -a microbima-staging-public-api
 
 # Check database regions from connection strings
-flyctl ssh console -a microbima-staging-internal-api -C "printenv DATABASE_URL"
-flyctl ssh console -a microbima-staging-internal-api -C "printenv DIRECT_URL"
+flyctl ssh console -a maishapoa-staging-internal-api -C "printenv DATABASE_URL"
+flyctl ssh console -a maishapoa-staging-internal-api -C "printenv DIRECT_URL"
 ```
 
 **Expected findings:**
@@ -79,7 +79,7 @@ This approach creates new apps in Frankfurt while keeping old apps running:
 
 ```bash
 # Create new apps in Frankfurt
-flyctl apps create microbima-staging-internal-api-fra --org <your-org> --region fra
+flyctl apps create maishapoa-staging-internal-api-fra --org <your-org> --region fra
 flyctl apps create maishapoa-staging-agent-registration-fra --org <your-org> --region fra
 flyctl apps create microbima-staging-public-api-fra --org <your-org> --region fra
 ```
@@ -102,7 +102,7 @@ Use the extracted secrets from Step 2:
 # For each app, set all secrets
 # Example for internal-api:
 cd fly-secrets-backup/<timestamp>/
-cat microbima-staging-internal-api-secrets.txt
+cat maishapoa-staging-internal-api-secrets.txt
 
 # Copy the flyctl command from the file and update the app name
 flyctl secrets set \
@@ -110,7 +110,7 @@ flyctl secrets set \
   DIRECT_URL="..." \
   JWT_SECRET="..." \
   # ... all other secrets
-  -a microbima-staging-internal-api-fra
+  -a maishapoa-staging-internal-api-fra
 ```
 
 **Important:**
@@ -124,7 +124,7 @@ Deploy using the existing fly.toml files (they already have `primary_region = "f
 
 ```bash
 # Deploy internal API
-flyctl deploy -a microbima-staging-internal-api-fra \
+flyctl deploy -a maishapoa-staging-internal-api-fra \
   -c infra/fly/internal-api/staging/fly.toml
 
 # Deploy agent registration
@@ -140,13 +140,13 @@ flyctl deploy -a microbima-staging-public-api-fra \
 
 ```bash
 # Check app status
-flyctl status -a microbima-staging-internal-api-fra
+flyctl status -a maishapoa-staging-internal-api-fra
 
 # Check health endpoints
-curl -f https://microbima-staging-internal-api-fra.fly.dev/api/health
+curl -f https://maishapoa-staging-internal-api-fra.fly.dev/api/health
 
 # Check logs
-flyctl logs -a microbima-staging-internal-api-fra
+flyctl logs -a maishapoa-staging-internal-api-fra
 ```
 
 ## Step 8: Update GitHub Actions Workflow
@@ -155,10 +155,10 @@ Update `.github/workflows/deploy.yml` to use new app names:
 
 ```yaml
 # Change from:
-flyctl deploy -a microbima-staging-internal-api
+flyctl deploy -a maishapoa-staging-internal-api
 
 # To:
-flyctl deploy -a microbima-staging-internal-api-fra
+flyctl deploy -a maishapoa-staging-internal-api-fra
 ```
 
 **OR** if using same names, just ensure fly.toml has `primary_region = "fra"`.
@@ -190,7 +190,7 @@ If you created new apps with `-fra` suffix:
 
 ```bash
 # Only after confirming new apps work perfectly
-flyctl apps destroy microbima-staging-internal-api
+flyctl apps destroy maishapoa-staging-internal-api
 flyctl apps destroy maishapoa-staging-agent-registration
 flyctl apps destroy microbima-staging-public-api
 ```

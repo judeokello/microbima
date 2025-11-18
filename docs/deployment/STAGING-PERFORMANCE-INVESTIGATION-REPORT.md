@@ -218,7 +218,7 @@ postgresql://postgres:Chxjvo4oyAdPZ9nZLiGG@db.xmkiddtkujaparakqwem.supabase.co:5
 
 1. **Verify App Regions**
    ```bash
-   flyctl status -a microbima-staging-internal-api
+   flyctl status -a maishapoa-staging-internal-api
    flyctl status -a maishapoa-staging-agent-registration
    flyctl status -a microbima-staging-public-api
    ```

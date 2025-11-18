@@ -8,7 +8,7 @@ primary_region = "fra"
   NODE_ENV = "staging"
   PORT = "3000"
   # Staging-specific environment variables
-  NEXT_PUBLIC_API_URL = "https://microbima-staging-internal-api.fly.dev"
+  NEXT_PUBLIC_API_URL = "https://maishapoa-staging-internal-api.fly.dev"
   NEXT_PUBLIC_ENVIRONMENT = "staging"
 
 [[services]]

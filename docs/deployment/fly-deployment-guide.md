@@ -95,7 +95,7 @@ CMD ["node", "--enable-source-maps", "apps/api/dist/src/main"]
 
 ## App-Specific Configurations
 
-### Internal API (`microbima-staging-internal-api`)
+### Internal API (`maishapoa-staging-internal-api`)
 
 - **Dockerfile**: `apps/api/Dockerfile`
 - **API Prefix**: `internal` (set in fly.toml)
@@ -218,7 +218,7 @@ microbima/
 ```bash
 # Staging
 cd /path/to/microbima
-flyctl deploy -a microbima-staging-internal-api -c infra/fly/internal-api/staging/fly.toml
+flyctl deploy -a maishapoa-staging-internal-api -c infra/fly/internal-api/staging/fly.toml
 
 # Production
 flyctl deploy -a microbima-production-internal-api -c infra/fly/internal-api/production/fly.toml

@@ -106,7 +106,7 @@ export class SwaggerConfig {
       .addTag('Policy Management', 'Customer policy management')
       .addTag('Claims', 'Insurance claims processing')
       .addTag('Payments', 'Premium payments and billing')
-      .addServer('https://microbima-staging-internal-api.fly.dev', 'Staging Server')
+      .addServer('https://maishapoa-staging-internal-api.fly.dev', 'Staging Server')
       .addServer('http://localhost:3000', 'Local Development')
       .build();
 

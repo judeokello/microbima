@@ -173,7 +173,7 @@ graph LR
 ### Manual Deployment (Emergency)
 ```bash
 # Staging
-flyctl deploy -a microbima-staging-internal-api -c infra/fly/internal-api/staging/fly.toml
+flyctl deploy -a maishapoa-staging-internal-api -c infra/fly/internal-api/staging/fly.toml
 
 # Production
 flyctl deploy -a microbima-production-internal-api -c infra/fly/internal-api/production/fly.toml

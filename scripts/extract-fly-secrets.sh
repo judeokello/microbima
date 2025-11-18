@@ -170,9 +170,8 @@ main() {
     
     # Define staging apps
     STAGING_APPS=(
-        "microbima-staging-internal-api"
-        "maishapoa-staging-agent-registration"
-        "microbima-staging-public-api"
+        "maishapoa-staging-internal-api"
+        "maishapoa-staging-agent-registration"        
     )
     
     # Output directory

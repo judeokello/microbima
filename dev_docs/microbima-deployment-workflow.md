@@ -92,7 +92,7 @@ Development Branch → Staging Branch → Master Branch
 2. **GitHub Actions will automatically trigger**:
    - Runs tests (`pnpm test`)
    - Deploys to Fly.io staging environment
-   - Deploys internal API: `microbima-staging-internal-api`
+   - Deploys internal API: `maishapoa-staging-internal-api`
    - Deploys web admin: `microbima-staging-web-admin`
    - Deploys public API: `microbima-staging-public-api`
 
@@ -106,7 +106,7 @@ Development Branch → Staging Branch → Master Branch
 1. **Check staging health endpoints**:
    ```bash
    # Internal API Health Check
-   curl -f https://microbima-staging-internal-api.fly.dev/api/internal/health
+   curl -f https://maishapoa-staging-internal-api.fly.dev/api/internal/health
    
    # Web Admin
    curl -f https://microbima-staging-web-admin.fly.dev/
@@ -161,7 +161,7 @@ Development Branch → Staging Branch → Master Branch
 ## Fly.io App Configuration
 
 ### Staging Environment
-- **App Name**: `microbima-staging-internal-api`
+- **App Name**: `maishapoa-staging-internal-api`
 - **Region**: `nrt` (Tokyo)
 - **Resources**: 1 CPU, 512MB RAM
 - **Environment**: `NODE_ENV=staging`
@@ -186,7 +186,7 @@ Development Branch → Staging Branch → Master Branch
 2. **Health checks fail**:
    - Verify the health endpoint exists (`/api/internal/health`)
    - Check if the service is binding to the correct port (3000)
-   - Review application logs: `flyctl logs -a microbima-staging-internal-api`
+   - Review application logs: `flyctl logs -a maishapoa-staging-internal-api`
 
 3. **Tests fail in CI/CD**:
    - Run tests locally: `pnpm test`
@@ -205,7 +205,7 @@ curl -L https://fly.io/install.sh | sh
 flyctl auth login
 
 # Deploy to staging
-flyctl deploy -a microbima-staging-internal-api -c infra/fly/internal-api/staging/fly.toml
+flyctl deploy -a maishapoa-staging-internal-api -c infra/fly/internal-api/staging/fly.toml
 
 # Deploy to production
 flyctl deploy -a microbima-production-internal-api -c infra/fly/internal-api/production/fly.toml
@@ -215,11 +215,11 @@ flyctl deploy -a microbima-production-internal-api -c infra/fly/internal-api/pro
 
 ```bash
 # View logs
-flyctl logs -a microbima-staging-internal-api
+flyctl logs -a maishapoa-staging-internal-api
 flyctl logs -a microbima-production-internal-api
 
 # Check app status
-flyctl status -a microbima-staging-internal-api
+flyctl status -a maishapoa-staging-internal-api
 flyctl status -a microbima-production-internal-api
 
 # Scale app (if needed)

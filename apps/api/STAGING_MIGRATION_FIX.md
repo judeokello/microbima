@@ -9,7 +9,7 @@ The migration `20251030180217_add_package_plans_and_policy_payments` failed beca
 SSH into staging and mark the failed migration as rolled back:
 
 ```bash
-flyctl ssh console -a microbima-staging-internal-api
+flyctl ssh console -a maishapoa-staging-internal-api
 cd /app/apps/api
 npx prisma migrate resolve --rolled-back 20251030180217_add_package_plans_and_policy_payments
 ```
@@ -54,7 +54,7 @@ You should see all migrations as applied.
 If you want to fix it all at once:
 
 ```bash
-flyctl ssh console -a microbima-staging-internal-api
+flyctl ssh console -a maishapoa-staging-internal-api
 cd /app/apps/api
 
 # Add enum value manually

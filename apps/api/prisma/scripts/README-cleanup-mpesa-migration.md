@@ -39,7 +39,7 @@ After running the script, check the verification queries output. You should see:
 You can also verify via command line:
 
 ```bash
-flyctl ssh console -a microbima-staging-internal-api -C "sh -c 'cd /app/apps/api && npx prisma migrate status'"
+flyctl ssh console -a maishapoa-staging-internal-api -C "sh -c 'cd /app/apps/api && npx prisma migrate status'"
 ```
 
 You should see `20251107010514_add_mpesa_payment_tables` as a pending migration.

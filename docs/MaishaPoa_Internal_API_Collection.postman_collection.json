@@ -8,7 +8,7 @@
   "variable": [
     {
       "key": "baseUrl",
-      "value": "https://microbima-staging-internal-api.fly.dev",
+      "value": "https://maishapoa-staging-internal-api.fly.dev",
       "description": "Base URL for the MicroBima Internal API"
     },
     {

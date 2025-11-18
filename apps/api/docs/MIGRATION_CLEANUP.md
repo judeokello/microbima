@@ -45,7 +45,7 @@ If you want to clean up the migration history table, you can manually remove the
 
 ```bash
 # Connect to staging database
-flyctl ssh console -a microbima-staging-internal-api
+flyctl ssh console -a maishapoa-staging-internal-api
 
 # Check if old migration is recorded
 cd /app/apps/api
@@ -64,10 +64,10 @@ After deployment, verify the migration was applied correctly:
 
 ```bash
 # Check migration status
-flyctl ssh console -a microbima-staging-internal-api -C "cd /app/apps/api && npx prisma migrate status"
+flyctl ssh console -a maishapoa-staging-internal-api -C "cd /app/apps/api && npx prisma migrate status"
 
 # Verify column exists
-flyctl ssh console -a microbima-staging-internal-api -C "cd /app/apps/api && echo \"SELECT column_name, data_type, column_default FROM information_schema.columns WHERE table_name = 'dependants' AND column_name = 'verificationRequired';\" | npx prisma db execute --stdin"
+flyctl ssh console -a maishapoa-staging-internal-api -C "cd /app/apps/api && echo \"SELECT column_name, data_type, column_default FROM information_schema.columns WHERE table_name = 'dependants' AND column_name = 'verificationRequired';\" | npx prisma db execute --stdin"
 ```
 
 Expected result:
