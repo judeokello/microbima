@@ -128,7 +128,7 @@ export class PartnerCustomer {
     }
     const d = data as Record<string, unknown>;
     return new PartnerCustomer({
-      id: d.id as string,
+      id: d.id as number,
       partnerId: d.partnerId as number,
       customerId: d.customerId as string,
       partnerCustomerId: d.partnerCustomerId as string,

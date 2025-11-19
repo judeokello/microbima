@@ -69,10 +69,10 @@ export class CustomerMapper {
       dependantId: child.id,
       firstName: child.firstName,
       lastName: child.lastName,
-      dateOfBirth: child.dateOfBirth?.toISOString().split('T')[0] ?? null,
-      gender: child.gender,
-      idType: child.idType,
-      idNumber: child.idNumber,
+      dateOfBirth: child.dateOfBirth ? child.dateOfBirth.toISOString().split('T')[0] : '',
+      gender: child.gender ? SharedMapperUtils.mapGenderToDto(child.gender) : 'male',
+      idType: child.idType ? SharedMapperUtils.mapIdTypeToDto(child.idType) : undefined,
+      idNumber: child.idNumber ?? undefined,
     }));
 
     // Transform spouses data
@@ -80,11 +80,11 @@ export class CustomerMapper {
       dependantId: spouse.id,
       firstName: spouse.firstName,
       lastName: spouse.lastName,
-      dateOfBirth: spouse.dateOfBirth?.toISOString().split('T')[0] ?? null,
-      gender: spouse.gender,
-      email: spouse.email,
-      idType: spouse.idType,
-      idNumber: spouse.idNumber,
+      dateOfBirth: spouse.dateOfBirth ? spouse.dateOfBirth.toISOString().split('T')[0] : '',
+      gender: spouse.gender ? SharedMapperUtils.mapGenderToDto(spouse.gender) : 'male',
+      email: undefined, // Email not stored in DependantData entity
+      idType: spouse.idType ? SharedMapperUtils.mapIdTypeToDto(spouse.idType) : undefined,
+      idNumber: spouse.idNumber ?? undefined,
     }));
 
     // Transform beneficiaries data
@@ -92,21 +92,16 @@ export class CustomerMapper {
       beneficiaryId: beneficiary.id,
       firstName: beneficiary.firstName,
       lastName: beneficiary.lastName,
-      dateOfBirth: beneficiary.dateOfBirth?.toISOString().split('T')[0] ?? null,
-      gender: beneficiary.gender,
-      email: beneficiary.email,
-      phoneNumber: beneficiary.phoneNumber,
-      idType: beneficiary.idType,
-      idNumber: beneficiary.idNumber,
-      relationship: beneficiary.relationship,
-      relationshipDescription: beneficiary.relationshipDescription,
-      percentage: beneficiary.percentage,
-      address: {
-        street: beneficiary.street,
-        city: beneficiary.city,
-        county: beneficiary.county,
-        postalCode: beneficiary.postalCode,
-      },
+      dateOfBirth: beneficiary.dateOfBirth ? beneficiary.dateOfBirth.toISOString().split('T')[0] : '',
+      gender: beneficiary.gender ? SharedMapperUtils.mapGenderToDto(beneficiary.gender) : 'male',
+      email: beneficiary.email ?? undefined,
+      phoneNumber: beneficiary.phoneNumber ?? undefined,
+      idType: beneficiary.idType ? (SharedMapperUtils.mapIdTypeToDto(beneficiary.idType) ?? 'national') : 'national',
+      idNumber: beneficiary.idNumber ?? '',
+      relationship: beneficiary.relationship ?? '',
+      relationshipDescription: beneficiary.relationshipDescription ?? undefined,
+      percentage: beneficiary.percentage ?? 0,
+      address: undefined, // Address not stored in BeneficiaryData entity
     }));
 
     const totalDependants = childrenWithIds.length + spousesWithIds.length;

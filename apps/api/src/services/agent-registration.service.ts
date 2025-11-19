@@ -389,12 +389,29 @@ export class AgentRegistrationService {
       customerId: reg.customerId as string,
       partnerId: reg.partnerId as number,
       registrationStatus: reg.registrationStatus as RegistrationStatus,
-      completedAt: reg.completedAt as Date | null,
+      completedAt: reg.completedAt ? (reg.completedAt as Date) : undefined,
       createdAt: reg.createdAt as Date,
       updatedAt: reg.updatedAt as Date,
-      ba: reg.ba,
-      customer: reg.customer,
-      partner: reg.partner,
+      ba: reg.ba as {
+        id: string;
+        displayName: string;
+        phoneNumber?: string;
+        perRegistrationRateCents: number;
+        isActive: boolean;
+      } | undefined,
+      customer: reg.customer as {
+        id: string;
+        firstName: string;
+        middleName?: string | undefined;
+        lastName: string;
+        phoneNumber: string;
+        hasMissingRequirements: boolean;
+      } | undefined,
+      partner: reg.partner as {
+        id: number;
+        partnerName: string;
+        isActive: boolean;
+      } | undefined,
       missingRequirements: Array.isArray(reg.missingRequirements)
         ? reg.missingRequirements.map((mr: unknown) => {
             if (!mr || typeof mr !== 'object') return null;

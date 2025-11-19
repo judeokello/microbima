@@ -10,7 +10,7 @@ import { CreatePrincipalMemberRequestDto } from '../dto/principal-member/create-
 import { CreatePrincipalMemberResponseDto } from '../dto/principal-member/create-principal-member-response.dto';
 import { DependantData } from '../entities/dependant.entity';
 import { BeneficiaryData } from '../entities/beneficiary.entity';
-import { Gender, IdType } from '@prisma/client';
+import { Gender, IdType, DependantRelationship } from '@prisma/client';
 import { PrincipalMemberDto } from '../dto/principal-member/principal-member.dto';
 import { AddDependantsRequestDto } from '../dto/dependants/add-dependants-request.dto';
 import { AddDependantsResponseDto } from '../dto/dependants/add-dependants-response.dto';
@@ -224,8 +224,44 @@ export class CustomerService {
       }
 
       // Create dependants and beneficiaries if provided
-      let createdChildren: DependantData[] = [];
-      let createdSpouses: DependantData[] = [];
+      let createdChildren: Array<{
+        id: string;
+        customerId: string;
+        firstName: string;
+        middleName?: string | null;
+        lastName: string;
+        dateOfBirth?: Date | null;
+        gender?: Gender | null;
+        idType?: IdType | null;
+        idNumber?: string | null;
+        relationship: DependantRelationship;
+        isVerified: boolean;
+        verifiedAt?: Date | null;
+        verifiedBy?: string | null;
+        verificationRequired: boolean;
+        createdByPartnerId: number;
+        createdAt: Date;
+        updatedAt: Date;
+      }> = [];
+      let createdSpouses: Array<{
+        id: string;
+        customerId: string;
+        firstName: string;
+        middleName?: string | null;
+        lastName: string;
+        dateOfBirth?: Date | null;
+        gender?: Gender | null;
+        idType?: IdType | null;
+        idNumber?: string | null;
+        relationship: DependantRelationship;
+        isVerified: boolean;
+        verifiedAt?: Date | null;
+        verifiedBy?: string | null;
+        verificationRequired: boolean;
+        createdByPartnerId: number;
+        createdAt: Date;
+        updatedAt: Date;
+      }> = [];
       let createdBeneficiaries: BeneficiaryData[] = [];
 
       if (createRequest.children && createRequest.children.length > 0) {
@@ -341,8 +377,14 @@ export class CustomerService {
         createRequest.principalMember.partnerCustomerId,
         correlationId,
         createRequest.referredBy,
-        createdChildren,
-        createdSpouses,
+        createdChildren.map(child => ({
+          ...child,
+          createdByPartnerId: String(child.createdByPartnerId),
+        })) as DependantData[],
+        createdSpouses.map(spouse => ({
+          ...spouse,
+          createdByPartnerId: String(spouse.createdByPartnerId),
+        })) as DependantData[],
         createdBeneficiaries
       );
     } catch (error) {
@@ -572,7 +614,17 @@ export class CustomerService {
 
       // Use transaction to add all dependants atomically
       const result = await this.prismaService.$transaction(async (tx: Prisma.TransactionClient) => {
-        const addedDependants: DependantData[] = [];
+        const addedDependants: Array<{
+          dependantId: string;
+          relationship: 'child' | 'spouse';
+          firstName: string;
+          lastName: string;
+          dateOfBirth: string;
+          gender: string;
+          email?: string;
+          idType?: string;
+          idNumber?: string;
+        }> = [];
         let childrenAdded = 0;
         let spousesAdded = 0;
 
@@ -612,13 +664,13 @@ export class CustomerService {
           });
 
           childrenAdded = createdChildren.count;
-          addedDependants.push(...childrenWithIds.map((child: DependantData) => ({
+          addedDependants.push(...childrenWithIds.map((child) => ({
             dependantId: child.id,
             relationship: 'child' as const,
             firstName: child.firstName,
             lastName: child.lastName,
-            dateOfBirth: child.dateOfBirth?.toISOString().split('T')[0] ?? null,
-            gender: child.gender,
+            dateOfBirth: child.dateOfBirth ? child.dateOfBirth.toISOString().split('T')[0] : '',
+            gender: child.gender ? SharedMapperUtils.mapGenderToDto(child.gender) : 'male',
           })));
         }
 
@@ -662,16 +714,16 @@ export class CustomerService {
           });
 
           spousesAdded = createdSpouses.count;
-          addedDependants.push(...spousesWithIds.map((spouse: DependantData) => ({
+          addedDependants.push(...spousesWithIds.map((spouse) => ({
             dependantId: spouse.id,
             relationship: 'spouse' as const,
             firstName: spouse.firstName,
             lastName: spouse.lastName,
-            dateOfBirth: spouse.dateOfBirth?.toISOString().split('T')[0] ?? null,
-            gender: spouse.gender,
-            email: spouse.email,
-            idType: SharedMapperUtils.mapIdTypeToDto(spouse.idType),
-            idNumber: spouse.idNumber ?? null,
+            dateOfBirth: spouse.dateOfBirth ? spouse.dateOfBirth.toISOString().split('T')[0] : '',
+            gender: spouse.gender ? SharedMapperUtils.mapGenderToDto(spouse.gender) : 'male',
+            email: spouse.email ?? undefined,
+            idType: spouse.idType ? (SharedMapperUtils.mapIdTypeToDto(spouse.idType) ?? 'national') : undefined,
+            idNumber: spouse.idNumber ?? undefined,
           })));
         }
 
@@ -771,26 +823,25 @@ export class CustomerService {
       ]);
 
       // Transform children data
-      const childrenWithIds = children.map((child: DependantData) => ({
+      const childrenWithIds = children.map((child) => ({
         dependantId: child.id,
         firstName: child.firstName,
         lastName: child.lastName,
-        dateOfBirth: child.dateOfBirth?.toISOString().split('T')[0] ?? null,
-        gender: child.gender,
-        idType: child.idType,
-        idNumber: child.idNumber,
+        dateOfBirth: child.dateOfBirth ? child.dateOfBirth.toISOString().split('T')[0] : '',
+        gender: child.gender ? SharedMapperUtils.mapGenderToDto(child.gender) : 'male',
+        idType: child.idType ? SharedMapperUtils.mapIdTypeToDto(child.idType) : undefined,
+        idNumber: child.idNumber ?? undefined,
       }));
 
       // Transform spouses data
-      const spousesWithIds = spouses.map((spouse: DependantData) => ({
+      const spousesWithIds = spouses.map((spouse) => ({
         dependantId: spouse.id,
         firstName: spouse.firstName,
         lastName: spouse.lastName,
-        dateOfBirth: spouse.dateOfBirth?.toISOString().split('T')[0] ?? null,
-        gender: spouse.gender,
-        email: spouse.email,
-        idType: spouse.idType,
-        idNumber: spouse.idNumber,
+        dateOfBirth: spouse.dateOfBirth ? spouse.dateOfBirth.toISOString().split('T')[0] : '',
+        gender: spouse.gender ? SharedMapperUtils.mapGenderToDto(spouse.gender) : 'male',
+        idType: spouse.idType ? SharedMapperUtils.mapIdTypeToDto(spouse.idType) : undefined,
+        idNumber: spouse.idNumber ?? undefined,
       }));
 
       const totalDependants = childrenWithIds.length + spousesWithIds.length;
@@ -881,7 +932,20 @@ export class CustomerService {
 
       // Use transaction to add all beneficiaries atomically
       const result = await this.prismaService.$transaction(async (tx: Prisma.TransactionClient) => {
-        const addedBeneficiaries: BeneficiaryData[] = [];
+        const addedBeneficiaries: Array<{
+          beneficiaryId: string;
+          firstName: string;
+          lastName: string;
+          dateOfBirth: string;
+          gender: string;
+          email?: string;
+          phoneNumber?: string;
+          idType: string;
+          idNumber: string;
+          relationship: string;
+          relationshipDescription?: string;
+          percentage: number;
+        }> = [];
         let beneficiariesAdded = 0;
 
         const beneficiariesData = addRequest.beneficiaries.map((beneficiary) => {
@@ -927,11 +991,11 @@ export class CustomerService {
             beneficiaryId: beneficiary.id,
             firstName: beneficiary.firstName,
             lastName: beneficiary.lastName,
-            dateOfBirth: beneficiary.dateOfBirth?.toISOString().split('T')[0] ?? '',
+            dateOfBirth: beneficiary.dateOfBirth ? beneficiary.dateOfBirth.toISOString().split('T')[0] : '',
             gender: beneficiary.gender ? SharedMapperUtils.mapGenderToDto(beneficiary.gender) : 'male',
             email: beneficiary.email ?? undefined,
             phoneNumber: beneficiary.phoneNumber ?? undefined,
-            idType: SharedMapperUtils.mapIdTypeToDto(beneficiary.idType) ?? '',
+            idType: beneficiary.idType ? (SharedMapperUtils.mapIdTypeToDto(beneficiary.idType) ?? 'national') : 'national',
             idNumber: beneficiary.idNumber ?? '',
             relationship: beneficiary.relationship ?? '',
             relationshipDescription: beneficiary.relationshipDescription ?? undefined,
@@ -1019,16 +1083,16 @@ export class CustomerService {
       });
 
       // Transform beneficiaries data
-      const beneficiariesWithIds = beneficiaries.map((beneficiary: BeneficiaryData) => ({
+      const beneficiariesWithIds = beneficiaries.map((beneficiary) => ({
         beneficiaryId: beneficiary.id,
         firstName: beneficiary.firstName,
         lastName: beneficiary.lastName,
-        dateOfBirth: beneficiary.dateOfBirth?.toISOString().split('T')[0] ?? '',
-        gender: beneficiary.gender ?? undefined,
+        dateOfBirth: beneficiary.dateOfBirth ? beneficiary.dateOfBirth.toISOString().split('T')[0] : '',
+        gender: beneficiary.gender ? SharedMapperUtils.mapGenderToDto(beneficiary.gender) : 'male',
         email: beneficiary.email ?? undefined,
         phoneNumber: beneficiary.phoneNumber ?? undefined,
-        idType: beneficiary.idType ?? undefined,
-        idNumber: beneficiary.idNumber ?? undefined,
+        idType: beneficiary.idType ? (SharedMapperUtils.mapIdTypeToDto(beneficiary.idType) ?? 'national') : 'national',
+        idNumber: beneficiary.idNumber ?? '',
         relationship: beneficiary.relationship ?? '',
         relationshipDescription: beneficiary.relationshipDescription ?? undefined,
         percentage: beneficiary.percentage ?? 0,

@@ -106,7 +106,7 @@ export class PartnerApiKey {
     }
     const d = data as Record<string, unknown>;
     return new PartnerApiKey({
-      id: d.id as string,
+      id: d.id as number,
       partnerId: d.partnerId as number,
       apiKey: d.apiKey as string,
       isActive: d.isActive as boolean,

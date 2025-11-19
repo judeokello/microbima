@@ -56,11 +56,12 @@ export class BootstrapController {
         throw new Error(userResult.error);
       }
 
-      this.logger.log(`[${correlationId}] Bootstrap user created: ${userResult.data.id}`);
+      const userId = userResult.data && typeof userResult.data === 'object' && 'id' in userResult.data ? (userResult.data as { id: string }).id : '';
+      this.logger.log(`[${correlationId}] Bootstrap user created: ${userId}`);
 
       return {
         success: true,
-        userId: userResult.data.id,
+        userId,
         email: body.email,
       };
     } catch (error: unknown) {
@@ -138,11 +139,13 @@ export class BootstrapController {
     } catch (error: unknown) {
       this.logger.error(
         `[${correlationId}] Error seeding bootstrap data:`,
-        error.message,
+        error instanceof Error ? error.message : String(error),
       );
 
       // If data already exists, that's okay (idempotent)
-      if (error.message?.includes('already exists') || error.code === '23505') {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorCode = error && typeof error === 'object' && 'code' in error ? String(error.code) : undefined;
+      if (errorMessage?.includes('already exists') || errorCode === '23505') {
         return {
           success: true,
           message: 'Bootstrap data already exists',

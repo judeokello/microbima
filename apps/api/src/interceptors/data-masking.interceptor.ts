@@ -63,7 +63,7 @@ export class DataMaskingInterceptor implements NestInterceptor {
 
     // Handle objects
     if (typeof data === 'object') {
-      const masked = { ...data };
+      const masked = { ...data } as Record<string, unknown>;
 
       // Mask customer data
       if (masked.customer) {
@@ -86,9 +86,10 @@ export class DataMaskingInterceptor implements NestInterceptor {
       }
 
       // Recursively mask nested objects
-      Object.keys(masked).forEach(key => {
-        if (typeof masked[key] === 'object' && masked[key] !== null) {
-          masked[key] = this.maskSensitiveData(masked[key]);
+      const maskedObj = masked;
+      Object.keys(maskedObj).forEach(key => {
+        if (typeof maskedObj[key] === 'object' && maskedObj[key] !== null) {
+          maskedObj[key] = this.maskSensitiveData(maskedObj[key]);
         }
       });
 
