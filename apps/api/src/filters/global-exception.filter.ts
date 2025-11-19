@@ -119,8 +119,8 @@ export class GlobalExceptionFilter implements ExceptionFilter {
 
     if (exception instanceof HttpException) {
       const response = exception.getResponse();
-      if (typeof response === 'object' && response !== null) {
-        const errorObj = (response as any).error;
+      if (typeof response === 'object' && response !== null && 'error' in response) {
+        const errorObj = (response as { error?: { code?: string } }).error;
         if (errorObj && errorObj.code) {
           return errorObj.code;
         }
@@ -263,7 +263,8 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     if (exception instanceof HttpException) {
       const response = exception.getResponse();
       if (typeof response === 'object' && response !== null) {
-        const errorObj = (response as any).error;
+        const responseObj = response as { error?: { message?: string | string[] }; message?: string | string[] };
+        const errorObj = responseObj.error;
         if (errorObj && errorObj.message) {
           // Handle class-validator error arrays
           if (Array.isArray(errorObj.message)) {
@@ -274,7 +275,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
           }
           return errorObj.message;
         }
-        const message = (response as any).message;
+        const message = responseObj.message;
         // Handle class-validator error arrays
         if (Array.isArray(message)) {
           if (message.length === 1) {
@@ -356,13 +357,14 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     if (exception instanceof HttpException) {
       const response = exception.getResponse();
       if (typeof response === 'object' && response !== null) {
-        const errorObj = (response as any).error;
+        const responseObj = response as { error?: { details?: Record<string, string>; message?: string | string[] }; message?: string | string[] };
+        const errorObj = responseObj.error;
         if (errorObj && errorObj.details) {
           return errorObj.details;
         }
 
         // Handle class-validator error arrays - transform to friendly format
-        const message = errorObj?.message ?? (response as any).message;
+        const message = errorObj?.message ?? responseObj.message;
         if (Array.isArray(message)) {
           const details: Record<string, string> = {};
           message.forEach((errorMsg: string) => {

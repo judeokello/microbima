@@ -12,7 +12,7 @@ export function IsDateStringFriendly(validationOptions?: ValidationOptions) {
       propertyName: propertyName,
       options: validationOptions,
       validator: {
-        validate(value: any, _args: ValidationArguments) {
+        validate(value: unknown, _args: ValidationArguments) {
           if (value === null || value === undefined || value === '') {
             return true; // Allow empty values (handled by @IsOptional)
           }

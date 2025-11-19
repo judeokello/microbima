@@ -3,6 +3,8 @@ import { PrincipalMemberDto } from '../dto/principal-member/principal-member.dto
 import { CreatePrincipalMemberResponseDto } from '../dto/principal-member/create-principal-member-response.dto';
 import { CustomerStatus, OnboardingStep, IdType } from '@prisma/client';
 import { SharedMapperUtils } from './shared.mapper.utils';
+import { DependantData } from '../entities/dependant.entity';
+import { BeneficiaryData } from '../entities/beneficiary.entity';
 
 /**
  * Mapper for converting between Customer entities and DTOs
@@ -58,9 +60,9 @@ export class CustomerMapper {
     partnerCustomerId: string,
     correlationId: string,
     referredBy?: string,
-    createdChildren: any[] = [],
-    createdSpouses: any[] = [],
-    createdBeneficiaries: any[] = []
+    createdChildren: DependantData[] = [],
+    createdSpouses: DependantData[] = [],
+    createdBeneficiaries: BeneficiaryData[] = []
   ): CreatePrincipalMemberResponseDto {
     // Transform children data
     const childrenWithIds = createdChildren.map(child => ({

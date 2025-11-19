@@ -34,7 +34,7 @@ export class ExternalIntegrationsService {
     requestUrl?: string;
     requestMethod?: string;
     userId?: string;
-    [key: string]: any;
+    [key: string]: unknown;
   } = {}): Promise<void> {
     // Skip if Sentry is not enabled
     if (!this.configService.sentry.enabled) {
@@ -82,7 +82,7 @@ export class ExternalIntegrationsService {
   async trackEventToPostHog(eventName: string, _properties: Record<string, any> = {}, context: {
     correlationId?: string;
     userId?: string;
-    [key: string]: any;
+    [key: string]: unknown;
   } = {}): Promise<void> {
     // Skip if PostHog is not configured
     if (!this.configService.posthog.enabled) {
@@ -127,7 +127,7 @@ export class ExternalIntegrationsService {
    */
   async identifyUserToPostHog(userId: string, _properties: Record<string, any> = {}, context: {
     correlationId?: string;
-    [key: string]: any;
+    [key: string]: unknown;
   } = {}): Promise<void> {
     // Skip if PostHog is not configured
     if (!this.configService.posthog.enabled) {
@@ -168,7 +168,7 @@ export class ExternalIntegrationsService {
    * This would ensure external calls are never lost, even if
    * the external service is temporarily unavailable
    */
-  private async sendToMessageQueue(queueName: string, data: any): Promise<void> {
+  private async sendToMessageQueue(queueName: string, data: unknown): Promise<void> {
     // TODO: Implement message queue integration
     // await redisClient.lpush(queueName, JSON.stringify(data));
     this.logger.debug(`Message queued for ${queueName}: ${JSON.stringify(data)}`);

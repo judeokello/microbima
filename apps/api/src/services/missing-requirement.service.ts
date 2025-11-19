@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateMissingRequirementDto, UpdateMissingRequirementDto, MissingRequirementResponseDto } from '../dto/missing-requirement';
-import { RegistrationMissingStatus } from '@prisma/client';
+import { RegistrationMissingStatus, RegistrationEntityKind, Prisma } from '@prisma/client';
 import * as Sentry from '@sentry/nestjs';
 
 @Injectable()
@@ -101,7 +101,7 @@ export class MissingRequirementService {
         throw new NotFoundException('Missing requirement not found');
       }
 
-      const updateData: any = {};
+      const updateData: Prisma.MissingRequirementUpdateInput = {};
       if (dto.status) {
         updateData.status = dto.status;
       }
@@ -228,7 +228,7 @@ export class MissingRequirementService {
     offset: number = 0
   ): Promise<{ missingRequirements: MissingRequirementResponseDto[]; total: number }> {
     try {
-      const whereClause: any = {
+      const whereClause: Prisma.MissingRequirementWhereInput = {
         status: RegistrationMissingStatus.PENDING,
       };
 
@@ -313,20 +313,24 @@ export class MissingRequirementService {
   /**
    * Map Prisma result to response DTO
    */
-  private mapToResponseDto(missingRequirement: any): MissingRequirementResponseDto {
+  private mapToResponseDto(missingRequirement: unknown): MissingRequirementResponseDto {
+    if (!missingRequirement || typeof missingRequirement !== 'object') {
+      throw new Error('Invalid missing requirement data');
+    }
+    const req = missingRequirement as Record<string, unknown>;
     return {
-      id: missingRequirement.id,
-      registrationId: missingRequirement.registrationId,
-      customerId: missingRequirement.customerId,
-      partnerId: missingRequirement.partnerId,
-      entityKind: missingRequirement.entityKind,
-      entityId: missingRequirement.entityId,
-      fieldPath: missingRequirement.fieldPath,
-      status: missingRequirement.status,
-      resolvedAt: missingRequirement.resolvedAt,
-      resolvedBy: missingRequirement.resolvedBy,
-      createdAt: missingRequirement.createdAt,
-      updatedAt: missingRequirement.updatedAt,
+      id: req.id as string,
+      registrationId: req.registrationId as string,
+      customerId: req.customerId as string,
+      partnerId: req.partnerId as number,
+      entityKind: req.entityKind as RegistrationEntityKind,
+      entityId: req.entityId as string | undefined,
+      fieldPath: req.fieldPath as string,
+      status: req.status as RegistrationMissingStatus,
+      resolvedAt: req.resolvedAt as Date | undefined,
+      resolvedBy: req.resolvedBy as string | undefined,
+      createdAt: req.createdAt as Date,
+      updatedAt: req.updatedAt as Date,
     };
   }
 }

@@ -250,7 +250,7 @@ export class Dependant {
   }
 
   // Data transformation methods
-  toPrismaData(): any {
+  toPrismaData(): Record<string, unknown> {
     return {
       id: this.id,
       customerId: this.customerId,
@@ -272,25 +272,29 @@ export class Dependant {
     };
   }
 
-  static fromPrismaData(data: any): Dependant {
+  static fromPrismaData(data: unknown): Dependant {
+    if (!data || typeof data !== 'object') {
+      throw new Error('Invalid Prisma data for Dependant');
+    }
+    const d = data as Record<string, unknown>;
     return new Dependant({
-      id: data.id,
-      customerId: data.customerId,
-      firstName: data.firstName,
-      middleName: data.middleName,
-      lastName: data.lastName,
-      dateOfBirth: data.dateOfBirth,
-      gender: data.gender,
-      idType: data.idType,
-      idNumber: data.idNumber,
-      relationship: data.relationship,
-      isVerified: data.isVerified,
-      verifiedAt: data.verifiedAt,
-      verifiedBy: data.verifiedBy,
-      verificationRequired: data.verificationRequired ?? false,
-      createdByPartnerId: data.createdByPartnerId,
-      createdAt: data.createdAt,
-      updatedAt: data.updatedAt,
+      id: d.id as string,
+      customerId: d.customerId as string,
+      firstName: d.firstName as string,
+      middleName: d.middleName as string | null | undefined,
+      lastName: d.lastName as string,
+      dateOfBirth: d.dateOfBirth as Date | null | undefined,
+      gender: d.gender as string,
+      idType: d.idType as string | null | undefined,
+      idNumber: d.idNumber as string | null | undefined,
+      relationship: d.relationship as string,
+      isVerified: d.isVerified as boolean,
+      verifiedAt: d.verifiedAt as Date | null | undefined,
+      verifiedBy: d.verifiedBy as string | null | undefined,
+      verificationRequired: (d.verificationRequired ?? false) as boolean,
+      createdByPartnerId: d.createdByPartnerId as number,
+      createdAt: d.createdAt as Date,
+      updatedAt: d.updatedAt as Date,
     });
   }
 }

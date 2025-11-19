@@ -194,12 +194,12 @@ export class AppController {
 
       return {
         healthy: isHealthy,
-        connectionInfo: (connectionInfo as any[])[0],
+        connectionInfo: Array.isArray(connectionInfo) ? connectionInfo[0] : connectionInfo,
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
       return {
         healthy: false,
-        error: error.message,
+        error: error instanceof Error ? error.message : String(error),
       };
     }
   }

@@ -14,7 +14,7 @@ export function IsKenyanPhone(validationOptions?: ValidationOptions) {
       propertyName: propertyName,
       options: validationOptions,
       validator: {
-        validate(value: any, _args: ValidationArguments) {
+        validate(value: unknown, _args: ValidationArguments) {
           // Allow empty values (handled by @IsOptional)
           if (value === null || value === undefined || value === '') {
             return true;

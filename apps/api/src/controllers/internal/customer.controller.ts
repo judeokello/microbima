@@ -47,6 +47,7 @@ import { AddDependantsRequestDto } from '../../dto/dependants/add-dependants-req
 import { AddDependantsResponseDto } from '../../dto/dependants/add-dependants-response.dto';
 import { CorrelationId } from '../../decorators/correlation-id.decorator';
 import { PartnerId } from '../../decorators/api-key.decorator';
+import { Request, Response } from 'express';
 
 /**
  * Internal Customer Controller
@@ -115,7 +116,7 @@ export class InternalCustomerController {
   })
   async getMyRegistrations(
     @CorrelationId() correlationId: string,
-    @Req() req: any,
+    @Req() req: Request,
     @Query('page') page: string = '1',
     @Query('pageSize') pageSize: string = '20',
     @Query('fromDate') fromDate?: string,
@@ -164,7 +165,7 @@ export class InternalCustomerController {
   })
   async getMyRegistrationsChart(
     @CorrelationId() correlationId: string,
-    @Req() req: any,
+    @Req() req: Request,
     @Query('period') period: '7d' | '30d' | '90d' = '30d',
   ): Promise<RegistrationsChartResponseDto> {
     const userId = req.user?.id ?? 'system';
@@ -196,7 +197,7 @@ export class InternalCustomerController {
   })
   async getBrandAmbassadorDashboardStats(
     @CorrelationId() correlationId: string,
-    @Req() req: any,
+    @Req() req: Request,
   ): Promise<BrandAmbassadorDashboardStatsDto> {
     const userId = req.user?.id ?? 'system';
 
@@ -238,7 +239,7 @@ export class InternalCustomerController {
   })
   async getAllRegistrationsChart(
     @CorrelationId() correlationId: string,
-    @Req() req: any,
+    @Req() req: Request,
     @Query('period') period: '7d' | '30d' | '90d' = '30d',
   ): Promise<RegistrationsChartResponseDto> {
     // No userId filter - get all registrations
@@ -269,7 +270,7 @@ export class InternalCustomerController {
   })
   async getDashboardStats(
     @CorrelationId() correlationId: string,
-    @Req() _req: any,
+    @Req() _req: Request,
   ) {
     return this.customerService.getDashboardStats(correlationId);
   }
@@ -297,7 +298,7 @@ export class InternalCustomerController {
   })
   async getBrandAmbassadorsForFilter(
     @CorrelationId() correlationId: string,
-    @Req() _req: any,
+    @Req() _req: Request,
   ) {
     return this.customerService.getBrandAmbassadorsForFilter(correlationId);
   }
@@ -358,7 +359,7 @@ export class InternalCustomerController {
   })
   async searchCustomers(
     @CorrelationId() correlationId: string,
-    @Req() req: any,
+    @Req() req: Request,
     @Query('name') name?: string,
     @Query('idNumber') idNumber?: string,
     @Query('phoneNumber') phoneNumber?: string,
@@ -431,7 +432,7 @@ export class InternalCustomerController {
   })
   async getAllCustomers(
     @CorrelationId() correlationId: string,
-    @Req() req: any,
+    @Req() req: Request,
     @Query('page') page: string = '1',
     @Query('pageSize') pageSize: string = '20',
     @Query('fromDate') fromDate?: string,
@@ -491,8 +492,8 @@ export class InternalCustomerController {
   })
   async exportCustomers(
     @CorrelationId() correlationId: string,
-    @Req() req: any,
-    @Res() res: any,
+    @Req() req: Request,
+    @Res() res: Response,
     @Query('fromDate') fromDate?: string,
     @Query('toDate') toDate?: string,
   ) {
@@ -536,7 +537,7 @@ export class InternalCustomerController {
   async createCustomer(
     @Body() createRequest: CreatePrincipalMemberRequestDto,
     @CorrelationId() correlationId: string,
-    @Req() req: any, // Add request object to access authenticated user
+    @Req() req: Request, // Add request object to access authenticated user
   ): Promise<CreatePrincipalMemberResponseDto> {
     // Extract user ID from authenticated user
     const userId = req.user?.id ?? 'system';
@@ -593,7 +594,7 @@ export class InternalCustomerController {
     @Param('customerId') customerId: string,
     @Body() addRequest: AddBeneficiariesRequestDto,
     @CorrelationId() correlationId: string,
-    @Req() req: any, // Add request object to access authenticated user
+    @Req() req: Request, // Add request object to access authenticated user
   ): Promise<AddBeneficiariesResponseDto> {
     // Extract user ID from authenticated user
     const userId = req.user?.id ?? 'system';
@@ -636,7 +637,7 @@ export class InternalCustomerController {
   async getCustomerDetails(
     @Param('customerId') customerId: string,
     @CorrelationId() correlationId: string,
-    @Req() req: any,
+    @Req() req: Request,
   ): Promise<CustomerDetailResponseDto> {
     const userId = req.user?.id ?? 'system';
     const userRoles = req.user?.roles ?? [];
@@ -665,7 +666,7 @@ export class InternalCustomerController {
   async getCustomerPolicies(
     @Param('customerId') customerId: string,
     @CorrelationId() correlationId: string,
-    @Req() req: any,
+    @Req() req: Request,
   ): Promise<CustomerPoliciesResponseDto> {
     const userId = req.user?.id ?? 'system';
     const userRoles = req.user?.roles ?? [];
@@ -777,7 +778,7 @@ export class InternalCustomerController {
     @Param('customerId') customerId: string,
     @Query() filters: CustomerPaymentsFilterDto,
     @CorrelationId() correlationId: string,
-    @Req() req: any,
+    @Req() req: Request,
   ): Promise<CustomerPaymentsResponseDto> {
     const userId = req.user?.id ?? 'system';
     const userRoles = req.user?.roles ?? [];
@@ -831,7 +832,7 @@ export class InternalCustomerController {
     @Param('customerId') customerId: string,
     @Body() addRequest: AddDependantsRequestDto,
     @CorrelationId() correlationId: string,
-    @Req() req: any,
+    @Req() req: Request,
   ): Promise<AddDependantsResponseDto> {
     // Extract user ID from authenticated user
     const userId = req.user?.id ?? 'system';
@@ -887,7 +888,7 @@ export class InternalCustomerController {
     @Param('customerId') customerId: string,
     @Body() updateRequest: UpdateCustomerDto,
     @CorrelationId() correlationId: string,
-    @Req() req: any,
+    @Req() req: Request,
   ): Promise<PrincipalMemberDto> {
     const userId = req.user?.id ?? 'system';
     const userRoles = req.user?.roles ?? [];
@@ -916,7 +917,7 @@ export class InternalCustomerController {
     @Param('dependantId') dependantId: string,
     @Body() updateRequest: UpdateDependantDto,
     @CorrelationId() correlationId: string,
-    @Req() req: any,
+    @Req() req: Request,
   ): Promise<any> {
     const userId = req.user?.id ?? 'system';
     const userRoles = req.user?.roles ?? [];
@@ -951,7 +952,7 @@ export class InternalCustomerController {
     @Param('beneficiaryId') beneficiaryId: string,
     @Body() updateRequest: UpdateBeneficiaryDto,
     @CorrelationId() correlationId: string,
-    @Req() req: any,
+    @Req() req: Request,
   ): Promise<any> {
     const userId = req.user?.id ?? 'system';
     const userRoles = req.user?.roles ?? [];

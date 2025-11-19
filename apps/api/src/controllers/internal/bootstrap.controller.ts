@@ -63,8 +63,8 @@ export class BootstrapController {
         userId: userResult.data.id,
         email: body.email,
       };
-    } catch (error: any) {
-      this.logger.error(`[${correlationId}] Error creating bootstrap user:`, error.message);
+    } catch (error: unknown) {
+      this.logger.error(`[${correlationId}] Error creating bootstrap user:`, error instanceof Error ? error.message : String(error));
       throw error;
     }
   }
@@ -135,7 +135,7 @@ export class BootstrapController {
           partnerCreated: 'Maisha Poa (partnerId: 1)',
         },
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
       this.logger.error(
         `[${correlationId}] Error seeding bootstrap data:`,
         error.message,

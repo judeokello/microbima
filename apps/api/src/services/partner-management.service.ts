@@ -479,7 +479,11 @@ export class PartnerManagementService {
       throw new BadRequestException(`Failed to create user: ${userResult.error}`);
     }
 
-    const userId = userResult.data.id;
+    if (!userResult.data || typeof userResult.data !== 'object' || !('id' in userResult.data)) {
+      throw new BadRequestException('Invalid user data returned from Supabase');
+    }
+
+    const userId = (userResult.data as { id: string }).id;
 
     // Check if Brand Ambassador already exists for this user (shouldn't happen, but safety check)
     const existingBA = await this.prismaService.brandAmbassador.findFirst({
@@ -604,7 +608,18 @@ export class PartnerManagementService {
     page: number = 1,
     limit: number = 10
   ): Promise<{
-    brandAmbassadors: any[];
+    brandAmbassadors: Array<{
+      id: string;
+      userId: string;
+      partnerId: number;
+      displayName: string;
+      phoneNumber?: string | null;
+      email?: string | null;
+      perRegistrationRateCents?: number | null;
+      isActive: boolean;
+      createdAt: Date;
+      updatedAt: Date;
+    }>;
     pagination: {
       page: number;
       limit: number;
@@ -784,12 +799,14 @@ export class PartnerManagementService {
     }
 
     // Prepare update data (only include fields that are provided)
-    const dataToUpdate: any = {
+    const dataToUpdate: Prisma.BrandAmbassadorUpdateInput = {
       updatedBy: updatedByUserId,
     };
 
     if (updateData.partnerId !== undefined) {
-      dataToUpdate.partnerId = updateData.partnerId;
+      dataToUpdate.partner = {
+        connect: { id: updateData.partnerId },
+      };
     }
 
     if (updateData.phoneNumber !== undefined) {

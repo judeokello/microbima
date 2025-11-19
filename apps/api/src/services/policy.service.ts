@@ -2,6 +2,7 @@ import { Injectable, Logger, NotFoundException, BadRequestException } from '@nes
 import { PrismaService } from '../prisma/prisma.service';
 import { PAYMENT_CADENCE } from '../constants/payment-cadence.constants';
 import { PaymentFrequency, Prisma } from '@prisma/client';
+import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
 import * as Sentry from '@sentry/nestjs';
 import { PaymentAccountNumberService } from './payment-account-number.service';
 
@@ -213,7 +214,7 @@ export class PolicyService {
               packageId: packageId,
               AND: [
                 { policyNumber: { notIn: ['', 'EMPTY'] } },
-                { NOT: [{ policyNumber: null as any }] },
+                { NOT: [{ policyNumber: null }] },
               ],
             },
             select: {
@@ -673,11 +674,15 @@ export class PolicyService {
           this.logger.log(
             `[${correlationId}] ✓ Successfully created policy: id=${policy.id}, policyNumber="${policy.policyNumber}"`
           );
-        } catch (createError: any) {
+        } catch (createError: unknown) {
           // Handle unique constraint violation on policyNumber (race condition safety net)
+          const isPrismaError = createError instanceof PrismaClientKnownRequestError;
           if (
-            createError?.code === 'P2002' &&
-            createError?.meta?.target?.includes('policyNumber')
+            isPrismaError &&
+            createError.code === 'P2002' &&
+            createError.meta?.target &&
+            Array.isArray(createError.meta.target) &&
+            createError.meta.target.includes('policyNumber')
           ) {
             // Query for existing policy with this number to get full details
             let existingPolicyDetails = null;
@@ -732,7 +737,7 @@ export class PolicyService {
             this.logger.error(
               `[${correlationId}] ✗✗✗ UNIQUE CONSTRAINT VIOLATION on policyNumber "${policyNumber}" ✗✗✗\n` +
               `  Attempted to create policy for: customerId=${data.customerId}, packageId=${data.packageId}, isPostpaid=${isPostpaidScheme}\n` +
-              `  Error code: ${createError?.code}, Target: ${JSON.stringify(createError?.meta?.target)}\n` +
+              `  Error code: ${isPrismaError ? createError.code : 'unknown'}, Target: ${JSON.stringify(isPrismaError && createError.meta?.target ? createError.meta.target : 'unknown')}\n` +
               (existingPolicyDetails
                 ? `  Existing policy with this number: id=${existingPolicyDetails.id}, customerId=${existingPolicyDetails.customerId}, ` +
                   `packageId=${existingPolicyDetails.packageId}, status=${existingPolicyDetails.status}, ` +
@@ -761,8 +766,8 @@ export class PolicyService {
                 environment: process.env.NODE_ENV,
                 existingPolicyDetails,
                 emptyPolicyCount,
-                errorCode: createError?.code,
-                errorTarget: createError?.meta?.target,
+                errorCode: isPrismaError ? createError.code : undefined,
+                errorTarget: isPrismaError && createError.meta?.target ? (Array.isArray(createError.meta.target) ? createError.meta.target : [String(createError.meta.target)]) : undefined,
               },
             });
 

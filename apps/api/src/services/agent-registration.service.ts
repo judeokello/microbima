@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateAgentRegistrationDto, UpdateAgentRegistrationDto, AgentRegistrationResponseDto } from '../dto/agent-registration';
-import { RegistrationStatus, RegistrationMissingStatus } from '@prisma/client';
+import { RegistrationStatus, RegistrationMissingStatus, Prisma } from '@prisma/client';
 import * as Sentry from '@sentry/nestjs';
 
 @Injectable()
@@ -186,7 +186,7 @@ export class AgentRegistrationService {
         throw new NotFoundException('Registration not found');
       }
 
-      const updateData: any = {};
+      const updateData: Prisma.AgentRegistrationUpdateInput = {};
       if (dto.registrationStatus) {
         updateData.registrationStatus = dto.registrationStatus;
       }
@@ -378,27 +378,37 @@ export class AgentRegistrationService {
   /**
    * Map Prisma result to response DTO
    */
-  private mapToResponseDto(registration: any, _isAdmin: boolean = false): AgentRegistrationResponseDto {
+  private mapToResponseDto(registration: unknown, _isAdmin: boolean = false): AgentRegistrationResponseDto {
+    if (!registration || typeof registration !== 'object') {
+      throw new Error('Invalid registration data');
+    }
+    const reg = registration as Record<string, unknown>;
     return {
-      id: registration.id,
-      baId: registration.baId,
-      customerId: registration.customerId,
-      partnerId: registration.partnerId,
-      registrationStatus: registration.registrationStatus,
-      completedAt: registration.completedAt,
-      createdAt: registration.createdAt,
-      updatedAt: registration.updatedAt,
-      ba: registration.ba,
-      customer: registration.customer,
-      partner: registration.partner,
-      missingRequirements: registration.missingRequirements?.map((mr: any) => ({
-        id: mr.id,
-        entityKind: mr.entityKind,
-        entityId: mr.entityId,
-        fieldPath: mr.fieldPath,
-        status: mr.status,
-        createdAt: mr.createdAt,
-      })),
+      id: reg.id as string,
+      baId: reg.baId as string,
+      customerId: reg.customerId as string,
+      partnerId: reg.partnerId as number,
+      registrationStatus: reg.registrationStatus as RegistrationStatus,
+      completedAt: reg.completedAt as Date | null,
+      createdAt: reg.createdAt as Date,
+      updatedAt: reg.updatedAt as Date,
+      ba: reg.ba,
+      customer: reg.customer,
+      partner: reg.partner,
+      missingRequirements: Array.isArray(reg.missingRequirements)
+        ? reg.missingRequirements.map((mr: unknown) => {
+            if (!mr || typeof mr !== 'object') return null;
+            const mrObj = mr as Record<string, unknown>;
+            return {
+              id: mrObj.id as string,
+              entityKind: mrObj.entityKind as string,
+              entityId: mrObj.entityId as string | undefined,
+              fieldPath: mrObj.fieldPath as string,
+              status: mrObj.status as RegistrationMissingStatus,
+              createdAt: mrObj.createdAt as Date,
+            };
+          }).filter((mr): mr is NonNullable<typeof mr> => mr !== null)
+        : undefined,
     };
   }
 }

@@ -45,14 +45,14 @@ export class SupabaseService {
 
       if (error) {
         this.logger.error('Supabase connection test failed', error);
-        return { success: false, error: error.message };
+        return { success: false, error: error instanceof Error ? error.message : String(error) };
       }
 
       this.logger.log('✅ Supabase connection test successful');
       return { success: true };
-    } catch (error: any) {
+    } catch (error: unknown) {
       this.logger.error('Supabase connection test error', error);
-      return { success: false, error: error.message };
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
     }
   }
 
@@ -69,7 +69,7 @@ export class SupabaseService {
       phone?: string;
       perRegistrationRateCents?: number;
     };
-  }): Promise<{ success: boolean; data?: any; error?: string }> {
+  }): Promise<{ success: boolean; data?: unknown; error?: string }> {
     try {
       this.logger.log(`Creating user: ${userData.email}`);
 
@@ -82,14 +82,14 @@ export class SupabaseService {
 
       if (error) {
         this.logger.error('Error creating user', error);
-        return { success: false, error: error.message };
+        return { success: false, error: error instanceof Error ? error.message : String(error) };
       }
 
       this.logger.log(`✅ User created successfully: ${user.user.id}`);
       return { success: true, data: user.user };
-    } catch (error: any) {
+    } catch (error: unknown) {
       this.logger.error('Unexpected error creating user', error);
-      return { success: false, error: error.message };
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
     }
   }
 
@@ -100,7 +100,7 @@ export class SupabaseService {
     partnerName: string;
     website?: string;
     officeLocation?: string;
-  }): Promise<{ success: boolean; data?: any; error?: string }> {
+  }): Promise<{ success: boolean; data?: unknown; error?: string }> {
     try {
       this.logger.log(`Creating partner: ${partnerData.partnerName}`);
 
@@ -142,9 +142,9 @@ export class SupabaseService {
 
       this.logger.log(`✅ Partner created successfully: ${newPartner.id}`);
       return { success: true, data: newPartner };
-    } catch (error: any) {
+    } catch (error: unknown) {
       this.logger.error('Unexpected error creating partner', error);
-      return { success: false, error: error.message };
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
     }
   }
 }

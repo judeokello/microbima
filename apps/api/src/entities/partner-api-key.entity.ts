@@ -89,7 +89,7 @@ export class PartnerApiKey {
   }
 
   // Data transformation methods
-  toPrismaData(): any {
+  toPrismaData(): Record<string, unknown> {
     return {
       id: this.id,
       partnerId: this.partnerId,
@@ -100,14 +100,18 @@ export class PartnerApiKey {
     };
   }
 
-  static fromPrismaData(data: any): PartnerApiKey {
+  static fromPrismaData(data: unknown): PartnerApiKey {
+    if (!data || typeof data !== 'object') {
+      throw new Error('Invalid Prisma data for PartnerApiKey');
+    }
+    const d = data as Record<string, unknown>;
     return new PartnerApiKey({
-      id: data.id,
-      partnerId: data.partnerId,
-      apiKey: data.apiKey,
-      isActive: data.isActive,
-      createdAt: data.createdAt,
-      updatedAt: data.updatedAt,
+      id: d.id as string,
+      partnerId: d.partnerId as number,
+      apiKey: d.apiKey as string,
+      isActive: d.isActive as boolean,
+      createdAt: d.createdAt as Date,
+      updatedAt: d.updatedAt as Date,
     });
   }
 

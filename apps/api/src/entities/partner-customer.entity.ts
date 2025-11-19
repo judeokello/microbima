@@ -111,7 +111,7 @@ export class PartnerCustomer {
   }
 
   // Data transformation methods
-  toPrismaData(): any {
+  toPrismaData(): Record<string, unknown> {
     return {
       id: this.id,
       partnerId: this.partnerId,
@@ -122,14 +122,18 @@ export class PartnerCustomer {
     };
   }
 
-  static fromPrismaData(data: any): PartnerCustomer {
+  static fromPrismaData(data: unknown): PartnerCustomer {
+    if (!data || typeof data !== 'object') {
+      throw new Error('Invalid Prisma data for PartnerCustomer');
+    }
+    const d = data as Record<string, unknown>;
     return new PartnerCustomer({
-      id: data.id,
-      partnerId: data.partnerId,
-      customerId: data.customerId,
-      partnerCustomerId: data.partnerCustomerId,
-      createdAt: data.createdAt,
-      updatedAt: data.updatedAt,
+      id: d.id as string,
+      partnerId: d.partnerId as number,
+      customerId: d.customerId as string,
+      partnerCustomerId: d.partnerCustomerId as string,
+      createdAt: d.createdAt as Date,
+      updatedAt: d.updatedAt as Date,
     });
   }
 }

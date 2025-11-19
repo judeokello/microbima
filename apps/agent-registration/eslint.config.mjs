@@ -44,7 +44,14 @@ export default [
       "react/no-unescaped-entities": "off",
       
       // TypeScript rules (basic ones that don't require type info)
-      "@typescript-eslint/no-unused-vars": "warn",
+      "@typescript-eslint/no-unused-vars": [
+        "warn",
+        {
+          "argsIgnorePattern": "^_",
+          "varsIgnorePattern": "^_",
+          "caughtErrorsIgnorePattern": "^_"
+        }
+      ],
       "@typescript-eslint/no-explicit-any": "warn",
       
       // TypeScript rules that require type info

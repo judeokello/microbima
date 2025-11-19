@@ -32,6 +32,7 @@ import {
   MissingRequirementResponseDto,
 } from '../../dto/missing-requirement';
 import { CorrelationId } from '../../decorators/correlation-id.decorator';
+import { Request } from 'express';
 import { BAAuth, AdminOnly, AdminOrBA } from '../../decorators/ba-auth.decorator';
 import { DataMaskingInterceptor } from '../../interceptors/data-masking.interceptor';
 import { EnableDataMasking } from '../../decorators/data-masking.decorator';
@@ -90,7 +91,7 @@ export class AgentRegistrationController {
   async createRegistration(
     @Body() dto: CreateAgentRegistrationDto,
     @CorrelationId() correlationId: string,
-    @Req() req: any, // Add request object to access authenticated user
+    @Req() req: Request, // Add request object to access authenticated user
   ): Promise<AgentRegistrationResponseDto> {
     // Extract user ID from authenticated user
     const userId = req.user?.id ?? 'system';
