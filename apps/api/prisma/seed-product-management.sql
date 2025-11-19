@@ -124,48 +124,45 @@ SET
 WHERE id = 3;
 
 -- Seed package_plans for all three packages (idempotent)
--- MfanisiGo Plans (packageId=1)
-INSERT INTO "package_plans" ("name", "description", "packageId", "isActive", "createdBy", "updatedBy", "updatedAt") 
-VALUES ('Silver', 'the silver plan', 1, true,
-  (SELECT id FROM auth.users ORDER BY created_at ASC LIMIT 1),
-  (SELECT id FROM auth.users ORDER BY created_at ASC LIMIT 1),
-  CURRENT_TIMESTAMP)
-ON CONFLICT ("packageId", "name") DO NOTHING;
+-- Get first user ID for createdBy and updatedBy fields
+DO $$
+DECLARE
+    first_user_id TEXT;
+BEGIN
+    -- Get first user ID from auth.users
+    SELECT id INTO first_user_id FROM auth.users ORDER BY created_at ASC LIMIT 1;
+    
+    -- If no user exists, use a placeholder (shouldn't happen in production)
+    IF first_user_id IS NULL THEN
+        first_user_id := '00000000-0000-0000-0000-000000000000';
+        RAISE WARNING 'No users found in auth.users, using placeholder UUID';
+    END IF;
 
-INSERT INTO "package_plans" ("name", "description", "packageId", "isActive", "createdBy", "updatedBy", "updatedAt") 
-VALUES ('Gold', 'the Gold plan', 1, true,
-  (SELECT id FROM auth.users ORDER BY created_at ASC LIMIT 1),
-  (SELECT id FROM auth.users ORDER BY created_at ASC LIMIT 1),
-  CURRENT_TIMESTAMP)
-ON CONFLICT ("packageId", "name") DO NOTHING;
+    -- MfanisiGo Plans (packageId=1)
+    INSERT INTO "package_plans" ("name", "description", "packageId", "isActive", "createdBy", "updatedBy", "updatedAt") 
+    VALUES ('Silver', 'the silver plan', 1, true, first_user_id, first_user_id, CURRENT_TIMESTAMP)
+    ON CONFLICT ("packageId", "name") DO NOTHING;
 
--- Mfanisi Plans (packageId=2)
-INSERT INTO "package_plans" ("name", "description", "packageId", "isActive", "createdBy", "updatedBy", "updatedAt") 
-VALUES ('Silver', 'the silver plan', 2, true,
-  (SELECT id FROM auth.users ORDER BY created_at ASC LIMIT 1),
-  (SELECT id FROM auth.users ORDER BY created_at ASC LIMIT 1),
-  CURRENT_TIMESTAMP)
-ON CONFLICT ("packageId", "name") DO NOTHING;
+    INSERT INTO "package_plans" ("name", "description", "packageId", "isActive", "createdBy", "updatedBy", "updatedAt") 
+    VALUES ('Gold', 'the Gold plan', 1, true, first_user_id, first_user_id, CURRENT_TIMESTAMP)
+    ON CONFLICT ("packageId", "name") DO NOTHING;
 
-INSERT INTO "package_plans" ("name", "description", "packageId", "isActive", "createdBy", "updatedBy", "updatedAt") 
-VALUES ('Gold', 'the Gold plan', 2, true,
-  (SELECT id FROM auth.users ORDER BY created_at ASC LIMIT 1),
-  (SELECT id FROM auth.users ORDER BY created_at ASC LIMIT 1),
-  CURRENT_TIMESTAMP)
-ON CONFLICT ("packageId", "name") DO NOTHING;
+    -- Mfanisi Plans (packageId=2)
+    INSERT INTO "package_plans" ("name", "description", "packageId", "isActive", "createdBy", "updatedBy", "updatedAt") 
+    VALUES ('Silver', 'the silver plan', 2, true, first_user_id, first_user_id, CURRENT_TIMESTAMP)
+    ON CONFLICT ("packageId", "name") DO NOTHING;
 
--- Mzalendo Plans (packageId=3)
-INSERT INTO "package_plans" ("name", "description", "packageId", "isActive", "createdBy", "updatedBy", "updatedAt") 
-VALUES ('Silver', 'the silver plan', 3, true,
-  (SELECT id FROM auth.users ORDER BY created_at ASC LIMIT 1),
-  (SELECT id FROM auth.users ORDER BY created_at ASC LIMIT 1),
-  CURRENT_TIMESTAMP)
-ON CONFLICT ("packageId", "name") DO NOTHING;
+    INSERT INTO "package_plans" ("name", "description", "packageId", "isActive", "createdBy", "updatedBy", "updatedAt") 
+    VALUES ('Gold', 'the Gold plan', 2, true, first_user_id, first_user_id, CURRENT_TIMESTAMP)
+    ON CONFLICT ("packageId", "name") DO NOTHING;
 
-INSERT INTO "package_plans" ("name", "description", "packageId", "isActive", "createdBy", "updatedBy", "updatedAt") 
-VALUES ('Gold', 'the Gold plan', 3, true,
-  (SELECT id FROM auth.users ORDER BY created_at ASC LIMIT 1),
-  (SELECT id FROM auth.users ORDER BY created_at ASC LIMIT 1),
-  CURRENT_TIMESTAMP)
-ON CONFLICT ("packageId", "name") DO NOTHING;
+    -- Mzalendo Plans (packageId=3)
+    INSERT INTO "package_plans" ("name", "description", "packageId", "isActive", "createdBy", "updatedBy", "updatedAt") 
+    VALUES ('Silver', 'the silver plan', 3, true, first_user_id, first_user_id, CURRENT_TIMESTAMP)
+    ON CONFLICT ("packageId", "name") DO NOTHING;
+
+    INSERT INTO "package_plans" ("name", "description", "packageId", "isActive", "createdBy", "updatedBy", "updatedAt") 
+    VALUES ('Gold', 'the Gold plan', 3, true, first_user_id, first_user_id, CURRENT_TIMESTAMP)
+    ON CONFLICT ("packageId", "name") DO NOTHING;
+END $$;
 
