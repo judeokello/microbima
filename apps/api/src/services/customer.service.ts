@@ -8,7 +8,6 @@ import { PartnerCustomer } from '../entities/partner-customer.entity';
 import { CustomerMapper } from '../mappers/customer.mapper';
 import { CreatePrincipalMemberRequestDto } from '../dto/principal-member/create-principal-member-request.dto';
 import { CreatePrincipalMemberResponseDto } from '../dto/principal-member/create-principal-member-response.dto';
-import { DependantData } from '../entities/dependant.entity';
 import { BeneficiaryData } from '../entities/beneficiary.entity';
 import { Gender, IdType, DependantRelationship } from '@prisma/client';
 import { PrincipalMemberDto } from '../dto/principal-member/principal-member.dto';
@@ -377,14 +376,8 @@ export class CustomerService {
         createRequest.principalMember.partnerCustomerId,
         correlationId,
         createRequest.referredBy,
-        createdChildren.map(child => ({
-          ...child,
-          createdByPartnerId: String(child.createdByPartnerId),
-        })) as DependantData[],
-        createdSpouses.map(spouse => ({
-          ...spouse,
-          createdByPartnerId: String(spouse.createdByPartnerId),
-        })) as DependantData[],
+        createdChildren,
+        createdSpouses,
         createdBeneficiaries
       );
     } catch (error) {

@@ -79,7 +79,7 @@ export class ExternalIntegrationsService {
    * @param properties - Event properties
    * @param context - Additional context
    */
-  async trackEventToPostHog(eventName: string, _properties: Record<string, any> = {}, context: {
+  async trackEventToPostHog(eventName: string, _properties: Record<string, unknown> = {}, context: {
     correlationId?: string;
     userId?: string;
     [key: string]: unknown;
@@ -125,7 +125,7 @@ export class ExternalIntegrationsService {
    * @param properties - User properties
    * @param context - Additional context
    */
-  async identifyUserToPostHog(userId: string, _properties: Record<string, any> = {}, context: {
+  async identifyUserToPostHog(userId: string, _properties: Record<string, unknown> = {}, context: {
     correlationId?: string;
     [key: string]: unknown;
   } = {}): Promise<void> {

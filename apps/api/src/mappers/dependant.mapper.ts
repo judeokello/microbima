@@ -19,7 +19,7 @@ export class DependantMapper {
   static fromChildDto(
     dto: ChildDto,
     customerId: string,
-    partnerId: string,
+    partnerId: number,
     isVerified: boolean = true // Default to true for POST /customers endpoint
   ): Dependant {
     const dateOfBirth = dto.dateOfBirth ? new Date(dto.dateOfBirth) : null;
@@ -69,7 +69,7 @@ export class DependantMapper {
   static fromSpouseDto(
     dto: SpouseDto,
     customerId: string,
-    partnerId: string,
+    partnerId: number,
     isVerified: boolean = true // Default to true for POST /customers endpoint
   ): Dependant {
     const dependantData: DependantData = {

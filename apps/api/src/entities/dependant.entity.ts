@@ -15,7 +15,7 @@ export interface DependantData {
   verifiedAt?: Date | null;
   verifiedBy?: string | null;
   verificationRequired: boolean;
-  createdByPartnerId: string;
+  createdByPartnerId: number;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -36,7 +36,7 @@ export class Dependant {
   verifiedAt?: Date | null;
   verifiedBy?: string | null;
   verificationRequired: boolean;
-  createdByPartnerId: string;
+  createdByPartnerId: number;
   createdAt: Date;
   updatedAt: Date;
 
@@ -292,7 +292,7 @@ export class Dependant {
       verifiedAt: d.verifiedAt as Date | null | undefined,
       verifiedBy: d.verifiedBy as string | null | undefined,
       verificationRequired: (d.verificationRequired ?? false) as boolean,
-      createdByPartnerId: String(d.createdByPartnerId),
+      createdByPartnerId: d.createdByPartnerId as number,
       createdAt: d.createdAt as Date,
       updatedAt: d.updatedAt as Date,
     });

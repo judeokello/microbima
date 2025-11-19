@@ -48,6 +48,8 @@ import { AddDependantsResponseDto } from '../../dto/dependants/add-dependants-re
 import { CorrelationId } from '../../decorators/correlation-id.decorator';
 import { PartnerId } from '../../decorators/api-key.decorator';
 import { Request, Response } from 'express';
+import { ApiResponseDto } from '../../dto/common/api-response.dto';
+import { SchemeDetailResponseDto } from '../../dto/schemes/scheme.dto';
 
 /**
  * Internal Customer Controller
@@ -698,7 +700,7 @@ export class InternalCustomerController {
   async getCustomerScheme(
     @Param('customerId') customerId: string,
     @CorrelationId() correlationId: string,
-  ): Promise<any> {
+  ): Promise<SchemeDetailResponseDto> {
     const schemeCustomer = await this.prismaService.packageSchemeCustomer.findFirst({
       where: { customerId },
       include: {
@@ -708,10 +710,15 @@ export class InternalCustomerController {
               select: {
                 id: true,
                 schemeName: true,
+                description: true,
+                isActive: true,
                 isPostpaid: true,
                 frequency: true,
                 paymentCadence: true,
                 paymentAcNumber: true,
+                createdBy: true,
+                createdAt: true,
+                updatedAt: true,
               },
             },
             package: {
@@ -733,8 +740,17 @@ export class InternalCustomerController {
       correlationId,
       message: 'Scheme information retrieved successfully',
       data: {
-        ...schemeCustomer.packageScheme.scheme,
-        packageId: schemeCustomer.packageScheme.packageId,
+        id: schemeCustomer.packageScheme.scheme.id,
+        schemeName: schemeCustomer.packageScheme.scheme.schemeName,
+        description: schemeCustomer.packageScheme.scheme.description,
+        isActive: schemeCustomer.packageScheme.scheme.isActive,
+        isPostpaid: schemeCustomer.packageScheme.scheme.isPostpaid ?? undefined,
+        frequency: schemeCustomer.packageScheme.scheme.frequency ?? undefined,
+        paymentCadence: schemeCustomer.packageScheme.scheme.paymentCadence ?? undefined,
+        paymentAcNumber: schemeCustomer.packageScheme.scheme.paymentAcNumber ?? undefined,
+        createdBy: schemeCustomer.packageScheme.scheme.createdBy,
+        createdAt: schemeCustomer.packageScheme.scheme.createdAt.toISOString(),
+        updatedAt: schemeCustomer.packageScheme.scheme.updatedAt.toISOString(),
         packageSchemeId: schemeCustomer.packageSchemeId,
       },
     };
@@ -918,10 +934,36 @@ export class InternalCustomerController {
     @Body() updateRequest: UpdateDependantDto,
     @CorrelationId() correlationId: string,
     @Req() req: Request,
-  ): Promise<any> {
+  ): Promise<ApiResponseDto<{
+    id: string;
+    firstName: string;
+    middleName?: string;
+    lastName: string;
+    dateOfBirth?: string;
+    phoneNumber?: string;
+    idType?: string;
+    idNumber?: string;
+    relationship: string;
+  }>> {
     const userId = req.user?.id ?? 'system';
     const userRoles = req.user?.roles ?? [];
-    return this.customerService.updateDependant(dependantId, updateRequest, userId, userRoles, correlationId);
+    const result = await this.customerService.updateDependant(dependantId, updateRequest, userId, userRoles, correlationId);
+    return {
+      status: HttpStatus.OK,
+      correlationId,
+      message: 'Dependant updated successfully',
+      data: result as {
+        id: string;
+        firstName: string;
+        middleName?: string;
+        lastName: string;
+        dateOfBirth?: string;
+        phoneNumber?: string;
+        idType?: string;
+        idNumber?: string;
+        relationship: string;
+      },
+    };
   }
 
   /**
@@ -953,10 +995,44 @@ export class InternalCustomerController {
     @Body() updateRequest: UpdateBeneficiaryDto,
     @CorrelationId() correlationId: string,
     @Req() req: Request,
-  ): Promise<any> {
+  ): Promise<ApiResponseDto<{
+    id: string;
+    firstName: string;
+    middleName?: string;
+    lastName: string;
+    dateOfBirth?: string;
+    gender?: string;
+    email?: string;
+    phoneNumber?: string;
+    idType?: string;
+    idNumber?: string;
+    relationship?: string;
+    relationshipDescription?: string;
+    percentage?: number;
+  }>> {
     const userId = req.user?.id ?? 'system';
     const userRoles = req.user?.roles ?? [];
-    return this.customerService.updateBeneficiary(customerId, beneficiaryId, updateRequest, userId, userRoles, correlationId);
+    const result = await this.customerService.updateBeneficiary(customerId, beneficiaryId, updateRequest, userId, userRoles, correlationId);
+    return {
+      status: HttpStatus.OK,
+      correlationId,
+      message: 'Beneficiary updated successfully',
+      data: result as {
+        id: string;
+        firstName: string;
+        middleName?: string;
+        lastName: string;
+        dateOfBirth?: string;
+        gender?: string;
+        email?: string;
+        phoneNumber?: string;
+        idType?: string;
+        idNumber?: string;
+        relationship?: string;
+        relationshipDescription?: string;
+        percentage?: number;
+      },
+    };
   }
 
   /**
@@ -1030,7 +1106,7 @@ export class InternalCustomerController {
   async getCustomerDebugData(
     @Param('customerId') customerId: string,
     @CorrelationId() _correlationId: string,
-  ): Promise<any> {
+  ): Promise<ApiResponseDto<unknown>> {
     // Get customer record
     const customer = await this.prismaService.customer.findUnique({
       where: { id: customerId },
@@ -1081,12 +1157,17 @@ export class InternalCustomerController {
       : [];
 
     return {
-      customer,
-      dependants,
-      policies,
-      policyPayments,
-      policyMemberPrincipals,
-      policyMemberDependants,
+      status: HttpStatus.OK,
+      correlationId: _correlationId,
+      message: 'Debug data retrieved successfully',
+      data: {
+        customer,
+        dependants,
+        policies,
+        policyPayments,
+        policyMemberPrincipals,
+        policyMemberDependants,
+      },
     };
   }
 }

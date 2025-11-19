@@ -656,14 +656,14 @@ export class PolicyService {
         try {
           policy = await tx.policy.create({
             data: {
-              policyNumber: policyNumber as any,
+              policyNumber: policyNumber ?? null,
               status,
               customerId: data.customerId,
               packageId: data.packageId,
               packagePlanId: data.packagePlanId,
               productName: data.productName,
-              startDate: startDate as any, // Type assertion: DB schema supports null, Prisma client needs regeneration
-              endDate: endDate as any, // Type assertion: DB schema supports null, Prisma client needs regeneration
+              startDate: startDate ?? null,
+              endDate: endDate ?? null,
               premium: data.premium,
               frequency,
               paymentCadence,
@@ -715,7 +715,7 @@ export class PolicyService {
                 where: {
                   packageId: data.packageId,
                   OR: [
-                    { policyNumber: null as any },
+                    { policyNumber: null },
                     { policyNumber: '' },
                     { policyNumber: 'EMPTY' },
                   ],
@@ -782,14 +782,14 @@ export class PolicyService {
               // Retry policy creation with new policy number
               policy = await tx.policy.create({
                 data: {
-                  policyNumber: policyNumber as any,
+                  policyNumber: policyNumber ?? null,
                   status,
                   customerId: data.customerId,
                   packageId: data.packageId,
                   packagePlanId: data.packagePlanId,
                   productName: data.productName,
-                  startDate: startDate as any,
-                  endDate: endDate as any,
+                  startDate: startDate ?? null,
+                  endDate: endDate ?? null,
                   premium: data.premium,
                   frequency,
                   paymentCadence,
@@ -1116,7 +1116,7 @@ export class PolicyService {
     policyId: string,
     correlationId: string,
     tx?: Prisma.TransactionClient
-  ): Promise<any> {
+  ): Promise<Prisma.PolicyGetPayload<Record<string, never>>> {
     this.logger.log(`[${correlationId}] Activating policy ${policyId}`);
 
     try {
