@@ -66,9 +66,9 @@ COPY --from=builder /app/apps/agent-registration/public ./apps/agent-registratio
 
 USER nodejs
 
-EXPOSE 3001
+EXPOSE 3000
 
-ENV PORT=3001
+ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 
 CMD ["node", "apps/agent-registration/server.js"]

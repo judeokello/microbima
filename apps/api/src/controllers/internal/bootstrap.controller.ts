@@ -43,12 +43,13 @@ export class BootstrapController {
       this.logger.log(`[${correlationId}] Creating bootstrap user: ${body.email}`);
 
       // Create user with email auto-confirmation
-      // Only store roles in user metadata - displayName and other data stored elsewhere if needed
+      // Store roles and displayName in user metadata
       const userResult = await this.supabase.createUser({
         email: body.email,
         password: body.password,
         userMetadata: {
           roles: ['registration_admin', 'brand_ambassador'],
+          displayName: body.displayName,
         },
       });
 

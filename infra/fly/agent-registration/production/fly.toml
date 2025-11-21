@@ -18,12 +18,12 @@ primary_region = "fra"
 
 [env]
   NODE_ENV = "production"
-  PORT = "3001"
+  PORT = "3000"
   # Production-specific environment variables
   NEXT_PUBLIC_API_URL = "https://maishapoa-production-internal-api.fly.dev"
 
 [[services]]
-  internal_port = 3001
+  internal_port = 3000
   protocol = "tcp"
 
   [[services.ports]]

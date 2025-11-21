@@ -130,6 +130,13 @@ jobs:
           
           echo "✅ Database migrations completed"
 
+      - name: Create Root User on Staging (if needed)
+        if: env.DEPLOY_INTERNAL_API != 'false' && env.AUTO_DEPLOY_DB == 'true'
+        run: |
+          echo "👤 Checking if root user needs to be created..."
+          flyctl ssh console -a maishapoa-staging-internal-api -C "sh -c 'cd /app/apps/api && bash scripts/create-root-user.sh'"
+          echo "✅ Root user check completed"
+
       - name: Seed Product Management Data on Staging
         if: env.DEPLOY_INTERNAL_API != 'false' && env.AUTO_DEPLOY_DB == 'true'
         run: |
@@ -387,6 +394,13 @@ jobs:
           fi
           
           echo "✅ Database migrations completed"
+
+      - name: Create Root User on Production (if needed)
+        if: env.DEPLOY_INTERNAL_API != 'false' && env.AUTO_DEPLOY_DB == 'true'
+        run: |
+          echo "👤 Checking if root user needs to be created..."
+          flyctl ssh console -a maishapoa-production-internal-api -C "sh -c 'cd /app/apps/api && bash scripts/create-root-user.sh'"
+          echo "✅ Root user check completed"
 
       - name: Seed Product Management Data on Production
         if: env.DEPLOY_INTERNAL_API != 'false' && env.AUTO_DEPLOY_DB == 'true'
