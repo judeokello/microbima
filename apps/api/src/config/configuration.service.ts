@@ -46,7 +46,7 @@ export class ConfigurationService extends BaseConfigurationService implements On
   }
 
   protected getDefaultPort(): number {
-    return parseInt(process.env.PORT ?? '3000', 10);
+    return parseInt(process.env.PORT ?? '3001', 10);
   }
 
   protected getDefaultApiPrefix(): string {
