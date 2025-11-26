@@ -56,7 +56,7 @@ async function bootstrap() {
 
     const port = configService.port;
     console.log(`🔌 Attempting to listen on 0.0.0.0:${port}...`);
-    
+
     // Listen on 0.0.0.0 for Fly.io compatibility (required for the proxy to reach the app)
     await app.listen(port, '0.0.0.0');
 
@@ -71,19 +71,19 @@ async function bootstrap() {
     console.error('❌ CRITICAL: Failed to start application');
     console.error('Error type:', error?.constructor?.name ?? 'Unknown');
     console.error('Error message:', error instanceof Error ? error.message : String(error));
-    
+
     if (error instanceof Error && error.stack) {
       console.error('Stack trace:');
       console.error(error.stack);
     }
-    
+
     // Log additional context
     console.error('Environment variables:');
     console.error('  NODE_ENV:', process.env.NODE_ENV ?? 'not set');
     console.error('  PORT:', process.env.PORT ?? 'not set');
     console.error('  DATABASE_URL:', process.env.DATABASE_URL ? 'set (hidden)' : 'not set');
     console.error('  JWT_SECRET:', process.env.JWT_SECRET ? 'set (hidden)' : 'not set');
-    
+
     // Exit with error code so Fly.io knows the deployment failed
     process.exit(1);
   }

@@ -9,12 +9,24 @@ export class SupabaseAuthMiddleware implements NestMiddleware {
 
   async use(req: Request, res: Response, next: NextFunction) {
     // Only apply to internal API routes
-    if (!req.path.startsWith('/api/internal')) {
+    if (!req.path.startsWith('/api/internal') && !req.path.startsWith('/internal')) {
+      return next();
+    }
+
+    // Skip authentication for health check endpoints
+    const healthCheckPaths = [
+      '/health',
+      '/api/health',
+      '/internal/health',
+      '/api/internal/health'
+    ];
+    if (healthCheckPaths.some(path => req.path === path || req.path.endsWith(path)) || req.path.endsWith('/health')) {
+      console.log('Skipping Supabase auth for health check endpoint:', req.path);
       return next();
     }
 
     // Skip authentication for bootstrap endpoints (one-time setup before users exist)
-    if (req.path.startsWith('/api/internal/bootstrap')) {
+    if (req.path.startsWith('/api/internal/bootstrap') || req.path.startsWith('/internal/bootstrap')) {
       console.log('Skipping Supabase auth for bootstrap endpoint:', req.path);
       return next();
     }
