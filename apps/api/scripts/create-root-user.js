@@ -142,8 +142,10 @@ async function createRootUser() {
   const displayName = process.env.ROOT_USER_DISPLAY_NAME ?? 'Root admin';
   const port = process.env.PORT ?? '3001';
   // Controller is @Controller('internal/bootstrap') with global prefix 'internal'
-  // So the full path is /internal/internal/bootstrap/create-user
-  const apiUrl = `http://localhost:${port}/internal/internal/bootstrap/create-user`;
+  // The global prefix is prepended, so the path is /internal/internal/bootstrap/create-user
+  // But NestJS might handle this differently - try /internal/bootstrap/create-user first
+  // (matching what agent-registration uses)
+  const apiUrl = `http://localhost:${port}/internal/bootstrap/create-user`;
   const correlationId = `root-user-create-${Date.now()}`;
 
   info(`Email: ${email}`);
