@@ -20,7 +20,7 @@ export class SupabaseAuthMiddleware implements NestMiddleware {
       '/internal/health',
       '/api/internal/health'
     ];
-    if (healthCheckPaths.some(path => req.path === path || req.path.endsWith(path)) || req.path.endsWith('/health')) {
+    if (healthCheckPaths.includes(req.path) || healthCheckPaths.includes(req.originalUrl) || req.path.endsWith('/health')) {
       console.log('Skipping Supabase auth for health check endpoint:', req.path);
       return next();
     }

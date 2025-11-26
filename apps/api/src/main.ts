@@ -9,6 +9,74 @@ import { ConfigurationService } from './config/configuration.service';
 import { SwaggerConfig } from './config/swagger.config';
 import { GlobalExceptionFilter } from './filters/global-exception.filter';
 import { ExternalIntegrationsService } from './services/external-integrations.service';
+import { INestApplication } from '@nestjs/common';
+
+/**
+ * Log all registered routes to verify route registration
+ */
+function logRegisteredRoutes(app: INestApplication, apiPrefix: string): void {
+  try {
+    const server = app.getHttpServer();
+    const router = (server as { _router?: unknown; router?: unknown })._router ?? (server as { router?: unknown }).router;
+
+    if (router && typeof router === 'object' && 'stack' in router && Array.isArray(router.stack)) {
+      const routes: string[] = [];
+
+      // Traverse the router stack to find all routes
+      (router.stack as Array<{ route?: { methods: Record<string, boolean>; path: string }; name?: string; handle?: { stack?: unknown[] } }>).forEach((layer) => {
+        if (layer.route) {
+          const methods = Object.keys(layer.route.methods)
+            .filter(m => layer.route?.methods[m])
+            .join(',')
+            .toUpperCase();
+          const path = layer.route.path;
+          routes.push(`${methods} ${path}`);
+        } else if (layer.name === 'router' && layer.handle && Array.isArray(layer.handle.stack)) {
+          // Handle nested routers
+          (layer.handle.stack as Array<{ route?: { methods: Record<string, boolean>; path: string } }>).forEach((nestedLayer) => {
+            if (nestedLayer.route) {
+              const methods = Object.keys(nestedLayer.route.methods)
+                .filter(m => nestedLayer.route?.methods[m])
+                .join(',')
+                .toUpperCase();
+              const path = nestedLayer.route.path;
+              routes.push(`${methods} ${path}`);
+            }
+          });
+        }
+      });
+
+      // Filter and log health-related routes
+      const healthRoutes = routes.filter(r => r.toLowerCase().includes('health'));
+      if (healthRoutes.length > 0) {
+        console.log('🏥 Health Check Routes Found:');
+        healthRoutes.forEach(route => console.log(`   ${route}`));
+      } else {
+        console.log('⚠️  No health check routes found in registered routes!');
+      }
+
+      // Log expected health route
+      const expectedHealthRoute = `GET /${apiPrefix}/health`;
+      console.log(`🔍 Expected health route: ${expectedHealthRoute}`);
+      const found = routes.some(r => {
+        const routeLower = r.toLowerCase();
+        return routeLower.includes('health') && (routeLower.includes(apiPrefix) || routeLower.includes('/health'));
+      });
+      console.log(`✅ Health route found: ${found ? 'YES' : 'NO'}`);
+
+      // Log all routes for debugging (first 20)
+      if (routes.length > 0) {
+        console.log(`📋 Total registered routes: ${routes.length}`);
+        console.log('📋 Sample routes (first 10):');
+        routes.slice(0, 10).forEach(route => console.log(`   ${route}`));
+      }
+    } else {
+      console.log('⚠️  Could not access router stack to list routes');
+    }
+  } catch (error) {
+    console.log('⚠️  Error listing routes:', error instanceof Error ? error.message : String(error));
+  }
+}
 
 async function bootstrap() {
   try {
@@ -66,6 +134,10 @@ async function bootstrap() {
     console.log(`📊 Database Pool Size: ${configService.database.poolSize}`);
     console.log(`📚 Internal API docs: http://localhost:${port}/api/internal/docs`);
     console.log(`📚 Public API docs: http://localhost:${port}/api/v1/docs`);
+
+    // Log registered routes to verify health check route is registered
+    logRegisteredRoutes(app, configService.apiPrefix);
+
     console.log(`✅ Application successfully started and listening on 0.0.0.0:${port}`);
   } catch (error) {
     console.error('❌ CRITICAL: Failed to start application');

@@ -41,6 +41,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Run tests
+        if: env.RUN_TESTS != 'false'
         run: pnpm test
 
       - name: Install Fly.io CLI
@@ -208,6 +209,7 @@ jobs:
       AUTO_DEPLOY_DB: true
       DEPLOY_AGENT_REGISTRATION: true
       DEPLOY_PUBLIC_API: false
+      RUN_TESTS: true
      
     steps:
       - name: Checkout code
@@ -227,6 +229,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Run tests
+        if: env.RUN_TESTS != 'false'
         run: pnpm test
 
       - name: Install Fly.io CLI
@@ -467,6 +470,7 @@ jobs:
     if: always()
     runs-on: ubuntu-latest
     env:
+      DEPLOY_INTERNAL_API: true
       DEPLOY_PUBLIC_API: false
     steps:
       - name: Health Check Staging
