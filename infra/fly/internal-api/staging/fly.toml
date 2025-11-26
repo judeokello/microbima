@@ -41,7 +41,7 @@ primary_region = "fra"
     timeout = "5s"
     grace_period = "30s"
     method = "GET"
-    path = "/internal/health"
+    path = "/health"
     protocol = "http"
     tls_skip_verify = false
 

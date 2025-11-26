@@ -105,9 +105,12 @@ async function bootstrap() {
     app.useGlobalFilters(new GlobalExceptionFilter(externalIntegrationsService));
     console.log('✅ Global exception filter configured');
 
-    // Set global prefix
-    app.setGlobalPrefix(configService.apiPrefix);
+    // Set global prefix, but exclude health check routes
+    app.setGlobalPrefix(configService.apiPrefix, {
+      exclude: ['/health', '/api/health', '/internal/health', '/api/internal/health']
+    });
     console.log(`✅ Global prefix set to: ${configService.apiPrefix}`);
+    console.log('✅ Health check routes excluded from global prefix');
 
     // CORS configuration - completely permissive for debugging
     app.enableCors({
