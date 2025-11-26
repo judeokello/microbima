@@ -31,6 +31,13 @@ export class ApiKeyAuthMiddleware implements NestMiddleware {
       return next();
     }
 
+    // Skip authentication for bootstrap endpoints (one-time setup before users exist)
+    if (req.path.startsWith('/api/internal/bootstrap') || req.path.startsWith('/internal/bootstrap') ||
+        req.originalUrl.startsWith('/api/internal/bootstrap') || req.originalUrl.startsWith('/internal/bootstrap')) {
+      console.log('Skipping API key auth for bootstrap endpoint:', req.path);
+      return next();
+    }
+
     // Skip authentication for health check endpoints (check various possible paths)
     const healthCheckPaths = [
       '/health',

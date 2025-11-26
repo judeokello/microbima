@@ -109,9 +109,9 @@ async function bootstrap() {
     // Bootstrap routes need to be accessible without the double prefix
     app.setGlobalPrefix(configService.apiPrefix, {
       exclude: [
-        '/health', 
-        '/api/health', 
-        '/internal/health', 
+        '/health',
+        '/api/health',
+        '/internal/health',
         '/api/internal/health',
         '/internal/bootstrap',
         '/internal/bootstrap/*'
