@@ -135,7 +135,7 @@ jobs:
         if: env.DEPLOY_INTERNAL_API != 'false' && env.AUTO_DEPLOY_DB == 'true'
         run: |
           echo "👤 Checking if root user needs to be created..."
-          flyctl ssh console -a maishapoa-staging-internal-api -C "sh -c 'cd /app/apps/api && bash scripts/create-root-user.sh'"
+          flyctl ssh console -a maishapoa-staging-internal-api -C "sh -c 'cd /app/apps/api && node scripts/create-root-user.js'"
           echo "✅ Root user check completed"
 
       - name: Seed Product Management Data on Staging
@@ -402,7 +402,7 @@ jobs:
         if: env.DEPLOY_INTERNAL_API != 'false' && env.AUTO_DEPLOY_DB == 'true'
         run: |
           echo "👤 Checking if root user needs to be created..."
-          flyctl ssh console -a maishapoa-production-internal-api -C "sh -c 'cd /app/apps/api && bash scripts/create-root-user.sh'"
+          flyctl ssh console -a maishapoa-production-internal-api -C "sh -c 'cd /app/apps/api && node scripts/create-root-user.js'"
           echo "✅ Root user check completed"
 
       - name: Seed Product Management Data on Production
