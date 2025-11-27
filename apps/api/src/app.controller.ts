@@ -28,7 +28,7 @@ export class AppController {
     }
   })
   getHealth(): string {
-    console.log('✅ Health check endpoint called - route: /health (with global prefix should be /internal/health)');
+    console.log('✅ Health check endpoint called - route: /health (excluded from global prefix)');
     console.log(`📋 Current API Prefix: ${this.configService.apiPrefix}`);
     return this.appService.getHealth();
   }

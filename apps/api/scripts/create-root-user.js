@@ -93,11 +93,27 @@ function loadEnvFile() {
 
 /**
  * Check if we're in the right directory
+ * Looks for prisma/schema.prisma in current directory or relative to script location
  */
 function checkDirectory() {
-  const schemaPath = path.join(process.cwd(), 'prisma', 'schema.prisma');
+  // First try current working directory
+  let schemaPath = path.join(process.cwd(), 'prisma', 'schema.prisma');
+  
+  // If not found, try relative to script location (for when run from project root)
   if (!fs.existsSync(schemaPath)) {
-    error('Please run this script from the API directory (apps/api)');
+    const scriptDir = path.dirname(__filename);
+    const apiDir = path.resolve(scriptDir, '..');
+    schemaPath = path.join(apiDir, 'prisma', 'schema.prisma');
+    
+    // Change to API directory if we found the schema there
+    if (fs.existsSync(schemaPath)) {
+      process.chdir(apiDir);
+      info(`Changed working directory to: ${apiDir}`);
+    }
+  }
+  
+  if (!fs.existsSync(schemaPath)) {
+    error('Could not find prisma/schema.prisma. Please run this script from the project root or apps/api directory.');
     process.exit(1);
   }
 }
