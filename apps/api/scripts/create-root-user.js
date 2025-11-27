@@ -182,7 +182,7 @@ async function getSupabaseToken(email, password) {
  * Seed initial data (Maisha Poa partner) after user creation
  */
 async function seedInitialData(userId, port) {
-  const apiUrl = `http://localhost:${port}/api/internal/bootstrap/seed-initial-data`;
+  const apiUrl = `http://localhost:${port}/internal/bootstrap/seed-initial-data`;
   const correlationId = `root-user-seed-${Date.now()}`;
 
   info(`Seeding initial data (Maisha Poa partner) for user: ${userId}`);
@@ -293,9 +293,9 @@ async function createRootUser() {
   const password = process.env.ROOT_USER_PASSWORD;
   const displayName = process.env.ROOT_USER_DISPLAY_NAME ?? 'Root admin';
   const port = process.env.PORT ?? '3001';
-  // Controller is @Controller('internal/bootstrap') with global prefix 'api'
-  // So the full path is /api/internal/bootstrap/create-user
-  const apiUrl = `http://localhost:${port}/api/internal/bootstrap/create-user`;
+  // Controller is @Controller('internal/bootstrap') but excluded from global prefix
+  // So the full path is /internal/bootstrap/create-user (NOT /api/internal/bootstrap/create-user)
+  const apiUrl = `http://localhost:${port}/internal/bootstrap/create-user`;
   const correlationId = `root-user-create-${Date.now()}`;
 
   info(`Email: ${email}`);

@@ -99,8 +99,9 @@ echo "🚀 Creating root user..."
 
 # Make API call to create user
 # Use PORT environment variable if set (Fly.io sets this to 3000), otherwise default to 3001 for local development
+# Note: Bootstrap routes are excluded from global prefix, so path is /internal/bootstrap/* (NOT /api/internal/bootstrap/*)
 API_PORT="${PORT:-3001}"
-API_URL="http://localhost:${API_PORT}/api/internal/bootstrap/create-user"
+API_URL="http://localhost:${API_PORT}/internal/bootstrap/create-user"
 CORRELATION_ID="root-user-create-$(date +%s)"
 
 echo "📡 Calling bootstrap API endpoint: $API_URL"
