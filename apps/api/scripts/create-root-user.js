@@ -4,6 +4,7 @@
  * Create Root User Script (Node.js version)
  * 
  * This script creates a root user if no users exist in the database.
+ * It also seeds the Maisha Poa partner and creates a Brand Ambassador record.
  * It is idempotent and safe to run multiple times.
  * 
  * Requirements:
@@ -12,6 +13,8 @@
  * - ROOT_USER_DISPLAY_NAME environment variable (optional, defaults to "Root admin")
  * - DATABASE_URL environment variable
  * - PORT environment variable (optional, defaults to 3001)
+ * - SUPABASE_URL environment variable (for authentication)
+ * - SUPABASE_ANON_KEY environment variable (for authentication)
  */
 
 const { PrismaClient } = require('@prisma/client');
@@ -134,6 +137,155 @@ async function checkUsersExist(prisma) {
 }
 
 /**
+ * Get Supabase authentication token by signing in
+ */
+async function getSupabaseToken(email, password) {
+  const supabaseUrl = process.env.SUPABASE_URL;
+  const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
+
+  if (!supabaseUrl || !supabaseAnonKey) {
+    warn('SUPABASE_URL or SUPABASE_ANON_KEY not set, skipping token retrieval');
+    return null;
+  }
+
+  info(`Signing in to Supabase to get authentication token...`);
+
+  try {
+    const response = await fetch(`${supabaseUrl}/auth/v1/token?grant_type=password`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': supabaseAnonKey,
+      },
+      body: JSON.stringify({
+        email,
+        password,
+      }),
+    });
+
+    const responseData = await response.json();
+
+    if (response.ok && responseData.access_token) {
+      success('Successfully obtained authentication token');
+      return responseData.access_token;
+    } else {
+      warn(`Failed to get token: ${responseData.error_description || responseData.error || 'Unknown error'}`);
+      return null;
+    }
+  } catch (err) {
+    warn(`Error getting Supabase token: ${err instanceof Error ? err.message : String(err)}`);
+    return null;
+  }
+}
+
+/**
+ * Seed initial data (Maisha Poa partner) after user creation
+ */
+async function seedInitialData(userId, port) {
+  const apiUrl = `http://localhost:${port}/api/internal/bootstrap/seed-initial-data`;
+  const correlationId = `root-user-seed-${Date.now()}`;
+
+  info(`Seeding initial data (Maisha Poa partner) for user: ${userId}`);
+  info(`Calling seed API endpoint: ${apiUrl}`);
+
+  try {
+    const response = await fetch(apiUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-correlation-id': correlationId,
+      },
+      body: JSON.stringify({
+        userId: userId,
+      }),
+    });
+
+    const responseBody = await response.text();
+    let responseData;
+    
+    try {
+      responseData = JSON.parse(responseBody);
+    } catch {
+      responseData = { message: responseBody };
+    }
+
+    if (response.ok) {
+      success('Initial data seeded successfully!');
+      info(`Response: ${JSON.stringify(responseData, null, 2)}`);
+      return true;
+    } else {
+      warn(`Failed to seed initial data (may already exist)`);
+      info(`HTTP Status: ${response.status}`);
+      info(`Response: ${JSON.stringify(responseData, null, 2)}`);
+      // Don't fail the script if seeding fails - it might already exist
+      return false;
+    }
+  } catch (err) {
+    warn(`Error seeding initial data: ${err instanceof Error ? err.message : String(err)}`);
+    // Don't fail the script if seeding fails
+    return false;
+  }
+}
+
+/**
+ * Create Brand Ambassador record for the root user
+ */
+async function createBrandAmbassador(userId, displayName, accessToken, port) {
+  const apiUrl = `http://localhost:${port}/api/internal/partner-management/partners/1/brand-ambassadors/from-existing-user`;
+  const correlationId = `root-user-ba-${Date.now()}`;
+
+  info(`Creating Brand Ambassador record for user: ${userId}`);
+  info(`Calling Brand Ambassador API endpoint: ${apiUrl}`);
+
+  try {
+    const response = await fetch(apiUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${accessToken}`,
+        'x-correlation-id': correlationId,
+      },
+      body: JSON.stringify({
+        userId: userId,
+        displayName: displayName,
+        phoneNumber: '+254700000000', // Default phone number
+        perRegistrationRateCents: 500, // 5.00 KES per registration
+        isActive: true,
+      }),
+    });
+
+    const responseBody = await response.text();
+    let responseData;
+    
+    try {
+      responseData = JSON.parse(responseBody);
+    } catch {
+      responseData = { message: responseBody };
+    }
+
+    if (response.ok || response.status === 409) { // 409 = already exists
+      if (response.status === 409) {
+        warn('Brand Ambassador already exists for this user');
+      } else {
+        success('Brand Ambassador created successfully!');
+      }
+      info(`Response: ${JSON.stringify(responseData, null, 2)}`);
+      return true;
+    } else {
+      warn(`Failed to create Brand Ambassador`);
+      info(`HTTP Status: ${response.status}`);
+      info(`Response: ${JSON.stringify(responseData, null, 2)}`);
+      // Don't fail the script if BA creation fails
+      return false;
+    }
+  } catch (err) {
+    warn(`Error creating Brand Ambassador: ${err instanceof Error ? err.message : String(err)}`);
+    // Don't fail the script if BA creation fails
+    return false;
+  }
+}
+
+/**
  * Create root user via API call
  */
 async function createRootUser() {
@@ -141,11 +293,9 @@ async function createRootUser() {
   const password = process.env.ROOT_USER_PASSWORD;
   const displayName = process.env.ROOT_USER_DISPLAY_NAME ?? 'Root admin';
   const port = process.env.PORT ?? '3001';
-  // Controller is @Controller('internal/bootstrap') with global prefix 'internal'
-  // The global prefix is prepended, so the path is /internal/internal/bootstrap/create-user
-  // But NestJS might handle this differently - try /internal/bootstrap/create-user first
-  // (matching what agent-registration uses)
-  const apiUrl = `http://localhost:${port}/internal/bootstrap/create-user`;
+  // Controller is @Controller('internal/bootstrap') with global prefix 'api'
+  // So the full path is /api/internal/bootstrap/create-user
+  const apiUrl = `http://localhost:${port}/api/internal/bootstrap/create-user`;
   const correlationId = `root-user-create-${Date.now()}`;
 
   info(`Email: ${email}`);
@@ -178,16 +328,34 @@ async function createRootUser() {
     if (response.status === 201 || response.status === 200) {
       success('Root user created successfully!');
       info(`Response: ${JSON.stringify(responseData, null, 2)}`);
-      return true;
+      
+      const userId = responseData.userId;
+      
+      if (userId) {
+        // Step 1: Get authentication token
+        const accessToken = await getSupabaseToken(email, password);
+        
+        // Step 2: Seed initial data (Maisha Poa partner)
+        await seedInitialData(userId, port);
+        
+        // Step 3: Create Brand Ambassador record (if we have a token)
+        if (accessToken) {
+          await createBrandAmbassador(userId, displayName, accessToken, port);
+        } else {
+          warn('Skipping Brand Ambassador creation (no authentication token)');
+        }
+      }
+      
+      return { success: true, userId };
     } else {
       error(`Failed to create root user`);
       info(`HTTP Status: ${response.status}`);
       info(`Response: ${JSON.stringify(responseData, null, 2)}`);
-      return false;
+      return { success: false, userId: null };
     }
   } catch (err) {
     error(`Error calling API: ${err instanceof Error ? err.message : String(err)}`);
-    return false;
+    return { success: false, userId: null };
   }
 }
 
@@ -226,12 +394,14 @@ async function main() {
       info(`No users found in database (count: ${userCount})`);
       log('🚀 Creating root user...', 'cyan');
 
-      // Create root user
-      const created = await createRootUser();
+      // Create root user and perform bootstrap steps
+      const result = await createRootUser();
 
-      if (created) {
+      if (result.success) {
+        success('✅ Root user setup completed successfully!');
         process.exit(0);
       } else {
+        error('❌ Root user setup failed');
         process.exit(1);
       }
     } finally {

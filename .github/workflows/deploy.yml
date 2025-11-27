@@ -22,7 +22,7 @@ jobs:
       AUTO_DEPLOY_DB: true
       DEPLOY_AGENT_REGISTRATION: true
       DEPLOY_PUBLIC_API: false
-      RUN_TESTS: false
+      RUN_TESTS: true
     steps:
       - name: Checkout code
         uses: actions/checkout@v4

@@ -106,13 +106,12 @@ async function bootstrap() {
     console.log('✅ Global exception filter configured');
 
     // Set global prefix, but exclude health check routes and bootstrap routes
-    // Bootstrap routes need to be accessible without the double prefix
+    // Health check: Keep at /health (not /api/health)
+    // Bootstrap: Keep at /internal/bootstrap (not /api/internal/bootstrap)
+    // Customer routes: Will correctly be at /api/internal/customers (no exclusion needed)
     app.setGlobalPrefix(configService.apiPrefix, {
       exclude: [
         '/health',
-        '/api/health',
-        '/internal/health',
-        '/api/internal/health',
         '/internal/bootstrap',
         '/internal/bootstrap/*'
       ]

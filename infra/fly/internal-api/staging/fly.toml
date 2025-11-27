@@ -7,7 +7,7 @@ primary_region = "fra"
 [env]
   NODE_ENV = "staging"
   PORT = "3001"
-  API_PREFIX = "internal"
+  API_PREFIX = "api"
   # Staging-specific environment variables
   LOG_LEVEL = "debug"
   SENTRY_ENVIRONMENT = "staging"
