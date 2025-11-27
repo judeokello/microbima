@@ -223,35 +223,41 @@ export default function PaymentStep() {
 
     // Fetch customer's scheme information if they belong to one
     if (customerId) {
-      fetch(`${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/customers/${customerId}/scheme`, {
-        headers: {
-          'x-correlation-id': `req-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
-        }
-      })
-        .then(response => {
-          if (response.ok) {
-            return response.json();
-          }
-          // Customer may not belong to a scheme, which is fine
-          return null;
-        })
-        .then(data => {
-          if (data && data.data) {
-            const scheme = data.data;
-            setIsPostpaidScheme(scheme.isPostpaid ?? false);
-            setSchemeFrequency(scheme.frequency);
-            setSchemeCadence(scheme.paymentCadence);
-
-            // If postpaid, set the frequency to the scheme's frequency
-            if (scheme.isPostpaid && scheme.frequency) {
-              setSelectedFrequency(scheme.frequency);
-              if (scheme.frequency === 'CUSTOM' && scheme.paymentCadence) {
-                setCustomCadence(scheme.paymentCadence.toString());
-              }
+      // Get Supabase token for authenticated request
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        if (session?.access_token) {
+          fetch(`${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/customers/${customerId}/scheme`, {
+            headers: {
+              'Authorization': `Bearer ${session.access_token}`,
+              'x-correlation-id': `req-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
             }
-          }
-        })
-        .catch(error => console.error('Error loading scheme data:', error));
+          })
+            .then(response => {
+              if (response.ok) {
+                return response.json();
+              }
+              // Customer may not belong to a scheme, which is fine
+              return null;
+            })
+            .then(data => {
+              if (data && data.data) {
+                const scheme = data.data;
+                setIsPostpaidScheme(scheme.isPostpaid ?? false);
+                setSchemeFrequency(scheme.frequency);
+                setSchemeCadence(scheme.paymentCadence);
+
+                // If postpaid, set the frequency to the scheme's frequency
+                if (scheme.isPostpaid && scheme.frequency) {
+                  setSelectedFrequency(scheme.frequency);
+                  if (scheme.frequency === 'CUSTOM' && scheme.paymentCadence) {
+                    setCustomCadence(scheme.paymentCadence.toString());
+                  }
+                }
+              }
+            })
+            .catch(error => console.error('Error loading scheme data:', error));
+        }
+      });
     }
   }, []);
 

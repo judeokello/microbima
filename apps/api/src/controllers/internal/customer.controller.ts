@@ -752,6 +752,7 @@ export class InternalCustomerController {
         createdAt: schemeCustomer.packageScheme.scheme.createdAt.toISOString(),
         updatedAt: schemeCustomer.packageScheme.scheme.updatedAt.toISOString(),
         packageSchemeId: schemeCustomer.packageSchemeId,
+        packageId: schemeCustomer.packageScheme.package.id,
       },
     };
   }

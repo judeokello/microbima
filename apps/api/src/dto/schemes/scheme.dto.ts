@@ -64,6 +64,13 @@ export class SchemeDetailDto {
   paymentAcNumber?: string | null;
 
   @ApiProperty({
+    description: 'Package ID associated with this scheme',
+    example: 1,
+    required: false,
+  })
+  packageId?: number;
+
+  @ApiProperty({
     description: 'User ID who created this scheme',
     example: 'uuid-here',
   })
