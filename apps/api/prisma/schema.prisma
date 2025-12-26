@@ -408,6 +408,19 @@ enum MpesaStatementReasonType {
   Unmapped
 }
 
+enum MpesaPaymentSource {
+  IPN
+  STATEMENT
+}
+
+enum MpesaStkPushStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  CANCELLED
+  EXPIRED
+}
+
 // Agent Registration Models
 model BrandAmbassador {
   id        String  @id @default(uuid()) @db.Uuid
@@ -825,7 +838,7 @@ model MpesaPaymentReportUpload {
 
 model MpesaPaymentReportItem {
   id                        String                    @id @default(uuid()) @db.Uuid
-  mpesaPaymentReportUploadId String                   @db.Uuid
+  mpesaPaymentReportUploadId String?                  @db.Uuid // Made nullable for IPN records
   transactionReference      String                    @db.VarChar(50)
   completionTime            DateTime
   initiationTime         DateTime
@@ -842,8 +855,18 @@ model MpesaPaymentReportItem {
   isProcessed               Boolean                   @default(false)
   isMapped                  Boolean                   @default(false)
 
+  // New fields for IPN and STK Push integration
+  msisdn                    String?                   @db.VarChar(20) // Customer phone number (normalized: 254XXXXXXXXX)
+  firstName                 String?                   @db.VarChar(100) // Customer first name from IPN
+  middleName                String?                   @db.VarChar(100) // Customer middle name from IPN
+  lastName                  String?                   @db.VarChar(100) // Customer last name from IPN
+  source                    MpesaPaymentSource        @default(IPN) // Data source (IPN or STATEMENT)
+  businessShortCode         String?                   @db.VarChar(20) // Business short code from IPN
+  mpesaStkPushRequestId     String?                   @unique @db.Uuid // Link to STK Push request (unique for one-to-one relation)
+
   // Relations
-  mpesaPaymentReportUpload MpesaPaymentReportUpload @relation(fields: [mpesaPaymentReportUploadId], references: [id], onDelete: Cascade)
+  mpesaPaymentReportUpload MpesaPaymentReportUpload? @relation(fields: [mpesaPaymentReportUploadId], references: [id], onDelete: Cascade)
+  mpesaStkPushRequest      MpesaStkPushRequest?      @relation(fields: [mpesaStkPushRequestId], references: [id], onDelete: SetNull)
 
   // Audit fields
   createdAt DateTime @default(now())
@@ -851,7 +874,37 @@ model MpesaPaymentReportItem {
 
   @@index([transactionReference], name: "idx_transaction_reference")
   @@index([mpesaPaymentReportUploadId], name: "idx_mpesa_payment_report_upload_id")
+  @@index([transactionReference, source], name: "idx_transaction_reference_source") // Composite index for deduplication
+  @@index([source], name: "idx_source") // For filtering by source
+  @@index([accountNumber], name: "idx_account_number") // For matching with STK Push requests
   @@map("mpesa_payment_report_items")
+}
+
+model MpesaStkPushRequest {
+  id                String            @id @default(uuid()) @db.Uuid // Auto-generated UUID, used as MerchantRequestID
+  checkoutRequestId String?           @db.VarChar(100) // From Daraja STK Push response (CheckoutRequestID)
+  phoneNumber       String            @db.VarChar(20) // Customer phone number (normalized: 254XXXXXXXXX)
+  amount            Decimal           @db.Decimal(10, 2) // Transaction amount (1-70,000 KES)
+  accountReference  String            @db.VarChar(100) // Policy payment account number (BillRefNumber)
+  transactionDesc   String?           @db.VarChar(500) // Transaction description
+  status            MpesaStkPushStatus @default(PENDING) // Request status
+  resultCode        String?           @db.VarChar(10) // From STK Push callback
+  resultDesc        String?           @db.VarChar(500) // From STK Push callback
+  linkedTransactionId String?        @db.VarChar(100) // TransID from IPN (when linked)
+  initiatedBy       String?          // Agent/user ID who initiated
+  initiatedAt       DateTime          @default(now()) // When STK Push was initiated
+  completedAt       DateTime?        // When transaction completed
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  // Relations
+  transaction MpesaPaymentReportItem? // One-to-one, nullable (linked payment record)
+
+  @@unique([checkoutRequestId]) // Unique checkout request ID (for callback lookup)
+  @@index([accountReference]) // For matching with IPN BillRefNumber
+  @@index([status, createdAt]) // For querying pending requests
+  @@index([phoneNumber]) // For matching with IPN MSISDN
+  @@map("mpesa_stk_push_requests")
 }
 
 model SchemeContact {

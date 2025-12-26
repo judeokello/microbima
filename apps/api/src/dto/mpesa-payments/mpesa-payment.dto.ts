@@ -361,5 +361,29 @@ export class MpesaPaymentUploadResponseDto {
     example: 150,
   })
   itemsCount: number;
+
+  @ApiProperty({
+    description: 'Total number of transactions in the statement file',
+    example: 150,
+  })
+  totalItems: number;
+
+  @ApiProperty({
+    description: 'Number of transactions that matched existing IPN records (skipped as duplicates)',
+    example: 120,
+  })
+  matchedIpnRecords: number;
+
+  @ApiProperty({
+    description: 'Number of new transactions created (gaps filled from statement)',
+    example: 30,
+  })
+  gapsFilled: number;
+
+  @ApiProperty({
+    description: 'Number of transactions that failed to process',
+    example: 0,
+  })
+  errors: number;
 }
 

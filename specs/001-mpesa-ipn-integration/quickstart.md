@@ -216,7 +216,7 @@ export class MpesaIpnController {
 ```typescript
 @Controller('internal/mpesa/stk-push')
 @ApiTags('M-Pesa STK Push')
-@ApiSecurity('ApiKeyAuth')
+@ApiBearerAuth()
 export class MpesaStkPushController {
   constructor(private readonly mpesaStkPushService: MpesaStkPushService) {}
 
@@ -331,7 +331,7 @@ curl -X POST http://localhost:3001/api/public/mpesa/confirmation \
 # Initiate STK Push request
 curl -X POST http://localhost:3001/api/internal/mpesa/stk-push/initiate \
   -H "Content-Type: application/json" \
-  -H "x-api-key: your-api-key" \
+  -H "Authorization: Bearer your-supabase-jwt-token" \
   -d '{
     "phoneNumber": "254722000000",
     "amount": 100.00,

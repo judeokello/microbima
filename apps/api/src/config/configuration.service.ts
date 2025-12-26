@@ -35,6 +35,19 @@ export interface AppConfig {
     apiKey: string;
     enabled: boolean;
   };
+  mpesa: {
+    consumerKey: string;
+    consumerSecret: string;
+    businessShortCode: string;
+    passkey: string;
+    environment: 'sandbox' | 'production';
+    baseUrl: string;
+    stkPushCallbackUrl: string;
+    ipnConfirmationUrl: string;
+    allowedIpRanges: string[];
+    stkPushTimeoutMinutes: number;
+    stkPushExpirationCheckIntervalMinutes: number;
+  };
 }
 
 @Injectable()
@@ -79,7 +92,27 @@ export class ConfigurationService extends BaseConfigurationService implements On
         apiKey: process.env.POSTHOG_KEY ?? '',
         enabled: !!process.env.POSTHOG_KEY,
       },
+      mpesa: {
+        consumerKey: process.env.MPESA_CONSUMER_KEY ?? '',
+        consumerSecret: process.env.MPESA_CONSUMER_SECRET ?? '',
+        businessShortCode: process.env.MPESA_BUSINESS_SHORT_CODE ?? '',
+        // Strip newlines and trim whitespace from passkey (common issue when copying from M-Pesa portal)
+        passkey: (process.env.MPESA_PASSKEY ?? '').replace(/\r?\n/g, '').trim(),
+        environment: (process.env.MPESA_ENVIRONMENT ?? 'sandbox') as 'sandbox' | 'production',
+        baseUrl: process.env.MPESA_BASE_URL ?? this.getDefaultMpesaBaseUrl(process.env.MPESA_ENVIRONMENT ?? 'sandbox'),
+        stkPushCallbackUrl: process.env.MPESA_STK_PUSH_CALLBACK_URL ?? '',
+        ipnConfirmationUrl: process.env.MPESA_IPN_CONFIRMATION_URL ?? '',
+        allowedIpRanges: process.env.MPESA_ALLOWED_IP_RANGES?.split(',').map(range => range.trim()).filter(range => range.length > 0) ?? [],
+        stkPushTimeoutMinutes: parseInt(process.env.MPESA_STK_PUSH_TIMEOUT_MINUTES ?? '5', 10),
+        stkPushExpirationCheckIntervalMinutes: parseInt(process.env.MPESA_STK_PUSH_EXPIRATION_CHECK_INTERVAL_MINUTES ?? '2', 10),
+      },
     };
+  }
+
+  private getDefaultMpesaBaseUrl(environment: string): string {
+    return environment === 'production'
+      ? 'https://api.safaricom.co.ke/mpesa'
+      : 'https://sandbox.safaricom.co.ke/mpesa';
   }
 
   private getDefaultJwtSecret(env: string): string {
@@ -101,7 +134,7 @@ export class ConfigurationService extends BaseConfigurationService implements On
   }
 
   private validateConfiguration(): void {
-    const { database, jwt } = this.config;
+    const { database, jwt, mpesa } = this.config;
 
     // Validate base configuration
     this.validateBaseConfiguration(this.config);
@@ -114,11 +147,53 @@ export class ConfigurationService extends BaseConfigurationService implements On
       throw new Error('JWT_SECRET is required');
     }
 
+    // Validate M-Pesa config
+    if (!mpesa.consumerKey) {
+      throw new Error('MPESA_CONSUMER_KEY is required');
+    }
+    if (!mpesa.consumerSecret) {
+      throw new Error('MPESA_CONSUMER_SECRET is required');
+    }
+    if (!mpesa.businessShortCode) {
+      throw new Error('MPESA_BUSINESS_SHORT_CODE is required');
+    }
+    if (!mpesa.passkey) {
+      throw new Error('MPESA_PASSKEY is required');
+    }
+    if (!mpesa.stkPushCallbackUrl) {
+      throw new Error('MPESA_STK_PUSH_CALLBACK_URL is required');
+    }
+    if (!mpesa.ipnConfirmationUrl) {
+      throw new Error('MPESA_IPN_CONFIRMATION_URL is required');
+    }
+
+    // Validate URL formats (HTTPS, valid domain)
+    this.validateUrl(mpesa.stkPushCallbackUrl, 'MPESA_STK_PUSH_CALLBACK_URL');
+    this.validateUrl(mpesa.ipnConfirmationUrl, 'MPESA_IPN_CONFIRMATION_URL');
+    this.validateUrl(mpesa.baseUrl, 'MPESA_BASE_URL');
+
     // Environment-specific validations
     if (this.isRemote()) {
       if (!process.env.DATABASE_URL) {
         throw new Error('DATABASE_URL is required in remote environments');
       }
+    }
+  }
+
+  private validateUrl(url: string, envVarName: string): void {
+    try {
+      const urlObj = new URL(url);
+      if (urlObj.protocol !== 'https:') {
+        throw new Error(`${envVarName} must use HTTPS protocol`);
+      }
+      if (!urlObj.hostname || urlObj.hostname.length === 0) {
+        throw new Error(`${envVarName} must have a valid domain`);
+      }
+    } catch (error) {
+      if (error instanceof TypeError) {
+        throw new Error(`${envVarName} must be a valid URL`);
+      }
+      throw error;
     }
   }
 
@@ -183,6 +258,22 @@ export class ConfigurationService extends BaseConfigurationService implements On
     return this.config?.posthog ?? {
       apiKey: '',
       enabled: false,
+    };
+  }
+
+  get mpesa() {
+    return this.config?.mpesa ?? {
+      consumerKey: '',
+      consumerSecret: '',
+      businessShortCode: '',
+      passkey: '',
+      environment: 'sandbox',
+      baseUrl: 'https://sandbox.safaricom.co.ke/mpesa',
+      stkPushCallbackUrl: '',
+      ipnConfirmationUrl: '',
+      allowedIpRanges: [],
+      stkPushTimeoutMinutes: 5,
+      stkPushExpirationCheckIntervalMinutes: 2,
     };
   }
 

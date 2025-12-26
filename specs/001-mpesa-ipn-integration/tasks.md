@@ -79,11 +79,15 @@ Each increment is independently testable and delivers value.
 
 - [ ] T001 Add M-Pesa Daraja API configuration to `apps/api/src/config/configuration.service.ts`
   - Add `mpesa.consumerKey`, `mpesa.consumerSecret`, `mpesa.businessShortCode`, `mpesa.passkey`
-  - Add `mpesa.environment` ('sandbox' | 'production')
-  - Add `mpesa.baseUrl` (sandbox: `https://sandbox.safaricom.co.ke/mpesa`, production: `https://api.safaricom.co.ke/mpesa`)
+  - Add `mpesa.environment` ('sandbox' | 'production', default: 'sandbox')
+  - Add `mpesa.baseUrl` (sandbox: `https://sandbox.safaricom.co.ke/mpesa`, production: `https://api.safaricom.co.ke/mpesa`, auto-derived from environment if not provided)
   - Add `mpesa.stkPushCallbackUrl`, `mpesa.ipnConfirmationUrl`
   - Add `mpesa.allowedIpRanges` (array, placeholder for now)
+  - Add `mpesa.stkPushTimeoutMinutes` (number, default: 5, configurable)
+  - Add `mpesa.stkPushExpirationCheckIntervalMinutes` (number, default: 2, configurable)
   - Load from environment variables with validation
+  - **Validation**: All required variables MUST be present at startup (startup fails if missing)
+  - **URL validation**: Validate URL formats (HTTPS, valid domain) at startup
 
 - [ ] T002 Add M-Pesa environment variables to `.env.example` in `apps/api/`
   - Document `MPESA_CONSUMER_KEY`, `MPESA_CONSUMER_SECRET`, `MPESA_BUSINESS_SHORT_CODE`, `MPESA_PASSKEY`
@@ -165,13 +169,21 @@ Each increment is independently testable and delivers value.
     - Map "CustomerPayBillOnline" → `Paybill_MobileApp`
     - Map other transaction types as needed (reference M-Pesa Daraja API documentation)
     - Default to `Unmapped` if transaction type is unknown
-  - Check for existing record by `transactionReference` and `source = 'IPN'` (idempotency)
-  - If exists: Update existing record
-  - If not exists: Create new `MpesaPaymentReportItem` with `source = 'IPN'`, `mpesaPaymentReportUploadId = null`, and mapped `reasonType`
+  - **Check for duplicate in policy_payments**: Check `policy_payments` table by `transactionReference` for idempotency
+  - Check for existing record by `transactionReference` and `source = 'IPN'` in `MpesaPaymentReportItem` (idempotency)
+  - If exists: Update existing records in both tables
+  - If not exists: 
+    - Always create `MpesaPaymentReportItem` with `source = 'IPN'`, `mpesaPaymentReportUploadId = null`, and mapped `reasonType`
+    - **Payment record creation logic**:
+      - If IPN matches COMPLETED STK Push: Create only `MpesaPaymentReportItem` (skip `policy_payments` to prevent duplicate)
+      - If IPN matches PENDING STK Push: Create records in both `MpesaPaymentReportItem` and `policy_payments`, update STK Push status
+      - If IPN doesn't match any STK Push: Validate using same logic as XLS statement processing, then create records in both tables
   - Store customer data (firstName, middleName, lastName, msisdn) from IPN payload
+  - Set `paidIn` field appropriately (all IPN transactions are incoming payments)
+  - **Policy activation**: After creating policy payment record, if policy status is `PENDING_ACTIVATION`, activate policy (set status to `ACTIVE`, set `startDate` to payment date, set `endDate` to one year from `startDate`). Do NOT activate if policy status is already `ACTIVE` or any other status (e.g., `SUSPENDED`, `TERMINATED`)
   - Attempt to link to STK Push request (matching logic: accountReference, normalized phone, exact amount, 24-hour window)
   - Return success response (`ResultCode: 0, ResultDesc: "Accepted"`) even on errors
-  - Log errors internally for investigation (use correlationId for tracing)
+  - Log errors internally for investigation (use correlationId for tracing, structured JSON format)
   - Handle database write failures gracefully (return success, log error)
 
 - [ ] T012 [US1] Implement STK Push to IPN linking logic in `apps/api/src/services/mpesa-ipn.service.ts`
@@ -181,14 +193,20 @@ Each increment is independently testable and delivers value.
     - `phoneNumber = normalized MSISDN`
     - `amount = TransAmount` (exact match, 0.00 tolerance)
     - `status IN ['PENDING', 'COMPLETED']`
-    - `initiatedAt` within last 24 hours
+    - `initiatedAt` within last 24 hours + 5 minutes buffer (for clock skew)
+    - Use UTC for all time calculations
     - Order results by `initiatedAt DESC` (most recent first)
   - **Handle multiple matches**: If multiple STK Push requests match:
     - **Priority 1**: Exact amount match (query already filters by exact amount, so all results have exact match)
     - **Priority 2**: Most recent match (use first result from ordered query: `ORDER BY initiatedAt DESC LIMIT 1`)
     - If still multiple matches after ordering (same timestamp): Use first result and log warning with correlationId for investigation
     - Log warning when multiple matches found (include count, accountReference, phoneNumber, amount, correlationId)
+  - **Payment record creation based on match**:
+    - If match is COMPLETED: Create only `MpesaPaymentReportItem` (skip `policy_payments` to prevent duplicate). Policy may already be activated by STK Push callback, so check status before attempting activation
+    - If match is PENDING: Create records in both tables, update STK Push status. If policy status is `PENDING_ACTIVATION`, activate policy
   - If match found: Update both records (set `mpesaStkPushRequestId` on payment, `linkedTransactionId` on STK Push request)
+  - Log time window expiration failures when match attempted but fails
+  - Track unmatched IPN as metric (distinguish: no match attempted vs match attempted but failed)
 
 ### Controller
 
@@ -213,7 +231,7 @@ Each increment is independently testable and delivers value.
   - Read allowed IP ranges from configuration service
   - **For development/testing**: Always allow localhost (`127.0.0.1`, `::1`) and common development IPs (`192.168.*.*`, `10.*.*.*`, `172.16.*.*` to `172.31.*.*`)
   - **For production**: Validate request IP against Safaricom IP ranges from configuration
-  - Return `ForbiddenException` if IP not whitelisted (except in development)
+  - **Security failure response**: Return success (ResultCode: 0) to M-Pesa, log security violation as ERROR level with IP address, timestamp, endpoint, request payload (sanitized), do NOT process request, track as metric
   - Add placeholder implementation (log warning if IP ranges not configured in production)
   - Note: Full production implementation requires Safaricom IP ranges (external dependency)
 
@@ -252,12 +270,15 @@ Each increment is independently testable and delivers value.
   - Create `MpesaDarajaApiService` class
   - Use base URL from configuration (sandbox: `https://sandbox.safaricom.co.ke/mpesa`, production: `https://api.safaricom.co.ke/mpesa`)
   - Implement OAuth 2.0 token generation (`generateAccessToken()`) - endpoint: `/oauth/v1/generate?grant_type=client_credentials`
+    - **Token expiry**: Tokens expire after 3600 seconds (1 hour) - handle token refresh
   - Implement STK Push initiation (`initiateStkPush(phoneNumber, amount, accountReference, merchantRequestId, callbackUrl): Promise<StkPushResponse>`) - endpoint: `/stkpush/v1/processrequest`
     - **Note**: `merchantRequestId` parameter uses camelCase (code convention), but M-Pesa API expects `MerchantRequestID` in request payload
   - Add retry logic: retry up to 3 times with exponential backoff (1s, 2s, 4s delays)
+  - **Retry exhaustion**: Store error details from all 3 retry attempts, throw exception with all error details
   - Handle network errors, timeouts, and API errors
+  - Handle rate limiting (429 Too Many Requests) - may need to implement backoff
   - Use configuration service for API credentials and environment
-  - Log all API calls with correlation IDs
+  - Log all API calls with correlation IDs (structured JSON format)
 
 ### Service
 
@@ -270,6 +291,7 @@ Each increment is independently testable and delivers value.
   - Call M-Pesa Daraja API with `MerchantRequestID = stkPushRequest.id` (M-Pesa API field name)
   - Store `CheckoutRequestID` from M-Pesa response in `checkoutRequestId` database field (camelCase)
   - Handle API failures (retry logic in API client, update status to FAILED if all retries fail)
+  - **Retry exhaustion**: After 3 failed retries, update status to FAILED, store error details from all 3 attempts, log with correlation ID, return generic "STK Push initiation failed" error, track as metric
   - Return STK Push request details
 
 - [ ] T022 [US2] Implement STK Push callback handling in `apps/api/src/services/mpesa-stk-push.service.ts`
@@ -278,10 +300,14 @@ Each increment is independently testable and delivers value.
   - Update status based on `ResultCode`:
     - `ResultCode = 0` → `COMPLETED`
     - Otherwise → `FAILED` or `CANCELLED` (based on ResultDesc)
+  - **Payment record creation**: If status is COMPLETED, create records in both `MpesaPaymentReportItem` and `policy_payments`
+  - **Handle idempotency**: Check if payment records already exist (IPN may have arrived first) - handle idempotently
+  - **Policy activation**: After creating policy payment record, if policy status is `PENDING_ACTIVATION`, activate policy (set status to `ACTIVE`, set `startDate` to payment date, set `endDate` to one year from `startDate`). Do NOT activate if policy status is already `ACTIVE` or any other status (e.g., `SUSPENDED`, `TERMINATED`)
+  - **TODO**: Handle status mismatch scenario (if IPN already processed and created payment records, but callback arrives with FAILED/CANCELLED - see deferred decision)
   - Store `resultCode` and `resultDesc` fields
   - Set `completedAt` timestamp
   - Return success response (`ResultCode: 0`) even on errors
-  - Log errors internally for investigation
+  - Log errors internally for investigation (structured JSON format)
 
 ### Controller
 
@@ -323,6 +349,7 @@ Each increment is independently testable and delivers value.
 - [ ] T025 [US2] Apply security guard to STK Push callback endpoint in `apps/api/src/controllers/public/mpesa-stk-push.controller.ts`
   - Add `@UseGuards(IpWhitelistGuard)` to callback endpoint
   - Ensure guard runs before service logic
+  - **Security failure response**: Same as T015 - return success to M-Pesa, log as ERROR, do NOT process, track as metric
 
 ### Module Registration
 
@@ -351,8 +378,9 @@ Each increment is independently testable and delivers value.
       - Query: `MpesaPaymentReportItem` where `transactionReference = statement.transactionReference` AND `source = 'IPN'`
       - If IPN record exists: Skip, increment match counter
       - If no IPN record: Create new record with `source = 'STATEMENT'` and `mpesaPaymentReportUploadId = upload.id`
-  - Track statistics: `totalItems`, `matchedIpnRecords`, `gapsFilled` (new records created)
-  - Return statistics in response
+  - Track statistics: `totalItems`, `matchedIpnRecords`, `gapsFilled` (new records created), `errors` (failed transactions)
+  - **Validate statistics equation**: `matchedIpnRecords + gapsFilled + errors = totalItems` (throw error if doesn't match)
+  - Return statistics in response immediately after upload
   - Preserve all existing functionality (file validation, Excel parsing, file storage, etc.)
 
 - [ ] T028 [US3] Update existing statement records to set source in `apps/api/src/services/mpesa-payments.service.ts`
@@ -383,17 +411,30 @@ Each increment is independently testable and delivers value.
 ### Logging & Observability
 
 - [ ] T031 Add structured logging throughout IPN and STK Push services
+  - **Error logging**: Structured JSON logs with error message, stack trace, correlation ID, transaction details, timestamp, error type, full request/response payloads. Log at ERROR level.
+  - **Success logging**: Structured JSON logs with event type, correlation ID, transaction ID, key details, timestamp, processing time (IPN only). Log at INFO level.
   - Log all IPN notifications received (with correlationId)
   - Log all STK Push requests initiated (with correlationId)
-  - Log all matching operations (STK Push to IPN linking)
+  - Log all matching operations (STK Push to IPN linking) as separate events
   - Log all errors with full context (correlationId, transaction details)
-  - Use correlation IDs for request tracing
+  - Use correlation IDs for request tracing (check M-Pesa headers first, generate if not provided)
+  - Log security violations as ERROR level
+  - Log time window expiration failures
+  - Do NOT log when no STK Push match found (normal case)
 
 - [ ] T032 Add metrics/monitoring hooks (if applicable)
-  - Add counters for IPN notifications processed
-  - Add counters for STK Push requests initiated
-  - Add counters for matching success/failure
-  - Add timing metrics for IPN processing (target: 95% within 2 seconds)
+  - **Basic metrics** (logged, not exposed via endpoint):
+    - IPN notifications received (counter)
+    - IPN notifications processed successfully (counter)
+    - STK Push requests initiated (counter)
+    - STK Push requests completed (counter)
+    - STK Push to IPN matches found (counter)
+    - IPN processing time histogram (buckets: <1s, <2s, <5s, <10s, >10s) - for SC-001 monitoring
+    - Security violations (counter)
+    - Retry exhaustion events (counter)
+    - Unmatched IPN count (distinguish: no match attempted vs match attempted but failed)
+    - Missing IPN count (STK Push completed but no IPN within 24 hours)
+    - Queue depth (for performance monitoring)
 
 ### Documentation
 
@@ -455,11 +496,25 @@ Each increment is independently testable and delivers value.
   - Verify foreign key constraints
   - Check that existing records have correct `source` values
 
+- [ ] T042 [US2] Create periodic job for STK Push expiration check in `apps/api/src/services/mpesa-stk-push.service.ts`
+  - Create periodic job (default: every 2 minutes, configurable via `MPESA_STK_PUSH_EXPIRATION_CHECK_INTERVAL_MINUTES`)
+  - Check for `MpesaStkPushRequest` records with `status = 'PENDING'` older than timeout (default: 5 minutes, configurable via `MPESA_STK_PUSH_TIMEOUT_MINUTES`)
+  - Update status to `EXPIRED` for expired requests
+  - Log expiration with correlation ID, distinguish between M-Pesa callback expiration and system timeout expiration
+  - Use UTC for all time calculations
+
+- [ ] T043 [US2] Create periodic job for missing IPN check in `apps/api/src/services/mpesa-stk-push.service.ts`
+  - Create periodic job (run hourly)
+  - Check for `MpesaStkPushRequest` records with `status = 'COMPLETED'` but no IPN received within 24 hours of completion
+  - Log warning (WARN level) with correlation ID, request ID, transaction details
+  - Track "missing IPN" as a metric for monitoring
+  - Use UTC for all time calculations
+
 ---
 
 ## Summary
 
-**Total Tasks**: 42 (T016 - signature verification guard removed, T023b - public callback controller added)
+**Total Tasks**: 44 (T016 - signature verification guard removed, T023b - public callback controller added, T042 - STK Push expiration job, T043 - missing IPN check job)
 
 **Tasks by Phase**:
 - Phase 1 (Setup): 3 tasks
@@ -467,7 +522,7 @@ Each increment is independently testable and delivers value.
 - Phase 3 (US1 - IPN): 8 tasks (signature verification removed)
 - Phase 4 (US2 - STK Push): 10 tasks (includes test endpoint and separate public controller)
 - Phase 5 (US3 - Statement Deduplication): 2 tasks
-- Phase 6 (Polish): 13 tasks
+- Phase 6 (Polish): 15 tasks (includes periodic jobs T042, T043)
 
 **Tasks by User Story**:
 - US1 (IPN Processing): 8 tasks (signature verification removed)
@@ -492,3 +547,60 @@ Each increment is independently testable and delivers value.
 
 **Future Integration Notes**:
 - **Register/Payment Page Integration**: The STK Push functionality is designed as a standalone service that can be integrated into the existing register/payment page. The register/payment page currently works as designed but lacks STK Push functionality. Future work will integrate STK Push initiation into the register/payment page, allowing agents to initiate STK Push requests directly from the registration flow. The test endpoint (T023a) allows independent testing of STK Push functionality before this integration.
+
+**Policy Creation and Activation Requirements**:
+- **Policy Creation**: When creating policies in the registration flow, policies MUST be created with `status = 'PENDING_ACTIVATION'` and `startDate = NULL`, `endDate = NULL` (for both prepaid and postpaid schemes). Dates are only set when policy is activated on first payment.
+- **Policy Activation**: Policy activation (changing status from `PENDING_ACTIVATION` to `ACTIVE`) MUST only happen on the first payment completion. When activating:
+  - Set `status = 'ACTIVE'`
+  - Set `startDate = payment date` (UTC, start of day: 00:00:00)
+  - Set `endDate = startDate + 1 year` (UTC, end of day: 23:59:59.999)
+  - Create policy member records (principal and dependants)
+- **Activation Safety**: System MUST NOT change policy status if policy is already `ACTIVE` or in any other status (e.g., `SUSPENDED`, `TERMINATED`). Activation is idempotent - if policy is already `ACTIVE`, skip activation.
+- **Subsequent Payments**: IPN notifications for policies that are already `ACTIVE` or in other statuses create payment records normally but do NOT change policy status or dates.
+
+## Deferred Decisions and TODOs
+
+### TODO: STK Push Callback Status Mismatch Handling
+
+**Scenario**: If IPN arrives and matches a PENDING STK Push request, creates payment records in both `MpesaPaymentReportItem` and `policy_payments`, updates STK Push status. Later, STK Push callback arrives with FAILED or CANCELLED status.
+
+**Question**: How should the system handle this scenario?
+
+**Options to Consider**:
+1. Reverse the payment record creation (delete/void the payment)
+2. Mark payment record with a flag indicating status mismatch
+3. Log warning and require manual review
+4. Other approach
+
+**Status**: Decision deferred, tracked in both `spec.md` and `tasks.md`
+
+**Impact**: This edge case needs resolution before production deployment
+
+**Related Tasks**: This affects IPN processing logic (T011, T012) and STK Push callback handling (T022)
+
+### TODO: M-Pesa API Behavior Assumptions Verification
+
+**Status**: Requires access to M-Pesa official documentation portal to verify assumptions
+
+**Assumptions to Verify**:
+- Callback delivery guarantees
+- STK Push timeout behavior
+- IPN timing relative to STK Push callbacks
+- Idempotency behavior (duplicate callbacks)
+- Rate limits
+- API availability and SLA
+
+**Action**: Access M-Pesa documentation portal and extract/verify these assumptions, then update `spec.md` Assumptions section
+
+### Deferred: Data Protection Requirements
+
+**Note**: Data protection requirements (encryption at rest, masking in logs, access controls, data retention) are deferred for later implementation after core functionality is working.
+
+**Current State**:
+- HTTPS in transit: Required (TLS 1.2+)
+- Encryption at rest: Not required now
+- Masking in logs: Not required now
+- Access control: Not implemented yet
+- Data retention: Not implemented yet
+
+**Status**: Tracked for future implementation (post-MVP)

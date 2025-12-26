@@ -7,6 +7,10 @@ info:
     **IPN Endpoints**: Public callback endpoints that receive notifications from M-Pesa (no authentication required).
     
     **STK Push Endpoints**: Internal endpoints for agent-initiated payment requests (authentication required).
+    
+    **Error Response Formats**:
+    - **Public Callback Endpoints** (IPN, STK Push callback): Use M-Pesa format (`MpesaCallbackResponse`) with `ResultCode` and `ResultDesc` fields. Always returns 200 OK with ResultCode: 0 to prevent M-Pesa retries.
+    - **Internal Endpoints** (STK Push initiation): Use standard MicroBima error format (`ErrorResponse`) defined in `StandardErrorResponseDto`. See error response schema for details.
   version: 1.0.0
   contact:
     name: MicroBima API Support
@@ -63,7 +67,11 @@ paths:
                   LastName: "Doe"
       responses:
         '200':
-          description: Success response (always returns success to prevent M-Pesa retries)
+          description: |
+            Success response (always returns success to prevent M-Pesa retries).
+            Even if validation fails or processing errors occur, this endpoint returns 200 OK
+            with ResultCode: 0 to prevent M-Pesa from retrying the notification.
+            Errors are logged internally for investigation.
           content:
             application/json:
               schema:
@@ -71,12 +79,6 @@ paths:
               example:
                 ResultCode: 0
                 ResultDesc: "Accepted"
-        '400':
-          description: Invalid request format
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
       security: [] # Public endpoint, no authentication
 
   /public/mpesa/stk-push/callback:
@@ -130,7 +132,11 @@ paths:
                       ResultDesc: "Request cancelled by user"
       responses:
         '200':
-          description: Success response (always returns success to prevent M-Pesa retries)
+          description: |
+            Success response (always returns success to prevent M-Pesa retries).
+            Even if validation fails or processing errors occur, this endpoint returns 200 OK
+            with ResultCode: 0 to prevent M-Pesa from retrying the notification.
+            Errors are logged internally for investigation.
           content:
             application/json:
               schema:
@@ -138,12 +144,6 @@ paths:
               example:
                 ResultCode: 0
                 ResultDesc: "Accepted"
-        '400':
-          description: Invalid request format
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
       security: [] # Public endpoint, no authentication
 
   /internal/mpesa/stk-push/initiate:
@@ -155,7 +155,7 @@ paths:
         Internal endpoint for agents to initiate STK Push payment requests.
         Creates a payment prompt on the customer's phone and tracks the request status.
         
-        **Authentication**: Requires API key authentication and internal route access.
+        **Authentication**: Requires Supabase Bearer token authentication (agents must be logged in).
       operationId: initiateStkPush
       requestBody:
         required: true
@@ -176,27 +176,45 @@ paths:
               schema:
                 $ref: '#/components/schemas/StkPushRequestResponse'
         '400':
-          description: Validation error
+          description: Bad request (malformed request payload)
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '401':
-          description: Unauthorized (missing or invalid API key)
+          description: Unauthorized (missing or invalid Bearer token)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Validation error (invalid phone number, amount out of range, account reference not found, etc.)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Too many requests (rate limit exceeded - M-Pesa API rate limiting)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
       security:
-        - ApiKeyAuth: []
+        - BearerAuth: []
 
 components:
   securitySchemes:
-    ApiKeyAuth:
-      type: apiKey
-      in: header
-      name: x-api-key
-      description: API key for internal endpoint authentication
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Supabase JWT Bearer token for authenticated agents
 
   schemas:
     MpesaIpnPayload:
@@ -397,27 +415,70 @@ components:
 
     ErrorResponse:
       type: object
+      description: |
+        Standard error response format for internal endpoints.
+        Follows the MicroBima API standard error response format defined in StandardErrorResponseDto.
+        Note: Public callback endpoints (IPN, STK Push callback) use M-Pesa format (MpesaCallbackResponse)
+        instead of this format.
+      required:
+        - error
       properties:
         error:
           type: object
+          required:
+            - code
+            - status
+            - message
+            - correlationId
+            - timestamp
           properties:
             code:
               type: string
+              description: Standardized error code for programmatic handling
+              enum:
+                - VALIDATION_ERROR
+                - DUPLICATE_EMAIL
+                - DUPLICATE_ID_NUMBER
+                - MALFORMED_REQUEST
+                - AUTHENTICATION_ERROR
+                - AUTHORIZATION_ERROR
+                - NOT_FOUND
+                - DATABASE_ERROR
+                - EXTERNAL_SERVICE_ERROR
+                - RATE_LIMIT_EXCEEDED
+                - INTERNAL_SERVER_ERROR
               example: "VALIDATION_ERROR"
             status:
               type: integer
-              example: 400
+              description: HTTP status code (ALWAYS use "status", never "statusCode")
+              example: 422
             message:
               type: string
-              example: "Invalid request payload"
+              description: Human-readable error message
+              example: "One or more fields failed validation"
+            details:
+              type: object
+              description: Field-specific error details (for validation errors)
+              additionalProperties:
+                type: string
+              example:
+                phoneNumber: "Phone number must be in format 254XXXXXXXXX"
+                amount: "Amount must be between 1 and 70,000 KES"
             correlationId:
               type: string
-              example: "req-12345"
+              description: Request correlation ID for tracing
+              example: "req-12345-67890"
             timestamp:
               type: string
               format: date-time
+              description: ISO timestamp when error occurred
               example: "2025-01-27T14:30:45.123Z"
             path:
               type: string
-              example: "/api/public/mpesa/confirmation"
+              description: API endpoint path where error occurred
+              example: "/api/internal/mpesa/stk-push/initiate"
+            stack:
+              type: string
+              description: Stack trace (development environment only)
+              example: "ValidationException: One or more fields failed validation..."
 

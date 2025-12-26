@@ -453,3 +453,4 @@ Integrate M-Pesa Daraja API Instant Payment Notification (IPN) as the primary tr
 
 - **Reconciliation mechanism for delayed IPN**: Scheduled job to check pending STK Push requests and query Daraja Transaction Status API. This will be implemented in a future feature to handle cases where IPN callbacks are delayed or missing.
 
+

@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Checkbox } from '@/components/ui/checkbox';
 // import { Separator } from '@/components/ui/separator';
 import { CheckCircle, CreditCard, Users, User, Loader2 } from 'lucide-react';
-import { processPayment, PaymentRequest, createPolicy, CreatePolicyRequest, getPackagePlans, Plan, checkTransactionReferenceExists } from '@/lib/api';
+import { createPolicy, CreatePolicyRequest, getPackagePlans, Plan, checkTransactionReferenceExists, initiateStkPush, InitiateStkPushRequest } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
 
@@ -376,26 +376,7 @@ export default function PaymentStep() {
     setIsSubmitting(true);
 
     try {
-
-      // Process payment
-      const paymentRequest: PaymentRequest = {
-        customerId,
-        registrationId,
-        phoneNumber: paymentPhone,
-        amount: 900, // Weekly payment amount in cents
-        currency: 'KES'
-      };
-
-      console.log('Processing payment:', paymentRequest);
-
-      const paymentResult = await processPayment(paymentRequest);
-      if (!paymentResult.success) {
-        throw new Error(paymentResult.error ?? 'Payment processing failed');
-      }
-
-      console.log('Payment successful:', paymentResult);
-
-      // After payment succeeds, create the policy
+      // Step 1: Create policy first (with PENDING_ACTIVATION status)
       // Get customer's packageId from their package scheme
       let packageId: number;
       try {
@@ -461,6 +442,10 @@ export default function PaymentStep() {
       // For now, using weekly if selected, otherwise daily
       const premium = frequency === 'WEEKLY' ? calculatedPricing.totalWeekly : calculatedPricing.totalDaily;
 
+      // Generate placeholder transaction reference for policy creation
+      // The actual payment transaction reference will come from M-Pesa via IPN
+      const placeholderTransactionRef = `PENDING-STK-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
+
       const policyRequest: CreatePolicyRequest = {
         customerId,
         packageId,
@@ -470,36 +455,46 @@ export default function PaymentStep() {
         productName: `MfanisiGo ${selectedPlan.charAt(0).toUpperCase() + selectedPlan.slice(1)}`,
         paymentData: {
           paymentType: paymentType as 'MPESA' | 'SASAPAY',
-          transactionReference: transactionReference.toUpperCase(), // Ensure uppercase when saving
+          transactionReference: placeholderTransactionRef, // Placeholder - real ref will come from IPN
           amount: premium,
           accountNumber: paymentPhone,
           details: `Payment for policy registration - ${customerData.firstName} ${customerData.lastName}`,
           expectedPaymentDate: new Date().toISOString(),
-          actualPaymentDate: new Date().toISOString(),
+          // Don't set actualPaymentDate - payment hasn't happened yet
         },
         // Add customDays if CUSTOM frequency is selected
         ...(frequency === 'CUSTOM' && customCadence ? { customDays: parseInt(customCadence) } : {}),
       };
 
-      console.log('Creating policy with payment:', policyRequest);
+      console.log('Creating policy first (before payment):', policyRequest);
 
-      try {
-        const policyResult = await createPolicy(policyRequest);
-        console.log('Policy created successfully:', policyResult);
-      } catch (policyError) {
-        const errorMessage = policyError instanceof Error ? policyError.message : String(policyError);
-        console.error('Failed to create policy after payment:', policyError);
+      const policyResult = await createPolicy(policyRequest);
+      console.log('Policy created successfully:', policyResult);
 
-        // Check if the error is about a duplicate record (idempotency)
-        // This can happen if the user resubmits the form or if the request was retried
-        if (errorMessage.includes('already exists') || errorMessage.includes('duplicate')) {
-          console.log('Policy already exists for this transaction. Treating as success.');
-          // Policy already exists, so we can continue with the success flow
-        } else {
-          // For other errors, log but don't throw - payment was successful
-          console.warn('Payment succeeded but policy creation failed. Policy can be created manually later.');
-        }
+      // Step 2: Get payment account number from policy
+      const paymentAccountNumber = policyResult.policy.paymentAcNumber;
+
+      if (!paymentAccountNumber) {
+        throw new Error('Payment account number not found. This may be a postpaid scheme which does not support STK push payments.');
       }
+
+      console.log('Payment account number:', paymentAccountNumber);
+
+      // Step 3: Initiate STK Push
+      const stkPushRequest: InitiateStkPushRequest = {
+        phoneNumber: paymentPhone,
+        amount: premium,
+        accountReference: paymentAccountNumber,
+        transactionDesc: `Premium payment for policy - ${customerData.firstName} ${customerData.lastName}`,
+      };
+
+      console.log('Initiating STK push:', stkPushRequest);
+
+      const stkPushResult = await initiateStkPush(stkPushRequest);
+      console.log('STK push initiated successfully:', stkPushResult);
+
+      // STK push has been initiated - payment will complete on customer's phone
+      // When payment completes, IPN will create the payment record and activate the policy
 
       // Clear saved data
       localStorage.removeItem('customerFormData');
@@ -511,7 +506,9 @@ export default function PaymentStep() {
       const customerName = customerData ? `${customerData.firstName} ${customerData.lastName}` : 'Customer';
 
       // Redirect to first page with success notification
-      router.push(`/register/customer?success=true&customerName=${encodeURIComponent(customerName)}&paymentId=${paymentResult.paymentId}`);
+      // Note: Policy is created with PENDING_ACTIVATION status
+      // It will be activated automatically when payment completes via IPN/callback
+      router.push(`/register/customer?success=true&customerName=${encodeURIComponent(customerName)}&policyId=${policyResult.policy.id}&stkPushId=${stkPushResult.id}`);
 
     } catch (error) {
       console.error('Registration submission failed:', error);

@@ -154,14 +154,21 @@ MpesaStkPushRequest
 
 1. M-Pesa sends IPN notification → `MpesaIpnController`
 2. Validate and parse IPN payload
-3. Check for existing record: `MpesaPaymentReportItem` where `transactionReference = TransID` AND `source = 'IPN'`
-4. If exists: Update existing record (idempotent)
-5. If not exists: Create new `MpesaPaymentReportItem` with:
-   - `source = 'IPN'`
-   - `mpesaPaymentReportUploadId = null`
-   - Customer data from IPN payload
-6. Attempt to link to STK Push request (matching logic)
-7. Return success to M-Pesa
+3. **Check for duplicate in `policy_payments`**: Check by `transactionReference` for idempotency
+4. Check for existing record: `MpesaPaymentReportItem` where `transactionReference = TransID` AND `source = 'IPN'`
+5. If exists: Update existing records in both tables (idempotent)
+6. If not exists:
+   - **Always create `MpesaPaymentReportItem`** with:
+     - `source = 'IPN'`
+     - `mpesaPaymentReportUploadId = null`
+     - Customer data from IPN payload
+     - `paidIn` set appropriately (all IPN transactions are incoming payments)
+   - **Payment record creation logic** (based on STK Push match):
+     - If matches COMPLETED STK Push: Create only `MpesaPaymentReportItem` (skip `policy_payments` to prevent duplicate)
+     - If matches PENDING STK Push: Create records in both `MpesaPaymentReportItem` and `policy_payments`, update STK Push status
+     - If doesn't match any STK Push: Validate using same logic as XLS statement processing, then create records in both tables
+7. Attempt to link to STK Push request (matching logic: accountReference, normalized phone, exact amount, 24-hour window with 5-minute buffer, UTC calculations)
+8. Return success to M-Pesa
 
 ### STK Push Initiation Flow
 
@@ -172,6 +179,29 @@ MpesaStkPushRequest
 5. Store `CheckoutRequestID` from M-Pesa API response in `checkoutRequestId` database field
 6. Return STK Push request details (including the auto-generated `id`)
 
+### Policy Creation and Activation Flow
+
+1. **Policy Creation (Registration Flow)**:
+   - Create policy with `status = 'PENDING_ACTIVATION'`
+   - Set `startDate = NULL` and `endDate = NULL` (for both prepaid and postpaid schemes)
+   - Generate policy number for prepaid schemes (postpaid schemes have `policyNumber = NULL` until activation)
+   - Policy remains in `PENDING_ACTIVATION` status until first payment completes
+
+2. **Policy Activation (First Payment)**:
+   - When IPN or STK Push callback indicates payment completion for a policy with `status = 'PENDING_ACTIVATION'`:
+     - Update `status = 'ACTIVE'`
+     - Set `startDate = payment date` (UTC, start of day: 00:00:00)
+     - Set `endDate = startDate + 1 year` (UTC, end of day: 23:59:59.999)
+     - Create policy member records (principal and dependants)
+   - If policy status is already `ACTIVE` or any other status (e.g., `SUSPENDED`, `TERMINATED`), do NOT change status
+   - Activation is idempotent: If policy is already `ACTIVE`, skip activation
+
+3. **Subsequent Payments**:
+   - IPN notifications for policies that are already `ACTIVE` or in other statuses:
+     - Create payment records normally
+     - Do NOT change policy status
+     - Do NOT modify `startDate` or `endDate`
+
 ### STK Push Callback Flow
 
 1. M-Pesa sends callback → `MpesaStkPushController`
@@ -179,9 +209,12 @@ MpesaStkPushRequest
 3. Update status based on `ResultCode`:
    - `ResultCode = 0` → `COMPLETED`
    - Otherwise → `FAILED` or `CANCELLED`
-4. Store `resultCode` and `resultDesc`
-5. Set `completedAt` timestamp
-6. Return success to M-Pesa
+4. **Payment record creation**: If status is COMPLETED, create records in both `MpesaPaymentReportItem` and `policy_payments`
+5. **Handle idempotency**: Check if payment records already exist (IPN may have arrived first) - handle idempotently
+6. **TODO**: Handle status mismatch scenario (if IPN already processed and created payment records, but callback arrives with FAILED/CANCELLED - see deferred decision in spec.md)
+7. Store `resultCode` and `resultDesc`
+8. Set `completedAt` timestamp
+9. Return success to M-Pesa
 
 ### STK Push to IPN Linking Flow
 
@@ -189,17 +222,23 @@ MpesaStkPushRequest
 2. Extract matching criteria:
    - `accountReference` (BillRefNumber)
    - `phoneNumber` (MSISDN, normalized)
-   - `amount` (exact match)
-   - Time window (24 hours from STK Push initiation)
+   - `amount` (exact match, 0.00 tolerance)
+   - Time window (24 hours + 5-minute buffer from STK Push initiation, UTC calculations)
 3. Query `MpesaStkPushRequest`:
    - `accountReference = BillRefNumber`
    - `phoneNumber = MSISDN` (normalized)
    - `amount = TransAmount` (exact match)
    - `status IN ['PENDING', 'COMPLETED']`
-   - `initiatedAt` within last 24 hours
-4. If match found:
+   - `initiatedAt` within last 24 hours + 5 minutes (UTC)
+   - Order by `initiatedAt DESC` (most recent first)
+4. **Handle multiple matches**: Use most recent match (first result from ordered query)
+5. If match found:
+   - **Payment record creation based on match status**:
+     - If match is COMPLETED: Create only `MpesaPaymentReportItem` (skip `policy_payments`)
+     - If match is PENDING: Create records in both tables, update STK Push status
    - Set `MpesaPaymentReportItem.mpesaStkPushRequestId = matchedRequest.id`
    - Set `MpesaStkPushRequest.linkedTransactionId = TransID`
+6. If no match found: Track as metric (distinguish: no match attempted vs match attempted but failed)
 
 ### Statement Upload Deduplication Flow
 
