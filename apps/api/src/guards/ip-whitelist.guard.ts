@@ -25,8 +25,26 @@ export class IpWhitelistGuard implements CanActivate {
     const request = context.switchToHttp().getRequest<Request>();
     const clientIp = this.getClientIp(request);
     const correlationId = this.getCorrelationId(request);
+    const isProduction = this.configService.environment === 'production';
 
-    // For development/testing: Always allow localhost and common development IPs
+    // In development mode: Allow all IPs (for ngrok and local testing)
+    // IP whitelist is only enforced in production for security
+    if (!isProduction) {
+      this.logger.debug(
+        JSON.stringify({
+          event: 'IP_WHITELIST_ALLOWED_DEV',
+          correlationId,
+          ip: clientIp,
+          path: request.path,
+          message: 'Development mode - allowing all IPs',
+          timestamp: new Date().toISOString(),
+        })
+      );
+      return true;
+    }
+
+    // For production: Validate against Safaricom IP ranges
+    // First check if IP is a development IP (shouldn't happen in production, but safety check)
     if (this.isDevelopmentIp(clientIp)) {
       this.logger.debug(
         JSON.stringify({
@@ -40,12 +58,12 @@ export class IpWhitelistGuard implements CanActivate {
       return true;
     }
 
-    // For production: Validate against Safaricom IP ranges
     const allowedIpRanges = this.configService.mpesa.allowedIpRanges;
 
     if (!allowedIpRanges || allowedIpRanges.length === 0) {
-      // No IP ranges configured - log warning but allow in development
-      if (this.configService.environment === 'production') {
+      // No IP ranges configured
+      if (isProduction) {
+        // In production, reject if not configured (security risk)
         this.logger.warn(
           JSON.stringify({
             event: 'IP_WHITELIST_NOT_CONFIGURED',
@@ -56,18 +74,17 @@ export class IpWhitelistGuard implements CanActivate {
             timestamp: new Date().toISOString(),
           })
         );
-        // In production, reject if not configured
         this.logSecurityViolation(clientIp, correlationId, request, 'IP whitelist not configured');
         return false;
       } else {
-        // In development, allow if not configured
+        // In development, allow if not configured (for ngrok and local testing)
         this.logger.warn(
           JSON.stringify({
             event: 'IP_WHITELIST_NOT_CONFIGURED_DEV',
             correlationId,
             ip: clientIp,
             path: request.path,
-            message: 'IP whitelist not configured - allowing in development',
+            message: 'IP whitelist not configured - allowing in development (ngrok/local testing)',
             timestamp: new Date().toISOString(),
           })
         );

@@ -279,6 +279,10 @@ export class MpesaIpnService {
 
   /**
    * Create policy payment record
+   *
+   * If a placeholder payment exists (transactionReference starts with "PENDING-STK-"),
+   * it will be updated with the real transaction reference and payment data.
+   * Otherwise, a new payment record is created.
    */
   private async createPolicyPaymentRecord(
     payload: MpesaIpnPayloadDto,
@@ -325,7 +329,7 @@ export class MpesaIpnService {
       return;
     }
 
-    // Check for duplicate transaction reference in policy_payments
+    // Check for duplicate transaction reference in policy_payments (real transaction ID)
     const existingPayment = await this.prismaService.policyPayment.findFirst({
       where: {
         transactionReference: payload.TransID,
@@ -345,36 +349,85 @@ export class MpesaIpnService {
       return;
     }
 
-    // Create policy payment record
-    await this.prismaService.policyPayment.create({
-      data: {
+    // Check for placeholder payment (transactionReference starts with "PENDING-STK-")
+    const placeholderPayment = await this.prismaService.policyPayment.findFirst({
+      where: {
         policyId: policy.id,
-        paymentType: 'MPESA',
-        transactionReference: payload.TransID,
-        amount,
-        accountNumber: normalizedPhone,
-        details: `IPN payment - ${payload.TransactionType}`,
-        expectedPaymentDate: transactionTime,
-        actualPaymentDate: transactionTime,
-        paymentMessageBlob: JSON.stringify({
-          firstName: payload.FirstName,
-          middleName: payload.MiddleName,
-          lastName: payload.LastName,
-          businessShortCode: payload.BusinessShortCode,
-        }),
+        transactionReference: {
+          startsWith: 'PENDING-STK-',
+        },
+        // Only update if actualPaymentDate is null (payment hasn't completed yet)
+        actualPaymentDate: null,
       },
     });
 
-    this.logger.log(
-      JSON.stringify({
-        event: 'IPN_POLICY_PAYMENT_CREATED',
-        correlationId,
-        transactionId: payload.TransID,
-        policyId: policy.id,
-        accountReference: payload.BillRefNumber,
-        timestamp: new Date().toISOString(),
-      })
-    );
+    if (placeholderPayment) {
+      // Update placeholder payment with real transaction reference and payment data
+      await this.prismaService.policyPayment.update({
+        where: { id: placeholderPayment.id },
+        data: {
+          transactionReference: payload.TransID, // Update with real transaction reference
+          amount,
+          accountNumber: normalizedPhone,
+          details: `IPN payment - ${payload.TransactionType}`,
+          expectedPaymentDate: transactionTime, // transactionTime is already in UTC from IPN parsing
+          actualPaymentDate: transactionTime, // Mark as paid
+          paymentMessageBlob: JSON.stringify({
+            firstName: payload.FirstName,
+            middleName: payload.MiddleName,
+            lastName: payload.LastName,
+            businessShortCode: payload.BusinessShortCode,
+            originalPlaceholderRef: placeholderPayment.transactionReference, // Keep record of original placeholder
+          }),
+        },
+      });
+
+      this.logger.log(
+        JSON.stringify({
+          event: 'IPN_PLACEHOLDER_PAYMENT_UPDATED',
+          correlationId,
+          transactionId: payload.TransID,
+          policyId: policy.id,
+          placeholderPaymentId: placeholderPayment.id,
+          originalPlaceholderRef: placeholderPayment.transactionReference,
+          accountReference: payload.BillRefNumber,
+          message: 'Placeholder payment updated with real transaction reference',
+          timestamp: new Date().toISOString(),
+        })
+      );
+    } else {
+      // No placeholder payment found - create new payment record
+      await this.prismaService.policyPayment.create({
+        data: {
+          policyId: policy.id,
+          paymentType: 'MPESA',
+          transactionReference: payload.TransID,
+          amount,
+          accountNumber: normalizedPhone,
+          details: `IPN payment - ${payload.TransactionType}`,
+          expectedPaymentDate: transactionTime, // transactionTime is already in UTC from IPN parsing
+          actualPaymentDate: transactionTime,
+          paymentMessageBlob: JSON.stringify({
+            firstName: payload.FirstName,
+            middleName: payload.MiddleName,
+            lastName: payload.LastName,
+            businessShortCode: payload.BusinessShortCode,
+          }),
+        },
+      });
+
+      this.logger.log(
+        JSON.stringify({
+          event: 'IPN_POLICY_PAYMENT_CREATED',
+          correlationId,
+          transactionId: payload.TransID,
+          policyId: policy.id,
+          accountReference: payload.BillRefNumber,
+          message: 'New policy payment record created',
+          timestamp: new Date().toISOString(),
+        })
+      );
+    }
 
     // Activate policy if it's in PENDING_ACTIVATION status
     if (policy.status === 'PENDING_ACTIVATION') {

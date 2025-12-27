@@ -7,6 +7,7 @@ import { AppService } from './app.service';
 import { ApiKeyAuthMiddleware } from './middleware/api-key-auth.middleware';
 import { CorrelationIdMiddleware } from './middleware/correlation-id.middleware';
 import { SupabaseAuthMiddleware } from './middleware/supabase-auth.middleware';
+import { MpesaCallbackLoggerMiddleware } from './middleware/mpesa-callback-logger.middleware';
 import { ExternalIntegrationsService } from './services/external-integrations.service';
 import { CustomerService } from './services/customer.service';
 import { PartnerManagementService } from './services/partner-management.service';
@@ -54,6 +55,11 @@ import { IpWhitelistGuard } from './guards/ip-whitelist.guard';
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
+    // Log M-Pesa callbacks first (before other middleware)
+    consumer
+      .apply(MpesaCallbackLoggerMiddleware)
+      .forRoutes({ path: 'public/mpesa/*', method: RequestMethod.ALL });
+
     consumer
       .apply(CorrelationIdMiddleware)
       .forRoutes('*'); // Apply correlation ID to all routes

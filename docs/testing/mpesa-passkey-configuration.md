@@ -147,3 +147,4 @@ curl -X POST http://localhost:3001/api/internal/mpesa/stk-push/test \
 4. ✅ **Restart API** after updating `.env`
 5. ✅ **Test with STK Push** to verify it works
 
+

@@ -887,9 +887,9 @@ model MpesaStkPushRequest {
   amount            Decimal           @db.Decimal(10, 2) // Transaction amount (1-70,000 KES)
   accountReference  String            @db.VarChar(100) // Policy payment account number (BillRefNumber)
   transactionDesc   String?           @db.VarChar(500) // Transaction description
-  status            MpesaStkPushStatus @default(PENDING) // Request status
-  resultCode        String?           @db.VarChar(10) // From STK Push callback
-  resultDesc        String?           @db.VarChar(500) // From STK Push callback
+  status            MpesaStkPushStatus @default(PENDING) // Request status (latest status from callbacks)
+  resultCode        String?           @db.VarChar(10) // Latest result code from STK Push callback
+  resultDesc        String?           @db.VarChar(500) // Latest result description from STK Push callback
   linkedTransactionId String?        @db.VarChar(100) // TransID from IPN (when linked)
   initiatedBy       String?          // Agent/user ID who initiated
   initiatedAt       DateTime          @default(now()) // When STK Push was initiated
@@ -899,12 +899,38 @@ model MpesaStkPushRequest {
 
   // Relations
   transaction MpesaPaymentReportItem? // One-to-one, nullable (linked payment record)
+  callbackResponses MpesaStkPushCallbackResponse[] // All callback responses for this request
 
   @@unique([checkoutRequestId]) // Unique checkout request ID (for callback lookup)
   @@index([accountReference]) // For matching with IPN BillRefNumber
   @@index([status, createdAt]) // For querying pending requests
   @@index([phoneNumber]) // For matching with IPN MSISDN
   @@map("mpesa_stk_push_requests")
+}
+
+/**
+ * STK Push Callback Response
+ * 
+ * Stores all callback responses from M-Pesa for STK Push requests.
+ * This allows tracking of all responses (success, timeout, cancelled, etc.)
+ * for audit purposes and enables retry logic.
+ */
+model MpesaStkPushCallbackResponse {
+  id                  String   @id @default(uuid()) @db.Uuid
+  mpesaStkPushRequestId String @db.Uuid // Foreign key to STK Push request
+  resultCode          Int      // M-Pesa result code (0 = success, non-zero = error/failure)
+  resultDesc          String   @db.VarChar(500) // Result description from M-Pesa
+  callbackMetadata    String?  @db.Text // JSON string of CallbackMetadata (if available)
+  receivedAt          DateTime @default(now()) // When this callback was received
+  createdAt           DateTime @default(now())
+
+  // Relations
+  mpesaStkPushRequest MpesaStkPushRequest @relation(fields: [mpesaStkPushRequestId], references: [id], onDelete: Cascade)
+
+  @@index([mpesaStkPushRequestId]) // For querying all responses for a request
+  @@index([resultCode]) // For filtering by result code
+  @@index([receivedAt]) // For querying by time
+  @@map("mpesa_stk_push_callback_responses")
 }
 
 model SchemeContact {

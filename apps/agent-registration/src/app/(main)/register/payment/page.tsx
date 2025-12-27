@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Checkbox } from '@/components/ui/checkbox';
 // import { Separator } from '@/components/ui/separator';
 import { CheckCircle, CreditCard, Users, User, Loader2 } from 'lucide-react';
-import { createPolicy, CreatePolicyRequest, getPackagePlans, Plan, checkTransactionReferenceExists, initiateStkPush, InitiateStkPushRequest } from '@/lib/api';
+import { createPolicy, CreatePolicyRequest, getPackagePlans, Plan, initiateStkPush, InitiateStkPushRequest } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
 
@@ -91,11 +91,10 @@ export default function PaymentStep() {
   const [beneficiaryData, setBeneficiaryData] = useState<BeneficiaryFormData | null>(null);
   const [paymentType, setPaymentType] = useState('MPESA');
   const [paymentPhone, setPaymentPhone] = useState('');
-  const [transactionReference, setTransactionReference] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [transactionReferenceError, setTransactionReferenceError] = useState<string | null>(null);
-  const [isCheckingTransaction, setIsCheckingTransaction] = useState(false);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [isPaymentInitiated, setIsPaymentInitiated] = useState(false);
 
   // Insurance pricing state
   const [pricingData, setPricingData] = useState<InsurancePricing | null>(null);
@@ -154,50 +153,6 @@ export default function PaymentStep() {
       day: 'numeric'
     });
   };
-
-  // Debounce timer for transaction reference validation
-  const transactionCheckTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-
-  // Validate transaction reference as user types (debounced)
-  const validateTransactionReference = useCallback(async (value: string) => {
-    // Clear existing timeout
-    if (transactionCheckTimeoutRef.current) {
-      clearTimeout(transactionCheckTimeoutRef.current);
-    }
-
-    // Clear error if field is empty
-    if (!value || value.trim() === '') {
-      setTransactionReferenceError(null);
-      return;
-    }
-
-    // Debounce: wait 500ms after user stops typing
-    transactionCheckTimeoutRef.current = setTimeout(async () => {
-      setIsCheckingTransaction(true);
-      setTransactionReferenceError(null);
-
-      try {
-        const exists = await checkTransactionReferenceExists(value.trim());
-        if (exists) {
-          setTransactionReferenceError('This transaction reference has already been used for another payment. Please enter a different transaction reference.');
-        }
-      } catch (error) {
-        // On error, don't block user - fail open
-        console.warn('Failed to validate transaction reference:', error);
-      } finally {
-        setIsCheckingTransaction(false);
-      }
-    }, 500);
-  }, []);
-
-  // Cleanup timeout on unmount
-  useEffect(() => {
-    return () => {
-      if (transactionCheckTimeoutRef.current) {
-        clearTimeout(transactionCheckTimeoutRef.current);
-      }
-    };
-  }, []);
 
   useEffect(() => {
     // Load saved form data
@@ -305,7 +260,7 @@ export default function PaymentStep() {
 
     // Clear any previous errors
     setError(null);
-    setTransactionReferenceError(null);
+    setSuccessMessage(null);
 
     // Validate required data BEFORE setting isSubmitting
     if (!customerData) {
@@ -324,12 +279,6 @@ export default function PaymentStep() {
     // Validate payment phone number
     if (!paymentPhone || paymentPhone.trim() === '') {
       setError('Payment phone number is required');
-      return;
-    }
-
-    // Validate transaction reference
-    if (!transactionReference || transactionReference.trim() === '') {
-      setError('Transaction reference is required');
       return;
     }
 
@@ -355,21 +304,6 @@ export default function PaymentStep() {
     if (selectedFrequency === 'CUSTOM' && (!customCadence || parseInt(customCadence) < 1)) {
       setError('Please enter a valid cadence (number of days) for custom payment frequency.');
       return;
-    }
-
-    // Check transaction reference before submitting (async check)
-    if (transactionReference.trim()) {
-      try {
-        // Ensure uppercase when checking
-        const exists = await checkTransactionReferenceExists(transactionReference.trim().toUpperCase());
-        if (exists) {
-          setTransactionReferenceError('This transaction reference has already been used for another payment. Please enter a different transaction reference.');
-          return;
-        }
-      } catch (error) {
-        // On validation error, don't block - fail open but warn user
-        console.warn('Failed to validate transaction reference:', error);
-      }
     }
 
     // All validation passed, now set submitting and proceed
@@ -446,6 +380,17 @@ export default function PaymentStep() {
       // The actual payment transaction reference will come from M-Pesa via IPN
       const placeholderTransactionRef = `PENDING-STK-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
 
+      // Use UTC for expectedPaymentDate to ensure consistency
+      const now = new Date();
+      const expectedPaymentDateUTC = new Date(Date.UTC(
+        now.getUTCFullYear(),
+        now.getUTCMonth(),
+        now.getUTCDate(),
+        now.getUTCHours(),
+        now.getUTCMinutes(),
+        now.getUTCSeconds()
+      ));
+
       const policyRequest: CreatePolicyRequest = {
         customerId,
         packageId,
@@ -459,7 +404,7 @@ export default function PaymentStep() {
           amount: premium,
           accountNumber: paymentPhone,
           details: `Payment for policy registration - ${customerData.firstName} ${customerData.lastName}`,
-          expectedPaymentDate: new Date().toISOString(),
+          expectedPaymentDate: expectedPaymentDateUTC.toISOString(),
           // Don't set actualPaymentDate - payment hasn't happened yet
         },
         // Add customDays if CUSTOM frequency is selected
@@ -496,19 +441,11 @@ export default function PaymentStep() {
       // STK push has been initiated - payment will complete on customer's phone
       // When payment completes, IPN will create the payment record and activate the policy
 
-      // Clear saved data
-      localStorage.removeItem('customerFormData');
-      localStorage.removeItem('beneficiaryFormData');
-      localStorage.removeItem('customerId');
-      localStorage.removeItem('registrationId');
-
-      // Get customer name for success message
-      const customerName = customerData ? `${customerData.firstName} ${customerData.lastName}` : 'Customer';
-
-      // Redirect to first page with success notification
+      // Show success message and disable submit button (stay on page)
+      setSuccessMessage(`STK push payment request has been sent to ${paymentPhone}. Please ask the customer to check their phone and enter their M-Pesa PIN to complete the payment.`);
+      setIsPaymentInitiated(true);
       // Note: Policy is created with PENDING_ACTIVATION status
       // It will be activated automatically when payment completes via IPN/callback
-      router.push(`/register/customer?success=true&customerName=${encodeURIComponent(customerName)}&policyId=${policyResult.policy.id}&stkPushId=${stkPushResult.id}`);
 
     } catch (error) {
       console.error('Registration submission failed:', error);
@@ -832,41 +769,6 @@ export default function PaymentStep() {
               </p>
             </div>
 
-            <div>
-              <Label htmlFor="transactionReference">Transaction Reference <span className="text-red-500">*</span></Label>
-              <div className="relative">
-                <Input
-                  id="transactionReference"
-                  value={transactionReference}
-                  onChange={(e) => {
-                    // Capitalize letters as user types
-                    const capitalizedValue = e.target.value.toUpperCase();
-                    setTransactionReference(capitalizedValue);
-                    validateTransactionReference(capitalizedValue);
-                  }}
-                  placeholder="Enter transaction reference"
-                  required
-                  className={transactionReferenceError ? 'border-red-500' : ''}
-                  maxLength={15}
-                />
-                {isCheckingTransaction && (
-                  <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
-                    <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
-                  </div>
-                )}
-              </div>
-              {transactionReferenceError && (
-                <p className="text-sm text-red-600 mt-1">
-                  {transactionReferenceError}
-                </p>
-              )}
-              {!transactionReferenceError && !isCheckingTransaction && (
-                <p className="text-sm text-gray-500 mt-1">
-                  Enter the transaction reference for this payment
-                </p>
-              )}
-            </div>
-
             {/* <div className="p-4 bg-yellow-50 rounded-lg">
               <h4 className="font-semibold text-yellow-900 mb-2">Payment Instructions</h4>
               <ol className="text-sm text-yellow-800 space-y-1">
@@ -879,6 +781,25 @@ export default function PaymentStep() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Success Display */}
+      {successMessage && (
+        <div className="bg-green-50 border border-green-200 rounded-md p-4">
+          <div className="flex">
+            <div className="flex-shrink-0">
+              <CheckCircle className="h-5 w-5 text-green-400" />
+            </div>
+            <div className="ml-3">
+              <h3 className="text-sm font-medium text-green-800">
+                Payment Request Sent
+              </h3>
+              <div className="mt-2 text-sm text-green-700">
+                {successMessage}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Error Display */}
       {error && (
@@ -908,7 +829,7 @@ export default function PaymentStep() {
         </Button>
         <Button
           onClick={handleSubmit}
-          disabled={isSubmitting || !paymentPhone || !transactionReference || authLoading || !!transactionReferenceError || isCheckingTransaction}
+          disabled={isSubmitting || !paymentPhone || authLoading || isPaymentInitiated}
           className="bg-green-600 hover:bg-green-700 disabled:opacity-50"
         >
           {isSubmitting ? (

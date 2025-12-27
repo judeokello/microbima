@@ -231,6 +231,18 @@ export class MpesaStkPushService {
         return { ResultCode: 0, ResultDesc: 'Accepted' };
       }
 
+      // Store callback response for audit (all responses: success, timeout, cancelled, etc.)
+      await this.prismaService.mpesaStkPushCallbackResponse.create({
+        data: {
+          mpesaStkPushRequestId: stkPushRequest.id,
+          resultCode: stkCallback.ResultCode,
+          resultDesc: stkCallback.ResultDesc,
+          callbackMetadata: stkCallback.CallbackMetadata
+            ? JSON.stringify(stkCallback.CallbackMetadata)
+            : null,
+        },
+      });
+
       // Determine status based on ResultCode
       let newStatus: MpesaStkPushStatus;
       if (stkCallback.ResultCode === 0) {
@@ -241,7 +253,7 @@ export class MpesaStkPushService {
         newStatus = MpesaStkPushStatus.FAILED;
       }
 
-      // Update STK Push request status
+      // Update STK Push request status (latest status from callbacks)
       const updatedRequest = await this.prismaService.mpesaStkPushRequest.update({
         where: { id: stkPushRequest.id },
         data: {
@@ -260,11 +272,13 @@ export class MpesaStkPushService {
           checkoutRequestId,
           status: newStatus,
           resultCode: stkCallback.ResultCode,
+          resultDesc: stkCallback.ResultDesc,
           timestamp: new Date().toISOString(),
         })
       );
 
-      // If status is COMPLETED, create payment records
+      // Only create payment records if status is COMPLETED (ResultCode === 0)
+      // For failed/timeout/cancelled, we don't create payment records
       if (newStatus === MpesaStkPushStatus.COMPLETED) {
         await this.createPaymentRecordsFromStkPushCallback(
           {
@@ -326,9 +340,9 @@ export class MpesaStkPushService {
     stkCallback: {
       ResultCode: number;
       CallbackMetadata?: {
-        Item: Array<{
+        Item?: Array<{
           Name: string;
-          Value: string;
+          Value?: string;
         }>;
       };
     },
@@ -393,7 +407,7 @@ export class MpesaStkPushService {
       return;
     }
 
-    // Parse transaction date (format: YYYYMMDDHHmmss)
+    // Parse transaction date (format: YYYYMMDDHHmmss) - ensure UTC
     let transactionTime = new Date();
     if (transactionDate && transactionDate.length === 14) {
       const year = parseInt(transactionDate.substring(0, 4), 10);
@@ -402,16 +416,17 @@ export class MpesaStkPushService {
       const hours = parseInt(transactionDate.substring(8, 10), 10);
       const minutes = parseInt(transactionDate.substring(10, 12), 10);
       const seconds = parseInt(transactionDate.substring(12, 14), 10);
+      // Use Date.UTC to ensure UTC time (M-Pesa timestamps are in EAT, but we store in UTC)
       transactionTime = new Date(Date.UTC(year, month, day, hours, minutes, seconds));
     }
 
-    // Create MpesaPaymentReportItem record
+    // Create MpesaPaymentReportItem record (only for successful payments)
     await this.prismaService.mpesaPaymentReportItem.create({
       data: {
         mpesaPaymentReportUploadId: null, // STK Push records don't have upload ID
         transactionReference: mpesaReceiptNumber,
-        completionTime: transactionTime,
-        initiationTime: transactionTime,
+        completionTime: transactionTime, // Already in UTC
+        initiationTime: transactionTime, // Already in UTC
         paymentDetails: 'STK Push Payment',
         transactionStatus: 'Completed',
         paidIn: stkPushRequest.amount,
@@ -440,35 +455,84 @@ export class MpesaStkPushService {
     });
 
     if (policy) {
-      // Check if policy payment already exists
+      // Check if policy payment already exists with real transaction reference
+      // (This handles the case where IPN arrived first and created/updated the payment)
       if (!existingPolicyPayment) {
-        await this.prismaService.policyPayment.create({
-          data: {
+        // Check for placeholder payment (transactionReference starts with "PENDING-STK-")
+        const placeholderPayment = await this.prismaService.policyPayment.findFirst({
+          where: {
             policyId: policy.id,
-            paymentType: 'MPESA',
-            transactionReference: mpesaReceiptNumber,
-            amount: stkPushRequest.amount,
-            accountNumber: phoneNumber ?? stkPushRequest.phoneNumber,
-            details: stkPushRequest.transactionDesc ?? 'STK Push payment',
-            expectedPaymentDate: transactionTime,
-            actualPaymentDate: transactionTime,
-            paymentMessageBlob: JSON.stringify({
-              source: 'STK_PUSH',
-              checkoutRequestId: stkPushRequest.id,
-            }),
+            transactionReference: {
+              startsWith: 'PENDING-STK-',
+            },
+            // Only update if actualPaymentDate is null (payment hasn't completed yet)
+            actualPaymentDate: null,
           },
         });
 
-        this.logger.log(
-          JSON.stringify({
-            event: 'STK_PUSH_POLICY_PAYMENT_CREATED',
-            correlationId,
-            stkPushRequestId: stkPushRequest.id,
-            policyId: policy.id,
-            transactionReference: mpesaReceiptNumber,
-            timestamp: new Date().toISOString(),
-          })
-        );
+        if (placeholderPayment) {
+          // Update placeholder payment with real transaction reference and payment data
+          await this.prismaService.policyPayment.update({
+            where: { id: placeholderPayment.id },
+            data: {
+              transactionReference: mpesaReceiptNumber, // Update with real transaction reference
+              amount: stkPushRequest.amount,
+              accountNumber: phoneNumber ?? stkPushRequest.phoneNumber,
+              details: stkPushRequest.transactionDesc ?? 'STK Push payment',
+              expectedPaymentDate: transactionTime, // Already in UTC
+              actualPaymentDate: transactionTime, // Mark as paid (already in UTC)
+              paymentMessageBlob: JSON.stringify({
+                source: 'STK_PUSH',
+                checkoutRequestId: stkPushRequest.id,
+                originalPlaceholderRef: placeholderPayment.transactionReference, // Keep record of original placeholder
+              }),
+            },
+          });
+
+          this.logger.log(
+            JSON.stringify({
+              event: 'STK_PUSH_PLACEHOLDER_PAYMENT_UPDATED',
+              correlationId,
+              stkPushRequestId: stkPushRequest.id,
+              policyId: policy.id,
+              placeholderPaymentId: placeholderPayment.id,
+              originalPlaceholderRef: placeholderPayment.transactionReference,
+              transactionReference: mpesaReceiptNumber,
+              message: 'Placeholder payment updated with real transaction reference from STK push callback',
+              timestamp: new Date().toISOString(),
+            })
+          );
+        } else {
+          // No placeholder payment found - create new payment record
+          await this.prismaService.policyPayment.create({
+            data: {
+              policyId: policy.id,
+              paymentType: 'MPESA',
+              transactionReference: mpesaReceiptNumber,
+              amount: stkPushRequest.amount,
+              accountNumber: phoneNumber ?? stkPushRequest.phoneNumber,
+              details: stkPushRequest.transactionDesc ?? 'STK Push payment',
+              expectedPaymentDate: transactionTime, // Already in UTC
+              actualPaymentDate: transactionTime, // Already in UTC
+              paymentMessageBlob: JSON.stringify({
+                source: 'STK_PUSH',
+                checkoutRequestId: stkPushRequest.id,
+              }),
+            },
+          });
+
+          this.logger.log(
+            JSON.stringify({
+              event: 'STK_PUSH_POLICY_PAYMENT_CREATED',
+              correlationId,
+              stkPushRequestId: stkPushRequest.id,
+              policyId: policy.id,
+              transactionReference: mpesaReceiptNumber,
+              message: 'New policy payment record created (no placeholder found)',
+              timestamp: new Date().toISOString(),
+            })
+          );
+        }
 
         // Activate policy if it's in PENDING_ACTIVATION status
         if (policy.status === 'PENDING_ACTIVATION') {

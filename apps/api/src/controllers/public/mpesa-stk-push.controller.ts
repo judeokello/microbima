@@ -1,5 +1,6 @@
-import { Controller, Post, Body, Headers, Logger, UseGuards } from '@nestjs/common';
+import { Controller, Post, Body, Headers, Logger, UseGuards, Req } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
+import { Request } from 'express';
 import { MpesaStkPushService } from '../../services/mpesa-stk-push.service';
 import {
   StkPushCallbackDto,
@@ -50,12 +51,23 @@ export class MpesaStkPushPublicController {
     type: MpesaCallbackResponseDto,
   })
   async callback(
+    @Req() request: Request,
     @Body() payload: StkPushCallbackDto,
     @Headers('x-correlation-id') correlationIdHeader?: string
   ): Promise<MpesaCallbackResponseDto> {
     // Get correlation ID from M-Pesa headers, or generate one
     const correlationId =
       correlationIdHeader ?? `stk-callback-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+
+    // Log raw request body for debugging validation issues
+    this.logger.debug(
+      JSON.stringify({
+        event: 'STK_PUSH_CALLBACK_RAW_BODY',
+        correlationId,
+        rawBody: request.body,
+        timestamp: new Date().toISOString(),
+      })
+    );
 
     this.logger.log(
       JSON.stringify({

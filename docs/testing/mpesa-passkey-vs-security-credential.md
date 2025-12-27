@@ -75,3 +75,4 @@ For production, Safaricom will provide:
 - ✅ **Passkey (64 chars)**: For STK Push
 - ✅ **Sandbox test passkey**: `bfb279f9aa9bdbcf158e97dd71a467cd2e0c893059b10f78e6b72ada1ed2c919`
 
+
