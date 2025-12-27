@@ -47,8 +47,6 @@ export class MpesaDarajaApiService {
     // OAuth URL should be https://sandbox.safaricom.co.ke/oauth/v1/generate
     const baseDomain = config.baseUrl.replace('/mpesa', '');
     const authUrl = `${baseDomain}/oauth/v1/generate?grant_type=client_credentials`;
-    const baseUrl = config.baseUrl;
-    const environment = config.environment;
 
     try {
       // Create Basic Auth header
@@ -118,8 +116,8 @@ export class MpesaDarajaApiService {
       if (axios.isAxiosError(error)) {
         const axiosError = error as AxiosError;
         const errorDetails = {
-          status: axiosError.response?.status || 0,
-          statusText: axiosError.response?.statusText || axiosError.message,
+          status: axiosError.response?.status ?? 0,
+          statusText: axiosError.response?.statusText ?? axiosError.message,
           url: authUrl,
           baseUrl: config.baseUrl,
           environment: config.environment,
@@ -360,7 +358,7 @@ export class MpesaDarajaApiService {
         let errorMessage: string;
         if (axios.isAxiosError(error)) {
           const axiosError = error as AxiosError;
-          errorMessage = `STK Push request failed: ${axiosError.response?.status || 0} ${axiosError.response?.statusText || axiosError.message} - ${axiosError.response?.data ? JSON.stringify(axiosError.response.data) : axiosError.message}`;
+          errorMessage = `STK Push request failed: ${axiosError.response?.status ?? 0} ${axiosError.response?.statusText ?? axiosError.message} - ${axiosError.response?.data ? JSON.stringify(axiosError.response.data) : axiosError.message}`;
         } else {
           errorMessage = error instanceof Error ? error.message : 'Unknown error';
         }
