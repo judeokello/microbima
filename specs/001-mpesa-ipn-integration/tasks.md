@@ -77,7 +77,7 @@ Each increment is independently testable and delivers value.
 
 ### Configuration Setup
 
-- [ ] T001 Add M-Pesa Daraja API configuration to `apps/api/src/config/configuration.service.ts`
+- [x] T001 Add M-Pesa Daraja API configuration to `apps/api/src/config/configuration.service.ts`
   - Add `mpesa.consumerKey`, `mpesa.consumerSecret`, `mpesa.businessShortCode`, `mpesa.passkey`
   - Add `mpesa.environment` ('sandbox' | 'production', default: 'sandbox')
   - Add `mpesa.baseUrl` (sandbox: `https://sandbox.safaricom.co.ke/mpesa`, production: `https://api.safaricom.co.ke/mpesa`, auto-derived from environment if not provided)
@@ -96,7 +96,7 @@ Each increment is independently testable and delivers value.
   - Document `MPESA_STK_PUSH_CALLBACK_URL`, `MPESA_IPN_CONFIRMATION_URL`
   - Document `MPESA_ALLOWED_IP_RANGES` (comma-separated, placeholder values)
 
-- [ ] T003 Create phone number normalization utility in `apps/api/src/utils/phone-number.util.ts`
+- [x] T003 Create phone number normalization utility in `apps/api/src/utils/phone-number.util.ts`
   - Implement `normalizePhoneNumber(phone: string): string` function
   - Strip leading zeros, ensure country code (254), validate format (254XXXXXXXXX)
   - Handle edge cases (missing country code, extra zeros, non-numeric characters)
@@ -110,35 +110,44 @@ Each increment is independently testable and delivers value.
 
 ### Schema Changes
 
-- [ ] T004 Add `MpesaPaymentSource` enum to `apps/api/prisma/schema.prisma`
+- [x] T004 Add `MpesaPaymentSource` enum to `apps/api/prisma/schema.prisma`
   - Add enum with values: `IPN`, `STATEMENT`
   - Place after `MpesaStatementReasonType` enum
 
-- [ ] T005 Add `MpesaStkPushStatus` enum to `apps/api/prisma/schema.prisma`
+- [x] T005 Add `MpesaStkPushStatus` enum to `apps/api/prisma/schema.prisma`
   - Add enum with values: `PENDING`, `COMPLETED`, `FAILED`, `CANCELLED`, `EXPIRED`
   - Place after `MpesaPaymentSource` enum
 
-- [ ] T006 Create `MpesaStkPushRequest` model in `apps/api/prisma/schema.prisma`
+- [x] T006 Create `MpesaStkPushRequest` model in `apps/api/prisma/schema.prisma`
   - Add model with all fields per data-model.md
   - Set `id` as `String @id @default(uuid()) @db.Uuid` (auto-generated)
   - Add indexes: `@@unique([checkoutRequestId])`, `@@index([accountReference])`, `@@index([status, createdAt])`, `@@index([phoneNumber])`
   - Add relation: `transaction MpesaPaymentReportItem?`
   - Map to table: `@@map("mpesa_stk_push_requests")`
 
-- [ ] T007 Update `MpesaPaymentReportItem` model in `apps/api/prisma/schema.prisma`
+- [x] T007 Update `MpesaPaymentReportItem` model in `apps/api/prisma/schema.prisma`
   - Make `mpesaPaymentReportUploadId` nullable (change to `String?`)
   - Add new fields: `msisdn`, `firstName`, `middleName`, `lastName`, `source`, `businessShortCode`, `mpesaStkPushRequestId`
   - Set `source` default to `IPN`
   - Add composite index: `@@index([transactionReference, source], name: "idx_transaction_reference_source")`
   - Add indexes: `@@index([source], name: "idx_source")`, `@@index([accountNumber], name: "idx_account_number")`
   - Add foreign key: `mpesaStkPushRequest MpesaStkPushRequest?` relation
+  - Add relation to `MpesaStkPushCallbackResponse[]` (one-to-many, for all callback responses)
 
-- [ ] T008 Create and apply Prisma migration
+- [x] T007b Create `MpesaStkPushCallbackResponse` model in `apps/api/prisma/schema.prisma`
+  - Add `MpesaStkPushCallbackResponse` model with fields: id, mpesaStkPushRequestId, resultCode, resultDesc, callbackMetadata, receivedAt, createdAt
+  - Add foreign key relation to `MpesaStkPushRequest` (cascade delete)
+  - Add indexes: `@@index([mpesaStkPushRequestId])`, `@@index([resultCode])`, `@@index([receivedAt])`
+  - Table name: `mpesa_stk_push_callback_responses`
+  - Purpose: Store all STK Push callback responses for audit trail
+
+- [x] T008 Create and apply Prisma migration
   - Run `npx prisma migrate dev --name add_mpesa_ipn_and_stk_push` in `apps/api/`
   - Verify migration file created in `apps/api/prisma/migrations/`
   - Verify schema changes applied to database
+  - Additional migration: `20251227223000_add_stk_push_callback_responses` for callback responses table
 
-- [ ] T009 Generate Prisma client
+- [x] T009 Generate Prisma client
   - Run `npx prisma generate` in `apps/api/`
   - Verify new types available in `@prisma/client`
 
@@ -152,7 +161,7 @@ Each increment is independently testable and delivers value.
 
 ### DTOs
 
-- [ ] T010 [P] [US1] Create IPN DTOs in `apps/api/src/dto/mpesa-ipn/mpesa-ipn.dto.ts`
+- [x] T010 [P] [US1] Create IPN DTOs in `apps/api/src/dto/mpesa-ipn/mpesa-ipn.dto.ts`
   - Create `MpesaIpnPayloadDto` class with all IPN payload fields (TransactionType, TransID, TransTime, TransAmount, etc.)
   - Add validation decorators (`@IsString()`, `@IsOptional()`, etc.)
   - Add Swagger decorators (`@ApiProperty()`)
@@ -160,7 +169,7 @@ Each increment is independently testable and delivers value.
 
 ### Service
 
-- [ ] T011 [US1] Create IPN service in `apps/api/src/services/mpesa-ipn.service.ts`
+- [x] T011 [US1] Create IPN service in `apps/api/src/services/mpesa-ipn.service.ts`
   - Implement `processIpnNotification(payload: MpesaIpnPayloadDto, correlationId: string): Promise<MpesaIpnResponseDto>`
   - Parse IPN payload and normalize phone number using phone-number.util
   - **Map M-Pesa TransactionType to internal reasonType**: Create private method `mapTransactionTypeToReasonType(transactionType: string): MpesaStatementReasonType`
@@ -180,13 +189,15 @@ Each increment is independently testable and delivers value.
       - If IPN doesn't match any STK Push: Validate using same logic as XLS statement processing, then create records in both tables
   - Store customer data (firstName, middleName, lastName, msisdn) from IPN payload
   - Set `paidIn` field appropriately (all IPN transactions are incoming payments)
-  - **Policy activation**: After creating policy payment record, if policy status is `PENDING_ACTIVATION`, activate policy (set status to `ACTIVE`, set `startDate` to payment date, set `endDate` to one year from `startDate`). Do NOT activate if policy status is already `ACTIVE` or any other status (e.g., `SUSPENDED`, `TERMINATED`)
+  - **Placeholder payment handling**: Before creating a new `policyPayment` record, check for an existing placeholder payment (`transactionReference` starts with `PENDING-STK-` and `actualPaymentDate = null`) for the same policy. If found, update the placeholder with the real `TransID` and `actualPaymentDate` instead of creating a new record
+  - **Policy activation**: After creating/updating policy payment record, if policy status is `PENDING_ACTIVATION`, activate policy (set status to `ACTIVE`, set `startDate` to payment date, set `endDate` to one year from `startDate`). Do NOT activate if policy status is already `ACTIVE` or any other status (e.g., `SUSPENDED`, `TERMINATED`)
   - Attempt to link to STK Push request (matching logic: accountReference, normalized phone, exact amount, 24-hour window)
   - Return success response (`ResultCode: 0, ResultDesc: "Accepted"`) even on errors
   - Log errors internally for investigation (use correlationId for tracing, structured JSON format)
+  - **Timezone**: All date operations MUST use UTC methods (`setUTCHours`, `setUTCMinutes`, etc.)
   - Handle database write failures gracefully (return success, log error)
 
-- [ ] T012 [US1] Implement STK Push to IPN linking logic in `apps/api/src/services/mpesa-ipn.service.ts`
+- [x] T012 [US1] Implement STK Push to IPN linking logic in `apps/api/src/services/mpesa-ipn.service.ts`
   - Create private method `linkToStkPushRequest(ipnRecord: MpesaPaymentReportItem, accountReference: string, phoneNumber: string, amount: number): Promise<void>`
   - Query `MpesaStkPushRequest` with matching criteria:
     - `accountReference = BillRefNumber`
@@ -210,7 +221,7 @@ Each increment is independently testable and delivers value.
 
 ### Controller
 
-- [ ] T013 [US1] Create IPN controller in `apps/api/src/controllers/public/mpesa-ipn.controller.ts`
+- [x] T013 [US1] Create IPN controller in `apps/api/src/controllers/public/mpesa-ipn.controller.ts`
   - Create `MpesaIpnController` class with `@Controller('public/mpesa')` decorator
   - Add `@Post('confirmation')` endpoint method
   - Inject `MpesaIpnService` and `CorrelationIdService` (or generate correlationId)
@@ -221,12 +232,12 @@ Each increment is independently testable and delivers value.
 
 ### Security Middleware
 
-- [ ] T014 [US1] Update API key auth middleware to exclude IPN callback endpoint in `apps/api/src/middleware/api-key-auth.middleware.ts`
+- [x] T014 [US1] Update API key auth middleware to exclude IPN callback endpoint in `apps/api/src/middleware/api-key-auth.middleware.ts`
   - Add path check: `req.path.startsWith('/api/public/mpesa/confirmation')` or `req.originalUrl.startsWith('/api/public/mpesa/confirmation')`
   - Skip authentication for this path (return `next()`)
   - Add comment explaining M-Pesa requirement
 
-- [ ] T015 [US1] Create IP whitelist guard for IPN callback endpoint in `apps/api/src/guards/ip-whitelist.guard.ts`
+- [x] T015 [US1] Create IP whitelist guard for IPN callback endpoint in `apps/api/src/guards/ip-whitelist.guard.ts`
   - Create `IpWhitelistGuard` class implementing `CanActivate`
   - Read allowed IP ranges from configuration service
   - **For development/testing**: Always allow localhost (`127.0.0.1`, `::1`) and common development IPs (`192.168.*.*`, `10.*.*.*`, `172.16.*.*` to `172.31.*.*`)
@@ -235,13 +246,13 @@ Each increment is independently testable and delivers value.
   - Add placeholder implementation (log warning if IP ranges not configured in production)
   - Note: Full production implementation requires Safaricom IP ranges (external dependency)
 
-- [ ] T017 [US1] Apply security guard to IPN controller in `apps/api/src/controllers/public/mpesa-ipn.controller.ts`
+- [x] T017 [US1] Apply security guard to IPN controller in `apps/api/src/controllers/public/mpesa-ipn.controller.ts`
   - Add `@UseGuards(IpWhitelistGuard)` to confirmation endpoint
   - Ensure guard runs before service logic
 
 ### Module Registration
 
-- [ ] T018 [US1] Register IPN controller and service in `apps/api/src/app.module.ts`
+- [x] T018 [US1] Register IPN controller and service in `apps/api/src/app.module.ts`
   - Add `MpesaIpnController` to `controllers` array
   - Add `MpesaIpnService` to `providers` array
   - Ensure `ConfigurationService` is available (already global)
@@ -256,7 +267,7 @@ Each increment is independently testable and delivers value.
 
 ### DTOs
 
-- [ ] T019 [P] [US2] Create STK Push DTOs in `apps/api/src/dto/mpesa-stk-push/mpesa-stk-push.dto.ts`
+- [x] T019 [P] [US2] Create STK Push DTOs in `apps/api/src/dto/mpesa-stk-push/mpesa-stk-push.dto.ts`
   - Create `InitiateStkPushDto` class with `phoneNumber`, `amount`, `accountReference`, `transactionDesc?`
   - Add validation decorators (`@IsString()`, `@IsNumber()`, `@Min(1)`, `@Max(70000)`, etc.)
   - Add Swagger decorators
@@ -266,7 +277,7 @@ Each increment is independently testable and delivers value.
 
 ### M-Pesa Daraja API Client
 
-- [ ] T020 [US2] Create M-Pesa Daraja API client service in `apps/api/src/services/mpesa-daraja-api.service.ts`
+- [x] T020 [US2] Create M-Pesa Daraja API client service in `apps/api/src/services/mpesa-daraja-api.service.ts`
   - Create `MpesaDarajaApiService` class
   - Use base URL from configuration (sandbox: `https://sandbox.safaricom.co.ke/mpesa`, production: `https://api.safaricom.co.ke/mpesa`)
   - Implement OAuth 2.0 token generation (`generateAccessToken()`) - endpoint: `/oauth/v1/generate?grant_type=client_credentials`
@@ -282,7 +293,7 @@ Each increment is independently testable and delivers value.
 
 ### Service
 
-- [ ] T021 [US2] Create STK Push service in `apps/api/src/services/mpesa-stk-push.service.ts`
+- [x] T021 [US2] Create STK Push service in `apps/api/src/services/mpesa-stk-push.service.ts`
   - Implement `initiateStkPush(dto: InitiateStkPushDto, correlationId: string, userId?: string): Promise<StkPushRequestResponseDto>`
   - Validate phone number (normalize using phone-number.util)
   - Validate amount (1-70,000 KES)
@@ -311,7 +322,7 @@ Each increment is independently testable and delivers value.
 
 ### Controller
 
-- [ ] T023 [US2] Create STK Push internal controller in `apps/api/src/controllers/internal/mpesa-stk-push.controller.ts`
+- [x] T023 [US2] Create STK Push internal controller in `apps/api/src/controllers/internal/mpesa-stk-push.controller.ts`
   - Create `MpesaStkPushController` class with `@Controller('internal/mpesa/stk-push')` decorator
   - Add `@Post('initiate')` endpoint for agent-initiated requests (requires authentication)
   - Inject `MpesaStkPushService` and correlation ID service
@@ -331,7 +342,7 @@ Each increment is independently testable and delivers value.
 
 ### Testing Endpoint (Development/Testing)
 
-- [ ] T023a [US2] Create simple test endpoint for STK Push in `apps/api/src/controllers/internal/mpesa-stk-push.controller.ts`
+- [x] T023a [US2] Create simple test endpoint for STK Push in `apps/api/src/controllers/internal/mpesa-stk-push.controller.ts`
   - Add `@Post('test')` endpoint for quick STK Push testing during development
   - Accept minimal payload: `phoneNumber`, `amount`, `accountReference` (optional: `transactionDesc`)
   - Call `initiateStkPush()` service method
@@ -342,18 +353,18 @@ Each increment is independently testable and delivers value.
 
 ### Security Middleware
 
-- [ ] T024 [US2] Update API key auth middleware to exclude STK Push callback endpoint in `apps/api/src/middleware/api-key-auth.middleware.ts`
+- [x] T024 [US2] Update API key auth middleware to exclude STK Push callback endpoint in `apps/api/src/middleware/api-key-auth.middleware.ts`
   - Add path check: `req.path.startsWith('/api/public/mpesa/stk-push/callback')` or `req.originalUrl.startsWith('/api/public/mpesa/stk-push/callback')`
   - Skip authentication for this path
 
-- [ ] T025 [US2] Apply security guard to STK Push callback endpoint in `apps/api/src/controllers/public/mpesa-stk-push.controller.ts`
+- [x] T025 [US2] Apply security guard to STK Push callback endpoint in `apps/api/src/controllers/public/mpesa-stk-push.controller.ts`
   - Add `@UseGuards(IpWhitelistGuard)` to callback endpoint
   - Ensure guard runs before service logic
   - **Security failure response**: Same as T015 - return success to M-Pesa, log as ERROR, do NOT process, track as metric
 
 ### Module Registration
 
-- [ ] T026 [US2] Register STK Push controllers and services in `apps/api/src/app.module.ts`
+- [x] T026 [US2] Register STK Push controllers and services in `apps/api/src/app.module.ts`
   - Add `MpesaStkPushController` (internal) to `controllers` array
   - Add `MpesaStkPushPublicController` (public) to `controllers` array
   - Add `MpesaStkPushService` and `MpesaDarajaApiService` to `providers` array
@@ -545,8 +556,21 @@ Each increment is independently testable and delivers value.
 - **US2**: Initiate STK Push request via test endpoint or initiate endpoint, verify sent to M-Pesa, receive callback, confirm linking when IPN arrives
 - **US3**: Upload statement file with overlapping transactions, verify deduplication and gap filling
 
-**Future Integration Notes**:
-- **Register/Payment Page Integration**: The STK Push functionality is designed as a standalone service that can be integrated into the existing register/payment page. The register/payment page currently works as designed but lacks STK Push functionality. Future work will integrate STK Push initiation into the register/payment page, allowing agents to initiate STK Push requests directly from the registration flow. The test endpoint (T023a) allows independent testing of STK Push functionality before this integration.
+**Register/Payment Page Integration** (IMPLEMENTED):
+- **Flow**: 
+  1. Create policy first (with `PENDING_ACTIVATION` status, NULL `startDate`/`endDate`)
+  2. Extract `paymentAcNumber` from policy creation response
+  3. Initiate STK Push using the `paymentAcNumber` as `accountReference`
+  4. Create placeholder payment record with `transactionReference` starting with `PENDING-STK-` and `actualPaymentDate = null`
+- **UI Changes**:
+  - **Removed**: `transactionReference` input field (no longer required from user)
+  - **Payment Phone Number**: Uses the phone number from "Payment Phone Number" field (not the principal's phone number)
+  - **Success Behavior**: After successful STK Push initiation:
+    - User stays on the same `/register/payment` page (no redirect to `/register/customer`)
+    - Success message displayed on the payment page: "STK push payment request has been sent..."
+    - Submit button is disabled (`isPaymentInitiated = true`)
+    - Form data (selected plan, category, payment phone, etc.) is preserved (not cleared)
+  - **Timezone**: All dates (`expectedPaymentDate`) are sent in UTC format using `toISOString()`
 
 **Policy Creation and Activation Requirements**:
 - **Policy Creation**: When creating policies in the registration flow, policies MUST be created with `status = 'PENDING_ACTIVATION'` and `startDate = NULL`, `endDate = NULL` (for both prepaid and postpaid schemes). Dates are only set when policy is activated on first payment.
