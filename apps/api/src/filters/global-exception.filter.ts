@@ -33,8 +33,8 @@ export class GlobalExceptionFilter implements ExceptionFilter {
   @SentryExceptionCaptured()
   catch(exception: unknown, host: ArgumentsHost) {
     const ctx = host.switchToHttp();
-    const response = ctx.getResponse<Response>();
     const request = ctx.getRequest<Request>();
+    const response = ctx.getResponse<Response>();
 
     // Extract correlation ID from request
     const correlationId = request.correlationId || 'unknown';
@@ -61,6 +61,27 @@ export class GlobalExceptionFilter implements ExceptionFilter {
 
     // Log the error with correlation ID
     this.logError(exception, request, correlationId);
+
+    // For validation errors, also log the request body to help debug
+    if (status === HttpStatus.BAD_REQUEST && exception instanceof HttpException) {
+      const exceptionResponse = exception.getResponse();
+      if (typeof exceptionResponse === 'object' && exceptionResponse !== null) {
+        const responseObj = exceptionResponse as { message?: string | string[] };
+        if (Array.isArray(responseObj.message) || (typeof responseObj.message === 'string' && responseObj.message.includes('validation'))) {
+          this.logger.debug(
+            JSON.stringify({
+              event: 'VALIDATION_ERROR_DETAILS',
+              correlationId,
+              path: request.url,
+              method: request.method,
+              requestBody: request.body,
+              validationErrors: responseObj.message,
+              timestamp: new Date().toISOString(),
+            })
+          );
+        }
+      }
+    }
 
     // Report error to Sentry asynchronously (non-blocking)
     if (exception instanceof Error) {

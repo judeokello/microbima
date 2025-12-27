@@ -85,8 +85,22 @@ async function bootstrap() {
     console.log(`🌍 NODE_ENV: ${process.env.NODE_ENV ?? 'not set'}`);
     console.log(`🔌 PORT: ${process.env.PORT ?? 'not set'}`);
 
-    const app = await NestFactory.create(AppModule);
-    console.log('✅ NestJS application created');
+    // Create app with error handling for lifecycle hooks
+    let app;
+    try {
+      app = await NestFactory.create(AppModule, {
+        logger: ['error', 'warn', 'log', 'debug', 'verbose'],
+      });
+      console.log('✅ NestJS application created');
+    } catch (error) {
+      console.error('❌ CRITICAL: Failed to create NestJS application');
+      console.error('This usually indicates a problem with module initialization (e.g., database connection)');
+      console.error('Error:', error instanceof Error ? error.message : String(error));
+      if (error instanceof Error && error.stack) {
+        console.error('Stack trace:', error.stack);
+      }
+      throw error;
+    }
 
     // Get configuration service
     const configService = app.get(ConfigurationService);
@@ -173,14 +187,50 @@ async function bootstrap() {
 
 // Handle unhandled promise rejections
 process.on('unhandledRejection', (reason, promise) => {
-  console.error('❌ Unhandled Rejection at:', promise, 'reason:', reason);
-  process.exit(1);
+  console.error('❌ CRITICAL: Unhandled Promise Rejection');
+  console.error('Promise:', promise);
+  console.error('Reason:', reason);
+
+  if (reason instanceof Error) {
+    console.error('Error message:', reason.message);
+    if (reason.stack) {
+      console.error('Stack trace:', reason.stack);
+    }
+  } else {
+    console.error('Reason details:', JSON.stringify(reason, null, 2));
+  }
+
+  // Log environment context
+  console.error('Environment context:');
+  console.error('  NODE_ENV:', process.env.NODE_ENV ?? 'not set');
+  console.error('  PORT:', process.env.PORT ?? 'not set');
+  console.error('  DATABASE_URL:', process.env.DATABASE_URL ? 'set (hidden)' : 'not set');
+
+  // Give a moment for logs to flush, then exit
+  setTimeout(() => {
+    process.exit(1);
+  }, 1000);
 });
 
 // Handle uncaught exceptions
 process.on('uncaughtException', (error) => {
-  console.error('❌ Uncaught Exception:', error);
-  process.exit(1);
+  console.error('❌ CRITICAL: Uncaught Exception');
+  console.error('Error:', error);
+  console.error('Error message:', error.message);
+  if (error.stack) {
+    console.error('Stack trace:', error.stack);
+  }
+
+  // Log environment context
+  console.error('Environment context:');
+  console.error('  NODE_ENV:', process.env.NODE_ENV ?? 'not set');
+  console.error('  PORT:', process.env.PORT ?? 'not set');
+  console.error('  DATABASE_URL:', process.env.DATABASE_URL ? 'set (hidden)' : 'not set');
+
+  // Give a moment for logs to flush, then exit
+  setTimeout(() => {
+    process.exit(1);
+  }, 1000);
 });
 
 bootstrap().catch((error) => {

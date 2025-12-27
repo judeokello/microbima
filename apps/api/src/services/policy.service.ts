@@ -614,17 +614,15 @@ export class PolicyService {
         } else {
           // Prepaid: generate policy number inside transaction to prevent race conditions
           // This ensures thread-safe policy number generation even under high concurrency
+          // Dates are set to NULL and will only be set when policy is activated on first payment
           policyNumber = await this.generatePolicyNumberInTransaction(
             data.packageId,
             tx,
             correlationId
           );
-          startDate = new Date();
-          startDate.setUTCHours(0, 0, 0, 0);
-          endDate = new Date(startDate);
-          endDate.setFullYear(endDate.getFullYear() + 1);
-          endDate.setUTCHours(23, 59, 59, 999);
-          status = 'PENDING_ACTIVATION'; // Will be updated to ACTIVE by activatePolicy
+          startDate = null; // Will be set on activation (first payment)
+          endDate = null; // Will be set on activation (one year from startDate)
+          status = 'PENDING_ACTIVATION'; // Will be updated to ACTIVE by activatePolicy when first payment completes
         }
 
         // Create policy
@@ -845,10 +843,15 @@ export class PolicyService {
           },
         });
 
-        // For prepaid schemes, activate the policy immediately (creates member records)
-        if (!isPostpaidScheme) {
+        // For prepaid schemes, activate the policy only if payment has already been completed
+        // (indicated by actualPaymentDate being set)
+        // If actualPaymentDate is null, policy remains in PENDING_ACTIVATION until payment completes
+        // Payment completion will trigger activation via IPN or STK push callback
+        if (!isPostpaidScheme && data.paymentData.actualPaymentDate) {
           await this.activatePolicy(policy.id, correlationId, tx);
-          this.logger.log(`[${correlationId}] Activated prepaid policy ${policy.id} immediately`);
+          this.logger.log(`[${correlationId}] Activated prepaid policy ${policy.id} immediately (payment already completed)`);
+        } else if (!isPostpaidScheme) {
+          this.logger.log(`[${correlationId}] Policy ${policy.id} created with PENDING_ACTIVATION status (will be activated when payment completes)`);
         }
 
         return {

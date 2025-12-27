@@ -105,6 +105,7 @@ export class PolicyController {
       premium: Number(result.policy.premium),
       startDate: result.policy.startDate?.toISOString() ?? '',
       endDate: result.policy.endDate?.toISOString() ?? '',
+      paymentAcNumber: result.policy.paymentAcNumber,
     };
 
     const paymentResponse: PolicyPaymentResponseDto = {
