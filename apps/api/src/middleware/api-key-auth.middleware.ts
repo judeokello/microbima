@@ -56,6 +56,18 @@ export class ApiKeyAuthMiddleware implements NestMiddleware {
       return next();
     }
 
+    // Skip authentication for M-Pesa callback endpoints (required by M-Pesa)
+    // These endpoints use IP whitelist validation instead
+    if (
+      req.path.startsWith('/api/public/mpesa/confirmation') ||
+      req.path.startsWith('/api/public/mpesa/stk-push/callback') ||
+      req.originalUrl.startsWith('/api/public/mpesa/confirmation') ||
+      req.originalUrl.startsWith('/api/public/mpesa/stk-push/callback')
+    ) {
+      console.log('Skipping API key auth for M-Pesa callback endpoint:', req.path);
+      return next();
+    }
+
     console.log('Applying API key auth for route:', req.path);
 
     const apiKey = req.headers['x-api-key'] as string;

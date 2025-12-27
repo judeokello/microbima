@@ -1,0 +1,432 @@
+# Quick Start Guide: M-Pesa Daraja IPN and STK Push Integration
+
+**Feature**: M-Pesa Daraja IPN and STK Push Integration  
+**Date**: 2025-01-27
+
+## Overview
+
+This guide provides a quick start for implementing the M-Pesa Daraja IPN and STK Push integration feature. It covers the essential steps to get the feature working in a development environment.
+
+## Prerequisites
+
+1. **M-Pesa Daraja API Credentials**:
+   - Consumer Key
+   - Consumer Secret
+   - Business Short Code
+   - Passkey
+   - Sandbox or Production environment access
+
+2. **Environment Setup**:
+   - Node.js >= 18.0.0
+   - pnpm >= 8.0.0
+   - PostgreSQL database
+   - Access to M-Pesa Daraja sandbox (for testing)
+
+3. **External Dependencies** (tracked in `tasks.md`):
+   - Safaricom IP address ranges (for IP whitelist)
+   - Signature verification implementation details
+
+## Implementation Steps
+
+### 1. Schema Changes
+
+```bash
+# Navigate to API directory
+cd apps/api
+
+# Update Prisma schema (add enums and models)
+# See data-model.md for details
+
+# Create and apply migration
+npx prisma migrate dev --name add_mpesa_ipn_and_stk_push
+
+# Generate Prisma client
+npx prisma generate
+```
+
+**Key Changes**:
+- Add `MpesaPaymentSource` enum (IPN, STATEMENT)
+- Add `MpesaStkPushStatus` enum (PENDING, COMPLETED, FAILED, CANCELLED, EXPIRED)
+- Create `MpesaStkPushRequest` model
+- Update `MpesaPaymentReportItem` model (nullable upload ID, new fields, new indexes)
+
+### 2. Configuration
+
+Add M-Pesa Daraja API configuration to `apps/api/src/config/configuration.service.ts`:
+
+```typescript
+mpesa: {
+  consumerKey: process.env.MPESA_CONSUMER_KEY!,
+  consumerSecret: process.env.MPESA_CONSUMER_SECRET!,
+  businessShortCode: process.env.MPESA_BUSINESS_SHORT_CODE!,
+  passkey: process.env.MPESA_PASSKEY!,
+  environment: (process.env.MPESA_ENVIRONMENT ?? 'sandbox') as 'sandbox' | 'production',
+  stkPushCallbackUrl: process.env.MPESA_STK_PUSH_CALLBACK_URL!,
+  ipnConfirmationUrl: process.env.MPESA_IPN_CONFIRMATION_URL!,
+  // IP whitelist (obtain from Safaricom)
+  allowedIpRanges: process.env.MPESA_ALLOWED_IP_RANGES?.split(',') ?? [],
+}
+```
+
+Add to `.env` file:
+
+```bash
+# M-Pesa Daraja API Configuration
+MPESA_CONSUMER_KEY=your_consumer_key
+MPESA_CONSUMER_SECRET=your_consumer_secret
+MPESA_BUSINESS_SHORT_CODE=174379
+MPESA_PASSKEY=your_passkey
+MPESA_ENVIRONMENT=sandbox
+MPESA_STK_PUSH_CALLBACK_URL=https://your-domain.com/api/public/mpesa/stk-push/callback
+MPESA_IPN_CONFIRMATION_URL=https://your-domain.com/api/public/mpesa/confirmation
+MPESA_ALLOWED_IP_RANGES=196.201.214.0/24,196.201.215.0/24  # Example - get from Safaricom
+```
+
+### 3. Create DTOs
+
+**File**: `apps/api/src/dto/mpesa-ipn/mpesa-ipn.dto.ts`
+
+```typescript
+import { ApiProperty } from '@nestjs/swagger';
+import { IsString, IsOptional } from 'class-validator';
+
+export class MpesaIpnPayloadDto {
+  @ApiProperty()
+  @IsString()
+  TransactionType: string;
+
+  @ApiProperty()
+  @IsString()
+  TransID: string;
+
+  @ApiProperty()
+  @IsString()
+  TransTime: string;
+
+  @ApiProperty()
+  @IsString()
+  TransAmount: string;
+
+  @ApiProperty()
+  @IsString()
+  BusinessShortCode: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  BillRefNumber?: string;
+
+  // ... other fields (see contracts/mpesa-ipn-stk-push-api.yaml)
+}
+
+export class MpesaIpnResponseDto {
+  @ApiProperty()
+  ResultCode: number;
+
+  @ApiProperty()
+  ResultDesc: string;
+}
+```
+
+**File**: `apps/api/src/dto/mpesa-stk-push/mpesa-stk-push.dto.ts`
+
+```typescript
+import { ApiProperty } from '@nestjs/swagger';
+import { IsString, IsNumber, IsOptional, Min, Max } from 'class-validator';
+
+export class InitiateStkPushDto {
+  @ApiProperty()
+  @IsString()
+  phoneNumber: string;
+
+  @ApiProperty()
+  @IsNumber()
+  @Min(1)
+  @Max(70000)
+  amount: number;
+
+  @ApiProperty()
+  @IsString()
+  accountReference: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  transactionDesc?: string;
+}
+
+export class StkPushRequestResponseDto {
+  @ApiProperty()
+  id: string;
+
+  @ApiProperty()
+  checkoutRequestID: string;
+
+  @ApiProperty()
+  status: string;
+
+  // ... other fields
+}
+```
+
+### 4. Create Services
+
+**File**: `apps/api/src/services/mpesa-ipn.service.ts`
+
+Key responsibilities:
+- Parse IPN payload
+- Normalize phone numbers (254XXXXXXXXX)
+- Check for existing records (idempotency)
+- Create/update payment records
+- Link to STK Push requests (matching logic)
+- Return success response to M-Pesa
+
+**File**: `apps/api/src/services/mpesa-stk-push.service.ts`
+
+Key responsibilities:
+- Validate STK Push parameters
+- Create STK Push request record (id is auto-generated UUID by Prisma)
+- Use the auto-generated `id` as `MerchantRequestID` when calling M-Pesa Daraja API
+- Call M-Pesa Daraja API (with retry logic)
+- Handle STK Push callbacks
+- Update request status
+
+**Important**: The `MpesaStkPushRequest.id` field is auto-generated by Prisma as a UUID. Do not provide it when creating records. The auto-generated ID is used as the `MerchantRequestID` in M-Pesa Daraja API calls.
+
+### 5. Create Controllers
+
+**File**: `apps/api/src/controllers/public/mpesa-ipn.controller.ts`
+
+```typescript
+@Controller('public/mpesa')
+@ApiTags('M-Pesa IPN')
+export class MpesaIpnController {
+  constructor(private readonly mpesaIpnService: MpesaIpnService) {}
+
+  @Post('confirmation')
+  @ApiOperation({ summary: 'IPN Confirmation Callback' })
+  async processIpn(@Body() payload: MpesaIpnPayloadDto): Promise<MpesaIpnResponseDto> {
+    return this.mpesaIpnService.processIpnNotification(payload);
+  }
+}
+```
+
+**File**: `apps/api/src/controllers/internal/mpesa-stk-push.controller.ts`
+
+```typescript
+@Controller('internal/mpesa/stk-push')
+@ApiTags('M-Pesa STK Push')
+@ApiBearerAuth()
+export class MpesaStkPushController {
+  constructor(private readonly mpesaStkPushService: MpesaStkPushService) {}
+
+  @Post('initiate')
+  @ApiOperation({ summary: 'Initiate STK Push Request' })
+  async initiate(@Body() dto: InitiateStkPushDto): Promise<StkPushRequestResponseDto> {
+    return this.mpesaStkPushService.initiateStkPush(dto);
+  }
+
+  @Post('callback')
+  @ApiOperation({ summary: 'STK Push Callback' })
+  async callback(@Body() payload: StkPushCallbackDto): Promise<MpesaCallbackResponseDto> {
+    return this.mpesaStkPushService.handleStkPushCallback(payload);
+  }
+}
+```
+
+### 6. Update Middleware
+
+**File**: `apps/api/src/middleware/api-key-auth.middleware.ts`
+
+Add public callback endpoints to skip list:
+
+```typescript
+// Skip authentication for M-Pesa callback endpoints
+if (
+  req.path.startsWith('/api/public/mpesa/confirmation') ||
+  req.path.startsWith('/api/public/mpesa/stk-push/callback') ||
+  req.originalUrl.startsWith('/api/public/mpesa/confirmation') ||
+  req.originalUrl.startsWith('/api/public/mpesa/stk-push/callback')
+) {
+  return next();
+}
+```
+
+### 7. Update Statement Upload Service
+
+**File**: `apps/api/src/services/mpesa-payments.service.ts`
+
+Add deduplication logic in `uploadAndParseStatement()`:
+
+```typescript
+// Before creating items, check for existing IPN records
+for (const transaction of transactions) {
+  const existingIpn = await this.prismaService.mpesaPaymentReportItem.findFirst({
+    where: {
+      transactionReference: transaction.transactionReference,
+      source: 'IPN',
+    },
+  });
+
+  if (existingIpn) {
+    // Skip, increment match counter
+    matchedIpnRecords++;
+    continue;
+  }
+
+  // Create new record with source = 'STATEMENT'
+  // ...
+}
+```
+
+### 8. Register in AppModule
+
+**File**: `apps/api/src/app.module.ts`
+
+```typescript
+import { MpesaIpnController } from './controllers/public/mpesa-ipn.controller';
+import { MpesaStkPushController } from './controllers/internal/mpesa-stk-push.controller';
+import { MpesaIpnService } from './services/mpesa-ipn.service';
+import { MpesaStkPushService } from './services/mpesa-stk-push.service';
+
+@Module({
+  controllers: [
+    // ... existing controllers
+    MpesaIpnController,
+    MpesaStkPushController,
+  ],
+  providers: [
+    // ... existing providers
+    MpesaIpnService,
+    MpesaStkPushService,
+  ],
+})
+export class AppModule {}
+```
+
+## Testing
+
+### 1. Test IPN Endpoint
+
+```bash
+# Send test IPN payload
+curl -X POST http://localhost:3001/api/public/mpesa/confirmation \
+  -H "Content-Type: application/json" \
+  -d '{
+    "TransactionType": "Pay Bill",
+    "TransID": "RKTQDM7W6S",
+    "TransTime": "20250127143045",
+    "TransAmount": "100.00",
+    "BusinessShortCode": "174379",
+    "BillRefNumber": "POL123456",
+    "MSISDN": "254722000000",
+    "FirstName": "John",
+    "LastName": "Doe"
+  }'
+```
+
+### 2. Test STK Push Initiation
+
+```bash
+# Initiate STK Push request
+curl -X POST http://localhost:3001/api/internal/mpesa/stk-push/initiate \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer your-supabase-jwt-token" \
+  -d '{
+    "phoneNumber": "254722000000",
+    "amount": 100.00,
+    "accountReference": "POL123456",
+    "transactionDesc": "Premium payment"
+  }'
+```
+
+### 3. Test Statement Upload Deduplication
+
+Upload a statement file containing transactions that partially overlap with existing IPN records. Verify that:
+- Duplicates are skipped
+- Only new transactions are created
+- Statistics show matches and gaps filled
+
+## Security Implementation
+
+### IP Whitelist Validation
+
+```typescript
+// In middleware or guard
+const clientIp = req.ip || req.connection.remoteAddress;
+const allowedRanges = config.mpesa.allowedIpRanges;
+
+if (!isIpInRanges(clientIp, allowedRanges)) {
+  throw new ForbiddenException('IP address not whitelisted');
+}
+```
+
+### Signature Verification
+
+```typescript
+// Verify M-Pesa signature (implementation depends on Safaricom documentation)
+const signature = req.headers['x-mpesa-signature'];
+const isValid = verifySignature(req.body, signature, config.mpesa.signatureSecret);
+
+if (!isValid) {
+  throw new UnauthorizedException('Invalid signature');
+}
+```
+
+**Note**: Implementation details for signature verification must be obtained from Safaricom documentation.
+
+## Next Steps
+
+1. **Obtain Safaricom Documentation**:
+   - IP address ranges
+   - Signature verification details
+
+2. **Register Callback URLs**:
+   - Register IPN confirmation URL in M-Pesa Daraja portal
+   - Register STK Push callback URL in M-Pesa Daraja portal
+
+3. **Testing**:
+   - Test with M-Pesa sandbox
+   - Verify IPN processing
+   - Verify STK Push initiation and callbacks
+   - Verify statement deduplication
+
+4. **Production Deployment**:
+   - Update environment variables
+   - Deploy to staging
+   - Test with production M-Pesa credentials
+   - Monitor logs and metrics
+
+## Common Issues
+
+### Issue: IPN endpoint not receiving callbacks
+
+**Solution**: 
+- Verify callback URL is registered in M-Pesa Daraja portal
+- Check firewall/network configuration
+- Verify endpoint is publicly accessible
+- Check M-Pesa logs for delivery status
+
+### Issue: STK Push requests failing
+
+**Solution**:
+- Verify M-Pesa API credentials
+- Check phone number format (must be 254XXXXXXXXX)
+- Verify amount is within limits (1-70,000 KES)
+- Check M-Pesa API response for error details
+
+### Issue: Duplicate payment records
+
+**Solution**:
+- Verify idempotency logic (check by transactionReference + source)
+- Check that IPN records have source = 'IPN'
+- Verify statement deduplication is working
+
+## References
+
+- [Specification](./spec.md)
+- [Data Model](./data-model.md)
+- [API Contracts](./contracts/mpesa-ipn-stk-push-api.yaml)
+- [Research](./research.md)
+- [Tasks](./tasks.md)
+

@@ -1,0 +1,484 @@
+openapi: 3.0.3
+info:
+  title: M-Pesa Daraja IPN and STK Push API
+  description: |
+    API endpoints for M-Pesa Daraja Instant Payment Notification (IPN) and STK Push integration.
+    
+    **IPN Endpoints**: Public callback endpoints that receive notifications from M-Pesa (no authentication required).
+    
+    **STK Push Endpoints**: Internal endpoints for agent-initiated payment requests (authentication required).
+    
+    **Error Response Formats**:
+    - **Public Callback Endpoints** (IPN, STK Push callback): Use M-Pesa format (`MpesaCallbackResponse`) with `ResultCode` and `ResultDesc` fields. Always returns 200 OK with ResultCode: 0 to prevent M-Pesa retries.
+    - **Internal Endpoints** (STK Push initiation): Use standard MicroBima error format (`ErrorResponse`) defined in `StandardErrorResponseDto`. See error response schema for details.
+  version: 1.0.0
+  contact:
+    name: MicroBima API Support
+
+servers:
+  - url: https://api.microbima.com/api
+    description: Production server
+  - url: https://staging-api.microbima.com/api
+    description: Staging server
+  - url: http://localhost:3001/api
+    description: Development server
+
+tags:
+  - name: M-Pesa IPN
+    description: Instant Payment Notification callbacks from M-Pesa
+  - name: M-Pesa STK Push
+    description: STK Push payment request initiation and callbacks
+
+paths:
+  /public/mpesa/confirmation:
+    post:
+      tags:
+        - M-Pesa IPN
+      summary: IPN Confirmation Callback
+      description: |
+        Public endpoint that receives Instant Payment Notification (IPN) callbacks from M-Pesa Daraja API.
+        This endpoint processes payment notifications in real-time and creates payment records immediately.
+        
+        **Security**: This endpoint is publicly accessible (no API key authentication) as required by M-Pesa.
+        Security is implemented via IP whitelist validation and signature verification.
+      operationId: processIpnNotification
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MpesaIpnPayload'
+            examples:
+              payBill:
+                summary: Pay Bill Transaction
+                value:
+                  TransactionType: "Pay Bill"
+                  TransID: "RKTQDM7W6S"
+                  TransTime: "20250127143045"
+                  TransAmount: "100.00"
+                  BusinessShortCode: "174379"
+                  BillRefNumber: "POL123456"
+                  InvoiceNumber: ""
+                  OrgAccountBalance: "50000.00"
+                  ThirdPartyTransID: ""
+                  MSISDN: "254722000000"
+                  FirstName: "John"
+                  MiddleName: "M"
+                  LastName: "Doe"
+      responses:
+        '200':
+          description: |
+            Success response (always returns success to prevent M-Pesa retries).
+            Even if validation fails or processing errors occur, this endpoint returns 200 OK
+            with ResultCode: 0 to prevent M-Pesa from retrying the notification.
+            Errors are logged internally for investigation.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MpesaCallbackResponse'
+              example:
+                ResultCode: 0
+                ResultDesc: "Accepted"
+      security: [] # Public endpoint, no authentication
+
+  /public/mpesa/stk-push/callback:
+    post:
+      tags:
+        - M-Pesa STK Push
+      summary: STK Push Callback
+      description: |
+        Public endpoint that receives STK Push callback notifications from M-Pesa Daraja API.
+        This endpoint updates STK Push request status based on customer action.
+        
+        **Security**: This endpoint is publicly accessible (no API key authentication) as required by M-Pesa.
+        Security is implemented via IP whitelist validation and signature verification.
+      operationId: handleStkPushCallback
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StkPushCallbackPayload'
+            examples:
+              completed:
+                summary: Completed Payment
+                value:
+                  Body:
+                    stkCallback:
+                      MerchantRequestID: "12345-67890-12345"
+                      CheckoutRequestID: "ws_CO_270120251430451234567890"
+                      ResultCode: 0
+                      ResultDesc: "The service request is processed successfully."
+                      CallbackMetadata:
+                        Item:
+                          - Name: Amount
+                            Value: 100.00
+                          - Name: MpesaReceiptNumber
+                            Value: "RKTQDM7W6S"
+                          - Name: Balance
+                            Value: 50000.00
+                          - Name: TransactionDate
+                            Value: 20250127143045
+                          - Name: PhoneNumber
+                            Value: 254722000000
+              failed:
+                summary: Failed Payment
+                value:
+                  Body:
+                    stkCallback:
+                      MerchantRequestID: "12345-67890-12345"
+                      CheckoutRequestID: "ws_CO_270120251430451234567890"
+                      ResultCode: 1032
+                      ResultDesc: "Request cancelled by user"
+      responses:
+        '200':
+          description: |
+            Success response (always returns success to prevent M-Pesa retries).
+            Even if validation fails or processing errors occur, this endpoint returns 200 OK
+            with ResultCode: 0 to prevent M-Pesa from retrying the notification.
+            Errors are logged internally for investigation.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MpesaCallbackResponse'
+              example:
+                ResultCode: 0
+                ResultDesc: "Accepted"
+      security: [] # Public endpoint, no authentication
+
+  /internal/mpesa/stk-push/initiate:
+    post:
+      tags:
+        - M-Pesa STK Push
+      summary: Initiate STK Push Request
+      description: |
+        Internal endpoint for agents to initiate STK Push payment requests.
+        Creates a payment prompt on the customer's phone and tracks the request status.
+        
+        **Authentication**: Requires Supabase Bearer token authentication (agents must be logged in).
+      operationId: initiateStkPush
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InitiateStkPushRequest'
+            example:
+              phoneNumber: "254722000000"
+              amount: 100.00
+              accountReference: "POL123456"
+              transactionDesc: "Premium payment for policy POL123456"
+      responses:
+        '201':
+          description: STK Push request created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StkPushRequestResponse'
+        '400':
+          description: Bad request (malformed request payload)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized (missing or invalid Bearer token)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Validation error (invalid phone number, amount out of range, account reference not found, etc.)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Too many requests (rate limit exceeded - M-Pesa API rate limiting)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      security:
+        - BearerAuth: []
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Supabase JWT Bearer token for authenticated agents
+
+  schemas:
+    MpesaIpnPayload:
+      type: object
+      required:
+        - TransactionType
+        - TransID
+        - TransTime
+        - TransAmount
+        - BusinessShortCode
+        - MSISDN
+      properties:
+        TransactionType:
+          type: string
+          description: M-Pesa transaction type (e.g., "Pay Bill", "Buy Goods")
+          example: "Pay Bill"
+        TransID:
+          type: string
+          description: Unique transaction ID from M-Pesa
+          example: "RKTQDM7W6S"
+        TransTime:
+          type: string
+          description: Transaction time in format YYYYMMDDHHmmss
+          example: "20250127143045"
+        TransAmount:
+          type: string
+          description: Transaction amount as decimal string
+          example: "100.00"
+        BusinessShortCode:
+          type: string
+          description: Business short code
+          example: "174379"
+        BillRefNumber:
+          type: string
+          description: Account reference (policy payment account number)
+          example: "POL123456"
+        InvoiceNumber:
+          type: string
+          description: Invoice number (if applicable)
+          example: ""
+        OrgAccountBalance:
+          type: string
+          description: Organization account balance as decimal string
+          example: "50000.00"
+        ThirdPartyTransID:
+          type: string
+          description: Third party transaction ID (if applicable)
+          example: ""
+        MSISDN:
+          type: string
+          description: Customer phone number in international format
+          example: "254722000000"
+        FirstName:
+          type: string
+          description: Customer first name
+          example: "John"
+        MiddleName:
+          type: string
+          description: Customer middle name
+          example: "M"
+        LastName:
+          type: string
+          description: Customer last name
+          example: "Doe"
+
+    StkPushCallbackPayload:
+      type: object
+      required:
+        - Body
+      properties:
+        Body:
+          type: object
+          required:
+            - stkCallback
+          properties:
+            stkCallback:
+              type: object
+              required:
+                - MerchantRequestID
+                - CheckoutRequestID
+                - ResultCode
+                - ResultDesc
+              properties:
+                MerchantRequestID:
+                  type: string
+                  description: Merchant request ID (same as STK Push request ID)
+                  example: "12345-67890-12345"
+                CheckoutRequestID:
+                  type: string
+                  description: Checkout request ID from M-Pesa
+                  example: "ws_CO_270120251430451234567890"
+                ResultCode:
+                  type: integer
+                  description: Result code (0 = success, non-zero = error)
+                  example: 0
+                ResultDesc:
+                  type: string
+                  description: Result description
+                  example: "The service request is processed successfully."
+                CallbackMetadata:
+                  type: object
+                  description: Additional callback metadata (present on success)
+                  properties:
+                    Item:
+                      type: array
+                      items:
+                        type: object
+                        properties:
+                          Name:
+                            type: string
+                            example: "Amount"
+                          Value:
+                            type: string
+                            example: "100.00"
+
+    InitiateStkPushRequest:
+      type: object
+      required:
+        - phoneNumber
+        - amount
+        - accountReference
+      properties:
+        phoneNumber:
+          type: string
+          description: Customer phone number (will be normalized to international format 254XXXXXXXXX)
+          pattern: '^254[0-9]{9}$'
+          example: "254722000000"
+        amount:
+          type: number
+          description: Transaction amount (must be between 1 and 70,000 KES)
+          minimum: 1
+          maximum: 70000
+          example: 100.00
+        accountReference:
+          type: string
+          description: Policy payment account number (BillRefNumber)
+          maxLength: 100
+          example: "POL123456"
+        transactionDesc:
+          type: string
+          description: Transaction description (optional)
+          maxLength: 500
+          example: "Premium payment for policy POL123456"
+
+    StkPushRequestResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: STK Push request ID (used as MerchantRequestID)
+          example: "12345-67890-12345"
+        checkoutRequestID:
+          type: string
+          description: Checkout request ID from M-Pesa
+          example: "ws_CO_270120251430451234567890"
+        merchantRequestID:
+          type: string
+          description: Merchant request ID (same as id)
+          example: "12345-67890-12345"
+        status:
+          type: string
+          enum: [PENDING, COMPLETED, FAILED, CANCELLED, EXPIRED]
+          description: Current request status
+          example: "PENDING"
+        phoneNumber:
+          type: string
+          description: Customer phone number
+          example: "254722000000"
+        amount:
+          type: number
+          description: Transaction amount
+          example: 100.00
+        accountReference:
+          type: string
+          description: Account reference
+          example: "POL123456"
+        initiatedAt:
+          type: string
+          format: date-time
+          description: When the request was initiated
+          example: "2025-01-27T14:30:45Z"
+
+    MpesaCallbackResponse:
+      type: object
+      required:
+        - ResultCode
+        - ResultDesc
+      properties:
+        ResultCode:
+          type: integer
+          description: Result code (0 = success, non-zero = error)
+          example: 0
+        ResultDesc:
+          type: string
+          description: Result description
+          example: "Accepted"
+
+    ErrorResponse:
+      type: object
+      description: |
+        Standard error response format for internal endpoints.
+        Follows the MicroBima API standard error response format defined in StandardErrorResponseDto.
+        Note: Public callback endpoints (IPN, STK Push callback) use M-Pesa format (MpesaCallbackResponse)
+        instead of this format.
+      required:
+        - error
+      properties:
+        error:
+          type: object
+          required:
+            - code
+            - status
+            - message
+            - correlationId
+            - timestamp
+          properties:
+            code:
+              type: string
+              description: Standardized error code for programmatic handling
+              enum:
+                - VALIDATION_ERROR
+                - DUPLICATE_EMAIL
+                - DUPLICATE_ID_NUMBER
+                - MALFORMED_REQUEST
+                - AUTHENTICATION_ERROR
+                - AUTHORIZATION_ERROR
+                - NOT_FOUND
+                - DATABASE_ERROR
+                - EXTERNAL_SERVICE_ERROR
+                - RATE_LIMIT_EXCEEDED
+                - INTERNAL_SERVER_ERROR
+              example: "VALIDATION_ERROR"
+            status:
+              type: integer
+              description: HTTP status code (ALWAYS use "status", never "statusCode")
+              example: 422
+            message:
+              type: string
+              description: Human-readable error message
+              example: "One or more fields failed validation"
+            details:
+              type: object
+              description: Field-specific error details (for validation errors)
+              additionalProperties:
+                type: string
+              example:
+                phoneNumber: "Phone number must be in format 254XXXXXXXXX"
+                amount: "Amount must be between 1 and 70,000 KES"
+            correlationId:
+              type: string
+              description: Request correlation ID for tracing
+              example: "req-12345-67890"
+            timestamp:
+              type: string
+              format: date-time
+              description: ISO timestamp when error occurred
+              example: "2025-01-27T14:30:45.123Z"
+            path:
+              type: string
+              description: API endpoint path where error occurred
+              example: "/api/internal/mpesa/stk-push/initiate"
+            stack:
+              type: string
+              description: Stack trace (development environment only)
+              example: "ValidationException: One or more fields failed validation..."
+
