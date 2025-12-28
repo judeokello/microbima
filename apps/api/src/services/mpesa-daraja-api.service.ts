@@ -437,12 +437,32 @@ export class MpesaDarajaApiService {
             });
 
             if (attempt === maxRetries) {
+              // Enhanced error logging
               this.logger.error(
                 JSON.stringify({
                   event: 'STK_PUSH_RETRY_EXHAUSTED',
                   correlationId,
                   merchantRequestId,
+                  errorType: 'RETRY_EXHAUSTION',
                   errors,
+                  transactionDetails: {
+                    phoneNumber,
+                    amount,
+                    accountReference,
+                  },
+                  timestamp: new Date().toISOString(),
+                })
+              );
+
+              // Metric: Retry exhaustion events
+              this.logger.log(
+                JSON.stringify({
+                  event: 'METRIC_RETRY_EXHAUSTED',
+                  metricType: 'counter',
+                  metricName: 'retry_exhaustion_events',
+                  value: 1,
+                  api: 'STK_PUSH',
+                  correlationId,
                   timestamp: new Date().toISOString(),
                 })
               );
@@ -474,12 +494,32 @@ export class MpesaDarajaApiService {
               timestamp: new Date().toISOString(),
             });
 
+            // Enhanced error logging
             this.logger.error(
               JSON.stringify({
                 event: 'STK_PUSH_RETRY_EXHAUSTED',
                 correlationId,
                 merchantRequestId,
+                errorType: 'RETRY_EXHAUSTION',
                 errors,
+                transactionDetails: {
+                  phoneNumber,
+                  amount,
+                  accountReference,
+                },
+                timestamp: new Date().toISOString(),
+              })
+            );
+
+            // Metric: Retry exhaustion events
+            this.logger.log(
+              JSON.stringify({
+                event: 'METRIC_RETRY_EXHAUSTED',
+                metricType: 'counter',
+                metricName: 'retry_exhaustion_events',
+                value: 1,
+                api: 'STK_PUSH',
+                correlationId,
                 timestamp: new Date().toISOString(),
               })
             );

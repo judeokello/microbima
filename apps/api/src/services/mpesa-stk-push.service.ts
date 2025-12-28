@@ -128,12 +128,30 @@ export class MpesaStkPushService {
         },
       });
 
+      // Success logging with key details
       this.logger.log(
         JSON.stringify({
           event: 'STK_PUSH_INITIATED',
           correlationId,
           stkPushRequestId: updatedRequest.id,
           checkoutRequestId: mpesaResponse.CheckoutRequestID,
+          keyDetails: {
+            phoneNumber: normalizedPhone,
+            amount: dto.amount,
+            accountReference: dto.accountReference,
+          },
+          timestamp: new Date().toISOString(),
+        })
+      );
+
+      // Metric: STK Push requests initiated
+      this.logger.log(
+        JSON.stringify({
+          event: 'METRIC_STK_PUSH_INITIATED',
+          metricType: 'counter',
+          metricName: 'stk_push_requests_initiated',
+          value: 1,
+          correlationId,
           timestamp: new Date().toISOString(),
         })
       );
@@ -154,14 +172,28 @@ export class MpesaStkPushService {
         throw error;
       }
 
-      // For other errors, log and throw
+      // Enhanced error logging with full context
+      const errorType = error instanceof ValidationException
+        ? 'VALIDATION_ERROR'
+        : error instanceof Error && error.name === 'PrismaClientKnownRequestError'
+        ? 'DATABASE_ERROR'
+        : error instanceof Error
+        ? error.constructor.name
+        : 'UNKNOWN_ERROR';
+
       this.logger.error(
         JSON.stringify({
           event: 'STK_PUSH_INITIATION_ERROR',
           correlationId,
+          errorType,
           error: error instanceof Error ? error.message : 'Unknown error',
           stack: error instanceof Error ? error.stack : undefined,
-          payload: JSON.stringify(dto),
+          transactionDetails: {
+            phoneNumber: dto.phoneNumber,
+            amount: dto.amount,
+            accountReference: dto.accountReference,
+          },
+          requestPayload: dto,
           timestamp: new Date().toISOString(),
         })
       );
@@ -291,6 +323,7 @@ export class MpesaStkPushService {
         },
       });
 
+      // Success logging with key details
       this.logger.log(
         JSON.stringify({
           event: 'STK_PUSH_STATUS_UPDATED',
@@ -300,9 +333,28 @@ export class MpesaStkPushService {
           status: newStatus,
           resultCode: stkCallback.ResultCode,
           resultDesc: stkCallback.ResultDesc,
+          keyDetails: {
+            phoneNumber: updatedRequest.phoneNumber,
+            amount: Number(updatedRequest.amount),
+            accountReference: updatedRequest.accountReference,
+          },
           timestamp: new Date().toISOString(),
         })
       );
+
+      // Metric: STK Push requests completed (only for COMPLETED status)
+      if (newStatus === MpesaStkPushStatus.COMPLETED) {
+        this.logger.log(
+          JSON.stringify({
+            event: 'METRIC_STK_PUSH_COMPLETED',
+            metricType: 'counter',
+            metricName: 'stk_push_requests_completed',
+            value: 1,
+            correlationId,
+            timestamp: new Date().toISOString(),
+          })
+        );
+      }
 
       // Only create payment records if status is COMPLETED (ResultCode === 0)
       // For failed/timeout/cancelled, we don't create payment records
@@ -323,13 +375,29 @@ export class MpesaStkPushService {
       return { ResultCode: 0, ResultDesc: 'Accepted' };
     } catch (error) {
       // Always return success to M-Pesa, but log error internally
+      const errorType = error instanceof ValidationException
+        ? 'VALIDATION_ERROR'
+        : error instanceof Error && error.name === 'PrismaClientKnownRequestError'
+        ? 'DATABASE_ERROR'
+        : error instanceof Error
+        ? error.constructor.name
+        : 'UNKNOWN_ERROR';
+
+      // Enhanced error logging with full context
       this.logger.error(
         JSON.stringify({
           event: 'STK_PUSH_CALLBACK_ERROR',
           correlationId,
+          errorType,
           error: error instanceof Error ? error.message : 'Unknown error',
           stack: error instanceof Error ? error.stack : undefined,
-          payload: JSON.stringify(payload),
+          transactionDetails: {
+            checkoutRequestId: payload?.Body?.stkCallback?.CheckoutRequestID,
+            merchantRequestId: payload?.Body?.stkCallback?.MerchantRequestID,
+            resultCode: payload?.Body?.stkCallback?.ResultCode,
+          },
+          requestPayload: payload,
+          responsePayload: { ResultCode: 0, ResultDesc: 'Accepted' }, // Always return success to M-Pesa
           timestamp: new Date().toISOString(),
         })
       );

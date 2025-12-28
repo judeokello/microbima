@@ -95,11 +95,11 @@ PENDING → EXPIRED (timeout)
 - `checkoutRequestId` must be unique if provided
 
 **Relations**:
-- `callbackResponses MpesaStkPushCallbackResponse[]` - One-to-many (all callback responses for this request)
+- `callbackResponses MpesaStkPushCallbackResponse[]` - One-to-many (typically one callback response per request; multiple records only occur if M-Pesa retries sending the same callback due to our endpoint not responding correctly)
 
 ### MpesaStkPushCallbackResponse
 
-**Purpose**: Store all STK Push callback responses from M-Pesa for audit purposes. This enables tracking of all responses (success, timeout, cancelled, etc.) for audit trails and supports retry logic.
+**Purpose**: Store STK Push callback responses from M-Pesa for audit purposes. M-Pesa sends exactly one callback per STK Push request with a final ResultCode. This table stores each callback received, including cases where M-Pesa retries sending the same callback if our endpoint doesn't respond correctly. This provides a complete audit trail of callback deliveries.
 
 **Fields**:
 
@@ -131,8 +131,10 @@ PENDING → EXPIRED (timeout)
 
 **Business Rules**:
 - Every STK Push callback from M-Pesa (regardless of result code) MUST be stored in this table
-- Multiple responses may exist for the same STK Push request (M-Pesa may send multiple callbacks)
-- This table provides complete audit trail of all STK Push payment attempts
+- **One callback per CheckoutRequestID**: M-Pesa sends exactly one callback per STK Push request with a final ResultCode (either 0 for success, or a non-zero code for failure/timeout/cancelled). Once a timeout (1037) or cancelled (1032) callback is received, that is final - the user cannot act on that STK Push anymore.
+- **M-Pesa callback retries**: If our endpoint does not return HTTP 200 with ResultCode: 0, M-Pesa may retry sending the SAME callback (with the same ResultCode). Multiple callback response records may exist in this table only due to M-Pesa retries of the same callback, not due to different ResultCodes for the same checkoutRequestId.
+- **New STK Push for retries**: If a user/agent wants to retry a failed STK Push, a NEW STK Push request must be initiated with a NEW checkoutRequestId. This creates a new `MpesaStkPushRequest` record.
+- This table provides complete audit trail of all STK Push callback deliveries (including retries)
 
 ## Updated Models
 

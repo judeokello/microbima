@@ -136,7 +136,7 @@ Each increment is independently testable and delivers value.
   - Add composite index: `@@index([transactionReference, source], name: "idx_transaction_reference_source")`
   - Add indexes: `@@index([source], name: "idx_source")`, `@@index([accountNumber], name: "idx_account_number")`
   - Add foreign key: `mpesaStkPushRequest MpesaStkPushRequest?` relation
-  - Add relation to `MpesaStkPushCallbackResponse[]` (one-to-many, for all callback responses)
+  - Add relation to `MpesaStkPushCallbackResponse[]` (one-to-many: typically one callback response per request; multiple records only occur if M-Pesa retries sending the same callback due to our endpoint not responding correctly)
 
 - [x] T007b Create `MpesaStkPushCallbackResponse` model in `apps/api/prisma/schema.prisma`
   - Add `MpesaStkPushCallbackResponse` model with fields: id, mpesaStkPushRequestId, resultCode, resultDesc, callbackMetadata, receivedAt, createdAt
@@ -407,21 +407,23 @@ Each increment is independently testable and delivers value.
 
 ### Error Handling
 
-- [ ] T029 Add error handling for M-Pesa API failures in `apps/api/src/services/mpesa-daraja-api.service.ts`
+- [x] T029 Add error handling for M-Pesa API failures in `apps/api/src/services/mpesa-daraja-api.service.ts`
   - Handle specific M-Pesa error codes
   - Map M-Pesa errors to internal error codes
   - Log errors with correlation IDs
   - Throw appropriate exceptions
+  - **Implementation**: Created `MpesaErrorMapperService` to centrally map M-Pesa error codes (HTTP status codes, ResponseCode, ResultCode) to internal `ErrorCodes`. Integrated into `MpesaDarajaApiService` to handle HTTP errors and M-Pesa ResponseCode errors. Errors are converted to `ValidationException` with user-friendly messages and retryable flags.
 
-- [ ] T030 Add error handling for validation failures in `apps/api/src/services/mpesa-ipn.service.ts` and `apps/api/src/services/mpesa-stk-push.service.ts`
+- [x] T030 Add error handling for validation failures in `apps/api/src/services/mpesa-ipn.service.ts` and `apps/api/src/services/mpesa-stk-push.service.ts`
   - Use `ValidationException` for validation errors
   - Check `ErrorCodes` enum for existing codes before creating new ones
   - Return standardized error response format with `status` field (not `statusCode`)
   - Include correlation IDs in error responses
+  - **Implementation**: `MpesaStkPushService.initiateStkPush()` uses `ValidationException` via `MpesaErrorMapperService.toValidationException()`. Error codes added to `ErrorCodes` enum with proper HTTP status mappings. Global exception filter ensures standardized error response format with `status` field and correlation IDs.
 
 ### Logging & Observability
 
-- [ ] T031 Add structured logging throughout IPN and STK Push services
+- [x] T031 Add structured logging throughout IPN and STK Push services
   - **Error logging**: Structured JSON logs with error message, stack trace, correlation ID, transaction details, timestamp, error type, full request/response payloads. Log at ERROR level.
   - **Success logging**: Structured JSON logs with event type, correlation ID, transaction ID, key details, timestamp, processing time (IPN only). Log at INFO level.
   - Log all IPN notifications received (with correlationId)
@@ -432,8 +434,9 @@ Each increment is independently testable and delivers value.
   - Log security violations as ERROR level
   - Log time window expiration failures
   - Do NOT log when no STK Push match found (normal case)
+  - **Implementation**: Enhanced error logging in `MpesaIpnService` and `MpesaStkPushService` to include error type, full request/response payloads, and transaction details. Enhanced success logging with key details. Added time window expiration failure logging. All logs include correlation IDs. Security violations logged at ERROR level in `IpWhitelistGuard`. Errors sent to Sentry with full context.
 
-- [ ] T032 Add metrics/monitoring hooks (if applicable)
+- [x] T032 Add metrics/monitoring hooks (if applicable)
   - **Basic metrics** (logged, not exposed via endpoint):
     - IPN notifications received (counter)
     - IPN notifications processed successfully (counter)
@@ -446,6 +449,7 @@ Each increment is independently testable and delivers value.
     - Unmatched IPN count (distinguish: no match attempted vs match attempted but failed)
     - Missing IPN count (STK Push completed but no IPN within 24 hours)
     - Queue depth (for performance monitoring)
+  - **Implementation**: Added structured metric logging throughout IPN and STK Push services. All metrics logged as JSON events with `METRIC_*` event names, `metricType` (counter/histogram), `metricName`, `value`, and `correlationId`. Metrics include: IPN received/processed, STK Push initiated/completed, matches found, processing time histogram, security violations, retry exhaustion, unmatched IPN (with reason distinction). Missing IPN metric will be added in T043 (periodic job). Queue depth not applicable (no queue implementation).
 
 ### Documentation
 
