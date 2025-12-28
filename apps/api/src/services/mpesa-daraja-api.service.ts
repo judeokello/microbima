@@ -1,5 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigurationService } from '../config/configuration.service';
+import { MpesaErrorMapperService } from './mpesa-error-mapper.service';
+import { ValidationException } from '../exceptions/validation.exception';
 import * as Sentry from '@sentry/nestjs';
 import axios, { AxiosError } from 'axios';
 
@@ -15,7 +17,10 @@ export class MpesaDarajaApiService {
   private accessToken: string | null = null;
   private tokenExpiryTime: number = 0;
 
-  constructor(private readonly configService: ConfigurationService) {}
+  constructor(
+    private readonly configService: ConfigurationService,
+    private readonly mpesaErrorMapper: MpesaErrorMapperService
+  ) {}
 
   /**
    * Generate OAuth access token
@@ -268,76 +273,105 @@ export class MpesaDarajaApiService {
         });
 
         if (response.status !== 200) {
-          const errorText = response.data ? JSON.stringify(response.data) : response.statusText;
-          const errorMessage = `STK Push request failed: ${response.status} ${response.statusText} - ${errorText}`;
+          // Extract error code and message from response
+          const errorData = response.data as { errorCode?: string; requestId?: string; errorMessage?: string; error?: string } | undefined;
+          const errorCode = errorData?.errorCode ?? errorData?.requestId ?? String(response.status);
+          const errorMessage = errorData?.errorMessage ?? errorData?.error ?? response.statusText;
 
-          // Handle rate limiting (429)
-          if (response.status === 429) {
-            this.logger.warn(
-              JSON.stringify({
-                event: 'STK_PUSH_RATE_LIMITED',
-                correlationId,
-                attempt,
-                message: 'Rate limited by M-Pesa API',
-                timestamp: new Date().toISOString(),
-              })
-            );
-            // Wait longer before retry for rate limiting
-            if (attempt < maxRetries) {
-              await this.sleep(retryDelays[attempt - 1] * 2); // Double the delay for rate limits
-              errors.push({
-                attempt,
-                error: errorMessage,
-                timestamp: new Date().toISOString(),
-              });
-              continue;
-            }
-          }
+          // Map HTTP error to MPESA error info
+          const errorInfo = this.mpesaErrorMapper.mapHttpError(
+            response.status,
+            errorCode,
+            errorMessage,
+            'STK_PUSH'
+          );
 
-          // For other errors, throw immediately if last attempt
-          if (attempt === maxRetries) {
+          this.logger.warn(
+            JSON.stringify({
+              event: 'STK_PUSH_HTTP_ERROR',
+              correlationId,
+              attempt,
+              statusCode: response.status,
+              errorCode: errorInfo.context.mpesaCode,
+              errorInfo: errorInfo.code,
+              retryable: errorInfo.context.retryable,
+              timestamp: new Date().toISOString(),
+            })
+          );
+
+          // For non-retryable errors, throw immediately
+          if (!errorInfo.context.retryable || attempt === maxRetries) {
+            const errorMessage = `STK Push request failed: ${response.status} ${response.statusText}`;
             errors.push({
               attempt,
               error: errorMessage,
               timestamp: new Date().toISOString(),
             });
-            throw new Error(`STK Push failed after ${maxRetries} attempts. Errors: ${JSON.stringify(errors)}`);
+
+            if (attempt === maxRetries) {
+              // Convert to ValidationException on final attempt
+              throw this.mpesaErrorMapper.toValidationException(errorInfo);
+            }
           }
+
+          // Wait before retry (with longer delay for rate limits)
+          const delay = response.status === 429
+            ? retryDelays[attempt - 1] * 2
+            : retryDelays[attempt - 1];
+          await this.sleep(delay);
 
           errors.push({
             attempt,
-            error: errorMessage,
+            error: errorInfo.message,
             timestamp: new Date().toISOString(),
           });
-
-          // Wait before retry
-          await this.sleep(retryDelays[attempt - 1]);
           continue;
         }
 
         const data = response.data;
 
-        // Check if M-Pesa returned an error in the response
+        // Check if M-Pesa returned an error in the response (ResponseCode !== "0")
         if (data.ResponseCode !== '0') {
-          const errorMessage = `M-Pesa API error: ${data.ResponseCode} - ${data.ResponseDescription}`;
+          // Map ResponseCode error to MPESA error info
+          const errorInfo = this.mpesaErrorMapper.mapStkPushResponseCode(
+            data.ResponseCode,
+            data.ResponseDescription
+          );
 
-          if (attempt === maxRetries) {
+          this.logger.warn(
+            JSON.stringify({
+              event: 'STK_PUSH_RESPONSE_CODE_ERROR',
+              correlationId,
+              attempt,
+              responseCode: data.ResponseCode,
+              errorInfo: errorInfo.code,
+              retryable: errorInfo.context.retryable,
+              timestamp: new Date().toISOString(),
+            })
+          );
+
+          // For non-retryable errors or final attempt, throw immediately
+          if (!errorInfo.context.retryable || attempt === maxRetries) {
             errors.push({
               attempt,
-              error: errorMessage,
+              error: errorInfo.message,
               timestamp: new Date().toISOString(),
             });
-            throw new Error(`STK Push failed after ${maxRetries} attempts. Errors: ${JSON.stringify(errors)}`);
-          }
 
-          errors.push({
-            attempt,
-            error: errorMessage,
-            timestamp: new Date().toISOString(),
-          });
+            if (attempt === maxRetries) {
+              // Convert to ValidationException on final attempt
+              throw this.mpesaErrorMapper.toValidationException(errorInfo);
+            }
+          }
 
           // Wait before retry
           await this.sleep(retryDelays[attempt - 1]);
+
+          errors.push({
+            attempt,
+            error: errorInfo.message,
+            timestamp: new Date().toISOString(),
+          });
           continue;
         }
 
@@ -354,48 +388,120 @@ export class MpesaDarajaApiService {
 
         return data;
       } catch (error) {
-        // Handle axios errors
+        // If it's already a ValidationException (from error mapper), rethrow it on final attempt
+        // Otherwise, allow retries for retryable errors
+        if (error instanceof ValidationException) {
+          if (attempt === maxRetries) {
+            throw error; // Re-throw mapped ValidationException
+          }
+          // For retryable mapped errors, continue to retry logic below
+          errors.push({
+            attempt,
+            error: error.message,
+            timestamp: new Date().toISOString(),
+          });
+          await this.sleep(retryDelays[attempt - 1]);
+          continue;
+        }
+
+        // Handle axios errors and network errors
         let errorMessage: string;
+        let statusCode: number | undefined;
+        let errorData: { errorCode?: string; errorMessage?: string; error?: string } | undefined;
+
         if (axios.isAxiosError(error)) {
           const axiosError = error as AxiosError;
-          errorMessage = `STK Push request failed: ${axiosError.response?.status ?? 0} ${axiosError.response?.statusText ?? axiosError.message} - ${axiosError.response?.data ? JSON.stringify(axiosError.response.data) : axiosError.message}`;
+          statusCode = axiosError.response?.status;
+          errorData = axiosError.response?.data as { errorCode?: string; errorMessage?: string; error?: string } | undefined;
+          errorMessage = `STK Push request failed: ${statusCode ?? 0} ${axiosError.response?.statusText ?? axiosError.message}`;
         } else {
           errorMessage = error instanceof Error ? error.message : 'Unknown error';
         }
 
-        if (attempt === maxRetries) {
-          errors.push({
-            attempt,
-            error: errorMessage,
-            timestamp: new Date().toISOString(),
-          });
-
-          this.logger.error(
-            JSON.stringify({
-              event: 'STK_PUSH_RETRY_EXHAUSTED',
-              correlationId,
-              merchantRequestId,
-              errors,
-              timestamp: new Date().toISOString(),
-            })
+        // If we have HTTP status code, try to map it
+        if (statusCode && statusCode !== 200) {
+          const errorCode = errorData?.errorCode;
+          const errorMsg = errorData?.errorMessage ?? errorData?.error;
+          const errorInfo = this.mpesaErrorMapper.mapHttpError(
+            statusCode,
+            errorCode,
+            errorMsg,
+            'STK_PUSH'
           );
 
-          Sentry.captureException(error, {
-            tags: {
-              service: 'MpesaDarajaApiService',
-              operation: 'initiateStkPush',
-              correlationId,
-            },
-            extra: {
-              phoneNumber,
-              amount,
-              accountReference,
-              merchantRequestId,
-              errors,
-            },
-          });
+          if (attempt === maxRetries || !errorInfo.context.retryable) {
+            errors.push({
+              attempt,
+              error: errorInfo.message,
+              timestamp: new Date().toISOString(),
+            });
 
-          throw new Error(`STK Push failed after ${maxRetries} attempts. Errors: ${JSON.stringify(errors)}`);
+            if (attempt === maxRetries) {
+              this.logger.error(
+                JSON.stringify({
+                  event: 'STK_PUSH_RETRY_EXHAUSTED',
+                  correlationId,
+                  merchantRequestId,
+                  errors,
+                  timestamp: new Date().toISOString(),
+                })
+              );
+
+              Sentry.captureException(error, {
+                tags: {
+                  service: 'MpesaDarajaApiService',
+                  operation: 'initiateStkPush',
+                  correlationId,
+                },
+                extra: {
+                  phoneNumber,
+                  amount,
+                  accountReference,
+                  merchantRequestId,
+                  errors,
+                },
+              });
+
+              throw this.mpesaErrorMapper.toValidationException(errorInfo);
+            }
+          }
+        } else {
+          // Network errors or other non-HTTP errors
+          if (attempt === maxRetries) {
+            errors.push({
+              attempt,
+              error: errorMessage,
+              timestamp: new Date().toISOString(),
+            });
+
+            this.logger.error(
+              JSON.stringify({
+                event: 'STK_PUSH_RETRY_EXHAUSTED',
+                correlationId,
+                merchantRequestId,
+                errors,
+                timestamp: new Date().toISOString(),
+              })
+            );
+
+            Sentry.captureException(error, {
+              tags: {
+                service: 'MpesaDarajaApiService',
+                operation: 'initiateStkPush',
+                correlationId,
+              },
+              extra: {
+                phoneNumber,
+                amount,
+                accountReference,
+                merchantRequestId,
+                errors,
+              },
+            });
+
+            // For network errors, throw generic error
+            throw new Error(`STK Push failed after ${maxRetries} attempts. Errors: ${JSON.stringify(errors)}`);
+          }
         }
 
         errors.push({

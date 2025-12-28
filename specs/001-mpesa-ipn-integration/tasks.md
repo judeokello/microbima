@@ -89,12 +89,16 @@ Each increment is independently testable and delivers value.
   - **Validation**: All required variables MUST be present at startup (startup fails if missing)
   - **URL validation**: Validate URL formats (HTTPS, valid domain) at startup
 
-- [ ] T002 Add M-Pesa environment variables to `.env.example` in `apps/api/`
-  - Document `MPESA_CONSUMER_KEY`, `MPESA_CONSUMER_SECRET`, `MPESA_BUSINESS_SHORT_CODE`, `MPESA_PASSKEY`
-  - Document `MPESA_ENVIRONMENT` ('sandbox' | 'production')
-  - Document `MPESA_BASE_URL` (optional, defaults based on environment: sandbox=`https://sandbox.safaricom.co.ke/mpesa`, production=`https://api.safaricom.co.ke/mpesa`)
-  - Document `MPESA_STK_PUSH_CALLBACK_URL`, `MPESA_IPN_CONFIRMATION_URL`
-  - Document `MPESA_ALLOWED_IP_RANGES` (comma-separated, placeholder values)
+- [x] T002 Add M-Pesa environment variables to `env.example` in `apps/api/`
+  - Created `apps/api/env.example` with comprehensive documentation of all environment variables
+  - Documented all M-Pesa variables: `MPESA_CONSUMER_KEY`, `MPESA_CONSUMER_SECRET`, `MPESA_BUSINESS_SHORT_CODE`, `MPESA_PASSKEY`
+  - Documented `MPESA_ENVIRONMENT` ('sandbox' | 'production')
+  - Documented `MPESA_BASE_URL` (optional, defaults based on environment)
+  - Documented `MPESA_STK_PUSH_CALLBACK_URL`, `MPESA_IPN_CONFIRMATION_URL`
+  - Documented `MPESA_ALLOWED_IP_RANGES` (comma-separated CIDR notation)
+  - Documented optional timeout configuration variables
+  - Also documented all other API configuration variables (Database, Supabase, JWT, Sentry, PostHog, Bootstrap, Root User)
+  - Used `env.example` (not `.env.example`) so file is not gitignored and can be edited
 
 - [x] T003 Create phone number normalization utility in `apps/api/src/utils/phone-number.util.ts`
   - Implement `normalizePhoneNumber(phone: string): string` function
@@ -305,7 +309,7 @@ Each increment is independently testable and delivers value.
   - **Retry exhaustion**: After 3 failed retries, update status to FAILED, store error details from all 3 attempts, log with correlation ID, return generic "STK Push initiation failed" error, track as metric
   - Return STK Push request details
 
-- [ ] T022 [US2] Implement STK Push callback handling in `apps/api/src/services/mpesa-stk-push.service.ts`
+- [x] T022 [US2] Implement STK Push callback handling in `apps/api/src/services/mpesa-stk-push.service.ts`
   - Implement `handleStkPushCallback(payload: StkPushCallbackDto, correlationId: string): Promise<MpesaCallbackResponseDto>`
   - Find `MpesaStkPushRequest` by `checkoutRequestId` field, matching `CheckoutRequestID` from M-Pesa callback payload
   - Update status based on `ResultCode`:
@@ -330,7 +334,7 @@ Each increment is independently testable and delivers value.
   - Return response DTOs
   - Add Swagger decorators
 
-- [ ] T023b [US2] Create STK Push public controller for callback endpoint in `apps/api/src/controllers/public/mpesa-stk-push.controller.ts`
+- [x] T023b [US2] Create STK Push public controller for callback endpoint in `apps/api/src/controllers/public/mpesa-stk-push.controller.ts`
   - Create `MpesaStkPushPublicController` class with `@Controller('public/mpesa/stk-push')` decorator
   - Add `@Post('callback')` endpoint for M-Pesa callbacks (public, no authentication)
   - Endpoint path: `/api/public/mpesa/stk-push/callback`
@@ -381,23 +385,19 @@ Each increment is independently testable and delivers value.
 
 ### Service Updates
 
-- [ ] T027 [US3] Update existing statement upload deduplication logic in `apps/api/src/services/mpesa-payments.service.ts`
-  - **Note**: This is an UPDATE to existing functionality, not a rebuild
-  - Locate existing `uploadAndParseStatement()` method (already handles Excel parsing, file storage, and payment record creation)
-  - Before creating payment records from statement, add deduplication check:
-    - For each transaction in statement:
-      - Query: `MpesaPaymentReportItem` where `transactionReference = statement.transactionReference` AND `source = 'IPN'`
-      - If IPN record exists: Skip, increment match counter
-      - If no IPN record: Create new record with `source = 'STATEMENT'` and `mpesaPaymentReportUploadId = upload.id`
-  - Track statistics: `totalItems`, `matchedIpnRecords`, `gapsFilled` (new records created), `errors` (failed transactions)
-  - **Validate statistics equation**: `matchedIpnRecords + gapsFilled + errors = totalItems` (throw error if doesn't match)
-  - Return statistics in response immediately after upload
-  - Preserve all existing functionality (file validation, Excel parsing, file storage, etc.)
+- [x] T027 [US3] Update existing statement upload deduplication logic in `apps/api/src/services/mpesa-payments.service.ts`
+  - ✅ Already implemented in `uploadAndParseStatement()` method (lines 490-598)
+  - Deduplication check implemented: Queries for existing IPN records before creating statement records
+  - Statistics tracking: `totalItems`, `matchedIpnRecords`, `gapsFilled`, `errors`
+  - Statistics validation: Validates `matchedIpnRecords + gapsFilled + errors = totalItems`
+  - Creates records with `source = 'STATEMENT'` only for gaps (non-duplicates)
+  - All existing functionality preserved (file validation, Excel parsing, file storage)
 
-- [ ] T028 [US3] Update existing statement records to set source in `apps/api/src/services/mpesa-payments.service.ts`
-  - After migration, update all existing `MpesaPaymentReportItem` records:
-    - Set `source = 'STATEMENT'` for all records that have `mpesaPaymentReportUploadId` set
-    - This can be done in a separate migration script or one-time data fix
+- [x] T028 [US3] Update existing statement records to set source
+  - ✅ Script created at `apps/api/prisma/scripts/update-existing-statement-records-source.sql`
+  - One-time data fix script to update existing `MpesaPaymentReportItem` records
+  - Sets `source = 'STATEMENT'` for all records with `mpesaPaymentReportUploadId` set
+  - Ready to run before importing statements (before STK push rollout)
 
 ---
 

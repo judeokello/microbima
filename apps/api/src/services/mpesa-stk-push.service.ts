@@ -1,6 +1,7 @@
 import { Injectable, Logger, forwardRef, Inject } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { MpesaDarajaApiService } from './mpesa-daraja-api.service';
+import { MpesaErrorMapperService } from './mpesa-error-mapper.service';
 import { ConfigurationService } from '../config/configuration.service';
 import { PolicyService } from './policy.service';
 import {
@@ -27,6 +28,7 @@ export class MpesaStkPushService {
   constructor(
     private readonly prismaService: PrismaService,
     private readonly mpesaDarajaApiService: MpesaDarajaApiService,
+    private readonly mpesaErrorMapper: MpesaErrorMapperService,
     private readonly configService: ConfigurationService,
     @Inject(forwardRef(() => PolicyService))
     private readonly policyService: PolicyService
@@ -245,12 +247,37 @@ export class MpesaStkPushService {
 
       // Determine status based on ResultCode
       let newStatus: MpesaStkPushStatus;
+
       if (stkCallback.ResultCode === 0) {
         newStatus = MpesaStkPushStatus.COMPLETED;
-      } else if (stkCallback.ResultDesc?.toLowerCase().includes('cancelled')) {
-        newStatus = MpesaStkPushStatus.CANCELLED;
       } else {
-        newStatus = MpesaStkPushStatus.FAILED;
+        // Map error code for logging purposes (not thrown, just logged)
+        const errorInfo = this.mpesaErrorMapper.mapResultCode(
+          stkCallback.ResultCode,
+          stkCallback.ResultDesc || '',
+          'STK_PUSH'
+        );
+
+        if (stkCallback.ResultDesc?.toLowerCase().includes('cancelled')) {
+          newStatus = MpesaStkPushStatus.CANCELLED;
+        } else {
+          newStatus = MpesaStkPushStatus.FAILED;
+        }
+
+        // Log mapped error information for better debugging
+        this.logger.log(
+          JSON.stringify({
+            event: 'STK_PUSH_CALLBACK_ERROR_MAPPED',
+            correlationId,
+            checkoutRequestId,
+            resultCode: stkCallback.ResultCode,
+            resultDesc: stkCallback.ResultDesc,
+            errorCode: errorInfo.code,
+            userMessage: errorInfo.userMessage,
+            retryable: errorInfo.context.retryable,
+            timestamp: new Date().toISOString(),
+          })
+        );
       }
 
       // Update STK Push request status (latest status from callbacks)

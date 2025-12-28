@@ -80,39 +80,5 @@ export class MpesaStkPushController {
 
     return this.mpesaStkPushService.initiateStkPush(dto, correlationId, userId);
   }
-
-  /**
-   * Test STK Push Endpoint
-   *
-   * Simple test endpoint for quick STK Push testing during development.
-   * This allows testing STK Push integration independently before integrating into register/payment page flow.
-   *
-   * **Note**: This endpoint is for development/testing purposes. Consider removing in production or gating behind feature flag.
-   */
-  @Post('test')
-  @HttpCode(HttpStatus.CREATED)
-  @ApiOperation({
-    summary: 'Test STK Push Request',
-    description: `
-      Test endpoint for quick STK Push testing during development.
-      Accepts minimal payload and initiates STK Push request.
-      
-      **Note**: This is for development/testing only.
-    `,
-  })
-  @ApiResponse({
-    status: 201,
-    description: 'STK Push request created successfully',
-    type: StkPushRequestResponseDto,
-  })
-  async test(
-    @Body() dto: InitiateStkPushDto,
-    @Headers('x-correlation-id') correlationIdHeader?: string
-  ): Promise<StkPushRequestResponseDto> {
-    const correlationId =
-      correlationIdHeader ?? `stk-test-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
-
-    return this.mpesaStkPushService.initiateStkPush(dto, correlationId);
-  }
 }
 
