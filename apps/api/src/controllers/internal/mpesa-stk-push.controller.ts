@@ -35,6 +35,30 @@ export class MpesaStkPushController {
       Creates a payment prompt on the customer's phone and tracks the request status.
       
       **Authentication**: Requires Supabase Bearer token authentication (agents must be logged in).
+      
+      **Example Request Payload:**
+      \`\`\`json
+      {
+        "phoneNumber": "254722000000",
+        "amount": 100.00,
+        "accountReference": "POL123456",
+        "transactionDesc": "Premium payment for policy POL123456"
+      }
+      \`\`\`
+      
+      **Example Success Response (201 Created):**
+      \`\`\`json
+      {
+        "id": "12345-67890-12345",
+        "checkoutRequestID": "ws_CO_270120251430451234567890",
+        "merchantRequestID": "12345-67890-12345",
+        "status": "PENDING",
+        "phoneNumber": "254722000000",
+        "amount": 100.00,
+        "accountReference": "POL123456",
+        "initiatedAt": "2025-01-27T14:30:45Z"
+      }
+      \`\`\`
     `,
   })
   @ApiResponse({

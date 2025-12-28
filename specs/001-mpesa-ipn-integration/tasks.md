@@ -453,31 +453,35 @@ Each increment is independently testable and delivers value.
 
 ### Documentation
 
-- [ ] T033 Update Swagger documentation for all endpoints in controllers
+- [x] T033 Update Swagger documentation for all endpoints in controllers
   - Ensure all endpoints have `@ApiOperation()` with descriptions
   - Add `@ApiResponse()` decorators for all response scenarios
   - Mark public callback endpoints appropriately
   - Add example payloads in Swagger decorators
+  - **Implementation**: Enhanced Swagger documentation for all M-Pesa controllers. Marked public callback endpoints as "System Endpoints" in tags and descriptions. Added comprehensive example payloads in `@ApiOperation` descriptions. Added example schemas to `@ApiResponse` decorators. Internal STK Push endpoint includes detailed request/response examples. All endpoints now clearly indicate they are system endpoints (for M-Pesa infrastructure) or internal endpoints (for agents).
 
-- [ ] T034 Update environment variable documentation
+- [x] T034 Update environment variable documentation
   - Document all M-Pesa configuration variables in README or environment docs
   - Include callback URL registration instructions
   - Note external dependencies (IP ranges, signature details)
+  - **Implementation**: Created comprehensive M-Pesa configuration guide at `docs/integrations/mpesa-configuration.md` covering all environment variables, callback URL registration, external dependencies (IP ranges, passkey), production configuration, and troubleshooting. Added M-Pesa section to main README.md with links to the configuration guide. Updated technology stack section to mention M-Pesa integration. Environment variables are already documented in `apps/api/env.example` (from T002).
 
 ### Testing
 
-- [ ] T035 Create unit tests for IPN service in `apps/api/tests/unit/mpesa-ipn.service.spec.ts`
+- [x] T035 Create unit tests for IPN service in `apps/api/src/services/__tests__/mpesa-ipn.service.spec.ts`
   - Test IPN payload parsing and normalization
   - Test idempotency (duplicate IPN handling)
   - Test STK Push linking logic
   - Test error handling (validation failures, database errors)
   - Mock Prisma service and M-Pesa API calls
+  - **Implementation**: Created comprehensive unit tests with 12 test cases covering all major scenarios
 
-- [ ] T036 Create unit tests for STK Push service in `apps/api/tests/unit/mpesa-stk-push.service.spec.ts`
+- [x] T036 Create unit tests for STK Push service in `apps/api/src/services/__tests__/mpesa-stk-push.service.spec.ts`
   - Test STK Push initiation with valid/invalid data
   - Test callback handling (completed, failed, cancelled)
   - Test retry logic for M-Pesa API failures
   - Mock Prisma service and M-Pesa API client
+  - **Implementation**: Created comprehensive unit tests with 14 test cases covering all major scenarios
 
 - [ ] T037 Create integration tests for callback endpoints in `apps/api/tests/integration/mpesa-callbacks.e2e-spec.ts`
   - Test IPN callback endpoint with valid payloads
