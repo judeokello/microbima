@@ -41,6 +41,7 @@ import { MpesaStkPushPublicController } from './controllers/public/mpesa-stk-pus
 import { MpesaIpnService } from './services/mpesa-ipn.service';
 import { MpesaStkPushService } from './services/mpesa-stk-push.service';
 import { MpesaDarajaApiService } from './services/mpesa-daraja-api.service';
+import { MpesaErrorMapperService } from './services/mpesa-error-mapper.service';
 import { IpWhitelistGuard } from './guards/ip-whitelist.guard';
 
 @Module({
@@ -50,7 +51,7 @@ import { IpWhitelistGuard } from './guards/ip-whitelist.guard';
     PrismaModule
   ],
   controllers: [AppController, CustomerController, InternalCustomerController, InternalPartnerManagementController, PublicPartnerManagementController, SupabaseTestController, ConnectionMonitorController, SosController, AgentRegistrationController, BootstrapController, ProductManagementController, PolicyController, UnderwriterController, UserController, MpesaPaymentsController, MpesaIpnController, MpesaStkPushController, MpesaStkPushPublicController],
-  providers: [AppService, ExternalIntegrationsService, CustomerService, PartnerManagementService, SupabaseService, SosService, AgentRegistrationService, MissingRequirementService, ProductManagementService, PolicyService, UnderwriterService, MpesaPaymentsService, PaymentAccountNumberService, SchemeContactService, MpesaIpnService, MpesaStkPushService, MpesaDarajaApiService, IpWhitelistGuard],
+  providers: [AppService, ExternalIntegrationsService, CustomerService, PartnerManagementService, SupabaseService, SosService, AgentRegistrationService, MissingRequirementService, ProductManagementService, PolicyService, UnderwriterService, MpesaPaymentsService, PaymentAccountNumberService, SchemeContactService, MpesaIpnService, MpesaStkPushService, MpesaDarajaApiService, MpesaErrorMapperService, IpWhitelistGuard],
   exports: [PrismaModule], // Export PrismaModule so middleware can access PrismaService
 })
 export class AppModule implements NestModule {

@@ -4,6 +4,7 @@ import { PolicyService } from './policy.service';
 import { MpesaIpnPayloadDto, MpesaIpnResponseDto } from '../dto/mpesa-ipn/mpesa-ipn.dto';
 import { normalizePhoneNumber } from '../utils/phone-number.util';
 import { MpesaStatementReasonType, MpesaPaymentSource, MpesaStkPushStatus, MpesaStkPushRequest, MpesaPaymentReportItem, PolicyPayment } from '@prisma/client';
+import { ValidationException } from '../exceptions/validation.exception';
 import * as Sentry from '@sentry/nestjs';
 
 /**
@@ -39,6 +40,7 @@ export class MpesaIpnService {
     const startTime = Date.now();
 
     try {
+      // Log IPN received with full payload details
       this.logger.log(
         JSON.stringify({
           event: 'IPN_RECEIVED',
@@ -47,6 +49,19 @@ export class MpesaIpnService {
           transactionType: payload.TransactionType,
           amount: payload.TransAmount,
           accountReference: payload.BillRefNumber,
+          phoneNumber: payload.MSISDN,
+          timestamp: new Date().toISOString(),
+        })
+      );
+
+      // Metric: IPN notifications received
+      this.logger.log(
+        JSON.stringify({
+          event: 'METRIC_IPN_RECEIVED',
+          metricType: 'counter',
+          metricName: 'ipn_notifications_received',
+          value: 1,
+          correlationId,
           timestamp: new Date().toISOString(),
         })
       );
@@ -96,13 +111,60 @@ export class MpesaIpnService {
         );
 
         const processingTime = Date.now() - startTime;
+
+        // Determine processing time bucket for histogram
+        let processingTimeBucket: string;
+        if (processingTime < 1000) {
+          processingTimeBucket = '<1s';
+        } else if (processingTime < 2000) {
+          processingTimeBucket = '<2s';
+        } else if (processingTime < 5000) {
+          processingTimeBucket = '<5s';
+        } else if (processingTime < 10000) {
+          processingTimeBucket = '<10s';
+        } else {
+          processingTimeBucket = '>10s';
+        }
+
+        // Success logging with key details
         this.logger.log(
           JSON.stringify({
             event: 'IPN_PROCESSED',
             correlationId,
             transactionId: payload.TransID,
             status: 'updated',
+            keyDetails: {
+              amount: payload.TransAmount,
+              accountReference: payload.BillRefNumber,
+              phoneNumber: payload.MSISDN,
+              transactionType: payload.TransactionType,
+            },
             processingTime,
+            timestamp: new Date().toISOString(),
+          })
+        );
+
+        // Metric: IPN notifications processed successfully
+        this.logger.log(
+          JSON.stringify({
+            event: 'METRIC_IPN_PROCESSED_SUCCESS',
+            metricType: 'counter',
+            metricName: 'ipn_notifications_processed_successfully',
+            value: 1,
+            correlationId,
+            timestamp: new Date().toISOString(),
+          })
+        );
+
+        // Metric: IPN processing time histogram
+        this.logger.log(
+          JSON.stringify({
+            event: 'METRIC_IPN_PROCESSING_TIME',
+            metricType: 'histogram',
+            metricName: 'ipn_processing_time_ms',
+            value: processingTime,
+            bucket: processingTimeBucket,
+            correlationId,
             timestamp: new Date().toISOString(),
           })
         );
@@ -123,13 +185,60 @@ export class MpesaIpnService {
       );
 
       const processingTime = Date.now() - startTime;
+
+      // Determine processing time bucket for histogram
+      let processingTimeBucket: string;
+      if (processingTime < 1000) {
+        processingTimeBucket = '<1s';
+      } else if (processingTime < 2000) {
+        processingTimeBucket = '<2s';
+      } else if (processingTime < 5000) {
+        processingTimeBucket = '<5s';
+      } else if (processingTime < 10000) {
+        processingTimeBucket = '<10s';
+      } else {
+        processingTimeBucket = '>10s';
+      }
+
+      // Success logging with key details
       this.logger.log(
         JSON.stringify({
           event: 'IPN_PROCESSED',
           correlationId,
           transactionId: payload.TransID,
           status: 'created',
+          keyDetails: {
+            amount: payload.TransAmount,
+            accountReference: payload.BillRefNumber,
+            phoneNumber: payload.MSISDN,
+            transactionType: payload.TransactionType,
+          },
           processingTime,
+          timestamp: new Date().toISOString(),
+        })
+      );
+
+      // Metric: IPN notifications processed successfully
+      this.logger.log(
+        JSON.stringify({
+          event: 'METRIC_IPN_PROCESSED_SUCCESS',
+          metricType: 'counter',
+          metricName: 'ipn_notifications_processed_successfully',
+          value: 1,
+          correlationId,
+          timestamp: new Date().toISOString(),
+        })
+      );
+
+      // Metric: IPN processing time histogram
+      this.logger.log(
+        JSON.stringify({
+          event: 'METRIC_IPN_PROCESSING_TIME',
+          metricType: 'histogram',
+          metricName: 'ipn_processing_time_ms',
+          value: processingTime,
+          bucket: processingTimeBucket,
+          correlationId,
           timestamp: new Date().toISOString(),
         })
       );
@@ -138,14 +247,34 @@ export class MpesaIpnService {
     } catch (error) {
       // Always return success to M-Pesa, but log error internally
       const processingTime = Date.now() - startTime;
+
+      // Determine error type
+      const errorType = error instanceof ValidationException
+        ? 'VALIDATION_ERROR'
+        : error instanceof Error && error.name === 'PrismaClientKnownRequestError'
+        ? 'DATABASE_ERROR'
+        : error instanceof Error
+        ? error.constructor.name
+        : 'UNKNOWN_ERROR';
+
+      // Enhanced error logging with full context
       this.logger.error(
         JSON.stringify({
           event: 'IPN_PROCESSING_ERROR',
           correlationId,
           transactionId: payload.TransID,
+          errorType,
           error: error instanceof Error ? error.message : 'Unknown error',
           stack: error instanceof Error ? error.stack : undefined,
-          payload: JSON.stringify(payload),
+          transactionDetails: {
+            transactionId: payload.TransID,
+            transactionType: payload.TransactionType,
+            amount: payload.TransAmount,
+            accountReference: payload.BillRefNumber,
+            phoneNumber: payload.MSISDN,
+          },
+          requestPayload: payload,
+          responsePayload: { ResultCode: 0, ResultDesc: 'Accepted' }, // Always return success to M-Pesa
           processingTime,
           timestamp: new Date().toISOString(),
         })
@@ -495,7 +624,70 @@ export class MpesaIpnService {
     });
 
     if (matchingRequests.length === 0) {
-      // Track unmatched IPN (no match attempted - no STK Push exists)
+      // Check if there are any STK Push requests for this account reference (to distinguish match attempted vs not attempted)
+      const anyStkPushForAccount = await this.prismaService.mpesaStkPushRequest.findFirst({
+        where: {
+          accountReference,
+        },
+        orderBy: {
+          initiatedAt: 'desc',
+        },
+      });
+
+      if (anyStkPushForAccount) {
+        // Match attempted but failed (likely time window expired or amount/phone mismatch)
+        const timeSinceStkPush = Date.now() - anyStkPushForAccount.initiatedAt.getTime();
+        const hoursSinceStkPush = timeSinceStkPush / (1000 * 60 * 60);
+
+        if (hoursSinceStkPush > 24) {
+          // Time window expired
+          this.logger.error(
+            JSON.stringify({
+              event: 'IPN_TIME_WINDOW_EXPIRED',
+              correlationId,
+              transactionId: ipnRecord.transactionReference,
+              accountReference,
+              phoneNumber,
+              amount,
+              stkPushRequestId: anyStkPushForAccount.id,
+              stkPushInitiatedAt: anyStkPushForAccount.initiatedAt.toISOString(),
+              hoursSinceStkPush: Math.round(hoursSinceStkPush * 100) / 100,
+              message: 'STK Push request exists but time window expired (24 hours)',
+              timestamp: new Date().toISOString(),
+            })
+          );
+        }
+
+        // Metric: Unmatched IPN (match attempted but failed)
+        this.logger.log(
+          JSON.stringify({
+            event: 'METRIC_IPN_UNMATCHED',
+            metricType: 'counter',
+            metricName: 'ipn_unmatched_attempted',
+            value: 1,
+            reason: hoursSinceStkPush > 24 ? 'time_window_expired' : 'criteria_mismatch',
+            correlationId,
+            timestamp: new Date().toISOString(),
+          })
+        );
+      } else {
+        // No STK Push exists for this account reference (normal case - no match attempted)
+        // Metric: Unmatched IPN (no match attempted)
+        this.logger.log(
+          JSON.stringify({
+            event: 'METRIC_IPN_UNMATCHED',
+            metricType: 'counter',
+            metricName: 'ipn_unmatched_no_attempt',
+            value: 1,
+            reason: 'no_stk_push_exists',
+            correlationId,
+            timestamp: new Date().toISOString(),
+          })
+        );
+      }
+
+      // Do NOT log at INFO/ERROR level when no match found (normal case)
+      // Only log at DEBUG level for debugging purposes
       this.logger.debug(
         JSON.stringify({
           event: 'IPN_NO_STK_PUSH_MATCH',
@@ -551,6 +743,7 @@ export class MpesaIpnService {
       },
     });
 
+    // Log matching operation as separate event
     this.logger.log(
       JSON.stringify({
         event: 'STK_PUSH_LINKED',
@@ -560,6 +753,19 @@ export class MpesaIpnService {
         accountReference,
         phoneNumber,
         amount,
+        stkPushStatus: stkPushRequest.status,
+        timestamp: new Date().toISOString(),
+      })
+    );
+
+    // Metric: STK Push to IPN matches found
+    this.logger.log(
+      JSON.stringify({
+        event: 'METRIC_STK_PUSH_IPN_MATCH_FOUND',
+        metricType: 'counter',
+        metricName: 'stk_push_ipn_matches_found',
+        value: 1,
+        correlationId,
         timestamp: new Date().toISOString(),
       })
     );

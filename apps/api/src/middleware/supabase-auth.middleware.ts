@@ -31,12 +31,6 @@ export class SupabaseAuthMiddleware implements NestMiddleware {
       return next();
     }
 
-    // Skip authentication for STK Push test endpoint (development/testing only)
-    if (req.path.includes('/stk-push/test') || req.originalUrl.includes('/stk-push/test')) {
-      console.log('Skipping Supabase auth for STK Push test endpoint:', req.path);
-      return next();
-    }
-
     console.log('Supabase Auth Middleware - Processing:', req.path);
 
     try {

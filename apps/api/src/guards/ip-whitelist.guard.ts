@@ -286,11 +286,13 @@ export class IpWhitelistGuard implements CanActivate {
       })
     );
 
-    // Track as metric (for monitoring)
-    // In a real implementation, this would be sent to a metrics system
-    this.logger.warn(
+    // Metric: Security violations (counter)
+    this.logger.log(
       JSON.stringify({
-        event: 'SECURITY_VIOLATION_METRIC',
+        event: 'METRIC_SECURITY_VIOLATION',
+        metricType: 'counter',
+        metricName: 'security_violations',
+        value: 1,
         correlationId,
         ip,
         path: request.path,

@@ -137,7 +137,7 @@ apps/api/
 │   │   │   ├── mpesa-ipn.controller.ts # NEW: Public IPN callback endpoint
 │   │   │   └── mpesa-stk-push.controller.ts # NEW: Public STK Push callback endpoint
 │   │   └── internal/
-│   │       └── mpesa-stk-push.controller.ts # NEW: Internal STK Push initiation (includes test endpoint)
+│   │       └── mpesa-stk-push.controller.ts # NEW: Internal STK Push initiation
 │   ├── dto/
 │   │   ├── mpesa-ipn/
 │   │   │   └── mpesa-ipn.dto.ts         # NEW: IPN payload DTOs
@@ -156,7 +156,7 @@ apps/api/
         └── mpesa-callbacks.e2e-spec.ts # NEW: Callback endpoint tests
 ```
 
-**Structure Decision**: Extending existing NestJS monorepo structure. New services and controllers follow existing patterns. Public controllers (IPN callback, STK Push callback) placed in `controllers/public/` directory for M-Pesa webhooks. Internal controllers (STK Push initiation, test endpoint) placed in `controllers/internal/` directory for authenticated agent operations. DTOs organized by feature domain. Tests mirror source structure.
+**Structure Decision**: Extending existing NestJS monorepo structure. New services and controllers follow existing patterns. Public controllers (IPN callback, STK Push callback) placed in `controllers/public/` directory for M-Pesa webhooks. Internal controllers (STK Push initiation) placed in `controllers/internal/` directory for authenticated agent operations. DTOs organized by feature domain. Tests mirror source structure.
 
 ## Complexity Tracking
 
