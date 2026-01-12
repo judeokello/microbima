@@ -911,9 +911,11 @@ model MpesaStkPushRequest {
 /**
  * STK Push Callback Response
  * 
- * Stores all callback responses from M-Pesa for STK Push requests.
- * This allows tracking of all responses (success, timeout, cancelled, etc.)
- * for audit purposes and enables retry logic.
+ * Stores STK Push callback responses from M-Pesa for audit purposes.
+ * M-Pesa sends exactly one callback per STK Push request with a final ResultCode.
+ * Multiple records may exist only if M-Pesa retries sending the same callback
+ * (with the same ResultCode) if our endpoint doesn't respond correctly.
+ * This provides a complete audit trail of callback deliveries.
  */
 model MpesaStkPushCallbackResponse {
   id                  String   @id @default(uuid()) @db.Uuid

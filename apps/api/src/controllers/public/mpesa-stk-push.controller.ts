@@ -11,11 +11,14 @@ import { IpWhitelistGuard } from '../../guards/ip-whitelist.guard';
 /**
  * M-Pesa STK Push Public Controller
  *
+ * **System Endpoint** - This controller handles callbacks from M-Pesa Daraja API.
+ * These endpoints are NOT intended for general API consumers. They are called by M-Pesa's infrastructure.
+ *
  * Public controller for receiving STK Push callback notifications from M-Pesa Daraja API.
  * This endpoint is publicly accessible (no API key authentication) as required by M-Pesa.
  */
 @Controller('public/mpesa/stk-push')
-@ApiTags('M-Pesa STK Push')
+@ApiTags('M-Pesa STK Push (System Endpoints)')
 export class MpesaStkPushPublicController {
   private readonly logger = new Logger(MpesaStkPushPublicController.name);
 
@@ -33,22 +36,76 @@ export class MpesaStkPushPublicController {
   @Post('callback')
   @UseGuards(IpWhitelistGuard)
   @ApiOperation({
-    summary: 'STK Push Callback',
+    summary: 'STK Push Callback (System Endpoint)',
     description: `
-      Public endpoint that receives STK Push callback notifications from M-Pesa Daraja API.
-      This endpoint updates STK Push request status based on customer action.
+      **⚠️ System Endpoint - Called by M-Pesa Infrastructure**
       
-      **Security**: This endpoint is publicly accessible (no API key authentication) as required by M-Pesa.
-      Security is implemented via IP whitelist validation.
+      This endpoint receives STK Push callback notifications from M-Pesa Daraja API.
+      It updates STK Push request status based on customer action (completed, cancelled, timeout, etc.).
       
-      **Response**: Always returns success (ResultCode: 0) to prevent M-Pesa retries, even if processing fails.
-      Errors are logged internally for investigation.
+      **Important Notes:**
+      - This endpoint is NOT for general API consumption
+      - It is called automatically by M-Pesa's infrastructure when customers interact with STK Push prompts
+      - Always returns success (ResultCode: 0) to prevent M-Pesa retries, even if processing fails
+      - Errors are logged internally for investigation
+      
+      **Security:**
+      - This endpoint is publicly accessible (no API key authentication) as required by M-Pesa
+      - Security is implemented via IP whitelist validation (only Safaricom IPs allowed in production)
+      
+      **Example Request Payload:**
+      \`\`\`json
+      {
+        "Body": {
+          "stkCallback": {
+            "MerchantRequestID": "12345-67890-12345",
+            "CheckoutRequestID": "ws_CO_270120251430451234567890",
+            "ResultCode": 0,
+            "ResultDesc": "The service request is processed successfully.",
+            "CallbackMetadata": {
+              "Item": [
+                {
+                  "Name": "Amount",
+                  "Value": 100.00
+                },
+                {
+                  "Name": "MpesaReceiptNumber",
+                  "Value": "RKTQDM7W6S"
+                },
+                {
+                  "Name": "TransactionDate",
+                  "Value": 20250127143045
+                },
+                {
+                  "Name": "PhoneNumber",
+                  "Value": 254722000000
+                }
+              ]
+            }
+          }
+        }
+      }
+      \`\`\`
+      
+      **Example Response:**
+      \`\`\`json
+      {
+        "ResultCode": 0,
+        "ResultDesc": "Accepted"
+      }
+      \`\`\`
     `,
   })
   @ApiResponse({
     status: 200,
-    description: 'Success response (always returns success to prevent M-Pesa retries)',
+    description: 'Success response (always returns ResultCode: 0 to prevent M-Pesa retries)',
     type: MpesaCallbackResponseDto,
+    schema: {
+      example: {
+        ResultCode: 0,
+        ResultDesc: 'Accepted',
+      },
+    },
   })
   async callback(
     @Req() request: Request,

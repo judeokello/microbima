@@ -35,6 +35,30 @@ export class MpesaStkPushController {
       Creates a payment prompt on the customer's phone and tracks the request status.
       
       **Authentication**: Requires Supabase Bearer token authentication (agents must be logged in).
+      
+      **Example Request Payload:**
+      \`\`\`json
+      {
+        "phoneNumber": "254722000000",
+        "amount": 100.00,
+        "accountReference": "POL123456",
+        "transactionDesc": "Premium payment for policy POL123456"
+      }
+      \`\`\`
+      
+      **Example Success Response (201 Created):**
+      \`\`\`json
+      {
+        "id": "12345-67890-12345",
+        "checkoutRequestID": "ws_CO_270120251430451234567890",
+        "merchantRequestID": "12345-67890-12345",
+        "status": "PENDING",
+        "phoneNumber": "254722000000",
+        "amount": 100.00,
+        "accountReference": "POL123456",
+        "initiatedAt": "2025-01-27T14:30:45Z"
+      }
+      \`\`\`
     `,
   })
   @ApiResponse({
@@ -79,40 +103,6 @@ export class MpesaStkPushController {
     const userId = undefined; // TODO: Extract from auth context when available
 
     return this.mpesaStkPushService.initiateStkPush(dto, correlationId, userId);
-  }
-
-  /**
-   * Test STK Push Endpoint
-   *
-   * Simple test endpoint for quick STK Push testing during development.
-   * This allows testing STK Push integration independently before integrating into register/payment page flow.
-   *
-   * **Note**: This endpoint is for development/testing purposes. Consider removing in production or gating behind feature flag.
-   */
-  @Post('test')
-  @HttpCode(HttpStatus.CREATED)
-  @ApiOperation({
-    summary: 'Test STK Push Request',
-    description: `
-      Test endpoint for quick STK Push testing during development.
-      Accepts minimal payload and initiates STK Push request.
-      
-      **Note**: This is for development/testing only.
-    `,
-  })
-  @ApiResponse({
-    status: 201,
-    description: 'STK Push request created successfully',
-    type: StkPushRequestResponseDto,
-  })
-  async test(
-    @Body() dto: InitiateStkPushDto,
-    @Headers('x-correlation-id') correlationIdHeader?: string
-  ): Promise<StkPushRequestResponseDto> {
-    const correlationId =
-      correlationIdHeader ?? `stk-test-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
-
-    return this.mpesaStkPushService.initiateStkPush(dto, correlationId);
   }
 }
 

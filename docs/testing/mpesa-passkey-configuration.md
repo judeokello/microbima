@@ -148,3 +148,4 @@ curl -X POST http://localhost:3001/api/internal/mpesa/stk-push/test \
 5. ✅ **Test with STK Push** to verify it works
 
 
+

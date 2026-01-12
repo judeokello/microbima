@@ -127,6 +127,11 @@ When statement files are uploaded manually, the system checks each transaction a
 - **FR-027**: System MUST create policies with `PENDING_ACTIVATION` status and NULL `startDate` and `endDate` when payment has not been completed. Dates MUST only be set when policy is activated on first payment completion
 - **FR-028**: System MUST activate policies (change status from `PENDING_ACTIVATION` to `ACTIVE`) ONLY on the first payment completion. System MUST set `startDate` to payment date and `endDate` to one year from `startDate` when activating. System MUST NOT change policy status if policy is already `ACTIVE` or in any other status (e.g., `SUSPENDED`, `TERMINATED`)
 - **FR-029**: System MUST handle policy activation idempotently: If IPN arrives for a policy that is already `ACTIVE` (e.g., activated by STK Push callback), system MUST NOT attempt to activate again. System MUST only activate policies with status `PENDING_ACTIVATION`
+- **FR-030**: System MUST store ALL STK Push callback responses from M-Pesa (regardless of result code: success, timeout, cancelled, etc.) in the `MpesaStkPushCallbackResponse` table for audit purposes. This enables tracking of all payment attempts and supports retry logic
+- **FR-031**: System MUST update placeholder payment records (with `transactionReference` starting with `PENDING-STK-` and `actualPaymentDate = null`) when payment is completed via IPN or STK Push callback, instead of creating duplicate payment records. The placeholder payment MUST be updated with the real transaction reference and payment date
+- **FR-032**: System MUST use UTC for all date/time operations to ensure consistency across timezones. All timestamps stored in the database MUST be in UTC format
+- **FR-033**: System MUST allow all IP addresses in development environment for M-Pesa callback endpoints (IP whitelist guard must bypass validation when `NODE_ENV = development`). In production, IP whitelist validation MUST be enforced
+- **FR-034**: System MUST skip `x-correlation-id` header requirement for M-Pesa public callback endpoints (`/api/public/mpesa/confirmation` and `/api/public/mpesa/stk-push/callback`). System MUST automatically generate a correlation ID for these requests if not provided for request tracing
 
 ### Payment Record Creation Flow
 
@@ -149,11 +154,18 @@ When statement files are uploaded manually, the system checks each transaction a
    - Create records in both `MpesaPaymentReportItem` and `policy_payments` (after validation)
 
 **STK Push Callback Processing**:
-- When STK Push callback indicates COMPLETED: Create records in both `MpesaPaymentReportItem` and `policy_payments`
+- When STK Push callback is received (regardless of result code): Store callback response in `MpesaStkPushCallbackResponse` table for audit
+- When STK Push callback indicates COMPLETED: 
+  - Check for existing placeholder payment (`transactionReference` starts with `PENDING-STK-` and `actualPaymentDate = null`) for the same policy
+  - If placeholder exists: Update placeholder with real transaction reference and payment date
+  - If no placeholder exists: Create records in both `MpesaPaymentReportItem` and `policy_payments`
+- When STK Push callback indicates failure/timeout/cancelled: Only store callback response, do not create payment records
 
 **Deduplication**:
 - Check `policy_payments` table by `transactionReference` before creating records
 - If `transactionReference` already exists in `policy_payments`, handle idempotently (update existing records)
+- Check for placeholder payments (`transactionReference` starts with `PENDING-STK-` and `actualPaymentDate = null`) before creating new payment records
+- Update placeholder payments instead of creating duplicates when payment is completed
 
 **Transaction Direction**:
 - All IPN transactions are payments received (paidIn)
@@ -256,8 +268,9 @@ The following environment variables MUST be configured for M-Pesa Daraja API int
 
 **Generation**: 
 - Check if M-Pesa provides correlation ID in request headers
-- If not provided, generate unique correlation ID (UUID format) in controller
-- Same logic for public callbacks (IPN, STK Push callback)
+- **For M-Pesa public callbacks** (`/api/public/mpesa/confirmation` and `/api/public/mpesa/stk-push/callback`): Skip `x-correlation-id` header requirement (M-Pesa doesn't send this header), automatically generate correlation ID if not provided
+- For other routes: If not provided, generate unique correlation ID (UUID format) in middleware/controller
+- Same logic applies to all routes (automatic generation if missing)
 
 **Usage**:
 - Include correlation ID in all log entries
