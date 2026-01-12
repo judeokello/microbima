@@ -14,7 +14,7 @@ export function IsKenyanPhone(validationOptions?: ValidationOptions) {
       propertyName: propertyName,
       options: validationOptions,
       validator: {
-        validate(value: any, args: ValidationArguments) {
+        validate(value: unknown, _args: ValidationArguments) {
           // Allow empty values (handled by @IsOptional)
           if (value === null || value === undefined || value === '') {
             return true;
@@ -29,7 +29,7 @@ export function IsKenyanPhone(validationOptions?: ValidationOptions) {
           // Check if it starts with 01 or 07 and is exactly 10 digits
           return /^(01|07)\d{8}$/.test(cleanPhone);
         },
-        defaultMessage(args: ValidationArguments) {
+        defaultMessage(_args: ValidationArguments) {
           return 'Phone number must be 10 digits starting with 01 or 07';
         },
       },

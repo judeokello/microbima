@@ -2,7 +2,6 @@ import {
   Controller,
   Post,
   Delete,
-  Body,
   HttpCode,
   HttpStatus,
   UsePipes,
@@ -19,9 +18,7 @@ import { PartnerApiKeyMapper } from '../../mappers/partner-api-key.mapper';
 import { ApiKey, PartnerId } from '../../decorators/api-key.decorator';
 import { CorrelationId } from '../../decorators/correlation-id.decorator';
 import {
-  GenerateApiKeyRequestDto,
   GenerateApiKeyResponseDto,
-  DeactivateApiKeyRequestDto,
   DeactivateApiKeyResponseDto,
 } from '../../dto/partner-management';
 

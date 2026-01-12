@@ -31,6 +31,6 @@ export const PartnerId = createParamDecorator(
     const request = ctx.switchToHttp().getRequest();
     // TODO: Extract partner ID from API key using ApiKeyService
     // For now, return a placeholder
-    return request['partnerId'] || 'default-partner';
+    return request['partnerId'] ?? 'default-partner';
   },
 );

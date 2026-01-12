@@ -44,7 +44,7 @@ export class ApiKeyService {
    * @param apiKey - The validated API key
    * @returns Promise<object> - Partner information
    */
-  async getPartnerFromApiKey(apiKey: string): Promise<{
+  async getPartnerFromApiKey(_apiKey: string): Promise<{
     partnerId: string;
     partnerName: string;
     permissions: string[];

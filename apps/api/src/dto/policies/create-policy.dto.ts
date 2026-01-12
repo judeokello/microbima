@@ -224,6 +224,13 @@ export class PolicyResponseDto {
     example: '2025-10-01T00:00:00Z',
   })
   endDate: string;
+
+  @ApiProperty({
+    description: 'Payment account number (null for postpaid policies)',
+    example: '1234567890',
+    nullable: true,
+  })
+  paymentAcNumber: string | null;
 }
 
 export class PolicyPaymentResponseDto {

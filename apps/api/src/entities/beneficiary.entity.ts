@@ -8,9 +8,12 @@ export interface BeneficiaryData {
   lastName: string;
   dateOfBirth?: Date | null;
   gender?: Gender | null;
+  email?: string | null;
+  phoneNumber?: string | null;
   idType?: IdType | null;
   idNumber?: string | null;
   relationship?: string | null;
+  relationshipDescription?: string | null;
   percentage?: number | null;
   isVerified: boolean;
   verifiedAt?: Date | null;
@@ -29,9 +32,12 @@ export class Beneficiary {
   lastName: string;
   dateOfBirth?: Date | null;
   gender?: Gender | null;
+  email?: string | null;
+  phoneNumber?: string | null;
   idType?: IdType | null;
   idNumber?: string | null;
   relationship?: string | null;
+  relationshipDescription?: string | null;
   percentage?: number | null;
   isVerified: boolean;
   verifiedAt?: Date | null;
@@ -48,9 +54,12 @@ export class Beneficiary {
     this.lastName = data.lastName;
     this.dateOfBirth = data.dateOfBirth;
     this.gender = data.gender;
+    this.email = data.email;
+    this.phoneNumber = data.phoneNumber;
     this.idType = data.idType ?? null;
     this.idNumber = data.idNumber ?? null;
     this.relationship = data.relationship;
+    this.relationshipDescription = data.relationshipDescription;
     this.percentage = data.percentage;
     this.isVerified = data.isVerified;
     this.verifiedAt = data.verifiedAt;
@@ -212,7 +221,7 @@ export class Beneficiary {
   }
 
   // Data transformation methods
-  toPrismaData(): any {
+  toPrismaData(): Record<string, unknown> {
     return {
       id: this.id,
       customerId: this.customerId,
@@ -234,25 +243,32 @@ export class Beneficiary {
     };
   }
 
-  static fromPrismaData(data: any): Beneficiary {
+  static fromPrismaData(data: unknown): Beneficiary {
+    if (!data || typeof data !== 'object') {
+      throw new Error('Invalid Prisma data for Beneficiary');
+    }
+    const d = data as Record<string, unknown>;
     return new Beneficiary({
-      id: data.id,
-      customerId: data.customerId,
-      firstName: data.firstName,
-      middleName: data.middleName,
-      lastName: data.lastName,
-      dateOfBirth: data.dateOfBirth,
-      gender: data.gender,
-      idType: data.idType,
-      idNumber: data.idNumber,
-      relationship: data.relationship,
-      percentage: data.percentage,
-      isVerified: data.isVerified,
-      verifiedAt: data.verifiedAt,
-      verifiedBy: data.verifiedBy,
-      createdByPartnerId: data.createdByPartnerId,
-      createdAt: data.createdAt,
-      updatedAt: data.updatedAt,
+      id: d.id as string,
+      customerId: d.customerId as string,
+      firstName: d.firstName as string,
+      middleName: d.middleName as string | null | undefined,
+      lastName: d.lastName as string,
+      dateOfBirth: d.dateOfBirth as Date | null | undefined,
+      gender: d.gender as Gender | null | undefined,
+      email: d.email as string | null | undefined,
+      phoneNumber: d.phoneNumber as string | null | undefined,
+      idType: (d.idType ?? null) as IdType | null,
+      idNumber: (d.idNumber ?? null) as string | null,
+      relationship: d.relationship as string | null | undefined,
+      relationshipDescription: d.relationshipDescription as string | null | undefined,
+      percentage: d.percentage as number | null | undefined,
+      isVerified: d.isVerified as boolean,
+      verifiedAt: d.verifiedAt as Date | null | undefined,
+      verifiedBy: d.verifiedBy as string | null | undefined,
+      createdByPartnerId: d.createdByPartnerId as number,
+      createdAt: d.createdAt as Date,
+      updatedAt: d.updatedAt as Date,
     });
   }
 }

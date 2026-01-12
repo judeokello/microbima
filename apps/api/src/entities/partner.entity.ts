@@ -1,4 +1,3 @@
-import { CustomerStatus, OnboardingStep } from '@prisma/client';
 
 export interface PartnerData {
   id: number;
@@ -111,7 +110,7 @@ export class Partner {
   }
 
   // Data transformation methods
-  toPrismaData(): any {
+  toPrismaData(): Record<string, unknown> {
     return {
       id: this.id,
       partnerName: this.partnerName,
@@ -125,17 +124,21 @@ export class Partner {
     };
   }
 
-  static fromPrismaData(data: any): Partner {
+  static fromPrismaData(data: unknown): Partner {
+    if (!data || typeof data !== 'object') {
+      throw new Error('Invalid Prisma data for Partner');
+    }
+    const d = data as Record<string, unknown>;
     return new Partner({
-      id: data.id,
-      partnerName: data.partnerName,
-      website: data.website,
-      officeLocation: data.officeLocation,
-      isActive: data.isActive,
-      createdAt: data.createdAt,
-      updatedAt: data.updatedAt,
-      createdBy: data.createdBy,
-      updatedBy: data.updatedBy,
+      id: d.id as number,
+      partnerName: d.partnerName as string,
+      website: d.website as string | null | undefined,
+      officeLocation: d.officeLocation as string | null | undefined,
+      isActive: d.isActive as boolean,
+      createdAt: d.createdAt as Date,
+      updatedAt: d.updatedAt as Date,
+      createdBy: d.createdBy as string,
+      updatedBy: d.updatedBy as string | null | undefined,
     });
   }
 }

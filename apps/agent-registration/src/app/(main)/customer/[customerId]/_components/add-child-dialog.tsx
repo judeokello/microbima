@@ -61,13 +61,6 @@ const calculateAge = (dateOfBirth: string): number => {
   return age;
 };
 
-// Calculate if child requires verification (age 18-24)
-const calculateChildVerificationRequired = (dateOfBirth: string): boolean => {
-  if (!dateOfBirth) return false;
-  const age = calculateAge(dateOfBirth);
-  return age >= 18 && age < 25;
-};
-
 export default function AddChildDialog({
   customerId,
   open,
@@ -185,7 +178,7 @@ export default function AddChildDialog({
         gender: formData.gender,
         idType: mapIdTypeToBackend(formData.idType),
         idNumber: formData.idNumber || undefined,
-        verificationRequired: formData.dateOfBirth ? calculateChildVerificationRequired(formData.dateOfBirth) : false,
+        // verificationRequired is calculated automatically by the backend based on child's age
       };
 
       const result = await addDependants(actualCustomerId, {

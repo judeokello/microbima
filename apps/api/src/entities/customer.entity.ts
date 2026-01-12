@@ -266,7 +266,7 @@ export class Customer {
   }
 
   // Data transformation methods
-  toPrismaData(): any {
+  toPrismaData(): Record<string, unknown> {
     return {
       id: this.id,
       firstName: this.firstName,
@@ -288,25 +288,29 @@ export class Customer {
     };
   }
 
-  static fromPrismaData(data: any): Customer {
+  static fromPrismaData(data: unknown): Customer {
+    if (!data || typeof data !== 'object') {
+      throw new Error('Invalid Prisma data for Customer');
+    }
+    const d = data as Record<string, unknown>;
     return new Customer({
-      id: data.id,
-      firstName: data.firstName,
-      middleName: data.middleName,
-      lastName: data.lastName,
-      email: data.email,
-      phoneNumber: data.phoneNumber,
-      dateOfBirth: data.dateOfBirth,
-      gender: data.gender,
-      idType: data.idType,
-      idNumber: data.idNumber,
-      status: data.status,
-      onboardingStep: data.onboardingStep,
-      createdByPartnerId: data.createdByPartnerId,
-      createdAt: data.createdAt,
-      updatedAt: data.updatedAt,
-      createdBy: data.createdBy,
-      updatedBy: data.updatedBy,
+      id: d.id as string,
+      firstName: d.firstName as string,
+      middleName: d.middleName as string | null | undefined,
+      lastName: d.lastName as string,
+      email: d.email as string | null | undefined,
+      phoneNumber: d.phoneNumber as string,
+      dateOfBirth: d.dateOfBirth as Date | null | undefined,
+      gender: d.gender as Gender | null | undefined,
+      idType: d.idType as IdType,
+      idNumber: d.idNumber as string,
+      status: d.status as CustomerStatus,
+      onboardingStep: d.onboardingStep as OnboardingStep,
+      createdByPartnerId: d.createdByPartnerId as number,
+      createdAt: d.createdAt as Date,
+      updatedAt: d.updatedAt as Date,
+      createdBy: d.createdBy as string,
+      updatedBy: d.updatedBy as string | null | undefined,
     });
   }
 }

@@ -25,7 +25,8 @@ check_port_status() {
         
         # Test if the service is responding
         if [ "$service_name" = "API Server" ]; then
-            if curl -s -f http://localhost:$port/api/health >/dev/null 2>&1; then
+            # Health check endpoint is at /health (excluded from global prefix)
+            if curl -s -f http://localhost:$port/health >/dev/null 2>&1; then
                 echo "   Health: ✅ Healthy"
             else
                 echo "   Health: ⚠️  Not responding to health checks"

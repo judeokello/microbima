@@ -1,4 +1,4 @@
-import { HttpException, HttpStatus } from '@nestjs/common';
+import { HttpException } from '@nestjs/common';
 import { ErrorCodes, ERROR_CODE_STATUS_MAP } from '../enums/error-codes.enum';
 
 /**

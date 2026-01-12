@@ -95,7 +95,7 @@ CMD ["node", "--enable-source-maps", "apps/api/dist/src/main"]
 
 ## App-Specific Configurations
 
-### Internal API (`microbima-staging-internal-api`)
+### Internal API (`maishapoa-staging-internal-api`)
 
 - **Dockerfile**: `apps/api/Dockerfile`
 - **API Prefix**: `internal` (set in fly.toml)
@@ -149,6 +149,30 @@ CMD ["node", "--enable-source-maps", "apps/api/dist/src/main"]
 - `JWT_SECRET`: JWT signing secret
 - `SENTRY_DSN`: Sentry error tracking (optional)
 - `SENTRY_ENVIRONMENT`: Sentry environment (optional)
+
+### Required for Root User Creation (Internal API Only)
+These secrets are used during deployment to automatically create the first admin user if no users exist:
+- `ROOT_USER_EMAIL`: Email address for the root user (required)
+- `ROOT_USER_PASSWORD`: Password for the root user (required)
+- `ROOT_USER_DISPLAY_NAME`: Display name for the root user (optional, defaults to "Root admin" if not set)
+
+**Note**: These secrets should be set before the first deployment to a fresh database. After successful user creation, they can be manually deleted for security:
+
+```bash
+# Set secrets for staging
+flyctl secrets set ROOT_USER_EMAIL="admin@example.com" --app maishapoa-staging-internal-api
+flyctl secrets set ROOT_USER_PASSWORD="secure-password" --app maishapoa-staging-internal-api
+flyctl secrets set ROOT_USER_DISPLAY_NAME="Root admin" --app maishapoa-staging-internal-api  # Optional
+
+# Set secrets for production
+flyctl secrets set ROOT_USER_EMAIL="admin@example.com" --app maishapoa-production-internal-api
+flyctl secrets set ROOT_USER_PASSWORD="secure-password" --app maishapoa-production-internal-api
+flyctl secrets set ROOT_USER_DISPLAY_NAME="Root admin" --app maishapoa-production-internal-api  # Optional
+
+# After successful deployment, delete secrets for security
+flyctl secrets unset ROOT_USER_EMAIL ROOT_USER_PASSWORD ROOT_USER_DISPLAY_NAME --app maishapoa-staging-internal-api
+flyctl secrets unset ROOT_USER_EMAIL ROOT_USER_PASSWORD ROOT_USER_DISPLAY_NAME --app maishapoa-production-internal-api
+```
 
 ### Required for Kong (Public API)
 - `KONG_PROXY_ACCESS_LOG`: Logging configuration
@@ -218,7 +242,7 @@ microbima/
 ```bash
 # Staging
 cd /path/to/microbima
-flyctl deploy -a microbima-staging-internal-api -c infra/fly/internal-api/staging/fly.toml
+flyctl deploy -a maishapoa-staging-internal-api -c infra/fly/internal-api/staging/fly.toml
 
 # Production
 flyctl deploy -a microbima-production-internal-api -c infra/fly/internal-api/production/fly.toml

@@ -6,15 +6,15 @@ primary_region = "fra"
 
 [env]
   NODE_ENV = "production"
-  PORT = "3000"
-  API_PREFIX = "internal"
+  PORT = "3001"
+  API_PREFIX = "api"
   # Production-specific environment variables
   LOG_LEVEL = "info"
   SENTRY_ENVIRONMENT = "production"
   SENTRY_TRACES_SAMPLE_RATE = "0.01"
 
 [[services]]
-  internal_port = 3000
+  internal_port = 3001
   protocol = "tcp"
 
   [[services.ports]]

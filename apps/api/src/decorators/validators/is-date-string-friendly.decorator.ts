@@ -12,7 +12,7 @@ export function IsDateStringFriendly(validationOptions?: ValidationOptions) {
       propertyName: propertyName,
       options: validationOptions,
       validator: {
-        validate(value: any, args: ValidationArguments) {
+        validate(value: unknown, _args: ValidationArguments) {
           if (value === null || value === undefined || value === '') {
             return true; // Allow empty values (handled by @IsOptional)
           }
@@ -25,7 +25,7 @@ export function IsDateStringFriendly(validationOptions?: ValidationOptions) {
           const date = new Date(value);
           return !isNaN(date.getTime()) && value === date.toISOString().split('T')[0];
         },
-        defaultMessage(args: ValidationArguments) {
+        defaultMessage(_args: ValidationArguments) {
           return 'Date of Birth is invalid';
         },
       },

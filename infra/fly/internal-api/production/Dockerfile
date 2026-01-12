@@ -29,6 +29,10 @@ RUN pnpm install --frozen-lockfile
 # Copy source code
 COPY . .
 
+# Build common-config package first (required dependency)
+WORKDIR /app/packages/common-config
+RUN pnpm build
+
 # Build the application
 WORKDIR /app/apps/api
 RUN npx prisma generate
@@ -54,9 +58,9 @@ RUN chown -R nestjs:nodejs /app
 USER nestjs
 
 # Expose port
-EXPOSE 3000
+EXPOSE 3001
 
-ENV PORT=3000
+ENV PORT=3001
 
 # Use dumb-init for proper signal handling
 ENTRYPOINT ["dumb-init", "--"]

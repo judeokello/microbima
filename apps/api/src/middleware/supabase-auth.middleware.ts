@@ -1,23 +1,7 @@
 import { Injectable, NestMiddleware, UnauthorizedException } from '@nestjs/common';
 import { Request, Response, NextFunction } from 'express';
 import { SupabaseService } from '../services/supabase.service';
-
-// Extend the Express Request interface to include user
-declare global {
-  namespace Express {
-    interface Request {
-      user?: AuthenticatedUser;
-    }
-  }
-}
-
-export interface AuthenticatedUser {
-  id: string;
-  email: string;
-  roles: string[];
-  baId?: string;
-  partnerId?: number;
-}
+import { AuthenticatedUser } from '../types/express';
 
 @Injectable()
 export class SupabaseAuthMiddleware implements NestMiddleware {
@@ -25,12 +9,24 @@ export class SupabaseAuthMiddleware implements NestMiddleware {
 
   async use(req: Request, res: Response, next: NextFunction) {
     // Only apply to internal API routes
-    if (!req.path.startsWith('/api/internal')) {
+    if (!req.path.startsWith('/api/internal') && !req.path.startsWith('/internal')) {
+      return next();
+    }
+
+    // Skip authentication for health check endpoints
+    const healthCheckPaths = [
+      '/health',
+      '/api/health',
+      '/internal/health',
+      '/api/internal/health'
+    ];
+    if (healthCheckPaths.includes(req.path) || healthCheckPaths.includes(req.originalUrl) || req.path.endsWith('/health')) {
+      console.log('Skipping Supabase auth for health check endpoint:', req.path);
       return next();
     }
 
     // Skip authentication for bootstrap endpoints (one-time setup before users exist)
-    if (req.path.startsWith('/api/internal/bootstrap')) {
+    if (req.path.startsWith('/api/internal/bootstrap') || req.path.startsWith('/internal/bootstrap')) {
       console.log('Skipping Supabase auth for bootstrap endpoint:', req.path);
       return next();
     }
@@ -61,13 +57,13 @@ export class SupabaseAuthMiddleware implements NestMiddleware {
       console.log('Token validated successfully for user:', user.email);
 
       // Extract user metadata
-      const userMetadata = user.user_metadata || {};
-      const roles = userMetadata.roles || [];
+      const userMetadata = user.user_metadata ?? {};
+      const roles = userMetadata.roles ?? [];
 
       // Create authenticated user object
       const authenticatedUser: AuthenticatedUser = {
         id: user.id,
-        email: user.email || '',
+        email: user.email ?? '',
         roles,
         baId: userMetadata.baId,
         partnerId: userMetadata.partnerId ? parseInt(userMetadata.partnerId) : undefined,

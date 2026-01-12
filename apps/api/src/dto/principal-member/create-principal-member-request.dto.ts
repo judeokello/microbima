@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsString, IsArray, IsOptional, ValidateNested, MaxLength, IsNumber, IsNotEmpty, IsInt } from 'class-validator';
+import { IsString, IsArray, IsOptional, ValidateNested, MaxLength, IsNotEmpty, IsInt } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ProductDto } from '../common/product.dto';
 import { PrincipalMemberDto } from './principal-member.dto';

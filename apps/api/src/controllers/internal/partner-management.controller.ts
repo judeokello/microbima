@@ -165,8 +165,8 @@ export class InternalPartnerManagementController {
       // Get partners using the service
       const result = await this.partnerManagementService.getPartners(
         'internal',
-        page || 1,
-        limit || 10
+        page ?? 1,
+        limit ?? 10
       );
 
       // Convert to response DTO (no correlation ID for internal API)
@@ -343,7 +343,7 @@ export class InternalPartnerManagementController {
         userId: brandAmbassador.userId,
         partnerId: brandAmbassador.partnerId,
         displayName: brandAmbassador.displayName,
-        phoneNumber: brandAmbassador.phoneNumber || undefined,
+        phoneNumber: brandAmbassador.phoneNumber ?? undefined,
         perRegistrationRateCents: brandAmbassador.perRegistrationRateCents,
         isActive: brandAmbassador.isActive,
         createdAt: brandAmbassador.createdAt,
@@ -409,7 +409,7 @@ export class InternalPartnerManagementController {
         userId: brandAmbassador.userId,
         partnerId: brandAmbassador.partnerId,
         displayName: brandAmbassador.displayName,
-        phoneNumber: brandAmbassador.phoneNumber || undefined,
+        phoneNumber: brandAmbassador.phoneNumber ?? undefined,
         perRegistrationRateCents: brandAmbassador.perRegistrationRateCents,
         isActive: brandAmbassador.isActive,
         createdAt: brandAmbassador.createdAt,
@@ -508,8 +508,8 @@ export class InternalPartnerManagementController {
 
       const result = await this.partnerManagementService.getAllBrandAmbassadors(
         correlationId,
-        page || 1,
-        limit || 10
+        page ?? 1,
+        limit ?? 10
       );
 
       this.logger.log(`[${correlationId}] ✅ Retrieved ${result.brandAmbassadors.length} brand ambassadors`);
@@ -654,7 +654,7 @@ export class InternalPartnerManagementController {
         userId: updatedBA.userId,
         partnerId: updatedBA.partnerId,
         displayName: updatedBA.displayName,
-        phoneNumber: updatedBA.phoneNumber || undefined,
+        phoneNumber: updatedBA.phoneNumber ?? undefined,
         perRegistrationRateCents: updatedBA.perRegistrationRateCents,
         isActive: updatedBA.isActive,
         createdAt: updatedBA.createdAt,

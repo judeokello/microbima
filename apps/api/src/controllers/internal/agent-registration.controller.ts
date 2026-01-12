@@ -3,13 +3,11 @@ import {
   Get,
   Post,
   Put,
-  Delete,
   Body,
   Param,
   Query,
   HttpStatus,
   HttpCode,
-  UseGuards,
   UseInterceptors,
   Req,
 } from '@nestjs/common';
@@ -34,7 +32,8 @@ import {
   MissingRequirementResponseDto,
 } from '../../dto/missing-requirement';
 import { CorrelationId } from '../../decorators/correlation-id.decorator';
-import { BAAuth, AdminOnly, BAOnly, AdminOrBA } from '../../decorators/ba-auth.decorator';
+import { Request } from 'express';
+import { BAAuth, AdminOnly, AdminOrBA } from '../../decorators/ba-auth.decorator';
 import { DataMaskingInterceptor } from '../../interceptors/data-masking.interceptor';
 import { EnableDataMasking } from '../../decorators/data-masking.decorator';
 
@@ -92,10 +91,10 @@ export class AgentRegistrationController {
   async createRegistration(
     @Body() dto: CreateAgentRegistrationDto,
     @CorrelationId() correlationId: string,
-    @Req() req: any, // Add request object to access authenticated user
+    @Req() req: Request, // Add request object to access authenticated user
   ): Promise<AgentRegistrationResponseDto> {
     // Extract user ID from authenticated user
-    const userId = req.user?.id || 'system';
+    const userId = req.user?.id ?? 'system';
 
     return this.agentRegistrationService.createRegistration(dto, userId);
   }
@@ -135,7 +134,7 @@ export class AgentRegistrationController {
   })
   async getRegistration(
     @Param('id') id: string,
-    @CorrelationId() correlationId: string,
+    @CorrelationId() _correlationId: string,
   ): Promise<AgentRegistrationResponseDto> {
     // TODO: Extract user ID and role from JWT token
     const userId = 'system'; // Placeholder until auth is implemented
@@ -180,7 +179,7 @@ export class AgentRegistrationController {
   async updateRegistration(
     @Param('id') id: string,
     @Body() dto: UpdateAgentRegistrationDto,
-    @CorrelationId() correlationId: string,
+    @CorrelationId() _correlationId: string,
   ): Promise<AgentRegistrationResponseDto> {
     // TODO: Extract user ID from JWT token
     const userId = 'system'; // Placeholder until auth is implemented
@@ -283,7 +282,7 @@ export class AgentRegistrationController {
   })
   async createMissingRequirement(
     @Body() dto: CreateMissingRequirementDto,
-    @CorrelationId() correlationId: string,
+    @CorrelationId() _correlationId: string,
   ): Promise<MissingRequirementResponseDto> {
     // TODO: Extract user ID from JWT token
     const userId = 'system'; // Placeholder until auth is implemented
@@ -325,7 +324,7 @@ export class AgentRegistrationController {
   })
   async getMissingRequirement(
     @Param('id') id: string,
-    @CorrelationId() correlationId: string,
+    @CorrelationId() _correlationId: string,
   ): Promise<MissingRequirementResponseDto> {
     // TODO: Extract user ID from JWT token
     const userId = 'system'; // Placeholder until auth is implemented
@@ -368,7 +367,7 @@ export class AgentRegistrationController {
   async updateMissingRequirement(
     @Param('id') id: string,
     @Body() dto: UpdateMissingRequirementDto,
-    @CorrelationId() correlationId: string,
+    @CorrelationId() _correlationId: string,
   ): Promise<MissingRequirementResponseDto> {
     // TODO: Extract user ID from JWT token
     const userId = 'system'; // Placeholder until auth is implemented

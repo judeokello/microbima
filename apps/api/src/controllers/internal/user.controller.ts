@@ -85,17 +85,17 @@ export class UserController {
         throw new NotFoundException(`User with ID ${userId} not found`);
       }
 
-      const userMetadata = user.user_metadata || {};
-      const displayName = userMetadata.displayName || user.email || 'Unknown User';
+      const userMetadata = user.user_metadata ?? {};
+      const displayName = userMetadata.displayName ?? user.email ?? 'Unknown User';
 
       return {
         status: HttpStatus.OK,
-        correlationId: correlationId || 'unknown',
+        correlationId: correlationId ?? 'unknown',
         message: 'Display name retrieved successfully',
         data: {
           userId: user.id,
           displayName,
-          email: user.email || '',
+          email: user.email ?? '',
         },
       };
     } catch (error) {

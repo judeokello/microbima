@@ -125,7 +125,7 @@ export default function AdminLayout({
           onClick={() => isMobile && setSidebarOpen(false)}
         >
           <Search className="h-4 w-4 mr-2" />
-          Search Customer
+          Find Customer
         </Link>
         <Link
           href="/dashboard"

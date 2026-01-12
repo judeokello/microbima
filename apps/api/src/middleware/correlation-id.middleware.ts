@@ -31,8 +31,31 @@ export class CorrelationIdMiddleware implements NestMiddleware {
       return next();
     }
 
-    // Skip correlation ID requirement for health check endpoints
-    if (req.path === '/health' || req.path === '/api/health' || req.originalUrl === '/health' || req.originalUrl === '/api/health') {
+    // Skip correlation ID requirement for health check endpoints (check various possible paths)
+    const healthCheckPaths = [
+      '/health',
+      '/api/health',
+      '/internal/health',
+      '/api/internal/health'
+    ];
+    if (healthCheckPaths.includes(req.path) || healthCheckPaths.includes(req.originalUrl) || req.path.endsWith('/health')) {
+      return next();
+    }
+
+    // Skip correlation ID requirement for M-Pesa public callback endpoints
+    // M-Pesa doesn't send correlation ID headers, so we generate them in the controller
+    const isMpesaPublicCallback =
+      path.includes('/api/public/mpesa/') ||
+      originalUrl.includes('/api/public/mpesa/') ||
+      url.includes('/api/public/mpesa/') ||
+      path.startsWith('/public/mpesa/') ||
+      originalUrl.startsWith('/public/mpesa/') ||
+      url.startsWith('/public/mpesa/');
+
+    if (isMpesaPublicCallback) {
+      // Generate correlation ID for M-Pesa callbacks (they don't send one)
+      const correlationId = `mpesa-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+      req['correlationId'] = correlationId;
       return next();
     }
 

@@ -10,7 +10,6 @@ import {
   HttpStatus,
   HttpCode,
   ParseIntPipe,
-  UseGuards,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -29,7 +28,6 @@ import {
   TagsResponseDto,
   CreateTagRequestDto,
   CreateTagResponseDto,
-  SearchTagsQueryDto,
 } from '../../dto/product-management/product-management.dto';
 import {
   PackageDetailResponseDto,
@@ -271,11 +269,11 @@ export class ProductManagementController {
     @Query('search') search?: string,
     @CorrelationId() correlationId?: string
   ): Promise<TagsResponseDto> {
-    const tags = await this.productManagementService.getSchemeTags(schemeId, correlationId || 'unknown');
+    const tags = await this.productManagementService.getSchemeTags(schemeId, correlationId ?? 'unknown');
 
     return {
       status: HttpStatus.OK,
-      correlationId: correlationId || 'unknown',
+      correlationId: correlationId ?? 'unknown',
       message: 'Tags retrieved successfully',
       data: tags,
     };
@@ -323,11 +321,11 @@ export class ProductManagementController {
     @CorrelationId() correlationId?: string
   ): Promise<TagsResponseDto> {
     const limitNum = limit ? parseInt(limit.toString(), 10) : 10;
-    const tags = await this.productManagementService.searchTags(search, limitNum, correlationId || 'unknown');
+    const tags = await this.productManagementService.searchTags(search, limitNum, correlationId ?? 'unknown');
 
     return {
       status: HttpStatus.OK,
-      correlationId: correlationId || 'unknown',
+      correlationId: correlationId ?? 'unknown',
       message: 'Tags retrieved successfully',
       data: tags,
     };
@@ -359,11 +357,11 @@ export class ProductManagementController {
     @Body() createRequest: CreateTagRequestDto,
     @CorrelationId() correlationId?: string
   ): Promise<CreateTagResponseDto> {
-    const tag = await this.productManagementService.createTag(createRequest.name, correlationId || 'unknown');
+    const tag = await this.productManagementService.createTag(createRequest.name, correlationId ?? 'unknown');
 
     return {
       status: HttpStatus.CREATED,
-      correlationId: correlationId || 'unknown',
+      correlationId: correlationId ?? 'unknown',
       message: 'Tag created successfully',
       data: tag,
     };
@@ -403,12 +401,12 @@ export class ProductManagementController {
   ): Promise<PackageDetailResponseDto> {
     const pkg = await this.productManagementService.getPackageById(
       packageId,
-      correlationId || 'unknown'
+      correlationId ?? 'unknown'
     );
 
     return {
       status: HttpStatus.OK,
-      correlationId: correlationId || 'unknown',
+      correlationId: correlationId ?? 'unknown',
       message: 'Package retrieved successfully',
       data: pkg,
     };
@@ -460,12 +458,12 @@ export class ProductManagementController {
         isActive: updateRequest.isActive,
         logoPath: updateRequest.logoPath,
       },
-      correlationId || 'unknown'
+      correlationId ?? 'unknown'
     );
 
     return {
       status: HttpStatus.OK,
-      correlationId: correlationId || 'unknown',
+      correlationId: correlationId ?? 'unknown',
       message: 'Package updated successfully',
       data: pkg,
     };
@@ -505,12 +503,12 @@ export class ProductManagementController {
   ): Promise<PackageSchemesResponseDto> {
     const schemes = await this.productManagementService.getPackageSchemesWithCounts(
       packageId,
-      correlationId || 'unknown'
+      correlationId ?? 'unknown'
     );
 
     return {
       status: HttpStatus.OK,
-      correlationId: correlationId || 'unknown',
+      correlationId: correlationId ?? 'unknown',
       message: 'Schemes retrieved successfully',
       data: schemes,
     };
@@ -591,12 +589,12 @@ export class ProductManagementController {
   ): Promise<SchemeDetailResponseDto> {
     const scheme = await this.productManagementService.getSchemeById(
       schemeId,
-      correlationId || 'unknown'
+      correlationId ?? 'unknown'
     );
 
     return {
       status: HttpStatus.OK,
-      correlationId: correlationId || 'unknown',
+      correlationId: correlationId ?? 'unknown',
       message: 'Scheme retrieved successfully',
       data: scheme,
     };
@@ -646,12 +644,12 @@ export class ProductManagementController {
         description: updateRequest.description,
         isActive: updateRequest.isActive,
       },
-      correlationId || 'unknown'
+      correlationId ?? 'unknown'
     );
 
     return {
       status: HttpStatus.OK,
-      correlationId: correlationId || 'unknown',
+      correlationId: correlationId ?? 'unknown',
       message: 'Scheme updated successfully',
       data: scheme,
     };
@@ -712,12 +710,12 @@ export class ProductManagementController {
       schemeId,
       pageNum,
       pageSizeNum,
-      correlationId || 'unknown'
+      correlationId ?? 'unknown'
     );
 
     return {
       status: HttpStatus.OK,
-      correlationId: correlationId || 'unknown',
+      correlationId: correlationId ?? 'unknown',
       message: 'Customers retrieved successfully',
       ...result,
     };
@@ -760,12 +758,12 @@ export class ProductManagementController {
     const contact = await this.schemeContactService.createContact(
       { ...createDto, schemeId },
       userId,
-      correlationId || 'unknown'
+      correlationId ?? 'unknown'
     );
 
     return {
       status: HttpStatus.CREATED,
-      correlationId: correlationId || 'unknown',
+      correlationId: correlationId ?? 'unknown',
       message: 'Contact created successfully',
       data: contact,
     };
@@ -801,12 +799,12 @@ export class ProductManagementController {
   ): Promise<SchemeContactsListResponseDto> {
     const contacts = await this.schemeContactService.getContactsByScheme(
       schemeId,
-      correlationId || 'unknown'
+      correlationId ?? 'unknown'
     );
 
     return {
       status: HttpStatus.OK,
-      correlationId: correlationId || 'unknown',
+      correlationId: correlationId ?? 'unknown',
       message: 'Contacts retrieved successfully',
       data: contacts,
     };
@@ -853,12 +851,12 @@ export class ProductManagementController {
       contactId,
       updateDto,
       userId,
-      correlationId || 'unknown'
+      correlationId ?? 'unknown'
     );
 
     return {
       status: HttpStatus.OK,
-      correlationId: correlationId || 'unknown',
+      correlationId: correlationId ?? 'unknown',
       message: 'Contact updated successfully',
       data: contact,
     };
@@ -901,12 +899,12 @@ export class ProductManagementController {
   ): Promise<SchemeContactResponseDto> {
     const contact = await this.schemeContactService.deleteContact(
       contactId,
-      correlationId || 'unknown'
+      correlationId ?? 'unknown'
     );
 
     return {
       status: HttpStatus.OK,
-      correlationId: correlationId || 'unknown',
+      correlationId: correlationId ?? 'unknown',
       message: 'Contact deleted successfully',
       data: contact,
     };

@@ -2,6 +2,7 @@ import { Injectable, Logger, NotFoundException, BadRequestException } from '@nes
 import { PrismaService } from '../prisma/prisma.service';
 import { PAYMENT_CADENCE } from '../constants/payment-cadence.constants';
 import { PaymentFrequency, Prisma } from '@prisma/client';
+import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
 import * as Sentry from '@sentry/nestjs';
 import { PaymentAccountNumberService } from './payment-account-number.service';
 
@@ -213,7 +214,7 @@ export class PolicyService {
               packageId: packageId,
               AND: [
                 { policyNumber: { notIn: ['', 'EMPTY'] } },
-                { NOT: [{ policyNumber: null as any }] },
+                { NOT: [{ policyNumber: null }] },
               ],
             },
             select: {
@@ -590,8 +591,8 @@ export class PolicyService {
         let paymentCadence = this.calculatePaymentCadence(data.frequency, data.customDays);
 
         if (isPostpaidScheme && customerScheme?.packageScheme?.scheme) {
-          frequency = customerScheme.packageScheme.scheme.frequency || data.frequency;
-          paymentCadence = customerScheme.packageScheme.scheme.paymentCadence || paymentCadence;
+          frequency = customerScheme.packageScheme.scheme.frequency ?? data.frequency;
+          paymentCadence = customerScheme.packageScheme.scheme.paymentCadence ?? paymentCadence;
           this.logger.log(
             `[${correlationId}] Using scheme's payment settings - frequency: ${frequency}, cadence: ${paymentCadence}`
           );
@@ -613,17 +614,15 @@ export class PolicyService {
         } else {
           // Prepaid: generate policy number inside transaction to prevent race conditions
           // This ensures thread-safe policy number generation even under high concurrency
+          // Dates are set to NULL and will only be set when policy is activated on first payment
           policyNumber = await this.generatePolicyNumberInTransaction(
             data.packageId,
             tx,
             correlationId
           );
-          startDate = new Date();
-          startDate.setUTCHours(0, 0, 0, 0);
-          endDate = new Date(startDate);
-          endDate.setFullYear(endDate.getFullYear() + 1);
-          endDate.setUTCHours(23, 59, 59, 999);
-          status = 'PENDING_ACTIVATION'; // Will be updated to ACTIVE by activatePolicy
+          startDate = null; // Will be set on activation (first payment)
+          endDate = null; // Will be set on activation (one year from startDate)
+          status = 'PENDING_ACTIVATION'; // Will be updated to ACTIVE by activatePolicy when first payment completes
         }
 
         // Create policy
@@ -655,14 +654,14 @@ export class PolicyService {
         try {
           policy = await tx.policy.create({
             data: {
-              policyNumber: policyNumber as any,
+              policyNumber: policyNumber ?? null,
               status,
               customerId: data.customerId,
               packageId: data.packageId,
               packagePlanId: data.packagePlanId,
               productName: data.productName,
-              startDate: startDate as any, // Type assertion: DB schema supports null, Prisma client needs regeneration
-              endDate: endDate as any, // Type assertion: DB schema supports null, Prisma client needs regeneration
+              startDate: startDate ?? null,
+              endDate: endDate ?? null,
               premium: data.premium,
               frequency,
               paymentCadence,
@@ -673,11 +672,15 @@ export class PolicyService {
           this.logger.log(
             `[${correlationId}] ✓ Successfully created policy: id=${policy.id}, policyNumber="${policy.policyNumber}"`
           );
-        } catch (createError: any) {
+        } catch (createError: unknown) {
           // Handle unique constraint violation on policyNumber (race condition safety net)
+          const isPrismaError = createError instanceof PrismaClientKnownRequestError;
           if (
-            createError?.code === 'P2002' &&
-            createError?.meta?.target?.includes('policyNumber')
+            isPrismaError &&
+            createError.code === 'P2002' &&
+            createError.meta?.target &&
+            Array.isArray(createError.meta.target) &&
+            createError.meta.target.includes('policyNumber')
           ) {
             // Query for existing policy with this number to get full details
             let existingPolicyDetails = null;
@@ -710,7 +713,7 @@ export class PolicyService {
                 where: {
                   packageId: data.packageId,
                   OR: [
-                    { policyNumber: null as any },
+                    { policyNumber: null },
                     { policyNumber: '' },
                     { policyNumber: 'EMPTY' },
                   ],
@@ -725,14 +728,14 @@ export class PolicyService {
                   emptyPolicies.map(p => `id=${p.id}, policyNumber="${p.policyNumber ?? 'null'}", customerId=${p.customerId}`).join('; ')
                 );
               }
-            } catch (queryError) {
+            } catch {
               // Ignore query errors for this diagnostic query
             }
 
             this.logger.error(
               `[${correlationId}] ✗✗✗ UNIQUE CONSTRAINT VIOLATION on policyNumber "${policyNumber}" ✗✗✗\n` +
               `  Attempted to create policy for: customerId=${data.customerId}, packageId=${data.packageId}, isPostpaid=${isPostpaidScheme}\n` +
-              `  Error code: ${createError?.code}, Target: ${JSON.stringify(createError?.meta?.target)}\n` +
+              `  Error code: ${isPrismaError ? createError.code : 'unknown'}, Target: ${JSON.stringify(isPrismaError && createError.meta?.target ? createError.meta.target : 'unknown')}\n` +
               (existingPolicyDetails
                 ? `  Existing policy with this number: id=${existingPolicyDetails.id}, customerId=${existingPolicyDetails.customerId}, ` +
                   `packageId=${existingPolicyDetails.packageId}, status=${existingPolicyDetails.status}, ` +
@@ -761,8 +764,8 @@ export class PolicyService {
                 environment: process.env.NODE_ENV,
                 existingPolicyDetails,
                 emptyPolicyCount,
-                errorCode: createError?.code,
-                errorTarget: createError?.meta?.target,
+                errorCode: isPrismaError ? createError.code : undefined,
+                errorTarget: isPrismaError && createError.meta?.target ? (Array.isArray(createError.meta.target) ? createError.meta.target : [String(createError.meta.target)]) : undefined,
               },
             });
 
@@ -777,14 +780,14 @@ export class PolicyService {
               // Retry policy creation with new policy number
               policy = await tx.policy.create({
                 data: {
-                  policyNumber: policyNumber as any,
+                  policyNumber: policyNumber ?? null,
                   status,
                   customerId: data.customerId,
                   packageId: data.packageId,
                   packagePlanId: data.packagePlanId,
                   productName: data.productName,
-                  startDate: startDate as any,
-                  endDate: endDate as any,
+                  startDate: startDate ?? null,
+                  endDate: endDate ?? null,
                   premium: data.premium,
                   frequency,
                   paymentCadence,
@@ -840,10 +843,15 @@ export class PolicyService {
           },
         });
 
-        // For prepaid schemes, activate the policy immediately (creates member records)
-        if (!isPostpaidScheme) {
+        // For prepaid schemes, activate the policy only if payment has already been completed
+        // (indicated by actualPaymentDate being set)
+        // If actualPaymentDate is null, policy remains in PENDING_ACTIVATION until payment completes
+        // Payment completion will trigger activation via IPN or STK push callback
+        if (!isPostpaidScheme && data.paymentData.actualPaymentDate) {
           await this.activatePolicy(policy.id, correlationId, tx);
-          this.logger.log(`[${correlationId}] Activated prepaid policy ${policy.id} immediately`);
+          this.logger.log(`[${correlationId}] Activated prepaid policy ${policy.id} immediately (payment already completed)`);
+        } else if (!isPostpaidScheme) {
+          this.logger.log(`[${correlationId}] Policy ${policy.id} created with PENDING_ACTIVATION status (will be activated when payment completes)`);
         }
 
         return {
@@ -1111,7 +1119,7 @@ export class PolicyService {
     policyId: string,
     correlationId: string,
     tx?: Prisma.TransactionClient
-  ): Promise<any> {
+  ): Promise<Prisma.PolicyGetPayload<Record<string, never>>> {
     this.logger.log(`[${correlationId}] Activating policy ${policyId}`);
 
     try {
@@ -1163,7 +1171,7 @@ export class PolicyService {
         if (existingPrincipalMember) {
           this.logger.log(
             `[${correlationId}] Policy ${policyId} already has member records in policy_member_principals table. ` +
-            `Policy was previously activated. Only updating status to ACTIVE. ` +
+            'Policy was previously activated. Only updating status to ACTIVE. ' +
             `Policy number: ${policy.policyNumber ?? 'NULL (postpaid)'}, ` +
             `Member record ID: ${existingPrincipalMember.id}`
           );
@@ -1208,7 +1216,7 @@ export class PolicyService {
         // Set start and end dates if they don't exist
         let startDate = policy.startDate;
         let endDate = policy.endDate;
-        
+
         if (!startDate || !endDate) {
           startDate = new Date();
           startDate.setUTCHours(0, 0, 0, 0);
@@ -1216,7 +1224,7 @@ export class PolicyService {
           endDate = new Date(startDate);
           endDate.setFullYear(endDate.getFullYear() + 1);
           endDate.setUTCHours(23, 59, 59, 999);
-          
+
           this.logger.log(
             `[${correlationId}] Set policy dates - start: ${startDate.toISOString()}, end: ${endDate.toISOString()}`
           );
@@ -1302,7 +1310,7 @@ export class PolicyService {
             where: { id: policy.customerId },
             data: { status: 'ACTIVE' },
           });
-          
+
           this.logger.log(
             `[${correlationId}] Updated customer ${policy.customerId} status to ACTIVE (first policy)`
           );

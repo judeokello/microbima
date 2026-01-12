@@ -4,12 +4,13 @@ primary_region = "fra"
 [build]
   dockerfile = "Dockerfile"
   # Build arguments for NEXT_PUBLIC_* variables (from Fly secrets)
+  # NOTE: These must match the secrets set in Fly.io, as NEXT_PUBLIC_* vars are embedded at build time
   [build.args]
-    NEXT_PUBLIC_SUPABASE_URL = "https://yowgqzgqxvkqyyzhxvej.supabase.co"
-    NEXT_PUBLIC_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inlvd2dxemdxeHZrcXl5emh4dmVqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTczMzM3NDQsImV4cCI6MjA3MjkwOTc0NH0.Jsau2Oqa3XZbJkHZVZUwzpCQAatMnODq6T_rCXhwdpQ"
-    NEXT_PUBLIC_APP_NAME = "MicroBima Agent Registration"
-    NEXT_PUBLIC_API_BASE_URL = "https://microbima-staging-internal-api.fly.dev"
-    NEXT_PUBLIC_INTERNAL_API_BASE_URL = "https://microbima-staging-internal-api.fly.dev/api"
+    NEXT_PUBLIC_SUPABASE_URL = "https://omoybijuposydptkyohn.supabase.co"
+    NEXT_PUBLIC_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9tb3liaWp1cG9zeWRwdGt5b2huIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM0NjQyOTIsImV4cCI6MjA3OTA0MDI5Mn0.w28nBF6rAAhHCc7yfymF-9219QrSCmMLjlR1avhPez8"
+    NEXT_PUBLIC_APP_NAME = "maishapoa Agent Registration"
+    NEXT_PUBLIC_API_BASE_URL = "https://maishapoa-staging-internal-api.fly.dev"
+    NEXT_PUBLIC_INTERNAL_API_BASE_URL = "https://maishapoa-staging-internal-api.fly.dev/api"
     NEXT_PUBLIC_ENABLE_BOOTSTRAP = "true"
     # Sentry configuration (client-side, embedded at build time)
     # Note: Client-side Sentry DSNs are public by design (embedded in browser code)
@@ -18,12 +19,12 @@ primary_region = "fra"
 
 [env]
   NODE_ENV = "staging"
-  PORT = "3001"
+  PORT = "3000"
   # Staging-specific environment variables
-  NEXT_PUBLIC_API_URL = "https://microbima-staging-internal-api.fly.dev"
+  NEXT_PUBLIC_API_URL = "https://maishapoa-staging-internal-api.fly.dev"
 
 [[services]]
-  internal_port = 3001
+  internal_port = 3000
   protocol = "tcp"
 
   [[services.ports]]

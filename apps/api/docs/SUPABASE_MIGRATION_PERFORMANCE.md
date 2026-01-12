@@ -25,7 +25,7 @@ Supabase provides two types of database connections:
 For staging:
 ```bash
 flyctl secrets set DIRECT_URL="postgresql://postgres.xxx:5432/postgres?sslmode=require" \
-  --app microbima-staging-internal-api
+  --app maishapoa-staging-internal-api
 ```
 
 For production:
@@ -74,12 +74,12 @@ Prisma automatically uses `directUrl` for migrations when available.
 
 ### Option 1: Check Fly.io Secrets
 ```bash
-flyctl secrets list --app microbima-staging-internal-api | grep DIRECT_URL
+flyctl secrets list --app maishapoa-staging-internal-api | grep DIRECT_URL
 ```
 
 ### Option 2: Check from Inside Container
 ```bash
-flyctl ssh console -a microbima-staging-internal-api -C "sh -c 'echo \$DIRECT_URL'"
+flyctl ssh console -a maishapoa-staging-internal-api -C "sh -c 'echo \$DIRECT_URL'"
 ```
 
 ## Expected Migration Times
@@ -97,22 +97,22 @@ flyctl ssh console -a microbima-staging-internal-api -C "sh -c 'echo \$DIRECT_UR
 
 1. **Check if DIRECT_URL is set:**
    ```bash
-   flyctl secrets list --app microbima-staging-internal-api
+   flyctl secrets list --app maishapoa-staging-internal-api
    ```
 
 2. **Check migration status:**
    ```bash
-   flyctl ssh console -a microbima-staging-internal-api -C "sh -c 'cd /app/apps/api && npx prisma migrate status'"
+   flyctl ssh console -a maishapoa-staging-internal-api -C "sh -c 'cd /app/apps/api && npx prisma migrate status'"
    ```
 
 3. **Check database connection:**
    ```bash
-   flyctl ssh console -a microbima-staging-internal-api -C "sh -c 'cd /app/apps/api && npx prisma db execute --stdin' <<< 'SELECT 1;'"
+   flyctl ssh console -a maishapoa-staging-internal-api -C "sh -c 'cd /app/apps/api && npx prisma db execute --stdin' <<< 'SELECT 1;'"
    ```
 
 4. **Check for locks:**
    ```bash
-   flyctl ssh console -a microbima-staging-internal-api -C "sh -c 'cd /app/apps/api && npx prisma db execute --stdin' <<< 'SELECT * FROM pg_locks WHERE NOT granted;'"
+   flyctl ssh console -a maishapoa-staging-internal-api -C "sh -c 'cd /app/apps/api && npx prisma db execute --stdin' <<< 'SELECT * FROM pg_locks WHERE NOT granted;'"
    ```
 
 ### Migration Already Applied
@@ -120,7 +120,7 @@ flyctl ssh console -a microbima-staging-internal-api -C "sh -c 'echo \$DIRECT_UR
 If migrations are already applied but Prisma is checking them again, it can take a long time. Check migration status first:
 
 ```bash
-flyctl ssh console -a microbima-staging-internal-api -C "sh -c 'cd /app/apps/api && npx prisma migrate status'"
+flyctl ssh console -a maishapoa-staging-internal-api -C "sh -c 'cd /app/apps/api && npx prisma migrate status'"
 ```
 
 If all migrations are already applied, `migrate deploy` will be fast (just verification).

@@ -23,7 +23,7 @@ export interface BAUser {
  */
 @Injectable()
 export class DataMaskingInterceptor implements NestInterceptor {
-  intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
+  intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
     const request = context.switchToHttp().getRequest();
     const user = request.user as BAUser;
 
@@ -53,7 +53,7 @@ export class DataMaskingInterceptor implements NestInterceptor {
   /**
    * Recursively mask sensitive data in the response
    */
-  private maskSensitiveData(data: any): any {
+  private maskSensitiveData(data: unknown): unknown {
     if (!data) return data;
 
     // Handle arrays
@@ -63,7 +63,7 @@ export class DataMaskingInterceptor implements NestInterceptor {
 
     // Handle objects
     if (typeof data === 'object') {
-      const masked = { ...data };
+      const masked = { ...data } as Record<string, unknown>;
 
       // Mask customer data
       if (masked.customer) {
@@ -71,24 +71,25 @@ export class DataMaskingInterceptor implements NestInterceptor {
       }
 
       // Mask customers array
-      if (masked.customers && Array.isArray(masked.customers)) {
-        masked.customers = masked.customers.map((customer: any) => this.maskCustomerData(customer));
+      if ('customers' in masked && Array.isArray(masked.customers)) {
+        masked.customers = masked.customers.map((customer: unknown) => this.maskCustomerData(customer));
       }
 
       // Mask registrations array
-      if (masked.registrations && Array.isArray(masked.registrations)) {
-        masked.registrations = masked.registrations.map((registration: any) => {
-          if (registration.customer) {
-            registration.customer = this.maskCustomerData(registration.customer);
+      if ('registrations' in masked && Array.isArray(masked.registrations)) {
+        masked.registrations = masked.registrations.map((registration: unknown) => {
+          if (registration && typeof registration === 'object' && 'customer' in registration) {
+            (registration as Record<string, unknown>).customer = this.maskCustomerData((registration as Record<string, unknown>).customer);
           }
           return registration;
         });
       }
 
       // Recursively mask nested objects
-      Object.keys(masked).forEach(key => {
-        if (typeof masked[key] === 'object' && masked[key] !== null) {
-          masked[key] = this.maskSensitiveData(masked[key]);
+      const maskedObj = masked;
+      Object.keys(maskedObj).forEach(key => {
+        if (typeof maskedObj[key] === 'object' && maskedObj[key] !== null) {
+          maskedObj[key] = this.maskSensitiveData(maskedObj[key]);
         }
       });
 
@@ -101,19 +102,27 @@ export class DataMaskingInterceptor implements NestInterceptor {
   /**
    * Mask customer-specific sensitive data
    */
-  private maskCustomerData(customer: any): any {
-    if (!customer) return customer;
+  private maskCustomerData(customer: unknown): unknown {
+    if (!customer || typeof customer !== 'object') return customer;
+
+    const customerObj = customer as Record<string, unknown>;
 
     return {
-      ...customer,
+      ...customerObj,
       // Mask phone number (show last 4 digits)
-      phoneNumber: customer.phoneNumber ? this.maskPhoneNumber(customer.phoneNumber) : customer.phoneNumber,
+      phoneNumber: customerObj.phoneNumber && typeof customerObj.phoneNumber === 'string'
+        ? this.maskPhoneNumber(customerObj.phoneNumber)
+        : customerObj.phoneNumber,
 
       // Mask email (show first 2 characters and domain)
-      email: customer.email ? this.maskEmail(customer.email) : customer.email,
+      email: customerObj.email && typeof customerObj.email === 'string'
+        ? this.maskEmail(customerObj.email)
+        : customerObj.email,
 
       // Mask ID number (show last 4 digits)
-      idNumber: customer.idNumber ? this.maskIdNumber(customer.idNumber) : customer.idNumber,
+      idNumber: customerObj.idNumber && typeof customerObj.idNumber === 'string'
+        ? this.maskIdNumber(customerObj.idNumber)
+        : customerObj.idNumber,
 
       // Keep other fields as-is (firstName, lastName, etc. are needed for BA operations)
     };

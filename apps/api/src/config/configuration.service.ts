@@ -1,5 +1,5 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
-import { BaseConfigurationService, BaseConfigOptions } from '@microbima/common-config';
+import { BaseConfigurationService } from '@microbima/common-config';
 import { getDatabaseConfig, validateDatabaseConfig, DatabaseConfig } from './database.config';
 
 export interface AppConfig {
@@ -31,9 +31,18 @@ export interface AppConfig {
     profilesSampleRate: number;
     enabled: boolean;
   };
-  posthog: {
-    apiKey: string;
-    enabled: boolean;
+  mpesa: {
+    consumerKey: string;
+    consumerSecret: string;
+    businessShortCode: string;
+    passkey: string;
+    environment: 'sandbox' | 'production';
+    baseUrl: string;
+    stkPushCallbackUrl: string;
+    ipnConfirmationUrl: string;
+    allowedIpRanges: string[];
+    stkPushTimeoutMinutes: number;
+    stkPushExpirationCheckIntervalMinutes: number;
   };
 }
 
@@ -46,11 +55,11 @@ export class ConfigurationService extends BaseConfigurationService implements On
   }
 
   protected getDefaultPort(): number {
-    return parseInt(process.env.PORT ?? '3000', 10);
+    return parseInt(process.env.PORT ?? '3001', 10);
   }
 
   protected getDefaultApiPrefix(): string {
-    return process.env.API_PREFIX || 'api';
+    return process.env.API_PREFIX ?? 'api';
   }
 
   onModuleInit() {
@@ -65,21 +74,37 @@ export class ConfigurationService extends BaseConfigurationService implements On
       ...baseConfig,
       database: getDatabaseConfig(),
       jwt: {
-        secret: process.env.JWT_SECRET || this.getDefaultJwtSecret(baseConfig.environment),
-        expiresIn: process.env.JWT_EXPIRES_IN || this.getDefaultJwtExpiry(baseConfig.environment),
+        secret: process.env.JWT_SECRET ?? this.getDefaultJwtSecret(baseConfig.environment),
+        expiresIn: process.env.JWT_EXPIRES_IN ?? this.getDefaultJwtExpiry(baseConfig.environment),
       },
       sentry: {
-        dsn: process.env.SENTRY_DSN || '',
-        environment: process.env.SENTRY_ENVIRONMENT || baseConfig.environment,
-        tracesSampleRate: parseFloat(process.env.SENTRY_TRACES_SAMPLE_RATE || '1.0'),
-        profilesSampleRate: parseFloat(process.env.SENTRY_PROFILES_SAMPLE_RATE || '1.0'),
+        dsn: process.env.SENTRY_DSN ?? '',
+        environment: process.env.SENTRY_ENVIRONMENT ?? baseConfig.environment,
+        tracesSampleRate: parseFloat(process.env.SENTRY_TRACES_SAMPLE_RATE ?? '1.0'),
+        profilesSampleRate: parseFloat(process.env.SENTRY_PROFILES_SAMPLE_RATE ?? '1.0'),
         enabled: !!process.env.SENTRY_DSN,
       },
-      posthog: {
-        apiKey: process.env.POSTHOG_KEY || '',
-        enabled: !!process.env.POSTHOG_KEY,
+      mpesa: {
+        consumerKey: process.env.MPESA_CONSUMER_KEY ?? '',
+        consumerSecret: process.env.MPESA_CONSUMER_SECRET ?? '',
+        businessShortCode: process.env.MPESA_BUSINESS_SHORT_CODE ?? '',
+        // Strip newlines and trim whitespace from passkey (common issue when copying from M-Pesa portal)
+        passkey: (process.env.MPESA_PASSKEY ?? '').replace(/\r?\n/g, '').trim(),
+        environment: (process.env.MPESA_ENVIRONMENT ?? 'sandbox') as 'sandbox' | 'production',
+        baseUrl: process.env.MPESA_BASE_URL ?? this.getDefaultMpesaBaseUrl(process.env.MPESA_ENVIRONMENT ?? 'sandbox'),
+        stkPushCallbackUrl: process.env.MPESA_STK_PUSH_CALLBACK_URL ?? '',
+        ipnConfirmationUrl: process.env.MPESA_IPN_CONFIRMATION_URL ?? '',
+        allowedIpRanges: process.env.MPESA_ALLOWED_IP_RANGES?.split(',').map(range => range.trim()).filter(range => range.length > 0) ?? [],
+        stkPushTimeoutMinutes: parseInt(process.env.MPESA_STK_PUSH_TIMEOUT_MINUTES ?? '5', 10),
+        stkPushExpirationCheckIntervalMinutes: parseInt(process.env.MPESA_STK_PUSH_EXPIRATION_CHECK_INTERVAL_MINUTES ?? '2', 10),
       },
     };
+  }
+
+  private getDefaultMpesaBaseUrl(environment: string): string {
+    return environment === 'production'
+      ? 'https://api.safaricom.co.ke/mpesa'
+      : 'https://sandbox.safaricom.co.ke/mpesa';
   }
 
   private getDefaultJwtSecret(env: string): string {
@@ -101,7 +126,7 @@ export class ConfigurationService extends BaseConfigurationService implements On
   }
 
   private validateConfiguration(): void {
-    const { database, jwt } = this.config;
+    const { database, jwt, mpesa } = this.config;
 
     // Validate base configuration
     this.validateBaseConfiguration(this.config);
@@ -114,6 +139,31 @@ export class ConfigurationService extends BaseConfigurationService implements On
       throw new Error('JWT_SECRET is required');
     }
 
+    // Validate M-Pesa config
+    if (!mpesa.consumerKey) {
+      throw new Error('MPESA_CONSUMER_KEY is required');
+    }
+    if (!mpesa.consumerSecret) {
+      throw new Error('MPESA_CONSUMER_SECRET is required');
+    }
+    if (!mpesa.businessShortCode) {
+      throw new Error('MPESA_BUSINESS_SHORT_CODE is required');
+    }
+    if (!mpesa.passkey) {
+      throw new Error('MPESA_PASSKEY is required');
+    }
+    if (!mpesa.stkPushCallbackUrl) {
+      throw new Error('MPESA_STK_PUSH_CALLBACK_URL is required');
+    }
+    if (!mpesa.ipnConfirmationUrl) {
+      throw new Error('MPESA_IPN_CONFIRMATION_URL is required');
+    }
+
+    // Validate URL formats (HTTPS, valid domain)
+    this.validateUrl(mpesa.stkPushCallbackUrl, 'MPESA_STK_PUSH_CALLBACK_URL');
+    this.validateUrl(mpesa.ipnConfirmationUrl, 'MPESA_IPN_CONFIRMATION_URL');
+    this.validateUrl(mpesa.baseUrl, 'MPESA_BASE_URL');
+
     // Environment-specific validations
     if (this.isRemote()) {
       if (!process.env.DATABASE_URL) {
@@ -122,47 +172,64 @@ export class ConfigurationService extends BaseConfigurationService implements On
     }
   }
 
+  private validateUrl(url: string, envVarName: string): void {
+    try {
+      const urlObj = new URL(url);
+      if (urlObj.protocol !== 'https:') {
+        throw new Error(`${envVarName} must use HTTPS protocol`);
+      }
+      if (!urlObj.hostname || urlObj.hostname.length === 0) {
+        throw new Error(`${envVarName} must have a valid domain`);
+      }
+    } catch (error) {
+      if (error instanceof TypeError) {
+        throw new Error(`${envVarName} must be a valid URL`);
+      }
+      throw error;
+    }
+  }
+
   // Public getters for configuration values
   get environment(): string {
-    return this.config?.environment || 'development';
+    return this.config?.environment ?? 'development';
   }
 
   get port(): number {
     // Always read from environment variable to ensure we get the latest value
-    return parseInt(process.env.PORT || '3001', 10);
+    return parseInt(process.env.PORT ?? '3001', 10);
   }
 
   get apiPrefix(): string {
-    return this.config?.apiPrefix || 'api';
+    return this.config?.apiPrefix ?? 'api';
   }
 
   get database(): DatabaseConfig {
-    return this.config?.database || getDatabaseConfig();
+    return this.config?.database ?? getDatabaseConfig();
   }
 
   get jwt() {
-    return this.config?.jwt || {
+    return this.config?.jwt ?? {
       secret: 'dev-secret-key-change-in-production',
       expiresIn: '24h'
     };
   }
 
   get cors() {
-    return this.config?.cors || {
+    return this.config?.cors ?? {
       origin: ['http://localhost:3000', 'http://localhost:3001'],
       credentials: true
     };
   }
 
   get rateLimit() {
-    return this.config?.rateLimit || {
+    return this.config?.rateLimit ?? {
       windowMs: 900000,
       max: 100
     };
   }
 
   get logging() {
-    return this.config?.logging || {
+    return this.config?.logging ?? {
       level: 'debug',
       enableConsole: true,
       enableFile: false
@@ -170,7 +237,7 @@ export class ConfigurationService extends BaseConfigurationService implements On
   }
 
   get sentry() {
-    return this.config?.sentry || {
+    return this.config?.sentry ?? {
       dsn: '',
       environment: 'development',
       tracesSampleRate: 1.0,
@@ -179,10 +246,19 @@ export class ConfigurationService extends BaseConfigurationService implements On
     };
   }
 
-  get posthog() {
-    return this.config?.posthog || {
-      apiKey: '',
-      enabled: false,
+  get mpesa() {
+    return this.config?.mpesa ?? {
+      consumerKey: '',
+      consumerSecret: '',
+      businessShortCode: '',
+      passkey: '',
+      environment: 'sandbox',
+      baseUrl: 'https://sandbox.safaricom.co.ke/mpesa',
+      stkPushCallbackUrl: '',
+      ipnConfirmationUrl: '',
+      allowedIpRanges: [],
+      stkPushTimeoutMinutes: 5,
+      stkPushExpirationCheckIntervalMinutes: 2,
     };
   }
 

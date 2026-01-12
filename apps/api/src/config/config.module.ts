@@ -9,10 +9,10 @@ import { ConfigurationService } from './configuration.service';
       isGlobal: true,
       envFilePath: [
         // App-specific environment files
-        `apps/api/.env.${process.env.NODE_ENV || 'development'}`,
+        `apps/api/.env.${process.env.NODE_ENV ?? 'development'}`,
         'apps/api/.env',
         // Root environment files
-        `.env.${process.env.NODE_ENV || 'development'}`,
+        `.env.${process.env.NODE_ENV ?? 'development'}`,
         '.env',
       ],
       // In production, ignore .env files and rely on environment variables

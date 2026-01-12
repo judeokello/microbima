@@ -1,5 +1,5 @@
 import { Controller, Get } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import * as Sentry from '@sentry/nestjs';
 import { AppService } from './app.service';
 import { ConfigurationService } from './config/configuration.service';
@@ -28,6 +28,8 @@ export class AppController {
     }
   })
   getHealth(): string {
+    console.log('✅ Health check endpoint called - route: /health (excluded from global prefix)');
+    console.log(`📋 Current API Prefix: ${this.configService.apiPrefix}`);
     return this.appService.getHealth();
   }
 
@@ -194,12 +196,12 @@ export class AppController {
 
       return {
         healthy: isHealthy,
-        connectionInfo: (connectionInfo as any[])[0],
+        connectionInfo: Array.isArray(connectionInfo) ? connectionInfo[0] : connectionInfo,
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
       return {
         healthy: false,
-        error: error.message,
+        error: error instanceof Error ? error.message : String(error),
       };
     }
   }

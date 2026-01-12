@@ -1,8 +1,7 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateAgentRegistrationDto, UpdateAgentRegistrationDto, AgentRegistrationResponseDto } from '../dto/agent-registration';
-import { CreateMissingRequirementDto, UpdateMissingRequirementDto, MissingRequirementResponseDto } from '../dto/missing-requirement';
-import { RegistrationStatus, RegistrationEntityKind, RegistrationMissingStatus } from '@prisma/client';
+import { RegistrationStatus, RegistrationMissingStatus, Prisma } from '@prisma/client';
 import * as Sentry from '@sentry/nestjs';
 
 @Injectable()
@@ -26,17 +25,15 @@ export class AgentRegistrationService {
       });
 
       // If not found by ID, try to find by userId (if baId is actually a user ID)
-      if (!ba) {
-        ba = await this.prisma.brandAmbassador.findFirst({
-          where: {
-            userId: dto.baId,
-            isActive: true,
-          },
-          include: {
-            partner: true,
-          },
-        });
-      }
+      ba ??= await this.prisma.brandAmbassador.findFirst({
+        where: {
+          userId: dto.baId,
+          isActive: true,
+        },
+        include: {
+          partner: true,
+        },
+      });
 
       if (!ba) {
         throw new BadRequestException('Brand Ambassador not found or inactive');
@@ -65,7 +62,7 @@ export class AgentRegistrationService {
           baId: ba.id, // Use the actual Brand Ambassador ID
           customerId: dto.customerId,
           partnerId: partnerId, // Use partner ID from BA record
-          registrationStatus: dto.registrationStatus || RegistrationStatus.IN_PROGRESS,
+          registrationStatus: dto.registrationStatus ?? RegistrationStatus.IN_PROGRESS,
           completedAt: dto.completedAt ? new Date(dto.completedAt) : null,
         },
         include: {
@@ -189,7 +186,7 @@ export class AgentRegistrationService {
         throw new NotFoundException('Registration not found');
       }
 
-      const updateData: any = {};
+      const updateData: Prisma.AgentRegistrationUpdateInput = {};
       if (dto.registrationStatus) {
         updateData.registrationStatus = dto.registrationStatus;
       }
@@ -381,27 +378,54 @@ export class AgentRegistrationService {
   /**
    * Map Prisma result to response DTO
    */
-  private mapToResponseDto(registration: any, isAdmin: boolean = false): AgentRegistrationResponseDto {
+  private mapToResponseDto(registration: unknown, _isAdmin: boolean = false): AgentRegistrationResponseDto {
+    if (!registration || typeof registration !== 'object') {
+      throw new Error('Invalid registration data');
+    }
+    const reg = registration as Record<string, unknown>;
     return {
-      id: registration.id,
-      baId: registration.baId,
-      customerId: registration.customerId,
-      partnerId: registration.partnerId,
-      registrationStatus: registration.registrationStatus,
-      completedAt: registration.completedAt,
-      createdAt: registration.createdAt,
-      updatedAt: registration.updatedAt,
-      ba: registration.ba,
-      customer: registration.customer,
-      partner: registration.partner,
-      missingRequirements: registration.missingRequirements?.map((mr: any) => ({
-        id: mr.id,
-        entityKind: mr.entityKind,
-        entityId: mr.entityId,
-        fieldPath: mr.fieldPath,
-        status: mr.status,
-        createdAt: mr.createdAt,
-      })),
+      id: reg.id as string,
+      baId: reg.baId as string,
+      customerId: reg.customerId as string,
+      partnerId: reg.partnerId as number,
+      registrationStatus: reg.registrationStatus as RegistrationStatus,
+      completedAt: reg.completedAt ? (reg.completedAt as Date) : undefined,
+      createdAt: reg.createdAt as Date,
+      updatedAt: reg.updatedAt as Date,
+      ba: reg.ba as {
+        id: string;
+        displayName: string;
+        phoneNumber?: string;
+        perRegistrationRateCents: number;
+        isActive: boolean;
+      } | undefined,
+      customer: reg.customer as {
+        id: string;
+        firstName: string;
+        middleName?: string | undefined;
+        lastName: string;
+        phoneNumber: string;
+        hasMissingRequirements: boolean;
+      } | undefined,
+      partner: reg.partner as {
+        id: number;
+        partnerName: string;
+        isActive: boolean;
+      } | undefined,
+      missingRequirements: Array.isArray(reg.missingRequirements)
+        ? reg.missingRequirements.map((mr: unknown) => {
+            if (!mr || typeof mr !== 'object') return null;
+            const mrObj = mr as Record<string, unknown>;
+            return {
+              id: mrObj.id as string,
+              entityKind: mrObj.entityKind as string,
+              entityId: mrObj.entityId as string | undefined,
+              fieldPath: mrObj.fieldPath as string,
+              status: mrObj.status as RegistrationMissingStatus,
+              createdAt: mrObj.createdAt as Date,
+            };
+          }).filter((mr): mr is NonNullable<typeof mr> => mr !== null)
+        : undefined,
     };
   }
 }

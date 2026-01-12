@@ -27,12 +27,39 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
   }
 
   async onModuleInit() {
-    try {
-      await this.$connect();
-      this.logger.log('✅ Database connected successfully');
-    } catch (error) {
-      this.logger.error('❌ Failed to connect to database', error);
-      throw error;
+    const maxRetries = 5;
+    const retryDelay = 2000; // 2 seconds
+
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        this.logger.log(`Attempting to connect to database (attempt ${attempt}/${maxRetries})...`);
+        await this.$connect();
+        this.logger.log('✅ Database connected successfully');
+        return; // Success, exit retry loop
+      } catch (error) {
+        this.logger.error(
+          `❌ Failed to connect to database (attempt ${attempt}/${maxRetries})`,
+          error instanceof Error ? error.message : String(error)
+        );
+
+        if (error instanceof Error && error.stack) {
+          this.logger.error('Stack trace:', error.stack);
+        }
+
+        // If this is the last attempt, log and rethrow
+        if (attempt === maxRetries) {
+          this.logger.error('❌ CRITICAL: All database connection attempts failed. Application will exit.');
+          // Don't throw - let NestJS handle it, but log extensively
+          // The error will be caught by NestJS lifecycle hooks
+          throw new Error(
+            `Failed to connect to database after ${maxRetries} attempts: ${error instanceof Error ? error.message : String(error)}`
+          );
+        }
+
+        // Wait before retrying
+        this.logger.log(`Waiting ${retryDelay}ms before retry...`);
+        await new Promise(resolve => setTimeout(resolve, retryDelay));
+      }
     }
   }
 

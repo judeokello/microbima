@@ -31,8 +31,21 @@ export class ApiKeyAuthMiddleware implements NestMiddleware {
       return next();
     }
 
-    // Skip authentication for health check endpoints
-    if (req.path === '/health' || req.path === '/api/health' || req.originalUrl === '/health' || req.originalUrl === '/api/health') {
+    // Skip authentication for bootstrap endpoints (one-time setup before users exist)
+    if (req.path.startsWith('/api/internal/bootstrap') || req.path.startsWith('/internal/bootstrap') ||
+        req.originalUrl.startsWith('/api/internal/bootstrap') || req.originalUrl.startsWith('/internal/bootstrap')) {
+      console.log('Skipping API key auth for bootstrap endpoint:', req.path);
+      return next();
+    }
+
+    // Skip authentication for health check endpoints (check various possible paths)
+    const healthCheckPaths = [
+      '/health',
+      '/api/health',
+      '/internal/health',
+      '/api/internal/health'
+    ];
+    if (healthCheckPaths.includes(req.path) || healthCheckPaths.includes(req.originalUrl) || req.path.endsWith('/health')) {
       console.log('Skipping API key auth for health check:', req.path);
       return next();
     }
@@ -40,6 +53,18 @@ export class ApiKeyAuthMiddleware implements NestMiddleware {
     // Skip authentication for Swagger documentation (in development)
     if (process.env.NODE_ENV === 'development' && (req.path.startsWith('/api-docs') || req.originalUrl.startsWith('/api-docs'))) {
       console.log('Skipping API key auth for Swagger docs:', req.path);
+      return next();
+    }
+
+    // Skip authentication for M-Pesa callback endpoints (required by M-Pesa)
+    // These endpoints use IP whitelist validation instead
+    if (
+      req.path.startsWith('/api/public/mpesa/confirmation') ||
+      req.path.startsWith('/api/public/mpesa/stk-push/callback') ||
+      req.originalUrl.startsWith('/api/public/mpesa/confirmation') ||
+      req.originalUrl.startsWith('/api/public/mpesa/stk-push/callback')
+    ) {
+      console.log('Skipping API key auth for M-Pesa callback endpoint:', req.path);
       return next();
     }
 

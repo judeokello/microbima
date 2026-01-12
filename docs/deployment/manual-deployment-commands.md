@@ -13,7 +13,7 @@ These commands are for emergency hotfixes when CI/CD is not available or when im
 
 ### Internal API
 ```bash
-flyctl deploy -a microbima-staging-internal-api -c infra/fly/internal-api/staging/fly.toml
+flyctl deploy -a maishapoa-staging-internal-api -c infra/fly/internal-api/staging/fly.toml
 ```
 
 ### Web Admin
@@ -50,7 +50,7 @@ After deployment, verify the services are running:
 ### Staging
 ```bash
 # Internal API
-curl -f https://microbima-staging-internal-api.fly.dev/api/internal/health
+curl -f https://maishapoa-staging-internal-api.fly.dev/api/internal/health
 
 # Web Admin
 curl -f https://microbima-staging-web-admin.fly.dev/

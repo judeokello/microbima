@@ -253,8 +253,9 @@ export class UnderwriterService {
 
       // Log Prisma error details if available
       if (error && typeof error === 'object' && 'meta' in error) {
+        const errorObj = error as { meta?: unknown };
         this.logger.error(
-          `[${correlationId}] Prisma error meta: ${JSON.stringify((error as any).meta)}`
+          `[${correlationId}] Prisma error meta: ${JSON.stringify(errorObj.meta)}`
         );
       }
 
@@ -263,7 +264,8 @@ export class UnderwriterService {
         // Check for specific Prisma error patterns
         if (error.message.includes('Unique constraint failed')) {
           // Extract which field failed from meta if available
-          const meta = (error as any).meta;
+          const errorObj = error as { meta?: { target?: string | string[] } };
+          const meta = errorObj.meta;
           if (meta?.target) {
             const fields = Array.isArray(meta.target) ? meta.target.join(', ') : String(meta.target);
             throw new Error(`A record with this ${fields} already exists`);

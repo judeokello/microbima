@@ -40,7 +40,7 @@ const nextConfig = {
       // Explicitly allow staging Supabase URL
       {
         protocol: 'https',
-        hostname: 'yowgqzgqxvkqyyzhxvej.supabase.co',
+        hostname: 'omoybijuposydptkyohn.supabase.co',
         pathname: '/storage/v1/object/public/**',
       },
       // Explicitly allow production Supabase URL

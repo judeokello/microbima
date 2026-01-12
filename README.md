@@ -70,8 +70,9 @@ MicroBima is a comprehensive micro-insurance platform that digitizes insurance o
 
 3. **Set up environment variables**
    ```bash
-   cp env.example .env
-   # Edit .env with your configuration
+   cp apps/api/env.example apps/api/.env
+   # Edit apps/api/.env with your configuration
+   # See docs/integrations/mpesa-configuration.md for M-Pesa setup
    ```
 
 4. **Start development servers**
@@ -94,6 +95,7 @@ MicroBima is a comprehensive micro-insurance platform that digitizes insurance o
 ### API & Integration
 - **[API Testing Guide](docs/API_Testing_Guide.md)** - API testing procedures
 - **[Postman Collection](docs/MicroBima_API_Collection.postman_collection.json)** - API test collection
+- **[M-Pesa Configuration Guide](docs/integrations/mpesa-configuration.md)** - M-Pesa Daraja API setup and configuration
 
 ## 🏛️ Project Structure
 
@@ -119,6 +121,7 @@ microbima/
 - **Frontend**: Next.js, React Native
 - **API Gateway**: Kong
 - **Authentication**: Authentik (OIDC/OAuth2)
+- **Payment Integration**: M-Pesa Daraja API (STK Push, IPN)
 - **Deployment**: Fly.io
 - **Monitoring**: Sentry, PostHog
 - **Database**: PostgreSQL
@@ -173,7 +176,7 @@ graph LR
 ### Manual Deployment (Emergency)
 ```bash
 # Staging
-flyctl deploy -a microbima-staging-internal-api -c infra/fly/internal-api/staging/fly.toml
+flyctl deploy -a maishapoa-staging-internal-api -c infra/fly/internal-api/staging/fly.toml
 
 # Production
 flyctl deploy -a microbima-production-internal-api -c infra/fly/internal-api/production/fly.toml

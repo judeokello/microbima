@@ -43,12 +43,13 @@ export class BootstrapController {
       this.logger.log(`[${correlationId}] Creating bootstrap user: ${body.email}`);
 
       // Create user with email auto-confirmation
-      // Only store roles in user metadata - displayName and other data stored elsewhere if needed
+      // Store roles and displayName in user metadata
       const userResult = await this.supabase.createUser({
         email: body.email,
         password: body.password,
         userMetadata: {
           roles: ['registration_admin', 'brand_ambassador'],
+          displayName: body.displayName,
         },
       });
 
@@ -56,15 +57,16 @@ export class BootstrapController {
         throw new Error(userResult.error);
       }
 
-      this.logger.log(`[${correlationId}] Bootstrap user created: ${userResult.data.id}`);
+      const userId = userResult.data && typeof userResult.data === 'object' && 'id' in userResult.data ? (userResult.data as { id: string }).id : '';
+      this.logger.log(`[${correlationId}] Bootstrap user created: ${userId}`);
 
       return {
         success: true,
-        userId: userResult.data.id,
+        userId,
         email: body.email,
       };
-    } catch (error: any) {
-      this.logger.error(`[${correlationId}] Error creating bootstrap user:`, error.message);
+    } catch (error: unknown) {
+      this.logger.error(`[${correlationId}] Error creating bootstrap user:`, error instanceof Error ? error.message : String(error));
       throw error;
     }
   }
@@ -113,7 +115,7 @@ export class BootstrapController {
       this.logger.log(`[${correlationId}] Seeding bootstrap data for user: ${body.userId}`);
 
       // Seed Maisha Poa partner
-      const partner = await this.prisma.partner.upsert({
+      await this.prisma.partner.upsert({
         where: { id: 1 },
         update: {},
         create: {
@@ -135,14 +137,16 @@ export class BootstrapController {
           partnerCreated: 'Maisha Poa (partnerId: 1)',
         },
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
       this.logger.error(
         `[${correlationId}] Error seeding bootstrap data:`,
-        error.message,
+        error instanceof Error ? error.message : String(error),
       );
 
       // If data already exists, that's okay (idempotent)
-      if (error.message?.includes('already exists') || error.code === '23505') {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorCode = error && typeof error === 'object' && 'code' in error ? String(error.code) : undefined;
+      if (errorMessage?.includes('already exists') || errorCode === '23505') {
         return {
           success: true,
           message: 'Bootstrap data already exists',

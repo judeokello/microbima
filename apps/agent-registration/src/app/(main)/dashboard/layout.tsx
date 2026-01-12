@@ -117,7 +117,7 @@ export default function DashboardLayout({
           onClick={() => isMobile && setSidebarOpen(false)}
         >
           <Search className="h-4 w-4 mr-2" />
-          Search Customer
+          Find Customer
         </Link>
 
         {/* Admin link - only visible if user has registration_admin role */}

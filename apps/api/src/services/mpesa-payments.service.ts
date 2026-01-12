@@ -2,7 +2,7 @@
 import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { SupabaseService } from './supabase.service';
-import { MpesaStatementReasonType } from '@prisma/client';
+import { MpesaStatementReasonType, MpesaPaymentSource } from '@prisma/client';
 import * as XLSX from 'xlsx';
 import { writeFile, mkdir } from 'fs/promises';
 import { join } from 'path';
@@ -487,7 +487,117 @@ export class MpesaPaymentsService {
     // Store file only after successful parsing
     const filePath = await this.storeFile(file, userId, correlationId);
 
-    // Save to database
+    // Track statistics for deduplication
+    const totalItems = transactions.length;
+    let matchedIpnRecords = 0;
+    let gapsFilled = 0;
+    let errors = 0;
+
+    // Check each transaction for existing IPN records before creating
+    const itemsToCreate: Array<{
+      transactionReference: string;
+      completionTime: Date;
+      initiationTime: Date;
+      paymentDetails?: string;
+      transactionStatus?: string;
+      paidIn: number;
+      withdrawn: number;
+      accountBalance: number;
+      balanceConfirmed?: string;
+      reasonType: MpesaStatementReasonType;
+      otherPartyInfo?: string;
+      linkedTransactionId?: string;
+      accountNumber?: string;
+      source: MpesaPaymentSource;
+    }> = [];
+
+    this.logger.log(
+      JSON.stringify({
+        event: 'STATEMENT_UPLOAD_DEDUPLICATION_START',
+        correlationId,
+        totalItems,
+        timestamp: new Date().toISOString(),
+      })
+    );
+
+    // Process each transaction to check for IPN duplicates
+    for (const transaction of transactions) {
+      try {
+        // Check if IPN record already exists for this transaction reference
+        const existingIpnRecord = await this.prismaService.mpesaPaymentReportItem.findFirst({
+          where: {
+            transactionReference: transaction.transactionReference,
+            source: MpesaPaymentSource.IPN,
+          },
+        });
+
+        if (existingIpnRecord) {
+          // IPN record exists - skip creating statement record (duplicate)
+          matchedIpnRecords++;
+          this.logger.debug(
+            JSON.stringify({
+              event: 'STATEMENT_ITEM_MATCHED_IPN',
+              correlationId,
+              transactionReference: transaction.transactionReference,
+              timestamp: new Date().toISOString(),
+            })
+          );
+        } else {
+          // No IPN record - create statement record (gap filled)
+          itemsToCreate.push({
+            transactionReference: transaction.transactionReference,
+            completionTime: transaction.completionTime,
+            initiationTime: transaction.initiationTime,
+            paymentDetails: transaction.paymentDetails,
+            transactionStatus: transaction.transactionStatus,
+            paidIn: transaction.paidIn,
+            withdrawn: transaction.withdrawn,
+            accountBalance: transaction.accountBalance,
+            balanceConfirmed: transaction.balanceConfirmed,
+            reasonType: this.mapReasonType(transaction.reasonType),
+            otherPartyInfo: transaction.otherPartyInfo,
+            linkedTransactionId: transaction.linkedTransactionId,
+            accountNumber: transaction.accountNumber,
+            source: MpesaPaymentSource.STATEMENT,
+          });
+          gapsFilled++;
+        }
+      } catch (error) {
+        // Track errors but continue processing other transactions
+        errors++;
+        this.logger.error(
+          JSON.stringify({
+            event: 'STATEMENT_ITEM_PROCESSING_ERROR',
+            correlationId,
+            transactionReference: transaction.transactionReference,
+            error: error instanceof Error ? error.message : 'Unknown error',
+            stack: error instanceof Error ? error.stack : undefined,
+            timestamp: new Date().toISOString(),
+          })
+        );
+      }
+    }
+
+    // Validate statistics equation
+    const calculatedTotal = matchedIpnRecords + gapsFilled + errors;
+    if (calculatedTotal !== totalItems) {
+      const errorMessage = `Statistics validation failed: matchedIpnRecords (${matchedIpnRecords}) + gapsFilled (${gapsFilled}) + errors (${errors}) = ${calculatedTotal}, but totalItems = ${totalItems}`;
+      this.logger.error(
+        JSON.stringify({
+          event: 'STATEMENT_STATISTICS_VALIDATION_ERROR',
+          correlationId,
+          matchedIpnRecords,
+          gapsFilled,
+          errors,
+          totalItems,
+          calculatedTotal,
+          timestamp: new Date().toISOString(),
+        })
+      );
+      throw new ValidationException(ErrorCodes.VALIDATION_ERROR, errorMessage);
+    }
+
+    // Save to database (create upload record with only non-duplicate items)
     const upload = await this.prismaService.mpesaPaymentReportUpload.create({
       data: {
         accountHolder: header.accountHolder,
@@ -505,20 +615,21 @@ export class MpesaPaymentsService {
         filePath,
         createdBy: userId,
         items: {
-          create: transactions.map((t) => ({
-            transactionReference: t.transactionReference,
-            completionTime: t.completionTime,
-            initiationTime: t.initiationTime,
-            paymentDetails: t.paymentDetails,
-            transactionStatus: t.transactionStatus,
-            paidIn: t.paidIn,
-            withdrawn: t.withdrawn,
-            accountBalance: t.accountBalance,
-            balanceConfirmed: t.balanceConfirmed,
-            reasonType: this.mapReasonType(t.reasonType),
-            otherPartyInfo: t.otherPartyInfo,
-            linkedTransactionId: t.linkedTransactionId,
-            accountNumber: t.accountNumber,
+          create: itemsToCreate.map((item) => ({
+            transactionReference: item.transactionReference,
+            completionTime: item.completionTime,
+            initiationTime: item.initiationTime,
+            paymentDetails: item.paymentDetails,
+            transactionStatus: item.transactionStatus,
+            paidIn: item.paidIn,
+            withdrawn: item.withdrawn,
+            accountBalance: item.accountBalance,
+            balanceConfirmed: item.balanceConfirmed,
+            reasonType: item.reasonType,
+            otherPartyInfo: item.otherPartyInfo,
+            linkedTransactionId: item.linkedTransactionId,
+            accountNumber: item.accountNumber,
+            source: item.source,
           })),
         },
       },
@@ -531,7 +642,19 @@ export class MpesaPaymentsService {
       },
     });
 
-    this.logger.log(`[${correlationId}] Created upload with ${upload._count.items} items`);
+    this.logger.log(
+      JSON.stringify({
+        event: 'STATEMENT_UPLOAD_COMPLETED',
+        correlationId,
+        uploadId: upload.id,
+        totalItems,
+        matchedIpnRecords,
+        gapsFilled,
+        errors,
+        itemsCreated: upload._count.items,
+        timestamp: new Date().toISOString(),
+      })
+    );
 
     return {
       upload: {
@@ -554,6 +677,10 @@ export class MpesaPaymentsService {
         updatedAt: upload.updatedAt,
       },
       itemsCount: upload._count.items,
+      totalItems,
+      matchedIpnRecords,
+      gapsFilled,
+      errors,
     };
   }
 

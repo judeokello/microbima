@@ -21,7 +21,7 @@
 
 ```bash
 # Internal API
-flyctl deploy -a microbima-staging-internal-api -c infra/fly/internal-api/fly.toml
+flyctl deploy -a maishapoa-staging-internal-api -c infra/fly/internal-api/fly.toml
 
 # Web Admin  
 flyctl deploy -a microbima-staging-web-admin -c infra/fly/web-admin/fly.toml

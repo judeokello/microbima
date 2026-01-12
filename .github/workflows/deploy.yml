@@ -22,7 +22,7 @@ jobs:
       AUTO_DEPLOY_DB: true
       DEPLOY_AGENT_REGISTRATION: true
       DEPLOY_PUBLIC_API: false
-      RUN_TESTS: false
+      RUN_TESTS: true
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -36,9 +36,12 @@ jobs:
         run: npm install -g pnpm
 
       - name: Install dependencies
+        env:
+          PRISMA_ENGINES_CHECKSUM_IGNORE_MISSING: 1
         run: pnpm install --frozen-lockfile
 
       - name: Run tests
+        if: env.RUN_TESTS != 'false'
         run: pnpm test
 
       - name: Install Fly.io CLI
@@ -52,7 +55,7 @@ jobs:
           # Retry deployment up to 3 times on failure
           for i in {1..3}; do
             echo "Deployment attempt $i..."
-            if flyctl deploy -a microbima-staging-internal-api -c infra/fly/internal-api/staging/fly.toml; then
+            if flyctl deploy -a maishapoa-staging-internal-api -c infra/fly/internal-api/staging/fly.toml; then
               echo "✅ Deployment successful"
               break
             else
@@ -78,7 +81,7 @@ jobs:
           # First, ensure PENDING_ACTIVATION enum value exists (idempotent)
           echo "📝 Adding PENDING_ACTIVATION enum value if missing..."
           set +e  # Don't fail if enum already exists (IF NOT EXISTS handles this)
-          ENUM_RESULT=$(flyctl ssh console -a microbima-staging-internal-api -C "sh -c 'cd /app/apps/api && echo \"ALTER TYPE \\\"public\\\".\\\"PolicyStatus\\\" ADD VALUE IF NOT EXISTS '\''PENDING_ACTIVATION'\'';\" | npx prisma db execute --stdin --schema prisma/schema.prisma 2>&1'")
+          ENUM_RESULT=$(flyctl ssh console -a maishapoa-staging-internal-api -C "sh -c 'cd /app/apps/api && echo \"ALTER TYPE \\\"public\\\".\\\"PolicyStatus\\\" ADD VALUE IF NOT EXISTS '\''PENDING_ACTIVATION'\'';\" | npx prisma db execute --stdin --schema prisma/schema.prisma 2>&1'")
           ENUM_EXIT_CODE=$?
           set -e
           
@@ -89,13 +92,13 @@ jobs:
           # Mark the failed migration as rolled back (idempotent - safe if already resolved)
           echo "🔄 Resolving failed migration if it exists..."
           set +e  # Don't fail if migration is already resolved or doesn't exist
-          flyctl ssh console -a microbima-staging-internal-api -C "sh -c 'cd /app/apps/api && npx prisma migrate resolve --rolled-back 20251030180217_add_package_plans_and_policy_payments'"
+          flyctl ssh console -a maishapoa-staging-internal-api -C "sh -c 'cd /app/apps/api && npx prisma migrate resolve --rolled-back 20251030180217_add_package_plans_and_policy_payments'"
           set -e
           
           # Mark the enum migration as applied if it exists (idempotent)
           echo "📋 Marking enum migration as applied if it exists..."
           set +e  # Don't fail if migration doesn't exist
-          flyctl ssh console -a microbima-staging-internal-api -C "sh -c 'cd /app/apps/api && npx prisma migrate resolve --applied 20251030180216_add_pending_activation_enum 2>/dev/null || true'"
+          flyctl ssh console -a maishapoa-staging-internal-api -C "sh -c 'cd /app/apps/api && npx prisma migrate resolve --applied 20251030180216_add_pending_activation_enum 2>/dev/null || true'"
           set -e
           
           # Verify DIRECT_URL is configured (critical for migration performance)
@@ -106,7 +109,7 @@ jobs:
           # Check migration status first to see what needs to be applied
           echo "📋 Checking migration status before deployment..."
           set +e  # Don't fail if there are pending migrations (exit code 1 is expected)
-          MIGRATION_STATUS=$(flyctl ssh console -a microbima-staging-internal-api -C "sh -c 'cd /app/apps/api && npx prisma migrate status' 2>&1 || true")
+          MIGRATION_STATUS=$(flyctl ssh console -a maishapoa-staging-internal-api -C "sh -c 'cd /app/apps/api && npx prisma migrate status' 2>&1 || true")
           MIGRATION_EXIT_CODE=$?
           set -e
           
@@ -124,21 +127,28 @@ jobs:
           
           # Run migration with explicit query engine path for musl compatibility
           # Note: migrate deploy doesn't run seed scripts by default, so --skip-seed is not needed
-          flyctl ssh console -a microbima-staging-internal-api -C "sh -c 'cd /app/apps/api && PRISMA_CLI_QUERY_ENGINE_LIBRARY=/app/node_modules/.prisma/client/libquery_engine-linux-musl-openssl-3.0.x.so.node npx prisma migrate deploy'"
+          flyctl ssh console -a maishapoa-staging-internal-api -C "sh -c 'cd /app/apps/api && PRISMA_CLI_QUERY_ENGINE_LIBRARY=/app/node_modules/.prisma/client/libquery_engine-linux-musl-openssl-3.0.x.so.node npx prisma migrate deploy'"
           
           echo "✅ Database migrations completed"
+
+      - name: Create Root User on Staging (if needed)
+        if: env.DEPLOY_INTERNAL_API != 'false' && env.AUTO_DEPLOY_DB == 'true'
+        run: |
+          echo "👤 Checking if root user needs to be created..."
+          flyctl ssh console -a maishapoa-staging-internal-api -C "sh -c 'cd /app/apps/api && node scripts/create-root-user.js'"
+          echo "✅ Root user check completed"
 
       - name: Seed Product Management Data on Staging
         if: env.DEPLOY_INTERNAL_API != 'false' && env.AUTO_DEPLOY_DB == 'true'
         run: |
           echo "🌱 Seeding product management data on staging..."
           echo "📝 Running idempotent seed script (safe to run multiple times)..."
-          flyctl ssh console -a microbima-staging-internal-api -C "sh -c 'cd /app/apps/api && npx prisma db execute --file prisma/seed-product-management.sql --schema prisma/schema.prisma'"
+          flyctl ssh console -a maishapoa-staging-internal-api -C "sh -c 'cd /app/apps/api && npx prisma db execute --file prisma/seed-product-management.sql --schema prisma/schema.prisma'"
           echo "✅ Product management data seeded"
           
           # Migrate existing customers to package schemes (idempotent)
           echo "🔄 Migrating existing customers to package schemes..."
-          flyctl ssh console -a microbima-staging-internal-api -C "sh -c 'cd /app/apps/api && npx prisma db execute --file prisma/migrate-existing-customers.sql --schema prisma/schema.prisma'"
+          flyctl ssh console -a maishapoa-staging-internal-api -C "sh -c 'cd /app/apps/api && npx prisma db execute --file prisma/migrate-existing-customers.sql --schema prisma/schema.prisma'"
           echo "✅ Existing customers migrated to package schemes"
 
       - name: Deploy Agent Registration to Staging
@@ -199,6 +209,7 @@ jobs:
       AUTO_DEPLOY_DB: true
       DEPLOY_AGENT_REGISTRATION: true
       DEPLOY_PUBLIC_API: false
+      RUN_TESTS: true
      
     steps:
       - name: Checkout code
@@ -213,9 +224,12 @@ jobs:
         run: npm install -g pnpm
 
       - name: Install dependencies
+        env:
+          PRISMA_ENGINES_CHECKSUM_IGNORE_MISSING: 1
         run: pnpm install --frozen-lockfile
 
       - name: Run tests
+        if: env.RUN_TESTS != 'false'
         run: pnpm test
 
       - name: Install Fly.io CLI
@@ -384,6 +398,13 @@ jobs:
           
           echo "✅ Database migrations completed"
 
+      - name: Create Root User on Production (if needed)
+        if: env.DEPLOY_INTERNAL_API != 'false' && env.AUTO_DEPLOY_DB == 'true'
+        run: |
+          echo "👤 Checking if root user needs to be created..."
+          flyctl ssh console -a maishapoa-production-internal-api -C "sh -c 'cd /app/apps/api && node scripts/create-root-user.js'"
+          echo "✅ Root user check completed"
+
       - name: Seed Product Management Data on Production
         if: env.DEPLOY_INTERNAL_API != 'false' && env.AUTO_DEPLOY_DB == 'true'
         run: |
@@ -449,6 +470,7 @@ jobs:
     if: always()
     runs-on: ubuntu-latest
     env:
+      DEPLOY_INTERNAL_API: true
       DEPLOY_PUBLIC_API: false
     steps:
       - name: Health Check Staging
@@ -464,7 +486,7 @@ jobs:
           # Internal API (conditional check)
           if [ "$DEPLOY_INTERNAL_API" != "false" ]; then
             echo "Checking Internal API..."
-            curl -f https://microbima-staging-internal-api.fly.dev/api/health || echo "⚠️ Internal API health check failed"
+            curl -f https://maishapoa-staging-internal-api.fly.dev/api/health || echo "⚠️ Internal API health check failed"
           else
             echo "⏭️ Skipping Internal API health check (not deployed)"
           fi

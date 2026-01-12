@@ -1,5 +1,7 @@
 /// <reference types="jest" />
 import { PolicyService } from '../policy.service';
+import { PrismaService } from '../../prisma/prisma.service';
+import { PaymentAccountNumberService } from '../payment-account-number.service';
 
 describe('PolicyService - generatePolicyNumber', () => {
   const prismaMock = {
@@ -17,7 +19,10 @@ describe('PolicyService - generatePolicyNumber', () => {
     customerHasExistingPolicies: jest.fn(),
   };
 
-  const policyService = new PolicyService(prismaMock as any, paymentAccountNumberServiceMock as any);
+  const policyService = new PolicyService(
+    prismaMock as unknown as PrismaService,
+    paymentAccountNumberServiceMock as unknown as PaymentAccountNumberService
+  );
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -33,8 +38,8 @@ describe('PolicyService - generatePolicyNumber', () => {
       .mockResolvedValueOnce(null)
       .mockResolvedValueOnce({ policyNumber: 'MP/MFG/001' });
 
-    const firstPolicyNumber = await (policyService as any).generatePolicyNumber(1, 'corr-1');
-    const secondPolicyNumber = await (policyService as any).generatePolicyNumber(1, 'corr-2');
+    const firstPolicyNumber = await (policyService as unknown as { generatePolicyNumber: (packageId: number, correlationId: string) => Promise<string> }).generatePolicyNumber(1, 'corr-1');
+    const secondPolicyNumber = await (policyService as unknown as { generatePolicyNumber: (packageId: number, correlationId: string) => Promise<string> }).generatePolicyNumber(1, 'corr-2');
 
     expect(firstPolicyNumber).toBe('MP/MFG/001');
     expect(secondPolicyNumber).toBe('MP/MFG/002');

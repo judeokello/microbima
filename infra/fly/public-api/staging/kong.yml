@@ -2,9 +2,9 @@ _format_version: "2.1"
 _transform: true
 
 services:
-  - name: microbima-staging-internal-api
+  - name: maishapoa-staging-internal-api
     # Use HTTP to avoid SSL certificate issues (Kong handles TLS at edge)
-    url: http://microbima-staging-internal-api.fly.dev
+    url: http://maishapoa-staging-internal-api.fly.dev
     routes:
       - name: public-customers
         paths:

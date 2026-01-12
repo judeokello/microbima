@@ -637,7 +637,7 @@ export interface ChildData {
   gender: string
   idType?: string
   idNumber?: string
-  verificationRequired?: boolean
+  // verificationRequired is calculated automatically by the backend based on child's age
 }
 
 export interface AddDependantsRequest {
@@ -1277,6 +1277,56 @@ export interface PaymentResponse {
   error?: string
 }
 
+export interface InitiateStkPushRequest {
+  phoneNumber: string
+  amount: number
+  accountReference: string
+  transactionDesc?: string
+}
+
+export interface InitiateStkPushResponse {
+  id: string
+  checkoutRequestID: string
+  merchantRequestID: string
+  status: string
+  phoneNumber: string
+  amount: number
+  accountReference: string
+  initiatedAt: string
+}
+
+/**
+ * Initiate STK Push payment request
+ */
+export async function initiateStkPush(data: InitiateStkPushRequest): Promise<InitiateStkPushResponse> {
+  try {
+    const token = await getSupabaseToken()
+
+    const response = await fetch(
+      `${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/mpesa/stk-push/initiate`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+          'x-correlation-id': `stk-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+        },
+        body: JSON.stringify(data)
+      }
+    )
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      throw new Error(errorData.error?.message ?? `Failed to initiate STK push: ${response.statusText}`)
+    }
+
+    return await response.json()
+  } catch (error) {
+    console.error('Error initiating STK push:', error)
+    throw error
+  }
+}
+
 export async function processPayment(data: PaymentRequest): Promise<PaymentResponse> {
   try {
     // Mock payment processing - simulate MPESA STK push
@@ -1580,6 +1630,7 @@ export interface CreatePolicyResponse {
     premium: number
     startDate: string
     endDate: string
+    paymentAcNumber: string | null
   }
   payment: {
     id: number

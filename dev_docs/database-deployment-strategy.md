@@ -10,7 +10,7 @@ This document outlines the database strategy, migration strategy, and deployment
 ### 1.1 Separate Databases (Recommended Approach)
 ```
 Staging Environment:
-├── microbima-staging-internal-api → microbima-staging-db
+├── maishapoa-staging-internal-api → microbima-staging-db
 ├── microbima-staging-public-api → routes to staging
 └── microbima-staging-web-admin → staging configs
 
@@ -68,7 +68,7 @@ cd ../../infra/fly/internal-api-staging
 fly deploy
 
 # SSH into staging app and run migration
-fly ssh console -a microbima-staging-internal-api
+fly ssh console -a maishapoa-staging-internal-api
 
 # Inside staging console
 cd /app
@@ -111,10 +111,10 @@ npx prisma migrate deploy
 ```bash
 # Set staging database URL
 fly secrets set DATABASE_URL="postgresql://username:password@staging-host:5432/microbima_staging" \
-  --app microbima-staging-internal-api
+  --app maishapoa-staging-internal-api
 
 # Verify staging secrets
-fly secrets list --app microbima-staging-internal-api
+fly secrets list --app maishapoa-staging-internal-api
 ```
 
 #### **Production Database:**
@@ -205,7 +205,7 @@ jobs:
           
       - name: Run database migration on staging
         run: |
-          fly ssh console -a microbima-staging-internal-api -C "cd /app && npx prisma migrate deploy"
+          fly ssh console -a maishapoa-staging-internal-api -C "cd /app && npx prisma migrate deploy"
 
   deploy-production:
     if: github.ref == 'refs/heads/main'
@@ -267,7 +267,7 @@ cd ../web-admin-staging
 fly deploy
 
 # 5. Run database migration on staging
-fly ssh console -a microbima-staging-internal-api
+fly ssh console -a maishapoa-staging-internal-api
 cd /app
 npx prisma migrate deploy
 exit
@@ -321,7 +321,7 @@ exit
 ```bash
 # Create staging internal API app
 cd infra/fly/internal-api-staging
-fly apps create microbima-staging-internal-api
+fly apps create maishapoa-staging-internal-api
 
 # Create staging public API app
 cd ../public-api-staging
@@ -350,7 +350,7 @@ fly apps create microbima-production-web-admin
 ### 6.3 Set Environment Variables
 ```bash
 # Staging environment
-fly secrets set NODE_ENV=staging --app microbima-staging-internal-api
+fly secrets set NODE_ENV=staging --app maishapoa-staging-internal-api
 fly secrets set NODE_ENV=staging --app microbima-staging-public-api
 fly secrets set NODE_ENV=staging --app microbima-staging-web-admin
 
@@ -367,7 +367,7 @@ fly secrets set NODE_ENV=production --app microbima-production-web-admin
 ### 7.1 Health Checks
 ```bash
 # Check staging health
-fly status --app microbima-staging-internal-api
+fly status --app maishapoa-staging-internal-api
 fly status --app microbima-staging-public-api
 
 # Check production health
@@ -378,7 +378,7 @@ fly status --app microbima-production-public-api
 ### 7.2 Log Monitoring
 ```bash
 # Monitor staging logs
-fly logs --app microbima-staging-internal-api
+fly logs --app maishapoa-staging-internal-api
 
 # Monitor production logs
 fly logs --app microbima-production-internal-api
@@ -387,7 +387,7 @@ fly logs --app microbima-production-internal-api
 ### 7.3 Database Verification
 ```bash
 # Verify staging database
-fly ssh console -a microbima-staging-internal-api
+fly ssh console -a maishapoa-staging-internal-api
 cd /app
 npx prisma studio
 

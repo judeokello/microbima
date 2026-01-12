@@ -20,7 +20,7 @@
 - [ ] Verify staging health checks pass
 
 ### Staging Verification
-- [ ] Internal API: `curl -f https://microbima-staging-internal-api.fly.dev/api/internal/health`
+- [ ] Internal API: `curl -f https://maishapoa-staging-internal-api.fly.dev/api/internal/health`
 - [ ] Web Admin: `curl -f https://microbima-staging-web-admin.fly.dev/`
 - [ ] Public API: `curl -f https://microbima-staging-public-api.fly.dev/`
 - [ ] Test all new functionality in staging
@@ -76,11 +76,11 @@ git merge development
 git push origin staging
 
 # Health checks
-curl -f https://microbima-staging-internal-api.fly.dev/api/internal/health
+curl -f https://maishapoa-staging-internal-api.fly.dev/api/internal/health
 curl -f https://microbima-production-internal-api.fly.dev/api/internal/health
 
 # View logs
-flyctl logs -a microbima-staging-internal-api
+flyctl logs -a maishapoa-staging-internal-api
 flyctl logs -a microbima-production-internal-api
 ```
 

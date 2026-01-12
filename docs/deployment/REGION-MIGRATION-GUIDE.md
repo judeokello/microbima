@@ -223,14 +223,14 @@ Before migrating production, test the process with staging apps:
 # If your staging apps are also in Tokyo, migrate them first:
 
 # 1. Destroy and recreate (or just deploy with updated fly.toml)
-flyctl deploy -a microbima-staging-internal-api \
+flyctl deploy -a maishapoa-staging-internal-api \
   -c infra/fly/internal-api/staging/fly.toml
 
 # The fly.toml now has primary_region = "fra"
 # Fly.io will automatically use the new region
 
 # 2. Verify
-curl https://microbima-staging-internal-api.fly.dev/api/health
+curl https://maishapoa-staging-internal-api.fly.dev/api/health
 ```
 
 ---
