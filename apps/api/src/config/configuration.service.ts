@@ -196,7 +196,14 @@ export class ConfigurationService extends BaseConfigurationService implements On
 
   get port(): number {
     // Always read from environment variable to ensure we get the latest value
-    return parseInt(process.env.PORT ?? '3001', 10);
+    const raw = process.env.PORT ?? '3001';
+    let port = parseInt(raw, 10);
+    // Fly internal-api uses internal_port 3001; if PORT was mistakenly set to 3000 (e.g. by another app's config), fix it to avoid proxy mismatch
+    if (this.config?.environment === 'production' && port === 3000 && process.env.FLY_APP_NAME) {
+      console.warn('[ConfigurationService] PORT=3000 detected on Fly production; internal_api expects 3001. Using 3001 to match fly.toml internal_port.');
+      port = 3001;
+    }
+    return port;
   }
 
   get apiPrefix(): string {
