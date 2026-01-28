@@ -2,19 +2,24 @@
 
 /**
  * Create Root User Script (Node.js version)
- * 
- * This script creates a root user if no users exist in the database.
- * It also seeds the Maisha Poa partner and creates a Brand Ambassador record.
- * It is idempotent and safe to run multiple times.
- * 
- * Requirements:
+ *
+ * This script creates a root user only if no users exist in the database.
+ * It checks user count first; ROOT_USER_EMAIL and ROOT_USER_PASSWORD are required
+ * only when creating a user (userCount === 0). This allows production to run
+ * the step without those secrets when the DB already has users (e.g. after
+ * removing them for security).
+ *
+ * Requirements to run (always):
+ * - DATABASE_URL environment variable
+ *
+ * Requirements when creating a user (only when no users exist):
  * - ROOT_USER_EMAIL environment variable
  * - ROOT_USER_PASSWORD environment variable
  * - ROOT_USER_DISPLAY_NAME environment variable (optional, defaults to "Root admin")
- * - DATABASE_URL environment variable
- * - PORT environment variable (optional, defaults to 3001)
- * - SUPABASE_URL environment variable (for authentication)
- * - SUPABASE_ANON_KEY environment variable (for authentication)
+ *
+ * Optional:
+ * - PORT environment variable (defaults to 3001)
+ * - SUPABASE_URL, SUPABASE_ANON_KEY (for authentication / Brand Ambassador creation)
  */
 
 const { PrismaClient } = require('@prisma/client');
@@ -119,10 +124,23 @@ function checkDirectory() {
 }
 
 /**
- * Validate required environment variables
+ * Validate environment variables required to connect and check user count.
+ * Only DATABASE_URL is required at this stage.
  */
-function validateEnvVars() {
-  const required = ['ROOT_USER_EMAIL', 'ROOT_USER_PASSWORD', 'DATABASE_URL'];
+function validateDatabaseEnvVar() {
+  if (!process.env.DATABASE_URL) {
+    error('Missing required environment variable: DATABASE_URL');
+    process.exit(1);
+  }
+}
+
+/**
+ * Validate environment variables required to create the root user.
+ * Only call this when userCount === 0 (we are about to create a user).
+ * Keeps ROOT_USER_EMAIL and ROOT_USER_PASSWORD out of production when not needed.
+ */
+function validateRootUserEnvVars() {
+  const required = ['ROOT_USER_EMAIL', 'ROOT_USER_PASSWORD'];
   const missing = required.filter(key => !process.env[key]);
 
   if (missing.length > 0) {
@@ -388,14 +406,14 @@ async function main() {
     // Load .env file if it exists (for local development)
     loadEnvFile();
 
-    // Validate environment variables
-    validateEnvVars();
+    // Only DATABASE_URL is required to connect and check user count
+    validateDatabaseEnvVar();
 
     // Initialize Prisma Client
     const prisma = new PrismaClient();
 
     try {
-      // Check if users exist
+      // Check if users exist first (before requiring ROOT_USER_* secrets)
       info('Checking if users exist in database...');
       const userCount = await checkUsersExist(prisma);
 
@@ -406,6 +424,9 @@ async function main() {
         info('Skipping root user creation');
         process.exit(0);
       }
+
+      // No users exist: require root user credentials only when we are about to create
+      validateRootUserEnvVars();
 
       info(`No users found in database (count: ${userCount})`);
       log('🚀 Creating root user...', 'cyan');
