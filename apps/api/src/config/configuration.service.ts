@@ -91,7 +91,7 @@ export class ConfigurationService extends BaseConfigurationService implements On
         // Strip newlines and trim whitespace from passkey (common issue when copying from M-Pesa portal)
         passkey: (process.env.MPESA_PASSKEY ?? '').replace(/\r?\n/g, '').trim(),
         environment: (process.env.MPESA_ENVIRONMENT ?? 'sandbox') as 'sandbox' | 'production',
-        baseUrl: process.env.MPESA_BASE_URL ?? this.getDefaultMpesaBaseUrl(process.env.MPESA_ENVIRONMENT ?? 'sandbox'),
+        baseUrl: (process.env.MPESA_BASE_URL?.trim() || undefined) ?? this.getDefaultMpesaBaseUrl(process.env.MPESA_ENVIRONMENT ?? 'sandbox'),
         stkPushCallbackUrl: process.env.MPESA_STK_PUSH_CALLBACK_URL ?? '',
         ipnConfirmationUrl: process.env.MPESA_IPN_CONFIRMATION_URL ?? '',
         allowedIpRanges: process.env.MPESA_ALLOWED_IP_RANGES?.split(',').map(range => range.trim()).filter(range => range.length > 0) ?? [],
