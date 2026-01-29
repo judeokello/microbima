@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Checkbox } from '@/components/ui/checkbox';
 // import { Separator } from '@/components/ui/separator';
 import { CheckCircle, CreditCard, Users, User, Loader2 } from 'lucide-react';
-import { createPolicy, CreatePolicyRequest, getPackagePlans, Plan, initiateStkPush, InitiateStkPushRequest } from '@/lib/api';
+import { createPolicy, CreatePolicyRequest, getPackagePlans, Plan, initiateStkPush, InitiateStkPushRequest, getInternalConfig } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
 
@@ -95,6 +95,7 @@ export default function PaymentStep() {
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [isPaymentInitiated, setIsPaymentInitiated] = useState(false);
+  const [stkPushEnabled, setStkPushEnabled] = useState(false);
 
   // Insurance pricing state
   const [pricingData, setPricingData] = useState<InsurancePricing | null>(null);
@@ -214,6 +215,11 @@ export default function PaymentStep() {
         }
       });
     }
+
+    // Fetch runtime config (e.g. STK push enabled) for payment flow
+    getInternalConfig()
+      .then((config) => setStkPushEnabled(config.mpesaStkPushEnabled))
+      .catch(() => setStkPushEnabled(false));
   }, []);
 
   // Calculate pricing when selections change
@@ -416,36 +422,40 @@ export default function PaymentStep() {
       const policyResult = await createPolicy(policyRequest);
       console.log('Policy created successfully:', policyResult);
 
-      // Step 2: Get payment account number from policy
-      const paymentAccountNumber = policyResult.policy.paymentAcNumber;
+      if (paymentType === 'MPESA' && stkPushEnabled) {
+        // Step 2: Get payment account number from policy
+        const paymentAccountNumber = policyResult.policy.paymentAcNumber;
 
-      if (!paymentAccountNumber) {
-        throw new Error('Payment account number not found. This may be a postpaid scheme which does not support STK push payments.');
+        if (!paymentAccountNumber) {
+          throw new Error('Payment account number not found. This may be a postpaid scheme which does not support STK push payments.');
+        }
+
+        console.log('Payment account number:', paymentAccountNumber);
+
+        // Step 3: Initiate STK Push
+        const stkPushRequest: InitiateStkPushRequest = {
+          phoneNumber: paymentPhone,
+          amount: premium,
+          accountReference: paymentAccountNumber,
+          transactionDesc: `Premium payment for policy - ${customerData.firstName} ${customerData.lastName}`,
+        };
+
+        console.log('Initiating STK push:', stkPushRequest);
+
+        const stkPushResult = await initiateStkPush(stkPushRequest);
+        console.log('STK push initiated successfully:', stkPushResult);
+
+        // STK push has been initiated - payment will complete on customer's phone
+        setSuccessMessage(`STK push payment request has been sent to ${paymentPhone}. Please ask the customer to check their phone and enter their M-Pesa PIN to complete the payment.`);
+      } else if (paymentType === 'MPESA' && !stkPushEnabled) {
+        // STK push disabled: policy created; customer pays via Paybill
+        setSuccessMessage('Policy created. Customer can complete the payment by paying via Paybill.');
+      } else {
+        // SasaPay or other: policy created
+        setSuccessMessage('Policy created. Customer can complete the payment by paying via Paybill.');
       }
 
-      console.log('Payment account number:', paymentAccountNumber);
-
-      // Step 3: Initiate STK Push
-      const stkPushRequest: InitiateStkPushRequest = {
-        phoneNumber: paymentPhone,
-        amount: premium,
-        accountReference: paymentAccountNumber,
-        transactionDesc: `Premium payment for policy - ${customerData.firstName} ${customerData.lastName}`,
-      };
-
-      console.log('Initiating STK push:', stkPushRequest);
-
-      const stkPushResult = await initiateStkPush(stkPushRequest);
-      console.log('STK push initiated successfully:', stkPushResult);
-
-      // STK push has been initiated - payment will complete on customer's phone
-      // When payment completes, IPN will create the payment record and activate the policy
-
-      // Show success message and disable submit button (stay on page)
-      setSuccessMessage(`STK push payment request has been sent to ${paymentPhone}. Please ask the customer to check their phone and enter their M-Pesa PIN to complete the payment.`);
       setIsPaymentInitiated(true);
-      // Note: Policy is created with PENDING_ACTIVATION status
-      // It will be activated automatically when payment completes via IPN/callback
 
     } catch (error) {
       console.error('Registration submission failed:', error);

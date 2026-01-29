@@ -529,11 +529,29 @@ Each increment is independently testable and delivers value.
   - Track "missing IPN" as a metric for monitoring
   - Use UTC for all time calculations
 
+### Runtime config (STK enable/disable)
+
+- [x] T044 Add `MPESA_STK_PUSH_ENABLED` to `apps/api/env.example` and document case-insensitive boolean parsing
+  - Optional env var; values `true`/`False` etc. (case-insensitive); default false when unset
+  - **Implementation**: Added subsection in env.example with documentation
+
+- [x] T045 Add `stkPushEnabled` to M-Pesa config in `apps/api/src/config/configuration.service.ts` (default false when unset)
+  - **Implementation**: Extended `AppConfig.mpesa` and `loadConfiguration()`; mpesa getter fallback includes `stkPushEnabled: false`
+
+- [x] T046 Add `GET /internal/config` returning `{ mpesaStkPushEnabled: boolean }` (internal API, same auth as other internal routes)
+  - **Implementation**: Added `GET internal/config` in `apps/api/src/app.controller.ts`
+
+- [x] T047 Return 503 with message "M-Pesa STK push is currently disabled." from `POST /internal/mpesa/stk-push/initiate` when `MPESA_STK_PUSH_ENABLED` is not true
+  - **Implementation**: In `MpesaStkPushController.initiate()`, check `configService.mpesa.stkPushEnabled` and throw `ServiceUnavailableException` when disabled
+
+- [x] T048 Agent-registration payment page: fetch runtime config, keep MPESA option visible, when STK disabled show "Policy created. Customer can complete the payment by paying via Paybill." and do not call `initiateStkPush`; handle 503 from initiate gracefully
+  - **Implementation**: Added `getInternalConfig()` in api.ts; payment page fetches config on load, branches submit flow on `stkPushEnabled`; `initiateStkPush` throws user-friendly message on 503
+
 ---
 
 ## Summary
 
-**Total Tasks**: 44 (T016 - signature verification guard removed, T023b - public callback controller added, T042 - STK Push expiration job, T043 - missing IPN check job)
+**Total Tasks**: 49 (T016 - signature verification guard removed, T023b - public callback controller added, T042 - STK Push expiration job, T043 - missing IPN check job, T044-T048 - runtime config STK enable/disable)
 
 **Tasks by Phase**:
 - Phase 1 (Setup): 3 tasks
@@ -541,7 +559,7 @@ Each increment is independently testable and delivers value.
 - Phase 3 (US1 - IPN): 8 tasks (signature verification removed)
 - Phase 4 (US2 - STK Push): 10 tasks (includes test endpoint and separate public controller)
 - Phase 5 (US3 - Statement Deduplication): 2 tasks
-- Phase 6 (Polish): 15 tasks (includes periodic jobs T042, T043)
+- Phase 6 (Polish): 20 tasks (includes periodic jobs T042, T043; runtime config T044-T048)
 
 **Tasks by User Story**:
 - US1 (IPN Processing): 8 tasks (signature verification removed)

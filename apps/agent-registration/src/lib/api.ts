@@ -1295,6 +1295,32 @@ export interface InitiateStkPushResponse {
   initiatedAt: string
 }
 
+export interface InternalConfigResponse {
+  mpesaStkPushEnabled: boolean
+}
+
+/**
+ * Fetch internal API runtime config (e.g. STK push enabled flag).
+ * Used by payment page to decide whether to call initiateStkPush or show Paybill messaging.
+ */
+export async function getInternalConfig(): Promise<InternalConfigResponse> {
+  const token = await getSupabaseToken()
+  const response = await fetch(
+    `${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/config`,
+    {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'x-correlation-id': `config-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+      }
+    }
+  )
+  if (!response.ok) {
+    throw new Error(`Failed to fetch config: ${response.statusText}`)
+  }
+  return response.json()
+}
+
 /**
  * Initiate STK Push payment request
  */
@@ -1317,6 +1343,9 @@ export async function initiateStkPush(data: InitiateStkPushRequest): Promise<Ini
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}))
+      if (response.status === 503) {
+        throw new Error(errorData.error?.message ?? 'M-Pesa STK push is currently unavailable. Customer can complete the payment by paying via Paybill.')
+      }
       throw new Error(errorData.error?.message ?? `Failed to initiate STK push: ${response.statusText}`)
     }
 
