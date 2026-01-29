@@ -152,6 +152,30 @@ export class AppController {
     };
   }
 
+  @Get('internal/config')
+  @ApiTags('Configuration')
+  @ApiOperation({
+    summary: 'Internal runtime config for clients',
+    description:
+      'Returns runtime feature flags and config for internal clients (e.g. agent-registration). Used to decide whether to show STK push flow or pay-via-Paybill messaging. Requires same auth as other internal routes (Supabase bearer).'
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Runtime config retrieved successfully',
+    schema: {
+      type: 'object',
+      properties: {
+        mpesaStkPushEnabled: { type: 'boolean', example: true, description: 'Whether M-Pesa STK push initiation is enabled (MPESA_STK_PUSH_ENABLED)' }
+      },
+      required: ['mpesaStkPushEnabled']
+    }
+  })
+  getInternalConfig(): { mpesaStkPushEnabled: boolean } {
+    return {
+      mpesaStkPushEnabled: this.configService.mpesa.stkPushEnabled,
+    };
+  }
+
   @Get('api/internal/db/health')
   @ApiTags('Database')
   @ApiOperation({

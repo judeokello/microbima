@@ -1,6 +1,7 @@
-import { Controller, Post, Body, Headers, Logger, HttpCode, HttpStatus } from '@nestjs/common';
+import { Controller, Post, Body, Headers, Logger, HttpCode, HttpStatus, ServiceUnavailableException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { MpesaStkPushService } from '../../services/mpesa-stk-push.service';
+import { ConfigurationService } from '../../config/configuration.service';
 import {
   InitiateStkPushDto,
   StkPushRequestResponseDto,
@@ -19,7 +20,10 @@ import { StandardErrorResponseDto } from '../../dto/common/standard-error-respon
 export class MpesaStkPushController {
   private readonly logger = new Logger(MpesaStkPushController.name);
 
-  constructor(private readonly mpesaStkPushService: MpesaStkPushService) {}
+  constructor(
+    private readonly mpesaStkPushService: MpesaStkPushService,
+    private readonly configService: ConfigurationService,
+  ) {}
 
   /**
    * Initiate STK Push Request
@@ -91,10 +95,19 @@ export class MpesaStkPushController {
     description: 'Internal server error',
     type: StandardErrorResponseDto,
   })
+  @ApiResponse({
+    status: 503,
+    description: 'STK push is disabled (runtime configuration)',
+    type: StandardErrorResponseDto,
+  })
   async initiate(
     @Body() dto: InitiateStkPushDto,
     @Headers('x-correlation-id') correlationIdHeader?: string
   ): Promise<StkPushRequestResponseDto> {
+    if (!this.configService.mpesa.stkPushEnabled) {
+      throw new ServiceUnavailableException('M-Pesa STK push is currently disabled.');
+    }
+
     // Get correlation ID from header, or generate one
     const correlationId =
       correlationIdHeader ?? `stk-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
