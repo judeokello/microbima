@@ -85,6 +85,13 @@ When statement files are uploaded manually, the system checks each transaction a
 - What happens when IPN doesn't match any STK Push request? (System validates using same logic as XLS statement processing, then creates records in both tables)
 - What happens when duplicate IPN arrives? (System checks `policy_payments` table by `transactionReference` for idempotency, updates existing records if found)
 
+### Runtime configuration: STK Push enable/disable
+
+- **Env var**: `MPESA_STK_PUSH_ENABLED` (optional). Values `true`/`false` case-insensitive; default false when unset. Enables staging/production to turn off STK push via Fly secrets (or `.env` locally) without code change.
+- **When disabled**: `POST /internal/mpesa/stk-push/initiate` returns **503** with body message "M-Pesa STK push is currently disabled."
+- **Config endpoint**: Internal API exposes `GET /internal/config` (same auth as other internal routes) with response `{ "mpesaStkPushEnabled": boolean }` for clients (e.g. agent-registration).
+- **Frontend**: MPESA option remains visible. When STK is disabled, after policy creation the UI shows "Policy created. Customer can complete the payment by paying via Paybill." and does not call STK initiate.
+
 ## Requirements *(mandatory)*
 
 ### Functional Requirements
