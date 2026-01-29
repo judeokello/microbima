@@ -205,6 +205,45 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: STK push is disabled by runtime configuration (MPESA_STK_PUSH_ENABLED not true). Body message "M-Pesa STK push is currently disabled."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      security:
+        - BearerAuth: []
+
+  /internal/config:
+    get:
+      tags:
+        - M-Pesa STK Push
+      summary: Internal runtime config for clients
+      description: |
+        Returns runtime feature flags for internal clients (e.g. agent-registration).
+        Used to decide whether to show STK push flow or pay-via-Paybill messaging.
+        Same auth as other internal routes (Supabase Bearer).
+      operationId: getInternalConfig
+      responses:
+        '200':
+          description: Runtime config retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - mpesaStkPushEnabled
+                properties:
+                  mpesaStkPushEnabled:
+                    type: boolean
+                    description: Whether M-Pesa STK push initiation is enabled (MPESA_STK_PUSH_ENABLED)
+                    example: true
+        '401':
+          description: Unauthorized (missing or invalid Bearer token)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
       security:
         - BearerAuth: []
 
