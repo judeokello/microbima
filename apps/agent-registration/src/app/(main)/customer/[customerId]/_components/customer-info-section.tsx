@@ -21,6 +21,8 @@ interface CustomerInfoSectionProps {
     createdAt: string;
     createdBy?: string;
     createdByDisplayName?: string;
+    memberNumber?: string | null;
+    memberNumberCreatedAt?: string | null;
   };
   canEdit: boolean;
   onUpdate: () => void;
@@ -111,6 +113,10 @@ export default function CustomerInfoSection({ customer, canEdit, onUpdate }: Cus
             <div>
               <label className="text-sm font-medium text-gray-500">ID Number</label>
               <p className="text-gray-900">{customer.idNumber}</p>
+            </div>
+            <div>
+              <label className="text-sm font-medium text-gray-500">Member Number</label>
+              <p className="text-gray-900">{customer.memberNumber ?? 'Not assigned'}</p>
             </div>
             <div>
               <label className="text-sm font-medium text-gray-500">Created Date</label>

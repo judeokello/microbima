@@ -21,6 +21,8 @@ interface SpouseSectionProps {
     idNumber?: string;
     relationship: string;
     verificationRequired?: boolean;
+    memberNumber?: string | null;
+    memberNumberCreatedAt?: string | null;
   }>;
   canEdit: boolean;
   canAdd: boolean;
@@ -168,6 +170,10 @@ export default function SpouseSection({ dependants, canEdit, canAdd, onUpdate }:
                       <p className="text-gray-900">{dependant.idNumber}</p>
                     </div>
                   )}
+                  <div>
+                    <label className="text-sm font-medium text-gray-500">Member Number</label>
+                    <p className="text-gray-900">{dependant.memberNumber ?? 'Not assigned'}</p>
+                  </div>
                 </div>
                 {canEdit && (
                   <Button

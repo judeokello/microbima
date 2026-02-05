@@ -570,6 +570,7 @@ model Package {
   policyNumberFormat String? @db.VarChar(200)
   memberNumberFormat String? @db.VarChar(200)
   logoPath           String? @db.VarChar(200)
+  cardTemplateName   String? @db.VarChar(100)
 
   // Relations
   underwriter     Underwriter?     @relation(fields: [underwriterId], references: [id])

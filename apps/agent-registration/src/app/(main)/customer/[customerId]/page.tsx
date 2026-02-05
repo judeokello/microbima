@@ -13,6 +13,7 @@ import NextOfKinSection from './_components/next-of-kin-section';
 import SpouseSection from './_components/spouse-section';
 import ChildrenSection from './_components/children-section';
 import PaymentsTab from './_components/payments-tab';
+import MemberCardsTab from './_components/member-cards-tab';
 import { useEditPermissions } from './_hooks/use-edit-permissions';
 
 export default function CustomerDetailPage() {
@@ -113,6 +114,7 @@ export default function CustomerDetailPage() {
         <TabsList>
           <TabsTrigger value="details">Customer Details</TabsTrigger>
           <TabsTrigger value="payments">Payments</TabsTrigger>
+          <TabsTrigger value="member-cards">Member cards</TabsTrigger>
         </TabsList>
 
         <TabsContent value="details" className="space-y-6">
@@ -146,6 +148,10 @@ export default function CustomerDetailPage() {
 
         <TabsContent value="payments">
           <PaymentsTab customerId={customerId} />
+        </TabsContent>
+
+        <TabsContent value="member-cards">
+          <MemberCardsTab customerId={customerId} />
         </TabsContent>
       </Tabs>
     </div>

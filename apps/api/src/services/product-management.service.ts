@@ -353,6 +353,7 @@ export class ProductManagementService {
         underwriterName: pkg.underwriter?.name ?? null,
         isActive: pkg.isActive,
         logoPath: pkg.logoPath,
+        cardTemplateName: pkg.cardTemplateName ?? null,
         createdBy: pkg.createdBy,
         createdAt: pkg.createdAt.toISOString(),
         updatedAt: pkg.updatedAt.toISOString(),

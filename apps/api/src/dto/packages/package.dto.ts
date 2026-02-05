@@ -48,6 +48,13 @@ export class PackageDetailDto {
   logoPath?: string | null;
 
   @ApiProperty({
+    description: 'Card template name for membership card layout (null = use default)',
+    example: 'WellnessCard',
+    required: false,
+  })
+  cardTemplateName?: string | null;
+
+  @ApiProperty({
     description: 'User ID who created this package',
     example: 'uuid-here',
   })

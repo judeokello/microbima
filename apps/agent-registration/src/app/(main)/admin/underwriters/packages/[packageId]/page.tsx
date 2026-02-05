@@ -14,6 +14,8 @@ import * as Sentry from '@sentry/nextjs';
 import Image from 'next/image';
 import { TruncatedDescription } from '../../[underwriterId]/_components/truncated-description';
 import CreateSchemeDialog from './_components/create-scheme-dialog';
+import { getCardTemplateComponent } from '@/components/member-cards/card-template-registry';
+import { SAMPLE_CARD_DATA } from '@/components/member-cards/sample-card-data';
 
 interface Package {
   id: number;
@@ -23,6 +25,7 @@ interface Package {
   underwriterName?: string | null;
   isActive: boolean;
   logoPath?: string | null;
+  cardTemplateName?: string | null;
   createdBy: string;
   createdAt: string;
   updatedAt: string;
@@ -510,6 +513,22 @@ export default function PackageDetailPage() {
               )}
             </div>
           </div>
+        </CardContent>
+      </Card>
+
+      {/* Card template preview */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Card template preview</CardTitle>
+          <CardDescription>
+            Preview of the membership card layout for this package (sample data)
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {(() => {
+            const Template = getCardTemplateComponent(pkg.cardTemplateName ?? null);
+            return <Template data={SAMPLE_CARD_DATA} className="max-w-sm" />;
+          })()}
         </CardContent>
       </Card>
 

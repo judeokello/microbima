@@ -42,6 +42,8 @@
   - Spec §Configuration Requirements: All required/optional environment variables documented with validation rules, defaults, and example values. Startup validation specified.
 - [x] CHK014 - Are requirements defined for retry logic implementation (number of retries, backoff strategy, failure handling)? [Completeness, Spec §FR-005, Clarifications Q5]
   - FR-005: Retry up to 3 times with exponential backoff (1s, 2s, 4s delays)
+- [x] CHK014b - Are runtime config requirements specified for STK Push enable/disable (env var, config endpoint, 503 when disabled, frontend messaging)? [Completeness, Spec §Runtime configuration: STK Push enable/disable]
+  - Spec §Runtime configuration: MPESA_STK_PUSH_ENABLED (case-insensitive), GET /internal/config returns mpesaStkPushEnabled, 503 on initiate when disabled, frontend shows Paybill message when disabled
 
 ## Requirement Clarity
 
