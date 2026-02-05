@@ -1,4 +1,5 @@
 import { Module, NestModule, MiddlewareConsumer, RequestMethod } from '@nestjs/common';
+import { ScheduleModule } from '@nestjs/schedule';
 import { SentryModule } from '@sentry/nestjs/setup';
 import { ConfigurationModule } from './config/config.module';
 import { PrismaModule } from './prisma/prisma.module';
@@ -47,6 +48,7 @@ import { IpWhitelistGuard } from './guards/ip-whitelist.guard';
 @Module({
   imports: [
     SentryModule.forRoot(),
+    ScheduleModule.forRoot(),
     ConfigurationModule,
     PrismaModule
   ],

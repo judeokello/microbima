@@ -1,4 +1,6 @@
-import { Injectable, Logger, forwardRef, Inject } from '@nestjs/common';
+import { Injectable, Logger, forwardRef, Inject, OnModuleInit } from '@nestjs/common';
+import { CronJob } from 'cron';
+import { SchedulerRegistry } from '@nestjs/schedule';
 import { PrismaService } from '../prisma/prisma.service';
 import { MpesaDarajaApiService } from './mpesa-daraja-api.service';
 import { MpesaErrorMapperService } from './mpesa-error-mapper.service';
@@ -19,10 +21,11 @@ import * as Sentry from '@sentry/nestjs';
 /**
  * M-Pesa STK Push Service
  *
- * Handles STK Push payment request initiation, callback processing, and payment record creation.
+ * Handles STK Push payment request initiation, callback processing, payment record creation,
+ * and periodic jobs (expiration check, missing IPN check).
  */
 @Injectable()
-export class MpesaStkPushService {
+export class MpesaStkPushService implements OnModuleInit {
   private readonly logger = new Logger(MpesaStkPushService.name);
 
   constructor(
@@ -30,9 +33,50 @@ export class MpesaStkPushService {
     private readonly mpesaDarajaApiService: MpesaDarajaApiService,
     private readonly mpesaErrorMapper: MpesaErrorMapperService,
     private readonly configService: ConfigurationService,
+    private readonly schedulerRegistry: SchedulerRegistry,
     @Inject(forwardRef(() => PolicyService))
     private readonly policyService: PolicyService
   ) {}
+
+  onModuleInit() {
+    const expirationIntervalMinutes = this.configService.mpesa.stkPushExpirationCheckIntervalMinutes;
+    const expirationCron = `*/${expirationIntervalMinutes} * * * *`;
+    const expirationJob = new CronJob(expirationCron, () => {
+      const correlationId = `expiry-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+      this.markExpiredStkPushRequests(correlationId).catch((err) =>
+        this.logger.error(
+          JSON.stringify({
+            event: 'STK_PUSH_EXPIRATION_JOB_ERROR',
+            correlationId,
+            error: err instanceof Error ? err.message : String(err),
+            timestamp: new Date().toISOString(),
+          })
+        )
+      );
+    });
+    this.schedulerRegistry.addCronJob('stk-push-expiration', expirationJob);
+    expirationJob.start();
+    this.logger.log(
+      `STK Push expiration job scheduled every ${expirationIntervalMinutes} minute(s) (cron: ${expirationCron})`
+    );
+
+    const missingIpnJob = new CronJob('0 * * * *', () => {
+      const correlationId = `missing-ipn-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+      this.checkMissingIpn(correlationId).catch((err) =>
+        this.logger.error(
+          JSON.stringify({
+            event: 'MISSING_IPN_JOB_ERROR',
+            correlationId,
+            error: err instanceof Error ? err.message : String(err),
+            timestamp: new Date().toISOString(),
+          })
+        )
+      );
+    });
+    this.schedulerRegistry.addCronJob('missing-ipn-check', missingIpnJob);
+    missingIpnJob.start();
+    this.logger.log('Missing IPN check job scheduled hourly (cron: 0 * * * *)');
+  }
 
   /**
    * Initiate STK Push request
@@ -680,6 +724,179 @@ export class MpesaStkPushService {
         timestamp: new Date().toISOString(),
       })
     );
+  }
+
+  /**
+   * Mark PENDING STK Push requests older than timeout as EXPIRED (T042).
+   * Uses UTC for all time calculations.
+   */
+  async markExpiredStkPushRequests(
+    correlationId?: string
+  ): Promise<{ expiredCount: number; expiredRequestIds: string[] }> {
+    const cid = correlationId ?? `expiry-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+    const timeoutMinutes = this.configService.mpesa.stkPushTimeoutMinutes;
+    const cutoff = new Date();
+    cutoff.setUTCMinutes(cutoff.getUTCMinutes() - timeoutMinutes);
+
+    const expired = await this.prismaService.mpesaStkPushRequest.findMany({
+      where: {
+        status: MpesaStkPushStatus.PENDING,
+        initiatedAt: { lt: cutoff },
+      },
+      select: { id: true, initiatedAt: true },
+    });
+
+    const ids = expired.map((r) => r.id);
+    if (ids.length > 0) {
+      await this.prismaService.mpesaStkPushRequest.updateMany({
+        where: { id: { in: ids } },
+        data: { status: MpesaStkPushStatus.EXPIRED },
+      });
+      for (const r of expired) {
+        this.logger.log(
+          JSON.stringify({
+            event: 'STK_PUSH_EXPIRED',
+            correlationId: cid,
+            stkPushRequestId: r.id,
+            initiatedAt: r.initiatedAt.toISOString(),
+            reason: 'system_timeout',
+            timeoutMinutes,
+            timestamp: new Date().toISOString(),
+          })
+        );
+      }
+      this.logger.log(
+        JSON.stringify({
+          event: 'METRIC_STK_PUSH_EXPIRED',
+          metricType: 'counter',
+          metricName: 'stk_push_requests_expired',
+          value: ids.length,
+          correlationId: cid,
+          timestamp: new Date().toISOString(),
+        })
+      );
+    }
+
+    return { expiredCount: ids.length, expiredRequestIds: ids };
+  }
+
+  /**
+   * Check for COMPLETED STK Push requests with no IPN linked within 24h (T043).
+   * Uses UTC for all time calculations.
+   */
+  async checkMissingIpn(
+    correlationId?: string
+  ): Promise<{ missingIpnCount: number; requestIds: string[] }> {
+    const cid = correlationId ?? `missing-ipn-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+    const cutoff = new Date();
+    cutoff.setUTCHours(cutoff.getUTCHours() - 24);
+
+    const completedWithoutIpn = await this.prismaService.mpesaStkPushRequest.findMany({
+      where: {
+        status: MpesaStkPushStatus.COMPLETED,
+        completedAt: { lt: cutoff, not: null },
+        linkedTransactionId: null,
+      },
+      select: { id: true, completedAt: true, accountReference: true, amount: true },
+    });
+
+    const ids = completedWithoutIpn.map((r) => r.id);
+    for (const r of completedWithoutIpn) {
+      this.logger.warn(
+        JSON.stringify({
+          event: 'MISSING_IPN_WARNING',
+          correlationId: cid,
+          stkPushRequestId: r.id,
+          completedAt: r.completedAt?.toISOString(),
+          accountReference: r.accountReference,
+          amount: Number(r.amount),
+          message: 'STK Push COMPLETED but no IPN received within 24 hours',
+          timestamp: new Date().toISOString(),
+        })
+      );
+    }
+    if (ids.length > 0) {
+      this.logger.log(
+        JSON.stringify({
+          event: 'METRIC_MISSING_IPN',
+          metricType: 'counter',
+          metricName: 'stk_push_missing_ipn_count',
+          value: ids.length,
+          correlationId: cid,
+          timestamp: new Date().toISOString(),
+        })
+      );
+    }
+
+    return { missingIpnCount: ids.length, requestIds: ids };
+  }
+
+  /**
+   * Get STK Push request by ID (for verification/debug in dev/staging).
+   */
+  async getStkPushRequestById(id: string): Promise<{
+    id: string;
+    status: string;
+    initiatedAt: Date;
+    completedAt: Date | null;
+    accountReference: string;
+    phoneNumber: string;
+    amount: number;
+    linkedTransactionId: string | null;
+    checkoutRequestId: string | null;
+  } | null> {
+    const req = await this.prismaService.mpesaStkPushRequest.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        status: true,
+        initiatedAt: true,
+        completedAt: true,
+        accountReference: true,
+        phoneNumber: true,
+        amount: true,
+        linkedTransactionId: true,
+        checkoutRequestId: true,
+      },
+    });
+    if (!req) return null;
+    return {
+      ...req,
+      status: req.status,
+      amount: Number(req.amount),
+    };
+  }
+
+  /**
+   * List recently expired STK request IDs (for debug in dev/staging). Returns up to 50.
+   */
+  async getExpiredRequestIdsForDebug(): Promise<string[]> {
+    const cutoff = new Date();
+    cutoff.setUTCHours(cutoff.getUTCHours() - 24);
+    const list = await this.prismaService.mpesaStkPushRequest.findMany({
+      where: { status: MpesaStkPushStatus.EXPIRED, updatedAt: { gte: cutoff } },
+      select: { id: true },
+      orderBy: { updatedAt: 'desc' },
+      take: 50,
+    });
+    return list.map((r) => r.id);
+  }
+
+  /**
+   * List COMPLETED STK request IDs with no IPN within 24h (for debug in dev/staging).
+   */
+  async getMissingIpnRequestIdsForDebug(): Promise<string[]> {
+    const cutoff = new Date();
+    cutoff.setUTCHours(cutoff.getUTCHours() - 24);
+    const list = await this.prismaService.mpesaStkPushRequest.findMany({
+      where: {
+        status: MpesaStkPushStatus.COMPLETED,
+        completedAt: { lt: cutoff, not: null },
+        linkedTransactionId: null,
+      },
+      select: { id: true },
+    });
+    return list.map((r) => r.id);
   }
 }
 
