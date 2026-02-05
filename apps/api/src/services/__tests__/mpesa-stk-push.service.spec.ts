@@ -6,6 +6,7 @@ import { MpesaDarajaApiService } from '../mpesa-daraja-api.service';
 import { MpesaErrorMapperService } from '../mpesa-error-mapper.service';
 import { ConfigurationService } from '../../config/configuration.service';
 import { PolicyService } from '../policy.service';
+import { SchedulerRegistry } from '@nestjs/schedule';
 import {
   InitiateStkPushDto,
   StkPushCallbackDto,
@@ -33,7 +34,9 @@ describe('MpesaStkPushService', () => {
     mpesaStkPushRequest: {
       create: jest.fn(),
       findUnique: jest.fn(),
+      findMany: jest.fn(),
       update: jest.fn(),
+      updateMany: jest.fn(),
       findFirst: jest.fn(),
     },
     mpesaStkPushCallbackResponse: {
@@ -68,6 +71,8 @@ describe('MpesaStkPushService', () => {
   const createConfigServiceMock = () => ({
     mpesa: {
       stkPushCallbackUrl: 'https://api.example.com/public/mpesa/stk-push-callback',
+      stkPushTimeoutMinutes: 5,
+      stkPushExpirationCheckIntervalMinutes: 2,
     },
   });
 
@@ -105,6 +110,10 @@ describe('MpesaStkPushService', () => {
         {
           provide: PolicyService,
           useValue: policyServiceMock,
+        },
+        {
+          provide: SchedulerRegistry,
+          useValue: { addCronJob: jest.fn(), getCronJob: jest.fn(), deleteCronJob: jest.fn() },
         },
       ],
     })
@@ -638,6 +647,119 @@ describe('MpesaStkPushService', () => {
           status: MpesaStkPushStatus.FAILED,
         }),
       });
+    });
+  });
+
+  describe('markExpiredStkPushRequests (T042)', () => {
+    it('should find PENDING requests older than timeout and mark them EXPIRED', async () => {
+      const cutoff = new Date();
+      cutoff.setUTCMinutes(cutoff.getUTCMinutes() - 10);
+      const expiredRows = [
+        { id: 'exp-1', initiatedAt: cutoff },
+        { id: 'exp-2', initiatedAt: cutoff },
+      ];
+      prismaService.mpesaStkPushRequest.findMany.mockResolvedValue(expiredRows);
+      prismaService.mpesaStkPushRequest.updateMany.mockResolvedValue({ count: 2 });
+
+      const result = await service.markExpiredStkPushRequests('cid-1');
+
+      expect(result.expiredCount).toBe(2);
+      expect(result.expiredRequestIds).toEqual(['exp-1', 'exp-2']);
+      expect(prismaService.mpesaStkPushRequest.findMany).toHaveBeenCalledWith({
+        where: {
+          status: MpesaStkPushStatus.PENDING,
+          initiatedAt: { lt: expect.any(Date) },
+        },
+        select: { id: true, initiatedAt: true },
+      });
+      expect(prismaService.mpesaStkPushRequest.updateMany).toHaveBeenCalledWith({
+        where: { id: { in: ['exp-1', 'exp-2'] } },
+        data: { status: MpesaStkPushStatus.EXPIRED },
+      });
+    });
+
+    it('should return zero counts when no expired PENDING requests', async () => {
+      prismaService.mpesaStkPushRequest.findMany.mockResolvedValue([]);
+
+      const result = await service.markExpiredStkPushRequests('cid-2');
+
+      expect(result.expiredCount).toBe(0);
+      expect(result.expiredRequestIds).toEqual([]);
+      expect(prismaService.mpesaStkPushRequest.updateMany).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('checkMissingIpn (T043)', () => {
+    it('should find COMPLETED requests with no IPN within 24h and return their IDs', async () => {
+      const rows = [
+        {
+          id: 'missing-1',
+          completedAt: new Date(),
+          accountReference: 'POL1',
+          amount: 100,
+        },
+        {
+          id: 'missing-2',
+          completedAt: new Date(),
+          accountReference: 'POL2',
+          amount: 200,
+        },
+      ];
+      prismaService.mpesaStkPushRequest.findMany.mockResolvedValue(rows);
+
+      const result = await service.checkMissingIpn('cid-3');
+
+      expect(result.missingIpnCount).toBe(2);
+      expect(result.requestIds).toEqual(['missing-1', 'missing-2']);
+      expect(prismaService.mpesaStkPushRequest.findMany).toHaveBeenCalledWith({
+        where: {
+          status: MpesaStkPushStatus.COMPLETED,
+          completedAt: { lt: expect.any(Date), not: null },
+          linkedTransactionId: null,
+        },
+        select: { id: true, completedAt: true, accountReference: true, amount: true },
+      });
+    });
+
+    it('should return zero counts when no missing-IPN requests', async () => {
+      prismaService.mpesaStkPushRequest.findMany.mockResolvedValue([]);
+
+      const result = await service.checkMissingIpn('cid-4');
+
+      expect(result.missingIpnCount).toBe(0);
+      expect(result.requestIds).toEqual([]);
+    });
+  });
+
+  describe('getStkPushRequestById', () => {
+    it('should return request when found', async () => {
+      const req = {
+        id: 'req-1',
+        status: MpesaStkPushStatus.PENDING,
+        initiatedAt: new Date(),
+        completedAt: null,
+        accountReference: 'POL1',
+        phoneNumber: '254722000000',
+        amount: 100,
+        linkedTransactionId: null,
+        checkoutRequestId: 'ws_CO_1',
+      };
+      prismaService.mpesaStkPushRequest.findUnique.mockResolvedValue(req);
+
+      const result = await service.getStkPushRequestById('req-1');
+
+      expect(result).not.toBeNull();
+      expect(result?.id).toBe('req-1');
+      expect(result?.status).toBe(MpesaStkPushStatus.PENDING);
+      expect(result?.amount).toBe(100);
+    });
+
+    it('should return null when not found', async () => {
+      prismaService.mpesaStkPushRequest.findUnique.mockResolvedValue(null);
+
+      const result = await service.getStkPushRequestById('nonexistent');
+
+      expect(result).toBeNull();
     });
   });
 });

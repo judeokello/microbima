@@ -13,6 +13,7 @@ import NextOfKinSection from '../../../customer/[customerId]/_components/next-of
 import SpouseSection from '../../../customer/[customerId]/_components/spouse-section';
 import ChildrenSection from '../../../customer/[customerId]/_components/children-section';
 import PaymentsTab from '../../../customer/[customerId]/_components/payments-tab';
+import MemberCardsTab from '../../../customer/[customerId]/_components/member-cards-tab';
 import { useEditPermissions } from '../../../customer/[customerId]/_hooks/use-edit-permissions';
 
 export default function CustomerDetailPage() {
@@ -146,6 +147,9 @@ export default function CustomerDetailPage() {
 
         <TabsContent value="payments">
           <PaymentsTab customerId={customerId} />
+        </TabsContent>
+        <TabsContent value="member-cards">
+          <MemberCardsTab customerId={customerId} />
         </TabsContent>
       </Tabs>
     </div>

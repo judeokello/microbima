@@ -1,4 +1,17 @@
-import { Controller, Post, Body, Headers, Logger, HttpCode, HttpStatus, ServiceUnavailableException } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Get,
+  Body,
+  Headers,
+  Param,
+  Query,
+  Logger,
+  HttpCode,
+  HttpStatus,
+  ServiceUnavailableException,
+  NotFoundException,
+} from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { MpesaStkPushService } from '../../services/mpesa-stk-push.service';
 import { ConfigurationService } from '../../config/configuration.service';
@@ -13,6 +26,7 @@ import { StandardErrorResponseDto } from '../../dto/common/standard-error-respon
  *
  * Internal controller for agent-initiated STK Push payment requests.
  * Requires Supabase Bearer token authentication (agents are logged in).
+ * Dev/staging-only: GET requests/:id, POST jobs/run-expiration, POST jobs/run-missing-ipn-check, GET jobs/debug.
  */
 @Controller('internal/mpesa/stk-push')
 @ApiTags('M-Pesa STK Push')
@@ -24,6 +38,17 @@ export class MpesaStkPushController {
     private readonly mpesaStkPushService: MpesaStkPushService,
     private readonly configService: ConfigurationService,
   ) {}
+
+  private isDevOrStaging(): boolean {
+    const env = this.configService.environment;
+    return env === 'development' || env === 'staging';
+  }
+
+  private ensureDevOrStaging(): void {
+    if (!this.isDevOrStaging()) {
+      throw new NotFoundException('Not available in this environment.');
+    }
+  }
 
   /**
    * Initiate STK Push Request
@@ -116,6 +141,92 @@ export class MpesaStkPushController {
     const userId = undefined; // TODO: Extract from auth context when available
 
     return this.mpesaStkPushService.initiateStkPush(dto, correlationId, userId);
+  }
+
+  /**
+   * Get STK Push request by ID (dev/staging only). Use to verify status after running jobs.
+   */
+  @Get('requests/:id')
+  @ApiOperation({
+    summary: 'Get STK Push request by ID (dev/staging only)',
+    description: 'Returns request details for verification. Only available when NODE_ENV is development or staging.',
+  })
+  @ApiResponse({ status: 200, description: 'Request found' })
+  @ApiResponse({ status: 404, description: 'Not found or not available in this environment' })
+  async getRequestById(@Param('id') id: string) {
+    this.ensureDevOrStaging();
+    const req = await this.mpesaStkPushService.getStkPushRequestById(id);
+    if (!req) throw new NotFoundException('STK Push request not found.');
+    return {
+      id: req.id,
+      status: req.status,
+      initiatedAt: req.initiatedAt.toISOString(),
+      completedAt: req.completedAt?.toISOString() ?? null,
+      accountReference: req.accountReference,
+      phoneNumber: req.phoneNumber,
+      amount: req.amount,
+      linkedTransactionId: req.linkedTransactionId,
+      checkoutRequestId: req.checkoutRequestId,
+    };
+  }
+
+  /**
+   * Run expiration job manually (dev/staging only). Marks PENDING requests older than timeout as EXPIRED.
+   */
+  @Post('jobs/run-expiration')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Run STK Push expiration job (dev/staging only)',
+    description: 'Marks PENDING requests older than timeout as EXPIRED. Only available when NODE_ENV is development or staging.',
+  })
+  @ApiResponse({ status: 200, description: 'Job run result' })
+  @ApiResponse({ status: 404, description: 'Not available in this environment' })
+  async runExpirationJob(@Headers('x-correlation-id') correlationIdHeader?: string) {
+    this.ensureDevOrStaging();
+    const correlationId =
+      correlationIdHeader ?? `run-expiry-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+    return this.mpesaStkPushService.markExpiredStkPushRequests(correlationId);
+  }
+
+  /**
+   * Run missing IPN check job manually (dev/staging only). Logs COMPLETED requests with no IPN within 24h.
+   */
+  @Post('jobs/run-missing-ipn-check')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Run missing IPN check job (dev/staging only)',
+    description: 'Finds COMPLETED requests with no IPN within 24h and logs warning. Only available when NODE_ENV is development or staging.',
+  })
+  @ApiResponse({ status: 200, description: 'Job run result' })
+  @ApiResponse({ status: 404, description: 'Not available in this environment' })
+  async runMissingIpnCheckJob(@Headers('x-correlation-id') correlationIdHeader?: string) {
+    this.ensureDevOrStaging();
+    const correlationId =
+      correlationIdHeader ?? `run-missing-ipn-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+    return this.mpesaStkPushService.checkMissingIpn(correlationId);
+  }
+
+  /**
+   * List request IDs for debugging (dev/staging only). type=expired | missing-ipn.
+   */
+  @Get('jobs/debug')
+  @ApiOperation({
+    summary: 'List expired or missing-IPN request IDs (dev/staging only)',
+    description: 'Returns request IDs for verification. type=expired (recently expired) or type=missing-ipn. Only available when NODE_ENV is development or staging.',
+  })
+  @ApiResponse({ status: 200, description: 'List of request IDs' })
+  @ApiResponse({ status: 404, description: 'Not available in this environment' })
+  async getJobsDebug(@Query('type') type: 'expired' | 'missing-ipn') {
+    this.ensureDevOrStaging();
+    if (type === 'expired') {
+      const requestIds = await this.mpesaStkPushService.getExpiredRequestIdsForDebug();
+      return { type: 'expired', requestIds };
+    }
+    if (type === 'missing-ipn') {
+      const requestIds = await this.mpesaStkPushService.getMissingIpnRequestIdsForDebug();
+      return { type: 'missing-ipn', requestIds };
+    }
+    throw new NotFoundException('Query param type must be "expired" or "missing-ipn".');
   }
 }
 

@@ -483,7 +483,7 @@ Each increment is independently testable and delivers value.
   - Mock Prisma service and M-Pesa API client
   - **Implementation**: Created comprehensive unit tests with 14 test cases covering all major scenarios
 
-- [ ] T037 Create integration tests for callback endpoints in `apps/api/tests/integration/mpesa-callbacks.e2e-spec.ts`
+- [x] T037 Create integration tests for callback endpoints in `apps/api/tests/integration/mpesa-callbacks.e2e-spec.ts`
   - Test IPN callback endpoint with valid payloads
   - Test IPN callback endpoint with invalid payloads
   - Test STK Push callback endpoint
@@ -492,42 +492,44 @@ Each increment is independently testable and delivers value.
 
 ### Code Quality
 
-- [ ] T038 Run linter and fix any issues
+- [x] T038 Run linter and fix any issues
   - Run `pnpm lint` in `apps/api/`
   - Fix all linting errors
   - Ensure TypeScript strict mode compliance
 
-- [ ] T039 Verify all date/time operations use UTC methods
+- [x] T039 Verify all date/time operations use UTC methods
   - Review all date operations in IPN and STK Push services
   - Ensure `setUTCHours()`, `Date.UTC()`, etc. are used (not local timezone methods)
   - Verify time window calculations use UTC
 
 ### Final Integration
 
-- [ ] T040 Register all new modules and verify application starts
+- [x] T040 Register all new modules and verify application starts
   - Verify all controllers and services registered in `app.module.ts`
   - Start application and verify no startup errors
   - Verify all endpoints are accessible (check Swagger docs)
 
-- [ ] T041 Verify database migration applied correctly
+- [x] T041 Verify database migration applied correctly
   - Check that all new enums and models exist in database
   - Verify indexes created
   - Verify foreign key constraints
   - Check that existing records have correct `source` values
 
-- [ ] T042 [US2] Create periodic job for STK Push expiration check in `apps/api/src/services/mpesa-stk-push.service.ts`
+- [x] T042 [US2] Create periodic job for STK Push expiration check in `apps/api/src/services/mpesa-stk-push.service.ts`
   - Create periodic job (default: every 2 minutes, configurable via `MPESA_STK_PUSH_EXPIRATION_CHECK_INTERVAL_MINUTES`)
   - Check for `MpesaStkPushRequest` records with `status = 'PENDING'` older than timeout (default: 5 minutes, configurable via `MPESA_STK_PUSH_TIMEOUT_MINUTES`)
   - Update status to `EXPIRED` for expired requests
   - Log expiration with correlation ID, distinguish between M-Pesa callback expiration and system timeout expiration
   - Use UTC for all time calculations
+  - **Implementation**: `markExpiredStkPushRequests()` in MpesaStkPushService; scheduled via `@nestjs/schedule` (SchedulerRegistry + CronJob). Dev/staging-only: `GET requests/:id`, `POST jobs/run-expiration`, `GET jobs/debug?type=expired` (guarded by NODE_ENV === 'development' or 'staging'). Seed script: `apps/api/scripts/seed-stk-job-test-data.ts` (prints created IDs for verification).
 
-- [ ] T043 [US2] Create periodic job for missing IPN check in `apps/api/src/services/mpesa-stk-push.service.ts`
+- [x] T043 [US2] Create periodic job for missing IPN check in `apps/api/src/services/mpesa-stk-push.service.ts`
   - Create periodic job (run hourly)
   - Check for `MpesaStkPushRequest` records with `status = 'COMPLETED'` but no IPN received within 24 hours of completion
   - Log warning (WARN level) with correlation ID, request ID, transaction details
   - Track "missing IPN" as a metric for monitoring
   - Use UTC for all time calculations
+  - **Implementation**: `checkMissingIpn()` in MpesaStkPushService; scheduled hourly. Dev/staging-only: `POST jobs/run-missing-ipn-check`, `GET jobs/debug?type=missing-ipn` (guarded by NODE_ENV === 'development' or 'staging'). Seed script creates T043 test records; verify via GET-by-ID or debug endpoint.
 
 ### Runtime config (STK enable/disable)
 
@@ -572,6 +574,16 @@ Each increment is independently testable and delivers value.
 - Security middleware updates can be done in parallel (T014, T024)
 
 **MVP Scope**: Phase 1 + Phase 2 + Phase 3 (18 tasks) - Delivers real-time IPN processing foundation.
+
+---
+
+## Not yet implemented (candidates for next work)
+
+All 49 tasks for this feature are implemented. T037–T041 were completed: e2e tests for M-Pesa callbacks (`tests/integration/mpesa-callbacks.e2e-spec.ts`), lint run, UTC verification in IPN/STK services, app start verification, and migration status check.
+
+**Summary**: 0 tasks remain for this feature. T042 and T043 (periodic jobs, trigger endpoints, GET-by-ID, seed script) are implemented. Dev/staging endpoints are guarded by `NODE_ENV === 'development' || NODE_ENV === 'staging'` (no ENABLE_CRON_TEST_ENDPOINTS). Verification: run `apps/api/scripts/seed-stk-job-test-data.ts` (prints created IDs), then trigger jobs or wait for cron, verify via `GET /internal/mpesa/stk-push/requests/:id` or `GET jobs/debug?type=expired|missing-ipn`.
+
+---
 
 **External Dependencies** (blocking for production):
 1. **Safaricom IP address ranges** (for T015, T025 - IP whitelist guards)

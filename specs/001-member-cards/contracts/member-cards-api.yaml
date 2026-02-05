@@ -1,0 +1,202 @@
+openapi: 3.0.3
+info:
+  title: Member Cards API (Internal)
+  description: |
+    Internal API for member numbers and printable member cards.
+    - **GET /internal/customers/:customerId/details** – Extended to include memberNumber and memberNumberCreatedAt for principal and each dependant.
+    - **GET /internal/customers/:customerId/member-cards** – Returns member cards data grouped by policy for the Member cards tab and PNG download.
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:3001/api
+    description: Development
+  - url: https://staging-api.microbima.com/api
+    description: Staging
+  - url: https://api.microbima.com/api
+    description: Production
+
+tags:
+  - name: Internal - Customer Member Cards
+    description: Member numbers and member cards data
+
+paths:
+  /internal/customers/{customerId}/details:
+    get:
+      tags:
+        - Internal - Customer Member Cards
+      summary: Get customer details (extended)
+      description: |
+        Returns customer details including beneficiaries, dependants, and policies.
+        **Extended for 001-member-cards**: Response now includes for the principal (customer) and for each dependant:
+        - `memberNumber` (string | null) – from PolicyMemberPrincipal / PolicyMemberDependant
+        - `memberNumberCreatedAt` (string | null) – ISO 8601 of createdAt for "date printed"
+        When null, frontend shows placeholder "Not assigned".
+      operationId: getCustomerDetails
+      parameters:
+        - name: customerId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Customer details with member numbers
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomerDetailResponse'
+        '404':
+          description: Customer not found or not accessible
+
+  /internal/customers/{customerId}/member-cards:
+    get:
+      tags:
+        - Internal - Customer Member Cards
+      summary: Get member cards by policy
+      description: |
+        Returns one set of membership card data per policy for the customer.
+        Used by the Member cards tab to render cards and enable PNG download (client-side).
+        Access: same as customer detail page (no separate permission).
+        When customer has no policies or no policies with member data, return empty array;
+        frontend shows empty-state message.
+      operationId: getMemberCards
+      parameters:
+        - name: customerId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Member cards grouped by policy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MemberCardsResponse'
+        '404':
+          description: Customer not found or not accessible
+
+components:
+  schemas:
+    MemberCardData:
+      type: object
+      required:
+        - schemeName
+        - principalMemberName
+        - insuredMemberName
+        - dateOfBirth
+        - datePrinted
+      properties:
+        schemeName:
+          type: string
+          description: Scheme name (from Scheme.schemeName via policy's package and customer's PackageSchemeCustomer)
+        principalMemberName:
+          type: string
+          description: Full name of the principal (policy holder)
+        insuredMemberName:
+          type: string
+          description: Full name of the person this card is for (principal or dependant)
+        memberNumber:
+          type: string
+          nullable: true
+          description: Member number; null when not yet assigned (frontend shows placeholder, disables download)
+        dateOfBirth:
+          type: string
+          description: DD/MM/YYYY
+        datePrinted:
+          type: string
+          description: DD/MM/YYYY from PolicyMemberPrincipal.createdAt or PolicyMemberDependant.createdAt
+
+    MemberCardsByPolicyItem:
+      type: object
+      required:
+        - policyId
+        - packageId
+        - packageName
+        - schemeName
+        - principal
+        - dependants
+      properties:
+        policyId:
+          type: string
+          format: uuid
+        policyNumber:
+          type: string
+          nullable: true
+        packageId:
+          type: integer
+        packageName:
+          type: string
+        cardTemplateName:
+          type: string
+          nullable: true
+          description: Package's card template name; null means use default layout
+        schemeName:
+          type: string
+        principal:
+          $ref: '#/components/schemas/MemberCardData'
+        dependants:
+          type: array
+          items:
+            $ref: '#/components/schemas/MemberCardData'
+
+    MemberCardsResponse:
+      type: object
+      required:
+        - memberCardsByPolicy
+      properties:
+        memberCardsByPolicy:
+          type: array
+          items:
+            $ref: '#/components/schemas/MemberCardsByPolicyItem'
+
+    CustomerDetailResponse:
+      type: object
+      description: Standard customer detail response; extended with memberNumber and memberNumberCreatedAt on customer and each dependant
+      properties:
+        status:
+          type: integer
+          example: 200
+        correlationId:
+          type: string
+        message:
+          type: string
+        data:
+          type: object
+          properties:
+            customer:
+              type: object
+              properties:
+                id: { type: string, format: uuid }
+                firstName: { type: string }
+                middleName: { type: string, nullable: true }
+                lastName: { type: string }
+                dateOfBirth: { type: string }
+                email: { type: string, nullable: true }
+                phoneNumber: { type: string, nullable: true }
+                gender: { type: string, nullable: true }
+                idType: { type: string }
+                idNumber: { type: string }
+                partnerCustomerId: { type: string }
+                createdAt: { type: string, format: date-time }
+                createdBy: { type: string, nullable: true }
+                createdByDisplayName: { type: string, nullable: true }
+                memberNumber: { type: string, nullable: true }
+                memberNumberCreatedAt: { type: string, format: date-time, nullable: true }
+            dependants:
+              type: array
+              items:
+                type: object
+                properties:
+                  id: { type: string }
+                  firstName: { type: string }
+                  middleName: { type: string, nullable: true }
+                  lastName: { type: string }
+                  dateOfBirth: { type: string, nullable: true }
+                  relationship: { type: string }
+                  memberNumber: { type: string, nullable: true }
+                  memberNumberCreatedAt: { type: string, format: date-time, nullable: true }
+            beneficiaries: { type: array }
+            policies: { type: array }

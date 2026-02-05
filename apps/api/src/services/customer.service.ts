@@ -22,6 +22,11 @@ import { SpouseDto } from '../dto/family-members/spouse.dto';
 import { BeneficiaryDto } from '../dto/family-members/beneficiary.dto';
 import { SharedMapperUtils } from '../mappers/shared.mapper.utils';
 import { CustomerDetailResponseDto, CustomerDetailDataDto } from '../dto/customers/customer-detail.dto';
+import {
+  MemberCardsResponseDto,
+  MemberCardsByPolicyItemDto,
+  MemberCardDataDto,
+} from '../dto/customers/member-cards.dto';
 import { CustomerPoliciesResponseDto, CustomerPaymentsResponseDto, PolicyOptionDto, PaymentDto } from '../dto/customers/customer-payments-filter.dto';
 import { UpdateCustomerDto } from '../dto/customers/update-customer.dto';
 import { UpdateDependantDto } from '../dto/dependants/update-dependant.dto';
@@ -1994,12 +1999,23 @@ export class CustomerService {
         throw new NotFoundException('Customer not found or not accessible');
       }
 
-      // Get customer with all relations
+      // Get customer with all relations (including member numbers for principal and dependants)
       const customer = await this.prismaService.customer.findUnique({
         where: { id: customerId },
         include: {
           beneficiaries: true,
-          dependants: true,
+          dependants: {
+            include: {
+              policyMemberDependants: {
+                orderBy: { createdAt: 'desc' },
+                take: 1,
+              },
+            },
+          },
+          policyMemberPrincipals: {
+            orderBy: { createdAt: 'desc' },
+            take: 1,
+          },
           policies: {
             include: {
               package: {
@@ -2042,6 +2058,8 @@ export class CustomerService {
       const customerEntity = Customer.fromPrismaData(customer);
       const customerDto = CustomerMapper.toPrincipalMemberDto(customerEntity);
 
+      const principalMember = customer.policyMemberPrincipals[0];
+
       // Map beneficiaries
       const beneficiaries = customer.beneficiaries.map((b) => ({
         id: b.id,
@@ -2055,20 +2073,25 @@ export class CustomerService {
         idNumber: b.idNumber ?? undefined,
       }));
 
-      // Map dependants
-      const dependants = customer.dependants.map((d) => ({
-        id: d.id,
-        firstName: d.firstName,
-        middleName: d.middleName ?? undefined,
-        lastName: d.lastName,
-        dateOfBirth: d.dateOfBirth ? d.dateOfBirth.toISOString().split('T')[0] : undefined,
-        phoneNumber: d.phoneNumber ?? undefined,
-        gender: d.gender ? SharedMapperUtils.mapGenderToDto(d.gender) : undefined,
-        idType: d.idType ? SharedMapperUtils.mapIdTypeToDto(d.idType) : undefined,
-        idNumber: d.idNumber ?? undefined,
-        relationship: d.relationship,
-        verificationRequired: d.verificationRequired ?? false,
-      }));
+      // Map dependants (with member number from PolicyMemberDependant)
+      const dependants = customer.dependants.map((d) => {
+        const memberDependant = d.policyMemberDependants[0];
+        return {
+          id: d.id,
+          firstName: d.firstName,
+          middleName: d.middleName ?? undefined,
+          lastName: d.lastName,
+          dateOfBirth: d.dateOfBirth ? d.dateOfBirth.toISOString().split('T')[0] : undefined,
+          phoneNumber: d.phoneNumber ?? undefined,
+          gender: d.gender ? SharedMapperUtils.mapGenderToDto(d.gender) : undefined,
+          idType: d.idType ? SharedMapperUtils.mapIdTypeToDto(d.idType) : undefined,
+          idNumber: d.idNumber ?? undefined,
+          relationship: d.relationship,
+          verificationRequired: d.verificationRequired ?? false,
+          memberNumber: memberDependant?.memberNumber ?? null,
+          memberNumberCreatedAt: memberDependant?.createdAt.toISOString() ?? null,
+        };
+      });
 
       // Map policies
       const policies = customer.policies.map((p) => ({
@@ -2086,6 +2109,8 @@ export class CustomerService {
           createdAt: customer.createdAt.toISOString(),
           createdBy: customer.createdBy ?? undefined,
           createdByDisplayName: createdByDisplayName,
+          memberNumber: principalMember?.memberNumber ?? null,
+          memberNumberCreatedAt: principalMember?.createdAt.toISOString() ?? null,
         },
         beneficiaries,
         dependants,
@@ -2479,6 +2504,129 @@ export class CustomerService {
   ): string {
     const parts = [firstName, middleName, lastName].filter(Boolean);
     return parts.length > 0 ? parts.join(' ') : 'N/A';
+  }
+
+  /**
+   * Format a Date to DD/MM/YYYY (UTC) for member cards
+   */
+  private formatDateDDMMYYYY(date: Date): string {
+    const d = date.getUTCDate().toString().padStart(2, '0');
+    const m = (date.getUTCMonth() + 1).toString().padStart(2, '0');
+    const y = date.getUTCFullYear();
+    return `${d}/${m}/${y}`;
+  }
+
+  /**
+   * Get member cards data grouped by policy (for Member cards tab and PNG download)
+   * Access check same as getCustomerDetails.
+   */
+  async getMemberCards(
+    customerId: string,
+    userId: string,
+    userRoles: string[],
+    correlationId: string
+  ): Promise<MemberCardsResponseDto> {
+    this.logger.log(`[${correlationId}] Getting member cards for customer ${customerId}`);
+
+    const canAccess = await this.canUserAccessCustomer(customerId, userId, userRoles);
+    if (!canAccess) {
+      throw new NotFoundException('Customer not found or not accessible');
+    }
+
+    const customer = await this.prismaService.customer.findUnique({
+      where: { id: customerId },
+      include: {
+        dependants: {
+          include: {
+            policyMemberDependants: { orderBy: { createdAt: 'desc' }, take: 1 },
+          },
+        },
+        policyMemberPrincipals: { orderBy: { createdAt: 'desc' }, take: 1 },
+        policies: {
+          include: {
+            package: {
+              select: {
+                id: true,
+                name: true,
+                cardTemplateName: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!customer) {
+      throw new NotFoundException('Customer not found');
+    }
+
+    const principalMember = customer.policyMemberPrincipals[0];
+    const principalName = [customer.firstName, customer.middleName ?? '', customer.lastName]
+      .filter(Boolean)
+      .join(' ');
+    const principalDob = customer.dateOfBirth
+      ? this.formatDateDDMMYYYY(customer.dateOfBirth)
+      : '';
+
+    const memberCardsByPolicy: MemberCardsByPolicyItemDto[] = [];
+
+    for (const policy of customer.policies) {
+      const pkg = policy.package;
+      const schemeCustomer = await this.prismaService.packageSchemeCustomer.findFirst({
+        where: {
+          customerId: customer.id,
+          packageScheme: { packageId: policy.packageId },
+        },
+        include: {
+          packageScheme: {
+            include: {
+              scheme: { select: { schemeName: true } },
+            },
+          },
+        },
+      });
+      const schemeName = schemeCustomer?.packageScheme?.scheme?.schemeName ?? '—';
+
+      const principalCard: MemberCardDataDto = {
+        schemeName,
+        principalMemberName: principalName,
+        insuredMemberName: principalName,
+        memberNumber: principalMember?.memberNumber ?? null,
+        dateOfBirth: principalDob,
+        datePrinted: principalMember?.createdAt
+          ? this.formatDateDDMMYYYY(principalMember.createdAt)
+          : '',
+      };
+
+      const dependantCards: MemberCardDataDto[] = customer.dependants.map((d) => {
+        const memberDependant = d.policyMemberDependants[0];
+        const fullName = [d.firstName, d.middleName ?? '', d.lastName].filter(Boolean).join(' ');
+        const dob = d.dateOfBirth ? this.formatDateDDMMYYYY(d.dateOfBirth) : '';
+        return {
+          schemeName,
+          principalMemberName: principalName,
+          insuredMemberName: fullName,
+          memberNumber: memberDependant?.memberNumber ?? null,
+          dateOfBirth: dob,
+          datePrinted: memberDependant?.createdAt
+            ? this.formatDateDDMMYYYY(memberDependant.createdAt)
+            : '',
+        };
+      });
+
+      memberCardsByPolicy.push({
+        policyId: policy.id,
+        policyNumber: policy.policyNumber,
+        packageId: pkg.id,
+        packageName: pkg.name,
+        cardTemplateName: pkg.cardTemplateName ?? null,
+        schemeName,
+        principal: principalCard,
+        dependants: dependantCards,
+      });
+    }
+
+    return { memberCardsByPolicy };
   }
 
   /**

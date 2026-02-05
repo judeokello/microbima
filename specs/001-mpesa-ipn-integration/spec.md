@@ -2,7 +2,7 @@
 
 **Feature Branch**: `001-mpesa-ipn-integration`  
 **Created**: 2025-01-27  
-**Status**: Draft  
+**Status**: In Progress (core IPN, STK Push, statement deduplication, and runtime config implemented; periodic jobs and some verification/integration tasks pending)  
 **Input**: User description: "Integrate M-Pesa Daraja API Instant Payment Notification (IPN) as the primary transaction data source and M-Pesa Express (STK Push) for agent-initiated payments. Statement uploads will serve as secondary source for gap filling when records are missing."
 
 ## Clarifications
@@ -91,6 +91,13 @@ When statement files are uploaded manually, the system checks each transaction a
 - **When disabled**: `POST /internal/mpesa/stk-push/initiate` returns **503** with body message "M-Pesa STK push is currently disabled."
 - **Config endpoint**: Internal API exposes `GET /internal/config` (same auth as other internal routes) with response `{ "mpesaStkPushEnabled": boolean }` for clients (e.g. agent-registration).
 - **Frontend**: MPESA option remains visible. When STK is disabled, after policy creation the UI shows "Policy created. Customer can complete the payment by paying via Paybill." and does not call STK initiate.
+
+### Developer testing: STK Push jobs (T042, T043)
+
+- **Guide**: [docs/testing/stk-job-testing-guide.md](../../docs/testing/stk-job-testing-guide.md) — how to run the seed script, trigger jobs (or rely on cron), and verify via GET-by-ID and debug endpoints.
+- **Availability**: GET-by-ID, trigger endpoints, and debug listing are available only when `NODE_ENV === 'development'` or `NODE_ENV === 'staging'` (no `ENABLE_CRON_TEST_ENDPOINTS`).
+- **Local**: Run seed script from `apps/api`, start API, then call trigger endpoints or wait for cron; verify with `GET .../requests/:id` and `GET .../jobs/debug?type=expired|missing-ipn`.
+- **Staging**: Deploy with `NODE_ENV=staging`, seed staging DB (script prints created IDs), then run trigger endpoints or wait for cron and check logs/DB or the same GET endpoints.
 
 ## Requirements *(mandatory)*
 
