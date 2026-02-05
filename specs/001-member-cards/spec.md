@@ -73,6 +73,8 @@ Staff responsible for viewing or managing packages open the screen where package
 - What happens when a customer has multiple policies? (Member cards tab shows one group per policy; each group shows principal and dependants for that policy context; scheme name and card design follow the policy's package.)
 - What happens when a principal or dependant has no member number? (Customer Details: show the member number field with a clear placeholder, e.g. "Not assigned". Member cards tab: show that person's card with the same placeholder; download for that card is disabled until a member number is assigned.)
 - How does the system handle a package with no card template configured? (Use a single default card layout for both the package template preview and for Member cards in the tab; no template means show the default layout.)
+- What if scheme name cannot be resolved for a policy (e.g. no PackageSchemeCustomer)? (The card displays a fallback value such as empty string or "—"; implementation follows data-model resolution; no separate requirement.)
+- How are loading and error states shown for the Member cards tab? (Follow the same patterns as the rest of the customer detail page, e.g. spinner while fetching member-cards data, error message on failure.)
 
 ## Requirements *(mandatory)*
 
