@@ -211,6 +211,24 @@ export class DependantSummaryDto {
   })
   @IsOptional()
   verificationRequired?: boolean;
+
+  @ApiProperty({
+    description: 'Member number from PolicyMemberDependant; null if not yet assigned',
+    example: 'MFG023-01',
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  memberNumber?: string | null;
+
+  @ApiProperty({
+    description: 'ISO 8601 when member number was created (for date printed)',
+    example: '2025-01-15T10:30:00Z',
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  memberNumberCreatedAt?: string | null;
 }
 
 export class CustomerDetailDataDto {
@@ -225,6 +243,8 @@ export class CustomerDetailDataDto {
     createdAt: string;
     createdBy?: string;
     createdByDisplayName?: string;
+    memberNumber?: string | null;
+    memberNumberCreatedAt?: string | null;
   };
 
   @ApiProperty({

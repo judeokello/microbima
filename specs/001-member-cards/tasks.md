@@ -24,7 +24,7 @@
 
 **Purpose**: Dependencies and one-time setup for the feature
 
-- [ ] T001 Add html-to-image dependency to apps/agent-registration/package.json for client-side PNG export
+- [x] T001 Add html-to-image dependency to apps/agent-registration/package.json for client-side PNG export
 
 ---
 
@@ -34,9 +34,9 @@
 
 **⚠️ CRITICAL**: User Story 2 and 3 need cardTemplateName; User Story 1 does not.
 
-- [ ] T002 Add cardTemplateName field (String? @db.VarChar(100)) to Package model in apps/api/prisma/schema.prisma
-- [ ] T003 Create and apply Prisma migration in apps/api with name add_package_card_template_name then run prisma generate
-- [ ] T004 Add cardTemplateName to PackageDetailDto and ensure getPackageById returns it in apps/api/src/dto/packages/package.dto.ts and apps/api/src/services/product-management.service.ts (select cardTemplateName in getPackageById)
+- [x] T002 Add cardTemplateName field (String? @db.VarChar(100)) to Package model in apps/api/prisma/schema.prisma
+- [x] T003 Create and apply Prisma migration in apps/api with name add_package_card_template_name then run prisma generate
+- [x] T004 Add cardTemplateName to PackageDetailDto and ensure getPackageById returns it in apps/api/src/dto/packages/package.dto.ts and apps/api/src/services/product-management.service.ts (select cardTemplateName in getPackageById)
 
 **Checkpoint**: Schema and package API ready; US1 can proceed; US2 and US3 can use cardTemplateName
 
@@ -50,13 +50,13 @@
 
 ### Implementation for User Story 1
 
-- [ ] T005 [P] [US1] Add memberNumber and memberNumberCreatedAt to customer detail DTOs (principal and dependants) in apps/api/src/dto/customers/ (see data-model.md and customer-detail.dto.ts)
-- [ ] T006 [US1] In getCustomerDetails load policyMemberPrincipals for customer and policyMemberDependants for customer's dependants in apps/api/src/services/customer.service.ts
-- [ ] T007 [US1] Map principal member number and createdAt and per-dependant member number and createdAt into customer detail response in apps/api/src/services/customer.service.ts
-- [ ] T008 [P] [US1] Extend CustomerDetailData and nested types with memberNumber and memberNumberCreatedAt in apps/agent-registration/src/lib/api.ts
-- [ ] T009 [US1] Display member number (or placeholder "Not assigned") in CustomerInfoSection in apps/agent-registration/src/app/(main)/customer/[customerId]/_components/customer-info-section.tsx
-- [ ] T010 [US1] Display member number (or placeholder "Not assigned") per dependant in SpouseSection in apps/agent-registration/src/app/(main)/customer/[customerId]/_components/spouse-section.tsx
-- [ ] T011 [US1] Display member number (or placeholder "Not assigned") per dependant in ChildrenSection in apps/agent-registration/src/app/(main)/customer/[customerId]/_components/children-section.tsx
+- [x] T005 [P] [US1] Add memberNumber and memberNumberCreatedAt to customer detail DTOs (principal and dependants) in apps/api/src/dto/customers/ (see data-model.md and customer-detail.dto.ts)
+- [x] T006 [US1] In getCustomerDetails load policyMemberPrincipals for customer and policyMemberDependants for customer's dependants in apps/api/src/services/customer.service.ts
+- [x] T007 [US1] Map principal member number and createdAt and per-dependant member number and createdAt into customer detail response in apps/api/src/services/customer.service.ts
+- [x] T008 [P] [US1] Extend CustomerDetailData and nested types with memberNumber and memberNumberCreatedAt in apps/agent-registration/src/lib/api.ts
+- [x] T009 [US1] Display member number (or placeholder "Not assigned") in CustomerInfoSection in apps/agent-registration/src/app/(main)/customer/[customerId]/_components/customer-info-section.tsx
+- [x] T010 [US1] Display member number (or placeholder "Not assigned") per dependant in SpouseSection in apps/agent-registration/src/app/(main)/customer/[customerId]/_components/spouse-section.tsx
+- [x] T011 [US1] Display member number (or placeholder "Not assigned") per dependant in ChildrenSection in apps/agent-registration/src/app/(main)/customer/[customerId]/_components/children-section.tsx
 
 **Checkpoint**: User Story 1 complete; member numbers visible on customer detail page on all three routes (admin, customer, dashboard)
 
@@ -70,19 +70,19 @@
 
 ### Implementation for User Story 2
 
-- [ ] T012 [P] [US2] Create MemberCardDataDto, MemberCardsByPolicyItemDto, MemberCardsResponseDto in apps/api/src/dto/customers/ (or new file under dto/customers) per contracts/member-cards-api.yaml
-- [ ] T013 [US2] Implement getMemberCards in apps/api/src/services/customer.service.ts (access check same as getCustomerDetails; resolve scheme via PackageSchemeCustomer; build principal + dependants MemberCardData; dates DD/MM/YYYY; return { memberCardsByPolicy })
-- [ ] T014 [US2] Add GET :customerId/member-cards endpoint in apps/api/src/controllers/internal/customer.controller.ts returning member cards response DTO
-- [ ] T015 [P] [US2] Define MemberCardData and related types in apps/agent-registration/src/types/member-card.ts
-- [ ] T016 [P] [US2] Create sample-card-data.ts with schemeName MFANISI, Jane Doe, John Doe, MFG023-00, 07/05/1983, 11/12/2025 in apps/agent-registration/src/components/member-cards/sample-card-data.ts
-- [ ] T017 [P] [US2] Create DefaultCardTemplate component (props data: MemberCardData, className?) in apps/agent-registration/src/components/member-cards/templates/DefaultCardTemplate.tsx with DD/MM/YYYY dates
-- [ ] T018 [P] [US2] Create WellnessCardTemplate component (props data: MemberCardData, className?) in apps/agent-registration/src/components/member-cards/templates/WellnessCardTemplate.tsx matching sample card layout
-- [ ] T019 [US2] Create card-template-registry.tsx with CARD_TEMPLATE_REGISTRY mapping template name to component and fallback to default in apps/agent-registration/src/components/member-cards/card-template-registry.tsx
-- [ ] T020 [US2] Create MemberCardWithDownload wrapper (ref, toPng via html-to-image, download button disabled when memberNumber null) in apps/agent-registration/src/components/member-cards/MemberCardWithDownload.tsx
-- [ ] T021 [US2] Add getMemberCards(customerId) calling GET /internal/customers/:customerId/member-cards in apps/agent-registration/src/lib/api.ts
-- [ ] T022 [US2] Add "Member cards" tab and content (empty state when no data; per-policy sections and cards via registry; use MemberCardWithDownload) to apps/agent-registration/src/app/(main)/admin/customer/[customerId]/page.tsx
-- [ ] T023 [US2] Add "Member cards" tab and same content to apps/agent-registration/src/app/(main)/customer/[customerId]/page.tsx
-- [ ] T024 [US2] Add "Member cards" tab and same content to apps/agent-registration/src/app/(main)/dashboard/customer/[customerId]/page.tsx
+- [x] T012 [P] [US2] Create MemberCardDataDto, MemberCardsByPolicyItemDto, MemberCardsResponseDto in apps/api/src/dto/customers/ (or new file under dto/customers) per contracts/member-cards-api.yaml
+- [x] T013 [US2] Implement getMemberCards in apps/api/src/services/customer.service.ts (access check same as getCustomerDetails; resolve scheme via PackageSchemeCustomer; build principal + dependants MemberCardData; dates DD/MM/YYYY; return { memberCardsByPolicy })
+- [x] T014 [US2] Add GET :customerId/member-cards endpoint in apps/api/src/controllers/internal/customer.controller.ts returning member cards response DTO
+- [x] T015 [P] [US2] Define MemberCardData and related types in apps/agent-registration/src/types/member-card.ts
+- [x] T016 [P] [US2] Create sample-card-data.ts with schemeName MFANISI, Jane Doe, John Doe, MFG023-00, 07/05/1983, 11/12/2025 in apps/agent-registration/src/components/member-cards/sample-card-data.ts
+- [x] T017 [P] [US2] Create DefaultCardTemplate component (props data: MemberCardData, className?) in apps/agent-registration/src/components/member-cards/templates/DefaultCardTemplate.tsx with DD/MM/YYYY dates
+- [x] T018 [P] [US2] Create WellnessCardTemplate component (props data: MemberCardData, className?) in apps/agent-registration/src/components/member-cards/templates/WellnessCardTemplate.tsx matching sample card layout
+- [x] T019 [US2] Create card-template-registry.tsx with CARD_TEMPLATE_REGISTRY mapping template name to component and fallback to default in apps/agent-registration/src/components/member-cards/card-template-registry.tsx
+- [x] T020 [US2] Create MemberCardWithDownload wrapper (ref, toPng via html-to-image, download button disabled when memberNumber null) in apps/agent-registration/src/components/member-cards/MemberCardWithDownload.tsx
+- [x] T021 [US2] Add getMemberCards(customerId) calling GET /internal/customers/:customerId/member-cards in apps/agent-registration/src/lib/api.ts
+- [x] T022 [US2] Add "Member cards" tab and content (empty state when no data; per-policy sections and cards via registry; use MemberCardWithDownload) to apps/agent-registration/src/app/(main)/admin/customer/[customerId]/page.tsx
+- [x] T023 [US2] Add "Member cards" tab and same content to apps/agent-registration/src/app/(main)/customer/[customerId]/page.tsx
+- [x] T024 [US2] Add "Member cards" tab and same content to apps/agent-registration/src/app/(main)/dashboard/customer/[customerId]/page.tsx
 
 **Checkpoint**: User Story 2 complete; Member cards tab works on all three customer pages with download and empty state
 
@@ -96,8 +96,8 @@
 
 ### Implementation for User Story 3
 
-- [ ] T025 [US3] Add "Card template preview" section to package detail page: resolve template from package.cardTemplateName or default, render with sample data from sample-card-data.ts in apps/agent-registration/src/app/(main)/admin/underwriters/packages/[packageId]/page.tsx
-- [ ] T026 [US3] Confirm package create/edit form does not expose cardTemplateName (no new field) in: `apps/agent-registration/src/app/(main)/admin/underwriters/[underwriterId]/_components/create-package-dialog.tsx` and `apps/agent-registration/src/app/(main)/admin/underwriters/packages/[packageId]/page.tsx`
+- [x] T025 [US3] Add "Card template preview" section to package detail page: resolve template from package.cardTemplateName or default, render with sample data from sample-card-data.ts in apps/agent-registration/src/app/(main)/admin/underwriters/packages/[packageId]/page.tsx
+- [x] T026 [US3] Confirm package create/edit form does not expose cardTemplateName (no new field) in: `apps/agent-registration/src/app/(main)/admin/underwriters/[underwriterId]/_components/create-package-dialog.tsx` and `apps/agent-registration/src/app/(main)/admin/underwriters/packages/[packageId]/page.tsx`
 
 **Checkpoint**: User Story 3 complete; package preview visible; template identifier not editable in UI
 
@@ -107,7 +107,7 @@
 
 **Purpose**: Lint and final validation
 
-- [ ] T027 Run pnpm lint from repository root and fix any issues introduced by this feature
+- [x] T027 Run pnpm lint from repository root and fix any issues introduced by this feature
 - [ ] T028 Validate implementation against quickstart.md and contracts/member-cards-api.yaml (manual or script)
 
 ---

@@ -873,6 +873,8 @@ export interface CustomerDetailData {
     createdAt: string
     createdBy?: string
     createdByDisplayName?: string
+    memberNumber?: string | null
+    memberNumberCreatedAt?: string | null
   }
   beneficiaries: Array<{
     id: string
@@ -895,6 +897,8 @@ export interface CustomerDetailData {
     idNumber?: string
     relationship: string
     verificationRequired?: boolean
+    memberNumber?: string | null
+    memberNumberCreatedAt?: string | null
   }>
   policies: Array<{
     id: string
@@ -999,6 +1003,52 @@ export interface PrincipalMemberDto {
   idType: string
   idNumber: string
   partnerCustomerId: string
+}
+
+export interface MemberCardsApiResponse {
+  memberCardsByPolicy: Array<{
+    policyId: string;
+    policyNumber: string | null;
+    packageId: number;
+    packageName: string;
+    cardTemplateName: string | null;
+    schemeName: string;
+    principal: {
+      schemeName: string;
+      principalMemberName: string;
+      insuredMemberName: string;
+      memberNumber: string | null;
+      dateOfBirth: string;
+      datePrinted: string;
+    };
+    dependants: Array<{
+      schemeName: string;
+      principalMemberName: string;
+      insuredMemberName: string;
+      memberNumber: string | null;
+      dateOfBirth: string;
+      datePrinted: string;
+    }>;
+  }>;
+}
+
+export async function getMemberCards(customerId: string): Promise<MemberCardsApiResponse> {
+  const token = await getSupabaseToken();
+  const response = await fetch(
+    `${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/customers/${customerId}/member-cards`,
+    {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'x-correlation-id': `member-cards-${Date.now()}`,
+      },
+    }
+  );
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(errorData.error?.message ?? `HTTP ${response.status}: ${response.statusText}`);
+  }
+  return await response.json();
 }
 
 export async function getCustomerDetails(customerId: string): Promise<CustomerDetailResponse> {

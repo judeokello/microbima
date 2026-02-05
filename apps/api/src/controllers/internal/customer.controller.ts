@@ -39,6 +39,7 @@ import { RegistrationsChartResponseDto } from '../../dto/customers/registrations
 import { DashboardStatsDto } from '../../dto/customers/dashboard-stats.dto';
 import { BrandAmbassadorDashboardStatsDto } from '../../dto/customers/brand-ambassador-dashboard-stats.dto';
 import { CustomerDetailResponseDto } from '../../dto/customers/customer-detail.dto';
+import { MemberCardsResponseDto } from '../../dto/customers/member-cards.dto';
 import { CustomerPoliciesResponseDto, CustomerPaymentsResponseDto, CustomerPaymentsFilterDto } from '../../dto/customers/customer-payments-filter.dto';
 import { UpdateCustomerDto } from '../../dto/customers/update-customer.dto';
 import { UpdateDependantDto } from '../../dto/dependants/update-dependant.dto';
@@ -644,6 +645,29 @@ export class InternalCustomerController {
     const userId = req.user?.id ?? 'system';
     const userRoles = req.user?.roles ?? [];
     return this.customerService.getCustomerDetails(customerId, userId, userRoles, correlationId);
+  }
+
+  /**
+   * Get member cards by policy (for Member cards tab and PNG download)
+   */
+  @Get(':customerId/member-cards')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Get member cards by policy (Internal)',
+    description:
+      'Returns member cards data grouped by policy. Access same as customer detail page.',
+  })
+  @ApiParam({ name: 'customerId', description: 'Customer ID' })
+  @ApiResponse({ status: 200, description: 'Member cards grouped by policy' })
+  @ApiResponse({ status: 404, description: 'Customer not found or not accessible' })
+  async getMemberCards(
+    @Param('customerId') customerId: string,
+    @CorrelationId() correlationId: string,
+    @Req() req: Request,
+  ): Promise<MemberCardsResponseDto> {
+    const userId = req.user?.id ?? 'system';
+    const userRoles = req.user?.roles ?? [];
+    return this.customerService.getMemberCards(customerId, userId, userRoles, correlationId);
   }
 
   /**
