@@ -30,3 +30,32 @@ export interface MemberCardsByPolicyItem {
 export interface MemberCardsResponse {
   memberCardsByPolicy: MemberCardsByPolicyItem[];
 }
+
+/** Per-field config for image-based card templates (config.json) */
+export interface CardTemplateFieldConfig {
+  x: number;
+  y: number;
+  fontSize?: number;
+  color?: string;
+  fontFamily?: string;
+  fontWeight?: string;
+}
+
+/** Image-based template config (public/member-cards/{name}/config.json) */
+export interface CardTemplateConfig {
+  version: number;
+  defaults?: {
+    fontFamily?: string;
+    fontSize?: number;
+    color?: string;
+    fontWeight?: string;
+  };
+  fields: {
+    schemeName: CardTemplateFieldConfig;
+    principalMemberName: CardTemplateFieldConfig;
+    insuredMemberName: CardTemplateFieldConfig;
+    memberNumber: CardTemplateFieldConfig;
+    dateOfBirth: CardTemplateFieldConfig;
+    datePrinted: CardTemplateFieldConfig;
+  };
+}

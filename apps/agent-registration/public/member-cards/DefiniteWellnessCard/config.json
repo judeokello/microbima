@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "defaults": {
+    "fontFamily": "Arial, sans-serif",
+    "fontSize": 26,
+    "color": "#5B2C6F",
+    "fontWeight": "normal"
+  },
+  "fields": {
+    "schemeName": {
+      "x": 550,
+      "y": 460,
+      "fontSize": 34,
+      "color": "#F27B22",
+      "fontWeight": "bold"
+    },
+    "principalMemberName": { "x": 450, "y": 580 },
+    "insuredMemberName": { "x": 450, "y": 490 },
+    "memberNumber": { "x": 450, "y": 550 },
+    "dateOfBirth": { "x": 450, "y": 610 },
+    "datePrinted": { "x": 450, "y": 670 }
+  }
+}
