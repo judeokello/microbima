@@ -114,6 +114,7 @@ export default function CustomerDetailPage() {
         <TabsList>
           <TabsTrigger value="details">Customer Details</TabsTrigger>
           <TabsTrigger value="payments">Payments</TabsTrigger>
+          <TabsTrigger value="member-cards">Member cards</TabsTrigger>
         </TabsList>
 
         <TabsContent value="details" className="space-y-6">
