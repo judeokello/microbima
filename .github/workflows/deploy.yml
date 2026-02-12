@@ -151,6 +151,11 @@ jobs:
           flyctl ssh console -a maishapoa-staging-internal-api -C "sh -c 'cd /app/apps/api && npx prisma db execute --file prisma/migrate-existing-customers.sql --schema prisma/schema.prisma'"
           echo "✅ Existing customers migrated to package schemes"
 
+          # Seed policy number sequences for all packages (idempotent)
+          echo "🔢 Seeding policy number sequences..."
+          flyctl ssh console -a maishapoa-staging-internal-api -C "sh -c 'cd /app/apps/api && npx prisma db execute --file prisma/seed-policy-number-sequence.sql --schema prisma/schema.prisma'"
+          echo "✅ Policy number sequences seeded"
+
       - name: Deploy Agent Registration to Staging
         if: env.DEPLOY_AGENT_REGISTRATION != 'false'
         run: |
@@ -418,6 +423,11 @@ jobs:
           flyctl ssh console -a maishapoa-production-internal-api -C "sh -c 'cd /app/apps/api && npx prisma db execute --file prisma/migrate-existing-customers.sql --schema prisma/schema.prisma'"
           echo "✅ Existing customers migrated to package schemes"
 
+          # Seed policy number sequences for all packages (idempotent)
+          echo "🔢 Seeding policy number sequences..."
+          flyctl ssh console -a maishapoa-production-internal-api -C "sh -c 'cd /app/apps/api && npx prisma db execute --file prisma/seed-policy-number-sequence.sql --schema prisma/schema.prisma'"
+          echo "✅ Policy number sequences seeded"
+
       - name: Deploy Agent Registration to Production
         if: env.DEPLOY_AGENT_REGISTRATION != 'false'
         run: |
@@ -486,7 +496,7 @@ jobs:
           # Internal API (conditional check)
           if [ "$DEPLOY_INTERNAL_API" != "false" ]; then
             echo "Checking Internal API..."
-            curl -f https://maishapoa-staging-internal-api.fly.dev/api/health || echo "⚠️ Internal API health check failed"
+            curl -f https://maishapoa-staging-internal-api.fly.dev/health || echo "⚠️ Internal API health check failed"
           else
             echo "⏭️ Skipping Internal API health check (not deployed)"
           fi
@@ -529,7 +539,7 @@ jobs:
           
           # Internal API
           echo "Checking Internal API..."
-          curl -f https://maishapoa-production-internal-api.fly.dev/api/health || exit 1
+          curl -f https://maishapoa-production-internal-api.fly.dev/health || exit 1
           echo "✅ Internal API is healthy"
           
           # Agent Registration App
