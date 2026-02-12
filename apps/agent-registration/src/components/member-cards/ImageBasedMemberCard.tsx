@@ -18,22 +18,30 @@ function getFieldValue(
   data: MemberCardData,
   key: keyof CardTemplateConfig['fields']
 ): string {
+  let value = '';
   switch (key) {
     case 'schemeName':
-      return data.schemeName;
+      value = data.schemeName;
+      break;
     case 'principalMemberName':
-      return data.principalMemberName;
+      value = data.principalMemberName;
+      break;
     case 'insuredMemberName':
-      return data.insuredMemberName;
+      value = data.insuredMemberName;
+      break;
     case 'memberNumber':
-      return data.memberNumber ?? 'Not assigned';
+      value = data.memberNumber ?? 'Not assigned';
+      break;
     case 'dateOfBirth':
-      return data.dateOfBirth;
+      value = data.dateOfBirth;
+      break;
     case 'datePrinted':
-      return data.datePrinted;
+      value = data.datePrinted;
+      break;
     default:
-      return '';
+      value = '';
   }
+  return value.toUpperCase();
 }
 
 interface ImageBasedMemberCardProps {
