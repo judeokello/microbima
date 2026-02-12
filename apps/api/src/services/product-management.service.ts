@@ -799,6 +799,14 @@ export class ProductManagementService {
         },
       });
 
+      // Seed policy_number_sequences for the new package
+      await this.prismaService.policyNumberSequence.create({
+        data: {
+          packageId: pkg.id,
+          lastSequence: 0,
+        },
+      });
+
       this.logger.log(`[${correlationId}] Created package with ID ${pkg.id}`);
 
       return {

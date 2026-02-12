@@ -155,7 +155,10 @@ async function main() {
     // Step 4: Seed payment sequence data
     await executeSqlSeedFile('seed-payment-sequence.sql')
 
-    // Step 5: Seed agent registration data (deferred requirements)
+    // Step 5: Seed policy number sequences (for all packages - last_sequence = 0)
+    await executeSqlSeedFile('seed-policy-number-sequence.sql')
+
+    // Step 6: Seed agent registration data (deferred requirements)
     console.log('📝 Seeding agent registration data...')
     await seedAgentRegistrationData(prisma)
 

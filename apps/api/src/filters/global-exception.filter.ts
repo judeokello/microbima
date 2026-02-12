@@ -85,12 +85,17 @@ export class GlobalExceptionFilter implements ExceptionFilter {
 
     // Report error to Sentry asynchronously (non-blocking)
     if (exception instanceof Error) {
-      this.externalIntegrationsService.reportErrorToSentry(exception, {
+      const sentryContext: Record<string, unknown> = {
         correlationId,
         requestUrl: request.url,
         requestMethod: request.method,
         userId: request['userId'], // Will be set by auth middleware
-      });
+      };
+      // Include request body for policy creation errors to aid debugging
+      if (request.method === 'POST' && request.url?.includes('/internal/policies')) {
+        sentryContext.requestBody = request.body;
+      }
+      this.externalIntegrationsService.reportErrorToSentry(exception, sentryContext);
     }
 
     // Send the error response
