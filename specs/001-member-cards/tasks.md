@@ -76,9 +76,9 @@
 - [x] T015 [P] [US2] Define MemberCardData and related types in apps/agent-registration/src/types/member-card.ts
 - [x] T016 [P] [US2] Create sample-card-data.ts with schemeName MFANISI, Jane Doe, John Doe, MFG023-00, 07/05/1983, 11/12/2025 in apps/agent-registration/src/components/member-cards/sample-card-data.ts
 - [x] T017 [P] [US2] Create DefaultCardTemplate component (props data: MemberCardData, className?) in apps/agent-registration/src/components/member-cards/templates/DefaultCardTemplate.tsx with DD/MM/YYYY dates
-- [x] T018 [P] [US2] Create WellnessCardTemplate component (props data: MemberCardData, className?) in apps/agent-registration/src/components/member-cards/templates/WellnessCardTemplate.tsx matching sample card layout
-- [x] T019 [US2] Create card-template-registry.tsx with CARD_TEMPLATE_REGISTRY mapping template name to component and fallback to default in apps/agent-registration/src/components/member-cards/card-template-registry.tsx
-- [x] T020 [US2] Create MemberCardWithDownload wrapper (ref, toPng via html-to-image, download button disabled when memberNumber null) in apps/agent-registration/src/components/member-cards/MemberCardWithDownload.tsx
+- [x] T018 [P] [US2] ~~Create WellnessCardTemplate component~~ **REPLACED**: Image-based template system implemented instead. WellnessCardTemplate removed in favor of image templates with config.json
+- [x] T019 [US2] Create card-template-registry.tsx - **SIMPLIFIED**: Registry now only contains default fallback; new templates use image-based approach (public/member-cards/{name}/)
+- [x] T020 [US2] Create MemberCardWithDownload wrapper - **ENHANCED**: Now tries image template first (fetch config.json), falls back to component registry; uses canvas.toDataURL for full-res PNG export from image templates
 - [x] T021 [US2] Add getMemberCards(customerId) calling GET /internal/customers/:customerId/member-cards in apps/agent-registration/src/lib/api.ts
 - [x] T022 [US2] Add "Member cards" tab and content (empty state when no data; per-policy sections and cards via registry; use MemberCardWithDownload) to apps/agent-registration/src/app/(main)/admin/customer/[customerId]/page.tsx
 - [x] T023 [US2] Add "Member cards" tab and same content to apps/agent-registration/src/app/(main)/customer/[customerId]/page.tsx
@@ -108,7 +108,11 @@
 **Purpose**: Lint and final validation
 
 - [x] T027 Run pnpm lint from repository root and fix any issues introduced by this feature
-- [ ] T028 Validate implementation against quickstart.md and contracts/member-cards-api.yaml (manual or script)
+- [x] T028 Validate implementation against quickstart.md and contracts/member-cards-api.yaml (manual validation complete)
+- [x] T029 [ADDITIONAL] Implement ImageBasedMemberCard component for canvas-based rendering with config.json positioning
+- [x] T030 [ADDITIONAL] Create public/member-cards/ folder structure with DefiniteWellnessCard template and config
+- [x] T031 [ADDITIONAL] Add CardTemplateConfig types for image-based template configuration
+- [x] T032 [ADDITIONAL] Update package preview to support image-based templates (showDownloadButton prop)
 
 ---
 
@@ -192,3 +196,17 @@ T018: WellnessCardTemplate.tsx
 - Do not expose cardTemplateName in package create/update DTOs or forms; only in GET package response for preview and member-cards payload
 - Run `pnpm lint` after TypeScript/JavaScript changes (per project rules)
 - If using check-prerequisites.sh and multiple spec directories share prefix 001, ensure FEATURE_DIR or context targets this feature (001-member-cards).
+
+## Architecture Change: Image-Based Templates
+
+**Implementation evolved** from React component templates to image-based templates with config.json for pixel-perfect designer layouts:
+
+- **Original approach**: React components (DefaultCardTemplate, WellnessCardTemplate) with styled divs
+- **New approach**: Template images in `public/member-cards/{name}/{name}.jpeg` + `config.json` with field positions
+- **Benefits**: 
+  - Pixel-perfect match to designer specs
+  - Zero code changes for new templates (just add folder + image + config)
+  - Designer can update templates by replacing image files
+  - Config.json allows fine-tuning text positions without code changes
+- **Fallback**: Component registry kept for default template when no image template exists
+- **New workflow**: Create folder → Add image + config.json → Set packages.cardTemplateName → Done

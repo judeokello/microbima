@@ -1785,6 +1785,77 @@ export async function checkTransactionReferenceExists(
   }
 }
 
+// Recovery API - for customers whose policy creation failed
+
+export interface RecoveryPaymentItem {
+  id: string
+  transactionReference: string
+  paidIn: number
+  completionTime: string
+  accountNumber: string | null
+}
+
+export interface RecoveryCustomer {
+  id: string
+  fullName: string
+  idNumber: string
+  packageId: number
+  packageName: string
+  payments: RecoveryPaymentItem[]
+  earliestPaymentDate: string
+}
+
+export interface CreatePolicyFromRecoveryRequest {
+  customerId: string
+  packageId: number
+  packagePlanId: number
+  premium: number
+  frequency: 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'QUARTERLY' | 'ANNUALLY' | 'CUSTOM'
+  customDays?: number
+}
+
+export async function getCustomersWithoutPolicies(): Promise<{ customers: RecoveryCustomer[] }> {
+  const token = await getSupabaseToken()
+  const response = await fetch(
+    `${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/recovery/customers-without-policies`,
+    {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'x-correlation-id': `recovery-${Date.now()}`
+      }
+    }
+  )
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}))
+    throw new Error(err?.error?.message ?? `Failed to fetch: ${response.statusText}`)
+  }
+  return response.json()
+}
+
+export async function createPolicyFromRecovery(
+  data: CreatePolicyFromRecoveryRequest
+): Promise<{ policy: { id: string; policyNumber: string; status: string } }> {
+  const token = await getSupabaseToken()
+  const response = await fetch(
+    `${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/recovery/create-policy`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+        'x-correlation-id': `recovery-create-${Date.now()}`
+      },
+      body: JSON.stringify(data)
+    }
+  )
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}))
+    throw new Error(err?.error?.message ?? `Failed to create policy: ${response.statusText}`)
+  }
+  return response.json()
+}
+
 async function getSupabaseToken(): Promise<string> {
   try {
     // Get the current session from the client-side supabase instance

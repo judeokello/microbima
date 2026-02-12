@@ -125,27 +125,21 @@ export class PolicyService {
   }
 
   /**
-   * Generate policy number inside a transaction with duplicate detection and retry logic
-   * This method ensures thread-safe policy number generation by:
-   * 1. Using the transaction client to read the latest committed state
-   * 2. Checking for existing policy with the same number before creating
-   * 3. Retrying with next sequence number if duplicate detected
+   * Generate a unique policy number within a transaction using database-level sequence.
+   * Uses policy_number_sequences table for atomic, race-condition-free generation.
    *
    * @param packageId - Package ID
    * @param tx - Prisma transaction client
    * @param correlationId - Correlation ID for tracing
-   * @param maxRetries - Maximum number of retries if duplicate detected (default: 5)
    * @returns Generated unique policy number
    */
   private async generatePolicyNumberInTransaction(
     packageId: number,
     tx: Prisma.TransactionClient,
-    correlationId: string,
-    maxRetries: number = 5
+    correlationId: string
   ): Promise<string> {
-    this.logger.log(`[${correlationId}] Generating policy number for package ${packageId} (transaction-safe)`);
+    this.logger.log(`[${correlationId}] Generating policy number for package ${packageId} (sequence table)`);
 
-    // Get package with policy number format (outside retry loop as it doesn't change)
     const packageData = await tx.package.findUnique({
       where: { id: packageId },
       select: {
@@ -171,161 +165,27 @@ export class PolicyService {
       );
     }
 
-    // Retry logic to handle race conditions
-    for (let attempt = 0; attempt < maxRetries; attempt++) {
-      // Find the last policy for this package to get the current sequence number
-      // Using transaction client ensures we see committed data
-      const lastPolicy = await tx.policy.findFirst({
-        where: {
-          packageId: packageId,
-        },
-        select: {
-          policyNumber: true,
-          id: true,
-          createdAt: true,
-        },
-        orderBy: {
-          createdAt: 'desc',
-        },
-      });
+    // Atomic increment using policy_number_sequences - inserts if not exists, increments if exists
+    const result = await tx.$queryRaw<Array<{ lastSequence: number }>>`
+      INSERT INTO policy_number_sequences ("packageId", "lastSequence")
+      VALUES (${packageId}, 1)
+      ON CONFLICT ("packageId") DO UPDATE
+      SET "lastSequence" = policy_number_sequences."lastSequence" + 1
+      RETURNING "lastSequence"
+    `;
 
-      // Log what we found for debugging
-      this.logger.log(
-        `[${correlationId}] Policy number generation attempt ${attempt + 1}: ` +
-        `Last policy: ${lastPolicy ? `id=${lastPolicy.id}, policyNumber="${lastPolicy.policyNumber}", createdAt=${lastPolicy.createdAt}` : 'none found'}`
-      );
-
-      // Extract the sequence number from the last policy number, or start at 1
-      let digitWidth = 3;
-      let sequenceNumber = 1;
-      if (lastPolicy && lastPolicy.policyNumber) {
-        // Skip empty or invalid policy numbers (e.g., null, '', 'EMPTY', etc.)
-        // These are typically postpaid policies that haven't been activated yet
-        const policyNumberTrimmed = lastPolicy.policyNumber.trim();
-        if (policyNumberTrimmed === '' || policyNumberTrimmed.toUpperCase() === 'EMPTY') {
-          this.logger.warn(
-            `[${correlationId}] Last policy has empty/invalid policy number "${lastPolicy.policyNumber}" (id: ${lastPolicy.id}). ` +
-            'This is likely a postpaid policy. Searching for last valid policy number...'
-          );
-
-          // Find the last policy with a valid policy number (skip null/empty/invalid ones)
-          const lastValidPolicy = await tx.policy.findFirst({
-            where: {
-              packageId: packageId,
-              AND: [
-                { policyNumber: { notIn: ['', 'EMPTY'] } },
-                { NOT: [{ policyNumber: null }] },
-              ],
-            },
-            select: {
-              policyNumber: true,
-              id: true,
-            },
-            orderBy: {
-              createdAt: 'desc',
-            },
-          });
-
-          if (lastValidPolicy && lastValidPolicy.policyNumber) {
-            this.logger.log(
-              `[${correlationId}] Found last valid policy: id=${lastValidPolicy.id}, policyNumber="${lastValidPolicy.policyNumber}"`
-            );
-            // Use the valid policy number to extract sequence
-            const [prefix, suffix = ''] = packageData.policyNumberFormat.split(placeholder);
-            const regex = new RegExp(
-              `^${this.escapeRegExp(prefix)}(\\d+)${this.escapeRegExp(suffix)}$`
-            );
-            const lastMatch = lastValidPolicy.policyNumber.match(regex);
-
-            if (lastMatch && lastMatch[1]) {
-              sequenceNumber = parseInt(lastMatch[1], 10) + 1;
-              digitWidth = lastMatch[1].length;
-              this.logger.log(
-                `[${correlationId}] Extracted sequence ${sequenceNumber} from valid policy number "${lastValidPolicy.policyNumber}"`
-              );
-            }
-          } else {
-            this.logger.log(
-              `[${correlationId}] No valid policy numbers found for package ${packageId}, starting from sequence 1`
-            );
-          }
-        } else {
-          // Extract numeric part from policy number (e.g., "MP/MFG/001" -> 1, "MP/MFG/1234" -> 1234)
-          const [prefix, suffix = ''] = packageData.policyNumberFormat.split(placeholder);
-          const regex = new RegExp(
-            `^${this.escapeRegExp(prefix)}(\\d+)${this.escapeRegExp(suffix)}$`
-          );
-          const lastMatch = lastPolicy.policyNumber.match(regex);
-
-          if (lastMatch && lastMatch[1]) {
-            sequenceNumber = parseInt(lastMatch[1], 10) + 1;
-            digitWidth = lastMatch[1].length;
-            this.logger.log(
-              `[${correlationId}] Extracted sequence ${sequenceNumber} from policy number "${lastPolicy.policyNumber}"`
-            );
-          } else {
-            this.logger.warn(
-              `[${correlationId}] Could not parse sequence from policy number "${lastPolicy.policyNumber}" ` +
-              `using format "${packageData.policyNumberFormat}". Starting from sequence 1.`
-            );
-          }
-        }
-      }
-
-      // Add attempt offset to handle concurrent requests generating same sequence
-      // This ensures we try different numbers even if multiple requests read the same last policy
-      sequenceNumber += attempt;
-
-      // Format sequence number with leading zeros (e.g., 001, 002, ..., 1234)
-      const formattedSequence = sequenceNumber.toString().padStart(digitWidth, '0');
-
-      // Replace placeholder in format
-      const policyNumber = packageData.policyNumberFormat.replace(
-        placeholder,
-        formattedSequence
-      );
-
-      // Check if this policy number already exists (race condition check)
-      this.logger.log(
-        `[${correlationId}] Checking if policy number "${policyNumber}" already exists...`
-      );
-
-      const existingPolicy = await tx.policy.findUnique({
-        where: {
-          policyNumber: policyNumber,
-        },
-        select: {
-          id: true,
-          policyNumber: true,
-          customerId: true,
-          packageId: true,
-          createdAt: true,
-          status: true,
-        },
-      });
-
-      if (!existingPolicy) {
-        // Policy number is available, return it
-        this.logger.log(
-          `[${correlationId}] ✓ Policy number "${policyNumber}" is available (sequence: ${sequenceNumber}, attempt: ${attempt + 1})`
-        );
-        return policyNumber;
-      }
-
-      // Policy number exists, log details and continue to next iteration to try next sequence
-      this.logger.warn(
-        `[${correlationId}] ✗ Policy number "${policyNumber}" already exists! ` +
-        `Existing policy: id=${existingPolicy.id}, customerId=${existingPolicy.customerId}, ` +
-        `packageId=${existingPolicy.packageId}, status=${existingPolicy.status}, ` +
-        `createdAt=${existingPolicy.createdAt}. ` +
-        `Retrying with next sequence (attempt: ${attempt + 1}/${maxRetries})`
-      );
-    }
-
-    // If we've exhausted retries, throw an error
-    throw new Error(
-      `[${correlationId}] Failed to generate unique policy number after ${maxRetries} attempts. This indicates a high concurrency issue.`
+    const sequenceNumber = result[0]?.lastSequence ?? 1;
+    const digitWidth = Math.max(3, sequenceNumber.toString().length);
+    const formattedSequence = sequenceNumber.toString().padStart(digitWidth, '0');
+    const policyNumber = packageData.policyNumberFormat.replace(
+      placeholder,
+      formattedSequence
     );
+
+    this.logger.log(
+      `[${correlationId}] ✓ Generated policy number "${policyNumber}" (sequence: ${sequenceNumber})`
+    );
+    return policyNumber;
   }
 
   /**
@@ -870,6 +730,17 @@ export class PolicyService {
         `[${correlationId}] Error creating policy with payment: ${error instanceof Error ? error.message : 'Unknown error'}`,
         error instanceof Error ? error.stack : undefined
       );
+      // Emit metric for policy creation failures
+      try {
+        Sentry.metrics.count('policy_creation_failed', 1, {
+          attributes: {
+            operation: 'createPolicyWithPayment',
+            correlationId,
+          },
+        });
+      } catch {
+        // Ignore metric errors
+      }
       throw error;
     }
   }
@@ -1342,6 +1213,258 @@ export class PolicyService {
       });
       throw error;
     }
+  }
+
+  /**
+   * Get customers without policies who have M-Pesa payments where accountNumber matches idNumber.
+   * Used for recovery flow when policy creation failed.
+   */
+  async getCustomersWithoutPoliciesWithPayments(
+    _correlationId: string
+  ): Promise<
+    Array<{
+      id: string;
+      fullName: string;
+      idNumber: string;
+      packageId: number;
+      packageName: string;
+      payments: Array<{
+        id: string;
+        transactionReference: string;
+        paidIn: number;
+        completionTime: Date;
+        accountNumber: string | null;
+      }>;
+      earliestPaymentDate: Date;
+    }>
+  > {
+    const payments = await this.prismaService.mpesaPaymentReportItem.findMany({
+      where: {
+        accountNumber: { not: null },
+        paidIn: { gt: 0 },
+      },
+      select: {
+        id: true,
+        transactionReference: true,
+        paidIn: true,
+        completionTime: true,
+        accountNumber: true,
+      },
+      orderBy: { completionTime: 'asc' },
+    });
+
+    const customersByAccountNumber = new Map<
+      string,
+      Array<{
+        id: string;
+        transactionReference: string;
+        paidIn: number;
+        completionTime: Date;
+        accountNumber: string | null;
+      }>
+    >();
+
+    for (const p of payments) {
+      const accountNum = p.accountNumber?.trim().replace(/\s/g, '') ?? '';
+      if (!accountNum) continue;
+      const existing = customersByAccountNumber.get(accountNum) ?? [];
+      existing.push({
+        id: p.id,
+        transactionReference: p.transactionReference,
+        paidIn: Number(p.paidIn),
+        completionTime: p.completionTime,
+        accountNumber: p.accountNumber,
+      });
+      customersByAccountNumber.set(accountNum, existing);
+    }
+
+    const customersWithoutPolicy: Array<{
+      id: string;
+      fullName: string;
+      idNumber: string;
+      packageId: number;
+      packageName: string;
+      payments: Array<{
+        id: string;
+        transactionReference: string;
+        paidIn: number;
+        completionTime: Date;
+        accountNumber: string | null;
+      }>;
+      earliestPaymentDate: Date;
+    }> = [];
+
+    const allCustomers = await this.prismaService.customer.findMany({
+      select: {
+        id: true,
+        firstName: true,
+        middleName: true,
+        lastName: true,
+        idNumber: true,
+      },
+    });
+
+    for (const customer of allCustomers) {
+      const idNum = customer.idNumber?.trim().replace(/\s/g, '') ?? '';
+      if (!idNum) continue;
+
+      const customerPayments = customersByAccountNumber.get(idNum);
+      if (!customerPayments || customerPayments.length === 0) continue;
+
+      const hasPolicy = await this.prismaService.policy.findFirst({
+        where: { customerId: customer.id },
+        select: { id: true },
+      });
+      if (hasPolicy) continue;
+
+      const psc = await this.prismaService.packageSchemeCustomer.findFirst({
+        where: { customerId: customer.id },
+        include: {
+          packageScheme: {
+            include: {
+              package: { select: { id: true, name: true } },
+            },
+          },
+        },
+      });
+
+      if (!psc?.packageScheme?.package) continue;
+
+      const fullName = [customer.firstName, customer.middleName, customer.lastName]
+        .filter(Boolean)
+        .join(' ');
+      const earliestPaymentDate = customerPayments[0].completionTime;
+
+      customersWithoutPolicy.push({
+        id: customer.id,
+        fullName,
+        idNumber: customer.idNumber ?? '',
+        packageId: psc.packageScheme.package.id,
+        packageName: psc.packageScheme.package.name,
+        payments: customerPayments,
+        earliestPaymentDate,
+      });
+    }
+
+    return customersWithoutPolicy;
+  }
+
+  /**
+   * Create policy from recovery flow - for customers whose policy creation failed.
+   * Creates policy, policy_payments (from M-Pesa items), then activates.
+   */
+  async createPolicyFromRecovery(
+    data: {
+      customerId: string;
+      packageId: number;
+      packagePlanId: number;
+      premium: number;
+      frequency: PaymentFrequency;
+      customDays?: number;
+    },
+    correlationId: string
+  ) {
+    const customer = await this.prismaService.customer.findUnique({
+      where: { id: data.customerId },
+      include: { dependants: true },
+    });
+    if (!customer) {
+      throw new NotFoundException(`Customer ${data.customerId} not found`);
+    }
+
+    const packageData = await this.prismaService.package.findUnique({
+      where: { id: data.packageId },
+      include: {
+        packagePlans: { where: { id: data.packagePlanId } },
+      },
+    });
+    if (!packageData || !packageData.packagePlans[0]) {
+      throw new NotFoundException(`Package plan ${data.packagePlanId} not found for package ${data.packageId}`);
+    }
+
+    const plan = packageData.packagePlans[0];
+    const productName = `${packageData.name} ${plan.name}`;
+    if (data.frequency === PaymentFrequency.CUSTOM && (!data.customDays || data.customDays <= 0)) {
+      throw new BadRequestException('Custom days must be provided when frequency is CUSTOM');
+    }
+    const paymentCadence = this.calculatePaymentCadence(data.frequency, data.customDays);
+    const paymentAcNumber = customer.idNumber ?? '';
+
+    const normalizedIdNumber = (customer.idNumber ?? '').trim().replace(/\s/g, '');
+    if (!normalizedIdNumber) {
+      throw new BadRequestException(`Customer ${data.customerId} has no idNumber`);
+    }
+    const payments = await this.prismaService.$queryRaw<
+      Array<{
+        id: string;
+        transactionReference: string;
+        paidIn: number;
+        completionTime: Date;
+        accountNumber: string | null;
+      }>
+    >`
+      SELECT id, "transactionReference", "paidIn", "completionTime", "accountNumber"
+      FROM mpesa_payment_report_items
+      WHERE "paidIn" > 0
+        AND REPLACE(TRIM(COALESCE("accountNumber", '')), ' ', '') = ${normalizedIdNumber}
+      ORDER BY "completionTime" ASC
+    `;
+
+    if (payments.length === 0) {
+      throw new BadRequestException(
+        `No M-Pesa payments found for customer ${data.customerId} with accountNumber matching idNumber`
+      );
+    }
+
+    const earliestPayment = payments[0];
+    const startDate = new Date(earliestPayment.completionTime);
+    startDate.setUTCHours(0, 0, 0, 0);
+    const endDate = new Date(startDate);
+    endDate.setFullYear(endDate.getFullYear() + 1);
+    endDate.setUTCHours(23, 59, 59, 999);
+
+    return this.prismaService.$transaction(async (tx) => {
+      const policyNumber = await this.generatePolicyNumberInTransaction(
+        data.packageId,
+        tx,
+        correlationId
+      );
+
+      const policy = await tx.policy.create({
+        data: {
+          policyNumber,
+          status: 'PENDING_ACTIVATION',
+          customerId: data.customerId,
+          packageId: data.packageId,
+          packagePlanId: data.packagePlanId,
+          productName,
+          premium: data.premium,
+          frequency: data.frequency,
+          paymentCadence,
+          paymentAcNumber,
+          startDate,
+          endDate,
+        },
+      });
+
+      for (const p of payments) {
+        await tx.policyPayment.create({
+          data: {
+            policyId: policy.id,
+            paymentType: 'MPESA',
+            transactionReference: p.transactionReference,
+            amount: p.paidIn,
+            accountNumber: p.accountNumber ?? null,
+            expectedPaymentDate: p.completionTime,
+            actualPaymentDate: p.completionTime,
+          },
+        });
+      }
+
+      await this.activatePolicy(policy.id, correlationId, tx);
+
+      return policy;
+    });
   }
 }
 

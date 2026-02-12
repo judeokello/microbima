@@ -573,11 +573,12 @@ model Package {
   cardTemplateName   String? @db.VarChar(100)
 
   // Relations
-  underwriter     Underwriter?     @relation(fields: [underwriterId], references: [id])
-  packageProducts PackageProduct[]
-  packageSchemes  PackageScheme[]
-  packagePlans    PackagePlan[]
-  policies        Policy[]
+  underwriter          Underwriter?           @relation(fields: [underwriterId], references: [id])
+  packageProducts      PackageProduct[]
+  packageSchemes       PackageScheme[]
+  packagePlans         PackagePlan[]
+  policies             Policy[]
+  policyNumberSequence PolicyNumberSequence?
 
   // Audit fields
   createdAt DateTime @default(now())
@@ -585,6 +586,14 @@ model Package {
   createdBy String // User ID who created
 
   @@map("packages")
+}
+
+model PolicyNumberSequence {
+  packageId    Int @id
+  package      Package @relation(fields: [packageId], references: [id], onDelete: Cascade)
+  lastSequence Int @default(0)
+
+  @@map("policy_number_sequences")
 }
 
 model ProductType {
@@ -749,7 +758,7 @@ model PolicyPayment {
   id                   Int         @id @default(autoincrement())
   policyId             String      @db.Uuid
   paymentType          PaymentType
-  transactionReference String      @db.VarChar(50)
+  transactionReference String      @unique @db.VarChar(50)
   amount               Decimal     @db.Decimal(10, 2)
   accountNumber        String?     @db.VarChar(50)
   details              String?     @db.VarChar(500)
