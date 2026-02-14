@@ -32,6 +32,7 @@ import { UpdateCustomerDto } from '../dto/customers/update-customer.dto';
 import { UpdateDependantDto } from '../dto/dependants/update-dependant.dto';
 import { UpdateBeneficiaryDto } from '../dto/beneficiaries/update-beneficiary.dto';
 import { SupabaseService } from './supabase.service';
+import { normalizePhoneNumber } from '../utils/phone-number.util';
 
 /**
  * Customer Service
@@ -164,6 +165,18 @@ export class CustomerService {
         throw ValidationException.withMultipleErrors(validationErrors, ErrorCodes.VALIDATION_ERROR);
       }
 
+      // Check if phone number is in test_customers (mark as is_test_user)
+      let isTestUser = false;
+      try {
+        const normalizedPhone = normalizePhoneNumber(customerEntity.phoneNumber);
+        const testCustomer = await this.prismaService.testCustomer.findUnique({
+          where: { phoneNumber: normalizedPhone },
+        });
+        isTestUser = !!testCustomer;
+      } catch {
+        // If normalization fails, assume not a test user
+      }
+
       // Create customer in database
       const createdCustomer = await this.prismaService.customer.create({
         data: {
@@ -180,6 +193,7 @@ export class CustomerService {
           onboardingStep: customerEntity.onboardingStep,
           createdByPartnerId: partnerId,
           createdBy: userId ?? null, // User ID who created the customer
+          isTestUser,
         },
       });
 

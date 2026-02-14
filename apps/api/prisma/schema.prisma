@@ -107,6 +107,7 @@ model Customer {
   onboardingStep         OnboardingStep @default(BASIC_INFO)
   createdByPartnerId     Int // Partner who created this customer
   hasMissingRequirements Boolean        @default(false)
+  isTestUser             Boolean        @default(false) // True when phoneNumber exists in test_customers
 
   // Address information
   address Address?
@@ -981,4 +982,15 @@ model PaymentAccountNumberSequence {
   lastUpdatedAt DateTime @default(now()) @updatedAt
 
   @@map("payment_account_number_sequences")
+}
+
+/// Test customer phone numbers - when a customer is created with a matching phone, is_test_user is set
+model TestCustomer {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String   @db.VarChar(100)
+  phoneNumber String   @unique @db.VarChar(20) // Normalized: 254XXXXXXXXX
+  createdAt   DateTime @default(now())
+  createdBy   String?  @db.Uuid
+
+  @@map("test_customers")
 }

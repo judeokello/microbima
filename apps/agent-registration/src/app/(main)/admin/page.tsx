@@ -1,9 +1,10 @@
 'use client';
 
 import { useState, useEffect } from 'react'
+import Link from 'next/link'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Users, UserPlus, Settings, BarChart3, RefreshCw } from 'lucide-react'
+import { Users, UserPlus, Settings, BarChart3, RefreshCw, FlaskConical } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { ChartAreaInteractive } from '../dashboard/default/_components/chart-area-interactive'
 
@@ -145,6 +146,24 @@ export default function AdminDashboardPage() {
 
       {/* Customer Registrations Chart */}
       <ChartAreaInteractive isAdminView={true} />
+
+      {/* Admin Tools */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Admin Tools</CardTitle>
+          <CardDescription>
+            Quick access to admin-only features
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Button variant="outline" asChild>
+            <Link href="/admin/test-users">
+              <FlaskConical className="mr-2 h-4 w-4" />
+              Manage Test Users
+            </Link>
+          </Button>
+        </CardContent>
+      </Card>
 
       {/* Recent Activity */}
       <div className="grid gap-6">
