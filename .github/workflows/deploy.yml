@@ -48,6 +48,7 @@ jobs:
         run: |
           curl -L https://fly.io/install.sh | sh
           echo "$HOME/.fly/bin" >> $GITHUB_PATH
+          flyctl version
 
       - name: Deploy Internal API to Staging
         if: env.DEPLOY_INTERNAL_API != 'false'
@@ -141,15 +142,26 @@ jobs:
       - name: Seed Product Management Data on Staging
         if: env.DEPLOY_INTERNAL_API != 'false' && env.AUTO_DEPLOY_DB == 'true'
         run: |
+          echo "🔄 Updating Fly.io CLI to latest..."
+          flyctl version upgrade || true
+          flyctl version
+          
           echo "🌱 Seeding product management data on staging..."
           echo "📝 Running idempotent seed script (safe to run multiple times)..."
           flyctl ssh console -a maishapoa-staging-internal-api -C "sh -c 'cd /app/apps/api && npx prisma db execute --file prisma/seed-product-management.sql --schema prisma/schema.prisma'"
           echo "✅ Product management data seeded"
+          sleep 5
           
           # Migrate existing customers to package schemes (idempotent)
           echo "🔄 Migrating existing customers to package schemes..."
           flyctl ssh console -a maishapoa-staging-internal-api -C "sh -c 'cd /app/apps/api && npx prisma db execute --file prisma/migrate-existing-customers.sql --schema prisma/schema.prisma'"
           echo "✅ Existing customers migrated to package schemes"
+          sleep 5
+          
+          # Seed policy number sequences for all packages (idempotent)
+          echo "🔢 Seeding policy number sequences..."
+          flyctl ssh console -a maishapoa-staging-internal-api -C "sh -c 'cd /app/apps/api && npx prisma db execute --file prisma/seed-policy-number-sequence.sql --schema prisma/schema.prisma'"
+          echo "✅ Policy number sequences seeded"
 
           # Seed policy number sequences for all packages (idempotent)
           echo "🔢 Seeding policy number sequences..."
@@ -241,6 +253,7 @@ jobs:
         run: |
           curl -L https://fly.io/install.sh | sh
           echo "$HOME/.fly/bin" >> $GITHUB_PATH
+          flyctl version
 
       - name: Deploy Internal API to Production
         if: env.DEPLOY_INTERNAL_API != 'false'
@@ -413,15 +426,26 @@ jobs:
       - name: Seed Product Management Data on Production
         if: env.DEPLOY_INTERNAL_API != 'false' && env.AUTO_DEPLOY_DB == 'true'
         run: |
+          echo "🔄 Updating Fly.io CLI to latest..."
+          flyctl version upgrade || true
+          flyctl version
+          
           echo "🌱 Seeding product management data on production..."
           echo "📝 Running idempotent seed script (safe to run multiple times)..."
           flyctl ssh console -a maishapoa-production-internal-api -C "sh -c 'cd /app/apps/api && npx prisma db execute --file prisma/seed-product-management.sql --schema prisma/schema.prisma'"
           echo "✅ Product management data seeded"
+          sleep 5
           
           # Migrate existing customers to package schemes (idempotent)
           echo "🔄 Migrating existing customers to package schemes..."
           flyctl ssh console -a maishapoa-production-internal-api -C "sh -c 'cd /app/apps/api && npx prisma db execute --file prisma/migrate-existing-customers.sql --schema prisma/schema.prisma'"
           echo "✅ Existing customers migrated to package schemes"
+          sleep 5
+          
+          # Seed policy number sequences for all packages (idempotent)
+          echo "🔢 Seeding policy number sequences..."
+          flyctl ssh console -a maishapoa-production-internal-api -C "sh -c 'cd /app/apps/api && npx prisma db execute --file prisma/seed-policy-number-sequence.sql --schema prisma/schema.prisma'"
+          echo "✅ Policy number sequences seeded"
 
           # Seed policy number sequences for all packages (idempotent)
           echo "🔢 Seeding policy number sequences..."
