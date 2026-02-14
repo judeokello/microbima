@@ -149,6 +149,14 @@ export class CustomerService {
         }
       }
 
+      // Pre-save validation: Check for phone number uniqueness
+      const existingCustomerWithPhone = await this.prismaService.customer.findFirst({
+        where: { phoneNumber: customerEntity.phoneNumber },
+      });
+      if (existingCustomerWithPhone) {
+        validationErrors['phoneNumber'] = 'Phone number already exists';
+      }
+
       // Pre-save validation: Check for idType+idNumber uniqueness
       const existingCustomerWithId = await this.prismaService.customer.findFirst({
         where: {
@@ -2334,6 +2342,22 @@ export class CustomerService {
       const canAccess = await this.canUserAccessCustomer(customerId, userId, userRoles);
       if (!canAccess) {
         throw new NotFoundException('Customer not found or not accessible');
+      }
+
+      // Pre-save validation: Check for phone number uniqueness when updating
+      if (updateData.phoneNumber !== undefined) {
+        const existingCustomerWithPhone = await this.prismaService.customer.findFirst({
+          where: {
+            phoneNumber: updateData.phoneNumber,
+            id: { not: customerId },
+          },
+        });
+        if (existingCustomerWithPhone) {
+          throw ValidationException.forField(
+            'phoneNumber',
+            'Phone number already exists'
+          );
+        }
       }
 
       // Build update data

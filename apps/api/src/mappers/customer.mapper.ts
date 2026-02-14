@@ -166,6 +166,8 @@ export class CustomerMapper {
     switch (status) {
       case CustomerStatus.PENDING_KYC:
         return 'pending_kyc';
+      case CustomerStatus.PENDING_ACTIVATION:
+        return 'pending_activation';
       case CustomerStatus.KYC_VERIFIED:
         return 'kyc_verified';
       case CustomerStatus.ACTIVE:
@@ -174,6 +176,8 @@ export class CustomerMapper {
         return 'suspended';
       case CustomerStatus.TERMINATED:
         return 'terminated';
+      case CustomerStatus.DELETED:
+        return 'deleted';
       default:
         return 'pending_kyc'; // Default fallback
     }

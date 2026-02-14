@@ -103,6 +103,16 @@ export class TestCustomersService {
       },
     });
 
+    // Sync: set isTestUser=true on existing ACTIVE customers with matching phone
+    const phoneVariants = this.getPhoneVariantsForMatch(normalizedPhone);
+    await this.prismaService.customer.updateMany({
+      where: {
+        phoneNumber: { in: phoneVariants },
+        status: 'ACTIVE',
+      },
+      data: { isTestUser: true },
+    });
+
     return created;
   }
 
@@ -120,9 +130,29 @@ export class TestCustomersService {
       throw new NotFoundException(`Test customer with ID ${id} not found`);
     }
 
+    // Sync: set isTestUser=false on customers with matching phone before deleting
+    const phoneVariants = this.getPhoneVariantsForMatch(existing.phoneNumber);
+    await this.prismaService.customer.updateMany({
+      where: { phoneNumber: { in: phoneVariants } },
+      data: { isTestUser: false },
+    });
+
     await this.prismaService.testCustomer.delete({
       where: { id },
     });
+  }
+
+  /**
+   * Get phone number variants for matching (normalized 254... and national 0...)
+   */
+  private getPhoneVariantsForMatch(phone: string): string[] {
+    const variants = new Set<string>([phone]);
+    if (phone.startsWith('254') && phone.length === 12) {
+      variants.add('0' + phone.substring(3));
+    } else if (phone.startsWith('0') && phone.length === 10) {
+      variants.add('254' + phone.substring(1));
+    }
+    return Array.from(variants);
   }
 
   /**

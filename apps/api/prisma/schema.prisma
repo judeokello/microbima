@@ -310,6 +310,7 @@ enum CustomerStatus {
   ACTIVE
   SUSPENDED
   TERMINATED
+  DELETED
 }
 
 enum OnboardingStep {
