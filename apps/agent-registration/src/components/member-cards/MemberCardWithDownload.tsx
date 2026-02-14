@@ -8,6 +8,8 @@ import type { MemberCardData } from '@/types/member-card';
 import { getCardTemplateComponent } from './card-template-registry';
 import ImageBasedMemberCard, { getConfigUrl } from './ImageBasedMemberCard';
 
+const DEFAULT_IMAGE_TEMPLATE = 'DefaultWellnessCard';
+
 interface MemberCardWithDownloadProps {
   data: MemberCardData;
   templateName: string | null | undefined;
@@ -23,25 +25,40 @@ export default function MemberCardWithDownload({
   showDownloadButton = true,
 }: MemberCardWithDownloadProps) {
   const cardRef = useRef<HTMLDivElement>(null);
-  const [useImageTemplate, setUseImageTemplate] = useState<boolean | null>(null);
+  const [effectiveTemplateName, setEffectiveTemplateName] = useState<
+    string | null | 'loading'
+  >('loading');
   const canvasRefForDownload = useRef<HTMLCanvasElement | null>(null);
 
   const name = templateName?.trim();
 
   useEffect(() => {
-    if (!name) {
-      setUseImageTemplate(false);
-      return;
-    }
     let cancelled = false;
-    fetch(getConfigUrl(name))
-      .then((res) => {
+
+    async function resolveTemplate() {
+      // 1. If package.cardTemplateName is set, try that template first
+      if (name) {
+        const res = await fetch(getConfigUrl(name));
         if (cancelled) return;
-        setUseImageTemplate(res.ok);
-      })
-      .catch(() => {
-        if (!cancelled) setUseImageTemplate(false);
-      });
+        if (res.ok) {
+          setEffectiveTemplateName(name);
+          return;
+        }
+      }
+
+      // 2. Fallback to DefaultWellnessCard
+      const defaultRes = await fetch(getConfigUrl(DEFAULT_IMAGE_TEMPLATE));
+      if (cancelled) return;
+      if (defaultRes.ok) {
+        setEffectiveTemplateName(DEFAULT_IMAGE_TEMPLATE);
+        return;
+      }
+
+      // 3. Last resort: DefaultCardTemplate component (always exists)
+      setEffectiveTemplateName(null);
+    }
+
+    resolveTemplate();
     return () => {
       cancelled = true;
     };
@@ -98,7 +115,7 @@ export default function MemberCardWithDownload({
       </Button>
     ) : null;
 
-  if (useImageTemplate === null) {
+  if (effectiveTemplateName === 'loading') {
     return (
       <div className="space-y-2">
         <div className="flex min-h-[200px] items-center justify-center rounded-lg border border-dashed text-muted-foreground">
@@ -120,12 +137,12 @@ export default function MemberCardWithDownload({
     );
   }
 
-  if (useImageTemplate && name) {
+  if (effectiveTemplateName) {
     return (
       <div className="space-y-2">
         <div ref={cardRef}>
           <ImageBasedMemberCard
-            templateName={name}
+            templateName={effectiveTemplateName}
             data={data}
             className={className}
             onCanvasReady={handleCanvasReady}
@@ -136,7 +153,7 @@ export default function MemberCardWithDownload({
     );
   }
 
-  const CardTemplate = getCardTemplateComponent(templateName);
+  const CardTemplate = getCardTemplateComponent(null);
   return (
     <div className="space-y-2">
       <div ref={cardRef}>
