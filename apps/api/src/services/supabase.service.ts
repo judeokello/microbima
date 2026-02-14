@@ -57,6 +57,24 @@ export class SupabaseService {
   }
 
   /**
+   * Get display name for a user by ID (from Supabase auth metadata or Brand Ambassador)
+   * @param userId - Supabase user ID (UUID)
+   * @returns Display name or 'Unknown User' if not found
+   */
+  async getUserDisplayName(userId: string): Promise<string> {
+    try {
+      const { data: { user }, error } = await this.supabase.auth.admin.getUserById(userId);
+      if (error || !user) {
+        return 'Unknown User';
+      }
+      const userMetadata = (user.user_metadata ?? {}) as { displayName?: string };
+      return userMetadata.displayName ?? user.email ?? 'Unknown User';
+    } catch {
+      return 'Unknown User';
+    }
+  }
+
+  /**
    * Create a user using Supabase admin client
    */
   async createUser(userData: {

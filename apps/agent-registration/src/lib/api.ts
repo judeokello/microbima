@@ -885,6 +885,9 @@ export interface CustomerDetailData {
     phoneNumber?: string
     idType?: string | null
     idNumber: string
+    deletedAt?: string | null
+    deletedBy?: string | null
+    deletedByDisplayName?: string | null
   }>
   dependants: Array<{
     id: string
@@ -899,6 +902,9 @@ export interface CustomerDetailData {
     verificationRequired?: boolean
     memberNumber?: string | null
     memberNumberCreatedAt?: string | null
+    deletedAt?: string | null
+    deletedBy?: string | null
+    deletedByDisplayName?: string | null
   }>
   policies: Array<{
     id: string
@@ -1308,6 +1314,42 @@ export async function updateBeneficiary(
   } catch (error) {
     console.error('Error updating beneficiary:', error)
     throw error
+  }
+}
+
+export async function deleteDependant(dependantId: string): Promise<void> {
+  const token = await getSupabaseToken()
+  const response = await fetch(
+    `${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/customers/dependants/${dependantId}`,
+    {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'x-correlation-id': `delete-dependant-${Date.now()}`
+      }
+    }
+  )
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}))
+    throw new Error(errorData.error?.message ?? `HTTP ${response.status}: ${response.statusText}`)
+  }
+}
+
+export async function deleteBeneficiary(customerId: string, beneficiaryId: string): Promise<void> {
+  const token = await getSupabaseToken()
+  const response = await fetch(
+    `${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/customers/${customerId}/beneficiaries/${beneficiaryId}`,
+    {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'x-correlation-id': `delete-beneficiary-${Date.now()}`
+      }
+    }
+  )
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}))
+    throw new Error(errorData.error?.message ?? `HTTP ${response.status}: ${response.statusText}`)
   }
 }
 

@@ -31,6 +31,7 @@ import { CustomerPoliciesResponseDto, CustomerPaymentsResponseDto, PolicyOptionD
 import { UpdateCustomerDto } from '../dto/customers/update-customer.dto';
 import { UpdateDependantDto } from '../dto/dependants/update-dependant.dto';
 import { UpdateBeneficiaryDto } from '../dto/beneficiaries/update-beneficiary.dto';
+import { SupabaseService } from './supabase.service';
 
 /**
  * Customer Service
@@ -63,7 +64,10 @@ export class CustomerService {
     return age >= 18 && age < 25;
   }
 
-  constructor(private readonly prismaService: PrismaService) {}
+  constructor(
+    private readonly prismaService: PrismaService,
+    private readonly supabaseService: SupabaseService,
+  ) {}
 
   /**
    * Create a new customer with partner relationship
@@ -2060,7 +2064,23 @@ export class CustomerService {
 
       const principalMember = customer.policyMemberPrincipals[0];
 
-      // Map beneficiaries
+      // Resolve deletedBy display names for beneficiaries and dependants
+      const deletedByIds = new Set<string>();
+      for (const b of customer.beneficiaries) {
+        if (b.deletedBy) deletedByIds.add(b.deletedBy);
+      }
+      for (const d of customer.dependants) {
+        if (d.deletedBy) deletedByIds.add(d.deletedBy);
+      }
+      const deletedByDisplayNames = new Map<string, string>();
+      await Promise.all(
+        Array.from(deletedByIds).map(async (uid) => {
+          const name = await this.supabaseService.getUserDisplayName(uid);
+          deletedByDisplayNames.set(uid, name);
+        })
+      );
+
+      // Map beneficiaries (include deleted with resolved display name)
       const beneficiaries = customer.beneficiaries.map((b) => ({
         id: b.id,
         firstName: b.firstName,
@@ -2071,9 +2091,12 @@ export class CustomerService {
         gender: b.gender ? SharedMapperUtils.mapGenderToDto(b.gender) : undefined,
         idType: SharedMapperUtils.mapIdTypeToDto(b.idType),
         idNumber: b.idNumber ?? undefined,
+        deletedAt: b.deletedAt?.toISOString() ?? null,
+        deletedBy: b.deletedBy ?? null,
+        deletedByDisplayName: b.deletedBy ? deletedByDisplayNames.get(b.deletedBy) ?? null : null,
       }));
 
-      // Map dependants (with member number from PolicyMemberDependant)
+      // Map dependants (include deleted with resolved display name)
       const dependants = customer.dependants.map((d) => {
         const memberDependant = d.policyMemberDependants[0];
         return {
@@ -2090,6 +2113,9 @@ export class CustomerService {
           verificationRequired: d.verificationRequired ?? false,
           memberNumber: memberDependant?.memberNumber ?? null,
           memberNumberCreatedAt: memberDependant?.createdAt.toISOString() ?? null,
+          deletedAt: d.deletedAt?.toISOString() ?? null,
+          deletedBy: d.deletedBy ?? null,
+          deletedByDisplayName: d.deletedBy ? deletedByDisplayNames.get(d.deletedBy) ?? null : null,
         };
       });
 
@@ -2351,11 +2377,15 @@ export class CustomerService {
       // Get dependant to check customer access and relationship
       const dependant = await this.prismaService.dependant.findUnique({
         where: { id: dependantId },
-        select: { customerId: true, relationship: true },
+        select: { customerId: true, relationship: true, deletedAt: true },
       });
 
       if (!dependant) {
         throw new NotFoundException('Dependant not found');
+      }
+
+      if (dependant.deletedAt) {
+        throw new BadRequestException('Cannot update a deleted dependant');
       }
 
       // Check access permission via customer
@@ -2450,6 +2480,10 @@ export class CustomerService {
         throw new NotFoundException('Beneficiary not found');
       }
 
+      if (beneficiary.deletedAt) {
+        throw new BadRequestException('Cannot update a deleted beneficiary');
+      }
+
       // Build update data
       const updatePayload: Prisma.BeneficiaryUpdateInput = {};
       if (updateData.firstName !== undefined) updatePayload.firstName = updateData.firstName;
@@ -2495,6 +2529,89 @@ export class CustomerService {
   }
 
   /**
+   * Soft delete a dependant (registration_admin only)
+   */
+  async softDeleteDependant(
+    dependantId: string,
+    userId: string,
+    userRoles: string[],
+    correlationId: string
+  ): Promise<void> {
+    if (!userRoles.includes('registration_admin')) {
+      throw new NotFoundException('Dependant not found or not accessible');
+    }
+
+    const dependant = await this.prismaService.dependant.findUnique({
+      where: { id: dependantId },
+    });
+
+    if (!dependant) {
+      throw new NotFoundException('Dependant not found');
+    }
+
+    const canAccess = await this.canUserAccessCustomer(dependant.customerId, userId, userRoles);
+    if (!canAccess) {
+      throw new NotFoundException('Dependant not found or not accessible');
+    }
+
+    if (dependant.deletedAt) {
+      throw new BadRequestException('Dependant is already deleted');
+    }
+
+    await this.prismaService.dependant.update({
+      where: { id: dependantId },
+      data: {
+        deletedAt: new Date(),
+        deletedBy: userId,
+      },
+    });
+
+    this.logger.log(`[${correlationId}] Soft deleted dependant ${dependantId} by user ${userId}`);
+  }
+
+  /**
+   * Soft delete a beneficiary (registration_admin only)
+   */
+  async softDeleteBeneficiary(
+    customerId: string,
+    beneficiaryId: string,
+    userId: string,
+    userRoles: string[],
+    correlationId: string
+  ): Promise<void> {
+    if (!userRoles.includes('registration_admin')) {
+      throw new NotFoundException('Beneficiary not found or not accessible');
+    }
+
+    const canAccess = await this.canUserAccessCustomer(customerId, userId, userRoles);
+    if (!canAccess) {
+      throw new NotFoundException('Beneficiary not found or not accessible');
+    }
+
+    const beneficiary = await this.prismaService.beneficiary.findFirst({
+      where: { id: beneficiaryId, customerId },
+    });
+
+    if (!beneficiary) {
+      throw new NotFoundException('Beneficiary not found');
+    }
+
+    if (beneficiary.deletedAt) {
+      throw new BadRequestException('Beneficiary is already deleted');
+    }
+
+    await this.prismaService.beneficiary.update({
+      where: { id: beneficiaryId },
+      data: {
+        deletedAt: new Date(),
+        deletedBy: userId,
+      },
+    });
+
+    this.logger.log(`[${correlationId}] Soft deleted beneficiary ${beneficiaryId} by user ${userId}`);
+  }
+
+  /**
    * Helper method to format full name
    */
   private formatFullName(
@@ -2537,6 +2654,7 @@ export class CustomerService {
       where: { id: customerId },
       include: {
         dependants: {
+          where: { deletedAt: null },
           include: {
             policyMemberDependants: { orderBy: { createdAt: 'desc' }, take: 1 },
           },

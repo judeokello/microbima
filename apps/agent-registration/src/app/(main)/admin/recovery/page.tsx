@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Dialog,
   DialogContent,
@@ -28,6 +29,29 @@ import {
   type Plan,
 } from '@/lib/api';
 import { Loader2, RefreshCw, Plus } from 'lucide-react';
+
+interface InsurancePricing {
+  plans: {
+    silver: {
+      name: string;
+      categories: {
+        member_only: { display: string; daily: number; weekly: number };
+        up_to_5: { display: string; daily: number; weekly: number };
+        up_to_8: { display: string; daily: number; weekly: number };
+      };
+      additional_spouse: { daily: number; weekly: number };
+    };
+    gold: {
+      name: string;
+      categories: {
+        member_only: { display: string; daily: number; weekly: number };
+        up_to_5: { display: string; daily: number; weekly: number };
+        up_to_8: { display: string; daily: number; weekly: number };
+      };
+      additional_spouse: { daily: number; weekly: number };
+    };
+  };
+}
 
 const PAYMENT_CADENCE: Record<string, number> = {
   DAILY: 1,
@@ -53,8 +77,12 @@ export default function RecoveryPage() {
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState<RecoveryCustomer | null>(null);
   const [plans, setPlans] = useState<Plan[]>([]);
+  const [pricingData, setPricingData] = useState<InsurancePricing | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [formData, setFormData] = useState({
+    selectedPlan: '',
+    selectedCategory: '',
+    additionalSpouse: false,
     packagePlanId: '',
     premium: '',
     frequency: 'MONTHLY' as string,
@@ -78,9 +106,19 @@ export default function RecoveryPage() {
     loadCustomers();
   }, []);
 
+  useEffect(() => {
+    fetch('/insurance-pricing.json')
+      .then((res) => res.json())
+      .then((data) => setPricingData(data))
+      .catch(() => setPricingData(null));
+  }, []);
+
   const openCreateDialog = async (customer: RecoveryCustomer) => {
     setSelectedCustomer(customer);
     setFormData({
+      selectedPlan: '',
+      selectedCategory: '',
+      additionalSpouse: false,
       packagePlanId: '',
       premium: '',
       frequency: 'MONTHLY',
@@ -95,12 +133,47 @@ export default function RecoveryPage() {
     }
   };
 
+  const calculatedPricing = (() => {
+    if (!pricingData || !formData.selectedPlan || !formData.selectedCategory) {
+      return { daily: 0, weekly: 0, totalDaily: 0, totalWeekly: 0 };
+    }
+    const plan = pricingData.plans[formData.selectedPlan as keyof typeof pricingData.plans];
+    const category = plan.categories[formData.selectedCategory as keyof typeof plan.categories];
+    const spousePremium = plan.additional_spouse;
+    const baseDaily = category.daily;
+    const baseWeekly = category.weekly;
+    const spouseDaily = formData.additionalSpouse ? spousePremium.daily : 0;
+    const spouseWeekly = formData.additionalSpouse ? spousePremium.weekly : 0;
+    return {
+      daily: baseDaily,
+      weekly: baseWeekly,
+      totalDaily: baseDaily + spouseDaily,
+      totalWeekly: baseWeekly + spouseWeekly,
+    };
+  })();
+
+  useEffect(() => {
+    if (formData.selectedPlan && formData.selectedCategory) {
+      const premium =
+        formData.frequency === 'WEEKLY'
+          ? calculatedPricing.totalWeekly
+          : calculatedPricing.totalDaily;
+      setFormData((f) => ({ ...f, premium: premium.toString() }));
+    }
+  }, [formData.selectedPlan, formData.selectedCategory, formData.additionalSpouse, formData.frequency, calculatedPricing.totalDaily, calculatedPricing.totalWeekly]);
+
   const handleSubmit = async () => {
     if (!selectedCustomer) return;
-    const planId = parseInt(formData.packagePlanId, 10);
+    let packagePlanId = parseInt(formData.packagePlanId, 10);
+    if (!packagePlanId && formData.selectedPlan && plans.length > 0) {
+      const matchingPlan = plans.find(
+        (p: Plan) => p.name.toLowerCase() === formData.selectedPlan.toLowerCase()
+      );
+      if (matchingPlan) packagePlanId = matchingPlan.id;
+    }
     const premium = parseFloat(formData.premium);
-    if (!planId || isNaN(premium) || premium < 0) {
-      setError('Please fill premium and select a plan');
+    if (!packagePlanId || isNaN(premium) || premium < 0) {
+      setError('Please select plan and category (premium will be calculated)');
       return;
     }
     if (formData.frequency === 'CUSTOM' && !formData.customDays) {
@@ -113,7 +186,7 @@ export default function RecoveryPage() {
       await createPolicyFromRecovery({
         customerId: selectedCustomer.id,
         packageId: selectedCustomer.packageId,
-        packagePlanId: planId,
+        packagePlanId,
         premium,
         frequency: formData.frequency as 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'QUARTERLY' | 'ANNUALLY' | 'CUSTOM',
         customDays: formData.frequency === 'CUSTOM' ? parseInt(formData.customDays, 10) : undefined,
@@ -209,19 +282,59 @@ export default function RecoveryPage() {
               <Input value={selectedCustomer?.packageName ?? ''} disabled />
             </div>
             <div>
-              <Label>Package Plan</Label>
-              <Select value={formData.packagePlanId} onValueChange={(v) => setFormData((f) => ({ ...f, packagePlanId: v }))}>
+              <Label>Insurance Plan</Label>
+              <Select
+                value={formData.selectedPlan}
+                onValueChange={(v) => setFormData((f) => ({ ...f, selectedPlan: v, selectedCategory: '' }))}
+              >
                 <SelectTrigger>
-                  <SelectValue placeholder="Select plan" />
+                  <SelectValue placeholder="Select insurance plan" />
                 </SelectTrigger>
                 <SelectContent>
-                  {plans.map((p) => (
-                    <SelectItem key={p.id} value={String(p.id)}>
-                      {p.name}
-                    </SelectItem>
-                  ))}
+                  {pricingData && (
+                    <>
+                      <SelectItem value="silver">{pricingData.plans.silver.name}</SelectItem>
+                      <SelectItem value="gold">{pricingData.plans.gold.name}</SelectItem>
+                    </>
+                  )}
                 </SelectContent>
               </Select>
+            </div>
+            <div>
+              <Label>Family Category</Label>
+              <Select
+                value={formData.selectedCategory}
+                onValueChange={(v) => setFormData((f) => ({ ...f, selectedCategory: v }))}
+                disabled={!formData.selectedPlan}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select family category" />
+                </SelectTrigger>
+                <SelectContent>
+                  {pricingData && formData.selectedPlan && (
+                    <>
+                      {Object.entries(
+                        pricingData.plans[formData.selectedPlan as keyof typeof pricingData.plans].categories
+                      ).map(([key, category]) => (
+                        <SelectItem key={key} value={key}>
+                          {category.display} - {category.daily}d - {category.weekly}w
+                        </SelectItem>
+                      ))}
+                    </>
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="additionalSpouse"
+                checked={formData.additionalSpouse}
+                onCheckedChange={(checked) => setFormData((f) => ({ ...f, additionalSpouse: checked === true }))}
+                disabled={!formData.selectedCategory || formData.selectedCategory === 'member_only'}
+              />
+              <Label htmlFor="additionalSpouse" className="text-sm">
+                Additional Spouse Premium
+              </Label>
             </div>
             <div>
               <Label>Premium (KES)</Label>

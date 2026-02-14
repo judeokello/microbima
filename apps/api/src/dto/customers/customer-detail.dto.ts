@@ -118,6 +118,30 @@ export class BeneficiarySummaryDto {
   @IsOptional()
   @IsString()
   idNumber?: string;
+
+  @ApiProperty({
+    description: 'When beneficiary was soft-deleted (ISO 8601)',
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  deletedAt?: string | null;
+
+  @ApiProperty({
+    description: 'User ID who deleted',
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  deletedBy?: string | null;
+
+  @ApiProperty({
+    description: 'Display name of user who deleted',
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  deletedByDisplayName?: string | null;
 }
 
 export class DependantSummaryDto {
@@ -229,6 +253,30 @@ export class DependantSummaryDto {
   @IsOptional()
   @IsString()
   memberNumberCreatedAt?: string | null;
+
+  @ApiProperty({
+    description: 'When dependant was soft-deleted (ISO 8601)',
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  deletedAt?: string | null;
+
+  @ApiProperty({
+    description: 'User ID who deleted',
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  deletedBy?: string | null;
+
+  @ApiProperty({
+    description: 'Display name of user who deleted',
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  deletedByDisplayName?: string | null;
 }
 
 export class CustomerDetailDataDto {
