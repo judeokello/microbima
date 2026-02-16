@@ -146,11 +146,12 @@ Use an enum similar to:
 ### Claiming rows safely (multi-instance)
 
 Worker tick:
-- Runs every N seconds (configurable).
-- Claims up to `batchSize` deliveries where:
+- Runs every `workerPollIntervalSeconds` (configurable via system settings).
+- Claims up to `workerBatchSize` deliveries where:
   - status in (`PENDING`, `RETRY_WAIT`) and `nextAttemptAt <= now`
   - ordered by `nextAttemptAt`, `createdAt`
 - Claim is done inside a transaction with row locks (e.g., `FOR UPDATE SKIP LOCKED`) and updates rows to `PROCESSING` + sets `lastAttemptAt`.
+- Processing concurrency within a worker instance is limited by `workerMaxConcurrency` (configurable via system settings).
 
 ### Processing per delivery
 
