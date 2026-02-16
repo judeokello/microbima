@@ -47,13 +47,15 @@ import { MpesaDarajaApiService } from './services/mpesa-daraja-api.service';
 import { MpesaErrorMapperService } from './services/mpesa-error-mapper.service';
 import { TestCustomersService } from './services/test-customers.service';
 import { IpWhitelistGuard } from './guards/ip-whitelist.guard';
+import { MessagingModule } from './modules/messaging/messaging.module';
 
 @Module({
   imports: [
     SentryModule.forRoot(),
     ScheduleModule.forRoot(),
     ConfigurationModule,
-    PrismaModule
+    PrismaModule,
+    MessagingModule,
   ],
   controllers: [AppController, CustomerController, InternalCustomerController, InternalPartnerManagementController, PublicPartnerManagementController, SupabaseTestController, ConnectionMonitorController, SosController, AgentRegistrationController, BootstrapController, ProductManagementController, PolicyController, UnderwriterController, UserController, MpesaPaymentsController, MpesaIpnController, MpesaStkPushController, MpesaStkPushPublicController, RecoveryController, TestCustomersController],
   providers: [AppService, ExternalIntegrationsService, CustomerService, PartnerManagementService, SupabaseService, SosService, AgentRegistrationService, MissingRequirementService, ProductManagementService, PolicyService, UnderwriterService, MpesaPaymentsService, PaymentAccountNumberService, SchemeContactService, MpesaIpnService, MpesaStkPushService, MpesaDarajaApiService, MpesaErrorMapperService, TestCustomersService, IpWhitelistGuard],

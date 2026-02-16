@@ -14,10 +14,10 @@
 
 **Purpose**: Create the baseline feature module structure and configuration surfaces in the API
 
-- [ ] T001 Create messaging module folder structure in `apps/api/src/modules/messaging/**` per `specs/001-customer-messaging/plan.md`
-- [ ] T002 Register `MessagingModule` in `apps/api/src/app.module.ts`
-- [ ] T003 [P] Add environment config placeholders for Africa’s Talking/SendGrid/Supabase in `apps/api/src/config/configuration.service.ts` (do not wire secrets yet)
-- [ ] T004 [P] Add DTO folder structure for messaging in `apps/api/src/dto/messaging/**`
+- [x] T001 Create messaging module folder structure in `apps/api/src/modules/messaging/**` per `specs/001-customer-messaging/plan.md`
+- [x] T002 Register `MessagingModule` in `apps/api/src/app.module.ts`
+- [x] T003 [P] Add environment config placeholders for Africa’s Talking/SendGrid/Supabase in `apps/api/src/config/configuration.service.ts` (do not wire secrets yet)
+- [x] T004 [P] Add DTO folder structure for messaging in `apps/api/src/dto/messaging/**`
 
 ---
 
@@ -27,16 +27,16 @@
 
 **⚠️ CRITICAL**: No user story work should begin until this phase is complete
 
-- [ ] T005 Define Prisma schema changes in `apps/api/prisma/schema.prisma` (new models: `MessagingTemplate`, `MessagingRoute`, `MessagingDelivery`, `MessagingAttachment`, `MessagingProviderEvent`, `SystemSetting`, `SystemSettingsMeta`; plus `Customer.defaultMessagingLanguage`)
-- [ ] T006 Create Prisma migration in `apps/api/prisma/migrations/*` (via `pnpm prisma migrate dev --name messaging_outbox`)
-- [ ] T007 Implement `SystemSettingsService` cache + meta `updatedAt` refresh in `apps/api/src/modules/messaging/settings/system-settings.service.ts`
-- [ ] T008 Implement internal settings endpoints in `apps/api/src/controllers/internal/messaging.controller.ts` (GET/PATCH `/internal/messaging/settings` per `specs/001-customer-messaging/contracts/openapi.yaml`)
-- [ ] T009 Implement `MessagingTemplate` CRUD service in `apps/api/src/modules/messaging/messaging-templates.service.ts`
-- [ ] T010 Implement template endpoints in `apps/api/src/controllers/internal/messaging.controller.ts` (GET/POST/PATCH `/internal/messaging/templates` per contract)
-- [ ] T011 Implement `MessagingRoute` upsert/list service in `apps/api/src/modules/messaging/messaging-routes.service.ts`
-- [ ] T012 Implement route endpoints in `apps/api/src/controllers/internal/messaging.controller.ts` (GET/PUT `/internal/messaging/routes` per contract)
-- [ ] T013 Implement `TemplateResolverService` (template key + channel + language selection with fallback) in `apps/api/src/modules/messaging/rendering/template-resolver.service.ts`
-- [ ] T014 Implement `PlaceholderRendererService` in `apps/api/src/modules/messaging/rendering/placeholder-renderer.service.ts`:
+- [x] T005 Define Prisma schema changes in `apps/api/prisma/schema.prisma` (new models: `MessagingTemplate`, `MessagingRoute`, `MessagingDelivery`, `MessagingAttachment`, `MessagingProviderEvent`, `SystemSetting`, `SystemSettingsMeta`; plus `Customer.defaultMessagingLanguage`)
+- [x] T006 Create Prisma migration in `apps/api/prisma/migrations/*` (via `pnpm prisma migrate dev --name messaging_outbox`)
+- [x] T007 Implement `SystemSettingsService` cache + meta `updatedAt` refresh in `apps/api/src/modules/messaging/settings/system-settings.service.ts`
+- [x] T008 Implement internal settings endpoints in `apps/api/src/controllers/internal/messaging.controller.ts` (GET/PATCH `/internal/messaging/settings` per `specs/001-customer-messaging/contracts/openapi.yaml`)
+- [x] T009 Implement `MessagingTemplate` CRUD service in `apps/api/src/modules/messaging/messaging-templates.service.ts`
+- [x] T010 Implement template endpoints in `apps/api/src/controllers/internal/messaging.controller.ts` (GET/POST/PATCH `/internal/messaging/templates` per contract)
+- [x] T011 Implement `MessagingRoute` upsert/list service in `apps/api/src/modules/messaging/messaging-routes.service.ts`
+- [x] T012 Implement route endpoints in `apps/api/src/controllers/internal/messaging.controller.ts` (GET/PUT `/internal/messaging/routes` per contract)
+- [x] T013 Implement `TemplateResolverService` (template key + channel + language selection with fallback) in `apps/api/src/modules/messaging/rendering/template-resolver.service.ts`
+- [x] T014 Implement `PlaceholderRendererService` in `apps/api/src/modules/messaging/rendering/placeholder-renderer.service.ts`:
   - infer required placeholders by scanning template content for `{placeholder_key}` tokens
   - validate placeholder keys match `^[a-z0-9_]+$`
   - missing values → FAIL + Sentry + stored error

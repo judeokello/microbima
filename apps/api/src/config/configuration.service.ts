@@ -45,6 +45,18 @@ export interface AppConfig {
     stkPushExpirationCheckIntervalMinutes: number;
     stkPushEnabled: boolean;
   };
+  messaging: {
+    // Email (SendGrid)
+    sendgridApiKey: string;
+    sendgridFromEmail: string;
+    sendgridWebhookSigningKey: string;
+    // SMS (Africa's Talking)
+    africasTalkingApiKey: string;
+    africasTalkingUsername: string;
+    africasTalkingSenderId: string;
+    // Attachments (Supabase Storage)
+    supabaseMessagingAttachmentsBucket: string;
+  };
 }
 
 @Injectable()
@@ -99,6 +111,15 @@ export class ConfigurationService extends BaseConfigurationService implements On
         stkPushTimeoutMinutes: parseInt(process.env.MPESA_STK_PUSH_TIMEOUT_MINUTES ?? '5', 10),
         stkPushExpirationCheckIntervalMinutes: parseInt(process.env.MPESA_STK_PUSH_EXPIRATION_CHECK_INTERVAL_MINUTES ?? '2', 10),
         stkPushEnabled: process.env.MPESA_STK_PUSH_ENABLED?.toLowerCase() === 'true',
+      },
+      messaging: {
+        sendgridApiKey: process.env.SENDGRID_API_KEY ?? '',
+        sendgridFromEmail: process.env.SENDGRID_FROM_EMAIL ?? '',
+        sendgridWebhookSigningKey: process.env.SENDGRID_WEBHOOK_SIGNING_KEY ?? '',
+        africasTalkingApiKey: process.env.AFRICAS_TALKING_API_KEY ?? '',
+        africasTalkingUsername: process.env.AFRICAS_TALKING_USERNAME ?? '',
+        africasTalkingSenderId: process.env.AFRICAS_TALKING_SENDER_ID ?? '',
+        supabaseMessagingAttachmentsBucket: process.env.SUPABASE_MESSAGING_ATTACHMENTS_BUCKET ?? '',
       },
     };
   }
