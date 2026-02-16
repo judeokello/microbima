@@ -1,0 +1,450 @@
+openapi: 3.0.3
+info:
+  title: MicroBima Messaging Contracts (Internal + Webhooks)
+  version: 0.1.0
+  description: |
+    Contracts for the Unified Customer Messaging feature.
+
+servers:
+  - url: /
+
+tags:
+  - name: Messaging (Internal)
+  - name: Messaging Webhooks
+
+paths:
+  /internal/messaging/deliveries:
+    get:
+      tags: [Messaging (Internal)]
+      summary: List messaging deliveries (history)
+      description: |
+        Admin/support message history list. Supports filtering by customer and optionally by policy,
+        plus common filters like channel/status.
+      parameters:
+        - in: query
+          name: customerId
+          schema: { type: string }
+          required: false
+        - in: query
+          name: policyId
+          schema: { type: string }
+          required: false
+        - in: query
+          name: channel
+          schema: { $ref: "#/components/schemas/MessagingChannel" }
+          required: false
+        - in: query
+          name: status
+          schema: { $ref: "#/components/schemas/MessagingDeliveryStatus" }
+          required: false
+        - in: query
+          name: page
+          schema: { type: integer, minimum: 1, default: 1 }
+        - in: query
+          name: pageSize
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+      responses:
+        "200":
+          description: Paginated deliveries
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: "#/components/schemas/MessagingDelivery" }
+                  pagination:
+                    $ref: "#/components/schemas/Pagination"
+
+  /internal/messaging/deliveries/{deliveryId}:
+    get:
+      tags: [Messaging (Internal)]
+      summary: Get a delivery by ID
+      parameters:
+        - in: path
+          name: deliveryId
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Delivery
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MessagingDelivery" }
+        "404":
+          description: Not found
+
+  /internal/messaging/deliveries/{deliveryId}/resend:
+    post:
+      tags: [Messaging (Internal)]
+      summary: Resend a specific delivery (SMS or Email)
+      description: |
+        Role-gated (Support/Admin only). Creates a new delivery linked to the original.
+        Resend is always per-delivery/per-channel and must not automatically resend other channels.
+      parameters:
+        - in: path
+          name: deliveryId
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason:
+                  type: string
+                  description: Optional note for audit (why resend was initiated)
+      responses:
+        "201":
+          description: New delivery created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  originalDeliveryId: { type: string }
+                  newDeliveryId: { type: string }
+
+  /internal/messaging/deliveries/{deliveryId}/attachments:
+    get:
+      tags: [Messaging (Internal)]
+      summary: List attachments for an email delivery
+      parameters:
+        - in: path
+          name: deliveryId
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Attachment list
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/MessagingAttachment" }
+
+  /internal/messaging/deliveries/{deliveryId}/attachments/{attachmentId}/download:
+    get:
+      tags: [Messaging (Internal)]
+      summary: Download an attachment (RBAC-protected proxy)
+      parameters:
+        - in: path
+          name: deliveryId
+          required: true
+          schema: { type: string }
+        - in: path
+          name: attachmentId
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: File stream
+
+  /internal/messaging/templates:
+    get:
+      tags: [Messaging (Internal)]
+      summary: List message templates
+      parameters:
+        - in: query
+          name: templateKey
+          schema: { type: string }
+          required: false
+        - in: query
+          name: channel
+          schema: { $ref: "#/components/schemas/MessagingChannel" }
+          required: false
+        - in: query
+          name: language
+          schema: { type: string }
+          required: false
+      responses:
+        "200":
+          description: Templates
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/MessagingTemplate" }
+    post:
+      tags: [Messaging (Internal)]
+      summary: Create a message template
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/MessagingTemplateCreate" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MessagingTemplate" }
+
+  /internal/messaging/templates/{templateId}:
+    get:
+      tags: [Messaging (Internal)]
+      summary: Get a template by ID
+      parameters:
+        - in: path
+          name: templateId
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Template
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MessagingTemplate" }
+    patch:
+      tags: [Messaging (Internal)]
+      summary: Update a template
+      parameters:
+        - in: path
+          name: templateId
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/MessagingTemplateUpdate" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MessagingTemplate" }
+
+  /internal/messaging/routes:
+    get:
+      tags: [Messaging (Internal)]
+      summary: List messaging routes (template key routing)
+      responses:
+        "200":
+          description: Routes
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/MessagingRoute" }
+    put:
+      tags: [Messaging (Internal)]
+      summary: Upsert a messaging route for a template key
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/MessagingRouteUpsert" }
+      responses:
+        "200":
+          description: Upserted
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MessagingRoute" }
+
+  /internal/messaging/settings:
+    get:
+      tags: [Messaging (Internal)]
+      summary: Get messaging-related system settings
+      responses:
+        "200":
+          description: Settings
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/SystemSetting" }
+    patch:
+      tags: [Messaging (Internal)]
+      summary: Update messaging-related system settings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/SystemSetting" }
+
+  /webhooks/messaging/sendgrid/events:
+    post:
+      tags: [Messaging Webhooks]
+      summary: SendGrid event webhook (public)
+      description: |
+        Public endpoint (no authentication). Must be idempotent and rate-limited.
+        SendGrid sends an array of event objects.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              items: { $ref: "#/components/schemas/SendGridEvent" }
+      responses:
+        "200":
+          description: Accepted
+
+  /webhooks/messaging/africas-talking/sms:
+    post:
+      tags: [Messaging Webhooks]
+      summary: Africa’s Talking SMS delivery notifications (public)
+      description: |
+        Public endpoint (no authentication). Must be idempotent and rate-limited.
+        Payload shape depends on provider configuration; system should accept form or JSON and store raw payload.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        "200":
+          description: Accepted
+
+components:
+  schemas:
+    MessagingChannel:
+      type: string
+      enum: [SMS, EMAIL]
+
+    MessagingDeliveryStatus:
+      type: string
+      enum: [PENDING, PROCESSING, WAITING_FOR_ATTACHMENTS, RETRY_WAIT, SENT, FAILED]
+
+    MessagingDelivery:
+      type: object
+      properties:
+        id: { type: string }
+        templateKey: { type: string }
+        channel: { $ref: "#/components/schemas/MessagingChannel" }
+        customerId: { type: string, nullable: true }
+        policyId: { type: string, nullable: true }
+        recipientPhone: { type: string, nullable: true }
+        recipientEmail: { type: string, nullable: true }
+        requestedLanguage: { type: string }
+        usedLanguage: { type: string, nullable: true }
+        status: { $ref: "#/components/schemas/MessagingDeliveryStatus" }
+        attemptCount: { type: integer }
+        maxAttempts: { type: integer }
+        nextAttemptAt: { type: string, format: date-time, nullable: true }
+        lastAttemptAt: { type: string, format: date-time, nullable: true }
+        providerMessageId: { type: string, nullable: true }
+        originalDeliveryId: { type: string, nullable: true }
+        renderedSubject: { type: string, nullable: true }
+        renderedBody: { type: string, nullable: true }
+        renderedTextBody: { type: string, nullable: true }
+        renderError: { type: string, nullable: true }
+        lastError: { type: string, nullable: true }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    MessagingAttachment:
+      type: object
+      properties:
+        id: { type: string }
+        deliveryId: { type: string }
+        fileName: { type: string }
+        mimeType: { type: string }
+        storageBucket: { type: string }
+        storagePath: { type: string }
+        expiresAt: { type: string, format: date-time }
+        createdAt: { type: string, format: date-time }
+
+    SendGridEvent:
+      type: object
+      additionalProperties: true
+      properties:
+        event: { type: string }
+        email: { type: string }
+        timestamp: { type: integer, description: Unix timestamp }
+        sg_event_id: { type: string }
+        sg_message_id: { type: string }
+        reason: { type: string }
+        status: { type: string }
+
+    MessagingTemplate:
+      type: object
+      properties:
+        id: { type: string }
+        templateKey: { type: string }
+        channel: { $ref: "#/components/schemas/MessagingChannel" }
+        language: { type: string }
+        subject: { type: string, nullable: true }
+        body: { type: string }
+        textBody: { type: string, nullable: true }
+        isActive: { type: boolean }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    MessagingTemplateCreate:
+      type: object
+      required: [templateKey, channel, language, body]
+      properties:
+        templateKey: { type: string }
+        channel: { $ref: "#/components/schemas/MessagingChannel" }
+        language: { type: string }
+        subject: { type: string, nullable: true }
+        body: { type: string }
+        textBody: { type: string, nullable: true }
+        isActive: { type: boolean, default: true }
+
+    MessagingTemplateUpdate:
+      type: object
+      properties:
+        subject: { type: string, nullable: true }
+        body: { type: string }
+        textBody: { type: string, nullable: true }
+        isActive: { type: boolean }
+
+    MessagingRoute:
+      type: object
+      properties:
+        id: { type: string }
+        templateKey: { type: string }
+        smsEnabled: { type: boolean }
+        emailEnabled: { type: boolean }
+        isActive: { type: boolean }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    MessagingRouteUpsert:
+      type: object
+      required: [templateKey, smsEnabled, emailEnabled]
+      properties:
+        templateKey: { type: string }
+        smsEnabled: { type: boolean }
+        emailEnabled: { type: boolean }
+        isActive: { type: boolean, default: true }
+
+    SystemSetting:
+      type: object
+      properties:
+        key: { type: string }
+        value: {}
+        updatedAt: { type: string, format: date-time }
+
+    Pagination:
+      type: object
+      properties:
+        page: { type: integer }
+        pageSize: { type: integer }
+        totalItems: { type: integer }
+        totalPages: { type: integer }
+        hasNextPage: { type: boolean }
+        hasPreviousPage: { type: boolean }
+
