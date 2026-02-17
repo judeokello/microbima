@@ -728,23 +728,23 @@ export class PolicyService {
       );
 
       // T018: Trigger messaging notification for policy purchase (fire-and-forget)
-      // Only trigger if policy was activated (has policyNumber for prepaid or was activated for postpaid)
-      if (result.policy.status === 'ACTIVE' && result.policy.policyNumber) {
-        this.enqueuePolicyPurchaseMessage(result.policy, correlationId).catch((error) => {
-          this.logger.warn(
-            `[${correlationId}] Failed to enqueue policy purchase message: ${error instanceof Error ? error.message : 'Unknown error'}`
-          );
-          Sentry.captureException(error, {
-            tags: {
-              service: 'PolicyService',
-              operation: 'createPolicyWithPayment',
-              subOperation: 'enqueuePolicyPurchaseMessage',
-              correlationId,
-            },
-            extra: { policyId: result.policy.id },
-          });
-        });
-      }
+      // COMMENTED OUT until after deploy to staging/master - uncomment when ready to enable SMS/email on registration.
+      // if (result.policy.status === 'ACTIVE' && result.policy.policyNumber) {
+      //   this.enqueuePolicyPurchaseMessage(result.policy, correlationId).catch((error) => {
+      //     this.logger.warn(
+      //       `[${correlationId}] Failed to enqueue policy purchase message: ${error instanceof Error ? error.message : 'Unknown error'}`
+      //     );
+      //     Sentry.captureException(error, {
+      //       tags: {
+      //         service: 'PolicyService',
+      //         operation: 'createPolicyWithPayment',
+      //         subOperation: 'enqueuePolicyPurchaseMessage',
+      //         correlationId,
+      //       },
+      //       extra: { policyId: result.policy.id },
+      //     });
+      //   });
+      // }
 
       return result;
     } catch (error) {
