@@ -1033,6 +1033,7 @@ model MessagingTemplate {
   body        String          @db.Text
   textBody    String?         @db.Text
   placeholders String[]
+  description String?         @db.VarChar(500)
   isActive    Boolean         @default(true)
 
   createdAt DateTime @default(now())
@@ -1058,6 +1059,30 @@ model MessagingRoute {
   updatedBy String?
 
   @@map("messaging_routes")
+}
+
+enum MessagingAttachmentTemplateType {
+  GENERIC_HTML
+  MEMBER_CARD
+}
+
+model MessagingAttachmentTemplate {
+  id             String                         @id @default(uuid()) @db.Uuid
+  templateKey    String                         @db.VarChar(100)
+  name           String                         @db.VarChar(100)
+  templatePath   String                         @db.VarChar(500)
+  attachmentType MessagingAttachmentTemplateType
+  parameterSpec  Json                           // e.g. { "policyId": "uuid", "customerId": "uuid" }
+  description    String?                        @db.VarChar(500)
+  isActive       Boolean                        @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String?
+  updatedBy String?
+
+  @@index([templateKey], name: "idx_messaging_attachment_template_key")
+  @@map("messaging_attachment_templates")
 }
 
 model MessagingDelivery {
@@ -1100,6 +1125,9 @@ model MessagingDelivery {
   originalDeliveryId String? @db.Uuid
   originalDelivery   MessagingDelivery? @relation("DeliveryResendTrace", fields: [originalDeliveryId], references: [id], onDelete: SetNull)
   resends            MessagingDelivery[] @relation("DeliveryResendTrace")
+
+  // Dynamic attachment generation: [{ attachmentTemplateId, params }]. Cleared after PDFs are generated.
+  dynamicAttachmentSpecs Json?
 
   attachments   MessagingAttachment[]
   providerEvents MessagingProviderEvent[]

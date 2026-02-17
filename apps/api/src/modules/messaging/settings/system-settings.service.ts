@@ -15,6 +15,8 @@ const DEFAULT_SETTINGS: MessagingSettingsSnapshot = {
   workerBatchSize: 50,
   workerMaxConcurrency: 10,
   systemSettingsCacheRefreshSeconds: 30,
+  messagingAttachmentRetentionMonths: 3,
+  messagingContentRetentionMonths: 84,
 };
 
 @Injectable()
@@ -80,6 +82,14 @@ export class SystemSettingsService {
     next.systemSettingsCacheRefreshSeconds = this.coerceInt(
       next.systemSettingsCacheRefreshSeconds,
       DEFAULT_SETTINGS.systemSettingsCacheRefreshSeconds,
+    );
+    next.messagingAttachmentRetentionMonths = this.coerceInt(
+      next.messagingAttachmentRetentionMonths,
+      DEFAULT_SETTINGS.messagingAttachmentRetentionMonths,
+    );
+    next.messagingContentRetentionMonths = this.coerceInt(
+      next.messagingContentRetentionMonths,
+      DEFAULT_SETTINGS.messagingContentRetentionMonths,
     );
 
     this.cache = next;
@@ -189,6 +199,12 @@ export class SystemSettingsService {
         return;
       case 'systemSettingsCacheRefreshSeconds':
         target.systemSettingsCacheRefreshSeconds = this.coerceInt(val, DEFAULT_SETTINGS.systemSettingsCacheRefreshSeconds);
+        return;
+      case 'messagingAttachmentRetentionMonths':
+        target.messagingAttachmentRetentionMonths = this.coerceInt(val, DEFAULT_SETTINGS.messagingAttachmentRetentionMonths);
+        return;
+      case 'messagingContentRetentionMonths':
+        target.messagingContentRetentionMonths = this.coerceInt(val, DEFAULT_SETTINGS.messagingContentRetentionMonths);
         return;
     }
   }

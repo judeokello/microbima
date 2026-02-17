@@ -40,7 +40,7 @@
   - infer required placeholders by scanning template content for `{placeholder_key}` tokens
   - validate placeholder keys match `^[a-z0-9_]+$`
   - missing values → FAIL + Sentry + stored error
-- [ ] T015 Implement `MessagingOutboxRepository` (Prisma queries for claiming rows + status updates) in `apps/api/src/modules/messaging/messaging-outbox.repository.ts`
+- [x] T015 Implement `MessagingOutboxRepository` (Prisma queries for claiming rows + status updates) in `apps/api/src/modules/messaging/messaging-outbox.repository.ts`
 
 **Checkpoint**: Foundation ready (schema + settings + template/route config + rendering components)
 
@@ -52,11 +52,11 @@
 
 **Independent Test**: Trigger one supported event (e.g., `POLICY_PURCHASED`) and verify the API returns without waiting for sending; then verify deliveries exist for enabled channels.
 
-- [ ] T016 [US1] Define enqueue interface and payload contract in `apps/api/src/modules/messaging/messaging.types.ts` (templateKey, customerId, optional policyId, placeholder data)
-- [ ] T017 [US1] Implement `MessagingService.enqueue()` in `apps/api/src/modules/messaging/messaging.service.ts` (reads route + settings snapshot, creates one delivery per enabled channel)
-- [ ] T018 [US1] Integrate enqueue call into one real trigger point (start with policy purchase) in `apps/api/src/services/**` (choose the actual purchase completion location)
-- [ ] T019 [US1] Ensure missing recipient details create-and-fail delivery records (phone/email missing) in `apps/api/src/modules/messaging/messaging.service.ts`
-- [ ] T020 [US1] Add internal delivery list/get endpoints in `apps/api/src/controllers/internal/messaging.controller.ts` (GET `/internal/messaging/deliveries`, GET `/internal/messaging/deliveries/{deliveryId}`)
+- [x] T016 [US1] Define enqueue interface and payload contract in `apps/api/src/modules/messaging/messaging.types.ts` (templateKey, customerId, optional policyId, placeholder data)
+- [x] T017 [US1] Implement `MessagingService.enqueue()` in `apps/api/src/modules/messaging/messaging.service.ts` (reads route + settings snapshot, creates one delivery per enabled channel)
+- [x] T018 [US1] Integrate enqueue call into one real trigger point (start with policy purchase) in `apps/api/src/services/**` (choose the actual purchase completion location)
+- [x] T019 [US1] Ensure missing recipient details create-and-fail delivery records (phone/email missing) in `apps/api/src/modules/messaging/messaging.service.ts`
+- [x] T020 [US1] Add internal delivery list/get endpoints in `apps/api/src/controllers/internal/messaging.controller.ts` (GET `/internal/messaging/deliveries`, GET `/internal/messaging/deliveries/{deliveryId}`)
 
 **Checkpoint**: US1 complete (deliveries are created correctly and visible in admin history endpoints)
 
@@ -68,11 +68,11 @@
 
 **Independent Test**: Customer `defaultMessagingLanguage=sw` with only `en` templates → delivery uses `en` and records requested/used languages.
 
-- [ ] T021 [US2] Add `Customer.defaultMessagingLanguage` read/write paths in `apps/api/src/services/customer.service.ts` and related DTOs (where customer updates are handled)
-- [ ] T022 [US2] Implement language selection + persistence fields on deliveries (`requestedLanguage`, `usedLanguage`) in `apps/api/src/modules/messaging/messaging.service.ts`
-- [ ] T023 [US2] Ensure “template missing after fallback” marks delivery as FAILED with clear reason in `apps/api/src/modules/messaging/rendering/template-resolver.service.ts`
-- [ ] T024 [US2] Ensure placeholder render failures are stored + reported to Sentry in `apps/api/src/modules/messaging/rendering/placeholder-renderer.service.ts`
-- [ ] T025 [US2] Add admin-visible error fields to delivery DTOs in `apps/api/src/dto/messaging/**` (renderError/lastError/etc.)
+- [x] T021 [US2] Add `Customer.defaultMessagingLanguage` read/write paths in `apps/api/src/services/customer.service.ts` and related DTOs (where customer updates are handled)
+- [x] T022 [US2] Implement language selection + persistence fields on deliveries (`requestedLanguage`, `usedLanguage`) in `apps/api/src/modules/messaging/messaging.service.ts`
+- [x] T023 [US2] Ensure “template missing after fallback” marks delivery as FAILED with clear reason in `apps/api/src/modules/messaging/rendering/template-resolver.service.ts`
+- [x] T024 [US2] Ensure placeholder render failures are stored + reported to Sentry in `apps/api/src/modules/messaging/rendering/placeholder-renderer.service.ts`
+- [x] T025 [US2] Add admin-visible error fields to delivery DTOs in `apps/api/src/dto/messaging/**` (renderError/lastError/etc.)
 
 **Checkpoint**: US2 complete (language + fallback + render failure visibility is deterministic and auditable)
 
@@ -84,10 +84,10 @@
 
 **Independent Test**: For an event with SMS+Email deliveries, resend only SMS → only SMS resent; resend email → reuse stored attachments when available.
 
-- [ ] T026 [US3] Implement resend endpoint `POST /internal/messaging/deliveries/{deliveryId}/resend` in `apps/api/src/controllers/internal/messaging.controller.ts` with Support/Admin RBAC
-- [ ] T027 [US3] Implement `MessagingService.resendDelivery()` in `apps/api/src/modules/messaging/messaging.service.ts` (creates new linked delivery; does not auto-resend other channels)
-- [ ] T028 [US3] Implement “reuse original rendered SMS text” behavior for SMS resend in `apps/api/src/modules/messaging/messaging.service.ts`
-- [ ] T029 [US3] Implement “reuse original rendered email content” behavior for email resend in `apps/api/src/modules/messaging/messaging.service.ts`
+- [x] T026 [US3] Implement resend endpoint `POST /internal/messaging/deliveries/{deliveryId}/resend` in `apps/api/src/controllers/internal/messaging.controller.ts` with Support/Admin RBAC
+- [x] T027 [US3] Implement `MessagingService.resendDelivery()` in `apps/api/src/modules/messaging/messaging.service.ts` (creates new linked delivery; does not auto-resend other channels)
+- [x] T028 [US3] Implement “reuse original rendered SMS text” behavior for SMS resend in `apps/api/src/modules/messaging/messaging.service.ts`
+- [x] T029 [US3] Implement “reuse original rendered email content” behavior for email resend in `apps/api/src/modules/messaging/messaging.service.ts`
 
 **Checkpoint**: US3 complete (resend creates a new delivery linked to original with correct channel-specific reuse rules)
 
@@ -99,8 +99,8 @@
 
 **Independent Test**: Create deliveries, send webhooks, and see delivery status + provider events reflected in history.
 
-- [ ] T030 [US4] Implement `MessagingWorker` scheduled processor in `apps/api/src/modules/messaging/messaging.worker.ts` (claim rows atomically; update status; compute retries w/ jitter)
-- [ ] T031 [US4] Implement provider send adapters:
+- [x] T030 [US4] Implement `MessagingWorker` scheduled processor in `apps/api/src/modules/messaging/messaging.worker.ts` (claim rows atomically; update status; compute retries w/ jitter)
+- [x] T031 [US4] Implement provider send adapters:
   - SMS: `apps/api/src/modules/messaging/providers/sms-africas-talking.service.ts`
   - Email: `apps/api/src/modules/messaging/providers/email-sendgrid.service.ts`
 - [ ] T032 [US4] Implement Supabase attachment persistence service in `apps/api/src/modules/messaging/attachments/attachment.service.ts` (folder per delivery; expiry)

@@ -1,5 +1,11 @@
 export type MessagingChannel = 'SMS' | 'EMAIL';
 
+/** One dynamic attachment to generate from a template (path-based). */
+export interface DynamicAttachmentSpec {
+  attachmentTemplateId: string;
+  params: Record<string, string>;
+}
+
 export interface EnqueueMessageRequest {
   templateKey: string;
   customerId: string;
@@ -15,6 +21,11 @@ export interface EnqueueMessageRequest {
    */
   requestedLanguage?: string;
   correlationId?: string;
+  /**
+   * Optional dynamic attachment specs. Worker will generate PDFs from templates and attach to email.
+   * Only applies when email channel is enabled.
+   */
+  dynamicAttachmentSpecs?: DynamicAttachmentSpec[];
 }
 
 export interface ResendDeliveryRequest {
@@ -32,5 +43,9 @@ export interface MessagingSettingsSnapshot {
   workerBatchSize: number;
   workerMaxConcurrency: number;
   systemSettingsCacheRefreshSeconds: number;
+  /** Attachment retention in months. 0 or negative = never expires. */
+  messagingAttachmentRetentionMonths: number;
+  /** Rendered email/SMS content retention in months. 0 or negative = never expires. */
+  messagingContentRetentionMonths: number;
 }
 

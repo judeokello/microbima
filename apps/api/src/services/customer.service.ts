@@ -2377,6 +2377,10 @@ export class CustomerService {
         const trimmedIdNumber = updateData.idNumber?.trim();
         updatePayload.idNumber = trimmedIdNumber && trimmedIdNumber.length > 0 ? trimmedIdNumber : undefined;
       }
+      // T021: Add defaultMessagingLanguage support
+      if (updateData.defaultMessagingLanguage !== undefined) {
+        updatePayload.defaultMessagingLanguage = updateData.defaultMessagingLanguage;
+      }
       updatePayload.updatedBy = userId;
 
       // Update customer

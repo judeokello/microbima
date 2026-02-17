@@ -84,5 +84,15 @@ export class UpdateCustomerDto {
   @IsOptional()
   @IsString()
   idNumber?: string;
+
+  @ApiProperty({
+    description: 'Default language for messaging (ISO 639-1 code)',
+    example: 'en',
+    enum: ['en', 'sw'],
+    required: false,
+  })
+  @IsOptional()
+  @IsIn(['en', 'sw'])
+  defaultMessagingLanguage?: string;
 }
 

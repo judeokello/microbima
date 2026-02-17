@@ -7,18 +7,19 @@ import { MessagingOutboxRepository } from './messaging-outbox.repository';
 import { SystemSettingsService } from './settings/system-settings.service';
 import { TemplateResolverService } from './rendering/template-resolver.service';
 import { PlaceholderRendererService } from './rendering/placeholder-renderer.service';
-import { SendGridEmailService } from './providers/email-sendgrid.service';
+import { SmtpEmailService } from './providers/email-smtp.service';
 import { AfricasTalkingSmsService } from './providers/sms-africas-talking.service';
 import { MessagingAttachmentService } from './attachments/attachment.service';
+import { AttachmentGeneratorService } from './attachments/attachment-generator.service';
 import { MessagingTemplatesService } from './messaging-templates.service';
 import { MessagingRoutesService } from './messaging-routes.service';
+import { MessagingAttachmentTemplatesService } from './messaging-attachment-templates.service';
 import { InternalMessagingController } from '../../controllers/internal/messaging.controller';
-import { SendGridWebhookController } from '../../controllers/webhooks/messaging/sendgrid-webhook.controller';
 import { AfricasTalkingWebhookController } from '../../controllers/webhooks/messaging/africas-talking-webhook.controller';
 
 @Module({
   imports: [PrismaModule],
-  controllers: [InternalMessagingController, SendGridWebhookController, AfricasTalkingWebhookController],
+  controllers: [InternalMessagingController, AfricasTalkingWebhookController],
   providers: [
     SupabaseService,
     MessagingService,
@@ -27,11 +28,13 @@ import { AfricasTalkingWebhookController } from '../../controllers/webhooks/mess
     SystemSettingsService,
     MessagingTemplatesService,
     MessagingRoutesService,
+    MessagingAttachmentTemplatesService,
     TemplateResolverService,
     PlaceholderRendererService,
-    SendGridEmailService,
+    SmtpEmailService,
     AfricasTalkingSmsService,
     MessagingAttachmentService,
+    AttachmentGeneratorService,
   ],
   exports: [MessagingService, SystemSettingsService],
 })

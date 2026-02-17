@@ -1,5 +1,6 @@
 import { Body, Controller, ForbiddenException, Get, HttpCode, HttpStatus, NotFoundException, Param, Patch, Post, Put, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { PrismaService } from '../../prisma/prisma.service';
 import { MessagingService } from '../../modules/messaging/messaging.service';
 import { SystemSettingsService } from '../../modules/messaging/settings/system-settings.service';
 import { CorrelationId } from '../../decorators/correlation-id.decorator';
@@ -10,17 +11,21 @@ import { ValidationException } from '../../exceptions/validation.exception';
 import { MessagingSettingsSnapshot } from '../../modules/messaging/messaging.types';
 import { MessagingTemplatesService } from '../../modules/messaging/messaging-templates.service';
 import { MessagingRoutesService } from '../../modules/messaging/messaging-routes.service';
+import { MessagingAttachmentTemplatesService } from '../../modules/messaging/messaging-attachment-templates.service';
 import { Prisma } from '@prisma/client';
+import { MessagingAttachmentTemplateType } from '@prisma/client';
 
 @ApiTags('Internal - Messaging')
 @ApiBearerAuth()
 @Controller('internal/messaging')
 export class InternalMessagingController {
   constructor(
+    private readonly prisma: PrismaService,
     private readonly messagingService: MessagingService,
     private readonly systemSettings: SystemSettingsService,
     private readonly templates: MessagingTemplatesService,
     private readonly routes: MessagingRoutesService,
+    private readonly attachmentTemplates: MessagingAttachmentTemplatesService,
   ) {}
 
   @Get('settings')
@@ -67,6 +72,14 @@ export class InternalMessagingController {
     if (body.workerMaxConcurrency !== undefined) {
       const n = Number(body.workerMaxConcurrency);
       if (!Number.isFinite(n) || n <= 0) validationErrors['workerMaxConcurrency'] = 'Must be a positive number';
+    }
+    if (body.messagingAttachmentRetentionMonths !== undefined) {
+      const n = Number(body.messagingAttachmentRetentionMonths);
+      if (!Number.isFinite(n) || n < 0) validationErrors['messagingAttachmentRetentionMonths'] = 'Must be 0 (never) or a positive number of months';
+    }
+    if (body.messagingContentRetentionMonths !== undefined) {
+      const n = Number(body.messagingContentRetentionMonths);
+      if (!Number.isFinite(n) || n < 0) validationErrors['messagingContentRetentionMonths'] = 'Must be 0 (never) or a positive number of months';
     }
 
     if (Object.keys(validationErrors).length > 0) {
@@ -121,6 +134,7 @@ export class InternalMessagingController {
       body: string;
       textBody?: string;
       placeholders?: string[];
+      description?: string | null;
       isActive?: boolean;
     },
     @CorrelationId() correlationId?: string,
@@ -144,6 +158,7 @@ export class InternalMessagingController {
       body: body.body,
       textBody: body.textBody ?? null,
       placeholders: body.placeholders ?? [],
+      description: body.description ?? null,
       isActive: body.isActive ?? true,
       createdBy: user.id,
       updatedBy: user.id,
@@ -190,6 +205,7 @@ export class InternalMessagingController {
       body?: string;
       textBody?: string | null;
       placeholders?: string[];
+      description?: string | null;
       isActive?: boolean;
     },
     @CorrelationId() correlationId?: string,
@@ -201,6 +217,7 @@ export class InternalMessagingController {
       body: body.body,
       textBody: body.textBody === undefined ? undefined : body.textBody,
       placeholders: body.placeholders,
+      description: body.description === undefined ? undefined : body.description,
       isActive: body.isActive,
       updatedBy: user.id,
     });
@@ -209,6 +226,133 @@ export class InternalMessagingController {
       status: HttpStatus.OK,
       correlationId: correlationId ?? 'unknown',
       message: 'Messaging template updated successfully',
+      data: updated,
+    };
+  }
+
+  @Get('attachment-templates')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'List attachment templates (optionally by templateKey)' })
+  async listAttachmentTemplates(
+    @User() user: AuthenticatedUser,
+    @Query('templateKey') templateKey?: string,
+    @CorrelationId() correlationId?: string,
+  ) {
+    this.assertSupportOrAdmin(user);
+    const where: Prisma.MessagingAttachmentTemplateWhereInput = {};
+    if (templateKey) where.templateKey = templateKey;
+    const rows = await this.attachmentTemplates.list(where);
+    return {
+      status: HttpStatus.OK,
+      correlationId: correlationId ?? 'unknown',
+      message: 'Attachment templates retrieved successfully',
+      data: rows,
+    };
+  }
+
+  @Post('attachment-templates')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'Create an attachment template' })
+  async createAttachmentTemplate(
+    @User() user: AuthenticatedUser,
+    @Body()
+    body: {
+      templateKey: string;
+      name: string;
+      templatePath: string;
+      attachmentType: MessagingAttachmentTemplateType;
+      parameterSpec: Record<string, string>;
+      description?: string | null;
+      isActive?: boolean;
+    },
+    @CorrelationId() correlationId?: string,
+  ) {
+    this.assertAdmin(user);
+
+    const validationErrors: Record<string, string> = {};
+    if (!body.templateKey) validationErrors['templateKey'] = 'Required';
+    if (!body.name) validationErrors['name'] = 'Required';
+    if (!body.templatePath) validationErrors['templatePath'] = 'Required';
+    if (!body.attachmentType) validationErrors['attachmentType'] = 'Required';
+    if (body.parameterSpec === undefined) validationErrors['parameterSpec'] = 'Required';
+    if (Object.keys(validationErrors).length > 0) {
+      throw ValidationException.withMultipleErrors(validationErrors, ErrorCodes.REQUIRED_FIELD_MISSING);
+    }
+
+    const created = await this.attachmentTemplates.create({
+      templateKey: body.templateKey,
+      name: body.name,
+      templatePath: body.templatePath,
+      attachmentType: body.attachmentType,
+      parameterSpec: body.parameterSpec,
+      description: body.description ?? null,
+      isActive: body.isActive ?? true,
+      createdBy: user.id,
+      updatedBy: user.id,
+    });
+
+    return {
+      status: HttpStatus.CREATED,
+      correlationId: correlationId ?? 'unknown',
+      message: 'Attachment template created successfully',
+      data: created,
+    };
+  }
+
+  @Get('attachment-templates/:attachmentTemplateId')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Get an attachment template by ID' })
+  async getAttachmentTemplate(
+    @User() user: AuthenticatedUser,
+    @Param('attachmentTemplateId') attachmentTemplateId: string,
+    @CorrelationId() correlationId?: string,
+  ) {
+    this.assertSupportOrAdmin(user);
+    const row = await this.attachmentTemplates.getById(attachmentTemplateId);
+    if (!row) {
+      throw new NotFoundException({ error: { code: ErrorCodes.NOT_FOUND, message: 'Attachment template not found' } });
+    }
+    return {
+      status: HttpStatus.OK,
+      correlationId: correlationId ?? 'unknown',
+      message: 'Attachment template retrieved successfully',
+      data: row,
+    };
+  }
+
+  @Patch('attachment-templates/:attachmentTemplateId')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Update an attachment template' })
+  async updateAttachmentTemplate(
+    @User() user: AuthenticatedUser,
+    @Param('attachmentTemplateId') attachmentTemplateId: string,
+    @Body()
+    body: {
+      name?: string;
+      templatePath?: string;
+      attachmentType?: MessagingAttachmentTemplateType;
+      parameterSpec?: Record<string, string>;
+      description?: string | null;
+      isActive?: boolean;
+    },
+    @CorrelationId() correlationId?: string,
+  ) {
+    this.assertAdmin(user);
+
+    const updated = await this.attachmentTemplates.update(attachmentTemplateId, {
+      name: body.name,
+      templatePath: body.templatePath,
+      attachmentType: body.attachmentType,
+      parameterSpec: body.parameterSpec,
+      description: body.description,
+      isActive: body.isActive,
+      updatedBy: user.id,
+    });
+
+    return {
+      status: HttpStatus.OK,
+      correlationId: correlationId ?? 'unknown',
+      message: 'Attachment template updated successfully',
       data: updated,
     };
   }
@@ -259,6 +403,99 @@ export class InternalMessagingController {
       correlationId: correlationId ?? 'unknown',
       message: 'Messaging route upserted successfully',
       data: row,
+    };
+  }
+
+  /**
+   * T020: List deliveries with filters (customer, policy, channel, status, pagination)
+   */
+  @Get('deliveries')
+  async listDeliveries(
+    @User() user: AuthenticatedUser,
+    @Query('customerId') customerId?: string,
+    @Query('policyId') policyId?: string,
+    @Query('channel') channel?: string,
+    @Query('status') status?: string,
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+    @CorrelationId() correlationId?: string,
+  ) {
+    this.assertSupportOrAdmin(user);
+
+    const pageNum = parseInt(page ?? '1', 10);
+    const pageSizeNum = parseInt(pageSize ?? '20', 10);
+    const skip = (pageNum - 1) * pageSizeNum;
+
+    const deliveries = await this.messagingService.listDeliveries({
+      customerId,
+      policyId,
+      channel: channel as 'SMS' | 'EMAIL' | undefined,
+      status: status as 'PENDING' | 'PROCESSING' | 'SENT' | 'FAILED' | 'RETRY_WAIT' | undefined,
+      skip,
+      take: pageSizeNum,
+    });
+
+    return {
+      status: HttpStatus.OK,
+      correlationId: correlationId ?? 'unknown',
+      message: 'Deliveries retrieved successfully',
+      data: deliveries,
+    };
+  }
+
+  /**
+   * T020: Get delivery by ID
+   */
+  @Get('deliveries/:deliveryId')
+  async getDelivery(
+    @User() user: AuthenticatedUser,
+    @Param('deliveryId') deliveryId: string,
+    @CorrelationId() correlationId?: string,
+  ) {
+    this.assertSupportOrAdmin(user);
+
+    const delivery = await this.prisma.messagingDelivery.findUnique({
+      where: { id: deliveryId },
+      include: {
+        customer: { select: { id: true, firstName: true, lastName: true, email: true, phoneNumber: true } },
+        policy: { select: { id: true, policyNumber: true } },
+        attachments: true,
+        providerEvents: { orderBy: { createdAt: 'asc' } },
+      },
+    });
+
+    if (!delivery) {
+      throw new NotFoundException({
+        error: { code: ErrorCodes.NOT_FOUND, message: `Delivery not found: ${deliveryId}` },
+      });
+    }
+
+    return {
+      status: HttpStatus.OK,
+      correlationId: correlationId ?? 'unknown',
+      message: 'Delivery retrieved successfully',
+      data: delivery,
+    };
+  }
+
+  /**
+   * T026: Resend delivery (Support/Admin only)
+   */
+  @Post('deliveries/:deliveryId/resend')
+  async resendDelivery(
+    @User() user: AuthenticatedUser,
+    @Param('deliveryId') deliveryId: string,
+    @CorrelationId() correlationId?: string,
+  ) {
+    this.assertSupportOrAdmin(user);
+
+    const newDeliveryId = await this.messagingService.resendDelivery(deliveryId, correlationId ?? 'unknown');
+
+    return {
+      status: HttpStatus.OK,
+      correlationId: correlationId ?? 'unknown',
+      message: 'Delivery resend queued successfully',
+      data: { newDeliveryId },
     };
   }
 

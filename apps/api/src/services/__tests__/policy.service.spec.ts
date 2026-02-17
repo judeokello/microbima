@@ -2,6 +2,7 @@
 import { PolicyService } from '../policy.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { PaymentAccountNumberService } from '../payment-account-number.service';
+import { MessagingService } from '../../modules/messaging/messaging.service';
 
 describe('PolicyService - generatePolicyNumber', () => {
   const prismaMock = {
@@ -19,9 +20,16 @@ describe('PolicyService - generatePolicyNumber', () => {
     customerHasExistingPolicies: jest.fn(),
   };
 
+  const messagingServiceMock = {
+    enqueue: jest.fn(),
+    resendDelivery: jest.fn(),
+    listDeliveries: jest.fn(),
+  };
+
   const policyService = new PolicyService(
     prismaMock as unknown as PrismaService,
-    paymentAccountNumberServiceMock as unknown as PaymentAccountNumberService
+    paymentAccountNumberServiceMock as unknown as PaymentAccountNumberService,
+    messagingServiceMock as unknown as MessagingService
   );
 
   beforeEach(() => {
