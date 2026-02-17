@@ -45,6 +45,27 @@ export interface AppConfig {
     stkPushExpirationCheckIntervalMinutes: number;
     stkPushEnabled: boolean;
   };
+  supabase: {
+    url: string;
+    serviceRoleKey: string;
+    anonKey: string;
+  };
+  messaging: {
+    // Email (SMTP - Generic)
+    smtpHost: string;
+    smtpPort: number;
+    smtpSecure: boolean;
+    smtpUsername: string;
+    smtpPassword: string;
+    smtpFromEmail: string;
+    smtpFromName: string;
+    // SMS (Africa's Talking)
+    africasTalkingApiKey: string;
+    africasTalkingUsername: string;
+    africasTalkingSenderId: string;
+    // Attachments (Supabase Storage)
+    supabaseMessagingAttachmentsBucket: string;
+  };
 }
 
 @Injectable()
@@ -85,6 +106,11 @@ export class ConfigurationService extends BaseConfigurationService implements On
         profilesSampleRate: parseFloat(process.env.SENTRY_PROFILES_SAMPLE_RATE ?? '1.0'),
         enabled: !!process.env.SENTRY_DSN,
       },
+      supabase: {
+        url: process.env.SUPABASE_URL ?? '',
+        serviceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY ?? '',
+        anonKey: process.env.SUPABASE_ANON_KEY ?? '',
+      },
       mpesa: {
         consumerKey: process.env.MPESA_CONSUMER_KEY ?? '',
         consumerSecret: process.env.MPESA_CONSUMER_SECRET ?? '',
@@ -99,6 +125,19 @@ export class ConfigurationService extends BaseConfigurationService implements On
         stkPushTimeoutMinutes: parseInt(process.env.MPESA_STK_PUSH_TIMEOUT_MINUTES ?? '5', 10),
         stkPushExpirationCheckIntervalMinutes: parseInt(process.env.MPESA_STK_PUSH_EXPIRATION_CHECK_INTERVAL_MINUTES ?? '2', 10),
         stkPushEnabled: process.env.MPESA_STK_PUSH_ENABLED?.toLowerCase() === 'true',
+      },
+      messaging: {
+        smtpHost: process.env.SMTP_HOST ?? '',
+        smtpPort: parseInt(process.env.SMTP_PORT ?? '587', 10),
+        smtpSecure: process.env.SMTP_SECURE?.toLowerCase() === 'true',
+        smtpUsername: process.env.SMTP_USERNAME ?? '',
+        smtpPassword: process.env.SMTP_PASSWORD ?? '',
+        smtpFromEmail: process.env.SMTP_FROM_EMAIL ?? '',
+        smtpFromName: process.env.SMTP_FROM_NAME ?? 'MicroBima',
+        africasTalkingApiKey: process.env.AFRICAS_TALKING_API_KEY ?? '',
+        africasTalkingUsername: process.env.AFRICAS_TALKING_USERNAME ?? '',
+        africasTalkingSenderId: process.env.AFRICAS_TALKING_SENDER_ID ?? '',
+        supabaseMessagingAttachmentsBucket: process.env.SUPABASE_MESSAGING_ATTACHMENTS_BUCKET ?? 'messaging-attachments',
       },
     };
   }
@@ -255,6 +294,22 @@ export class ConfigurationService extends BaseConfigurationService implements On
     };
   }
 
+  get supabase() {
+    return this.config?.supabase ?? {
+      url: '',
+      serviceRoleKey: '',
+      anonKey: '',
+    };
+  }
+
+  get supabaseUrl(): string {
+    return this.config?.supabase?.url ?? '';
+  }
+
+  get supabaseServiceRoleKey(): string {
+    return this.config?.supabase?.serviceRoleKey ?? '';
+  }
+
   get mpesa() {
     return this.config?.mpesa ?? {
       consumerKey: '',
@@ -269,6 +324,22 @@ export class ConfigurationService extends BaseConfigurationService implements On
       stkPushTimeoutMinutes: 5,
       stkPushExpirationCheckIntervalMinutes: 2,
       stkPushEnabled: false,
+    };
+  }
+
+  get messaging() {
+    return this.config?.messaging ?? {
+      smtpHost: '',
+      smtpPort: 587,
+      smtpSecure: false,
+      smtpUsername: '',
+      smtpPassword: '',
+      smtpFromEmail: '',
+      smtpFromName: 'MicroBima',
+      africasTalkingApiKey: '',
+      africasTalkingUsername: '',
+      africasTalkingSenderId: '',
+      supabaseMessagingAttachmentsBucket: 'messaging-attachments',
     };
   }
 

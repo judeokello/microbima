@@ -110,6 +110,10 @@ export class Customer {
     return this.status === CustomerStatus.TERMINATED;
   }
 
+  get isDeleted(): boolean {
+    return this.status === CustomerStatus.DELETED;
+  }
+
   // Business logic methods
   isEligibleForInsurance(): boolean {
     return this.isActive && this.isAdult && this.isKYCVerified;

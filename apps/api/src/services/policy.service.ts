@@ -5,6 +5,7 @@ import { PaymentFrequency, Prisma } from '@prisma/client';
 import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
 import * as Sentry from '@sentry/nestjs';
 import { PaymentAccountNumberService } from './payment-account-number.service';
+import { MessagingService } from '../modules/messaging/messaging.service';
 
 /**
  * Policy Service
@@ -16,6 +17,7 @@ import { PaymentAccountNumberService } from './payment-account-number.service';
  * - Policy payment creation
  * - Tag association with policies
  * - Transaction management for data consistency
+ * - Messaging notifications integration (T018)
  */
 @Injectable()
 export class PolicyService {
@@ -23,7 +25,8 @@ export class PolicyService {
 
   constructor(
     private readonly prismaService: PrismaService,
-    private readonly paymentAccountNumberService: PaymentAccountNumberService
+    private readonly paymentAccountNumberService: PaymentAccountNumberService,
+    private readonly messagingService: MessagingService,
   ) {}
 
   /**
@@ -723,6 +726,25 @@ export class PolicyService {
       this.logger.log(
         `[${correlationId}] Policy ${result.policy.id} created successfully with payment ${result.policyPayment.id}`
       );
+
+      // T018: Trigger messaging notification for policy purchase (fire-and-forget)
+      // COMMENTED OUT until after deploy to staging/master - uncomment when ready to enable SMS/email on registration.
+      // if (result.policy.status === 'ACTIVE' && result.policy.policyNumber) {
+      //   this.enqueuePolicyPurchaseMessage(result.policy, correlationId).catch((error) => {
+      //     this.logger.warn(
+      //       `[${correlationId}] Failed to enqueue policy purchase message: ${error instanceof Error ? error.message : 'Unknown error'}`
+      //     );
+      //     Sentry.captureException(error, {
+      //       tags: {
+      //         service: 'PolicyService',
+      //         operation: 'createPolicyWithPayment',
+      //         subOperation: 'enqueuePolicyPurchaseMessage',
+      //         correlationId,
+      //       },
+      //       extra: { policyId: result.policy.id },
+      //     });
+      //   });
+      // }
 
       return result;
     } catch (error) {
@@ -1465,6 +1487,42 @@ export class PolicyService {
 
       return policy;
     });
+  }
+
+  /**
+   * T018: Enqueue policy purchase message.
+   * Fire-and-forget; errors are logged but don't block policy creation.
+   */
+  private async enqueuePolicyPurchaseMessage(
+    policy: Prisma.PolicyGetPayload<Record<string, never>>,
+    correlationId: string
+  ): Promise<void> {
+    this.logger.log(
+      `[${correlationId}] Enqueueing policy purchase message for policyId=${policy.id}, policyNumber=${policy.policyNumber}`
+    );
+
+    try {
+      await this.messagingService.enqueue({
+        templateKey: 'policy_purchase',
+        customerId: policy.customerId,
+        policyId: policy.id,
+        placeholderValues: {
+          policy_number: policy.policyNumber ?? '',
+          product_name: policy.productName ?? '',
+          premium: policy.premium.toString(),
+          start_date: policy.startDate ?? new Date(),
+          end_date: policy.endDate ?? new Date(),
+        },
+        correlationId,
+      });
+
+      this.logger.log(
+        `[${correlationId}] Successfully enqueued policy purchase message for policyId=${policy.id}`
+      );
+    } catch (error) {
+      // Rethrow to be caught by caller for logging/Sentry
+      throw error;
+    }
   }
 }
 

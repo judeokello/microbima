@@ -48,6 +48,7 @@ import { AddDependantsRequestDto } from '../../dto/dependants/add-dependants-req
 import { AddDependantsResponseDto } from '../../dto/dependants/add-dependants-response.dto';
 import { CorrelationId } from '../../decorators/correlation-id.decorator';
 import { PartnerId } from '../../decorators/api-key.decorator';
+import { AdminOnly } from '../../decorators/ba-auth.decorator';
 import { Request, Response } from 'express';
 import { ApiResponseDto } from '../../dto/common/api-response.dto';
 import { SchemeDetailResponseDto } from '../../dto/schemes/scheme.dto';
@@ -937,6 +938,29 @@ export class InternalCustomerController {
   }
 
   /**
+   * Soft delete a dependant (Admin only)
+   */
+  @Delete('dependants/:dependantId')
+  @AdminOnly()
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({
+    summary: 'Soft delete dependant (Internal - Admin only)',
+    description: 'Soft deletes a dependant (spouse or child). Only registration_admin can perform this action.',
+  })
+  @ApiParam({ name: 'dependantId', description: 'Dependant ID' })
+  @ApiResponse({ status: 204, description: 'Dependant soft deleted successfully' })
+  @ApiResponse({ status: 404, description: 'Dependant not found' })
+  async deleteDependant(
+    @Param('dependantId') dependantId: string,
+    @CorrelationId() correlationId: string,
+    @Req() req: Request,
+  ): Promise<void> {
+    const userId = req.user?.id ?? 'system';
+    const userRoles = req.user?.roles ?? [];
+    await this.customerService.softDeleteDependant(dependantId, userId, userRoles, correlationId);
+  }
+
+  /**
    * Update a dependant
    */
   @Put('dependants/:dependantId')
@@ -989,6 +1013,31 @@ export class InternalCustomerController {
         relationship: string;
       },
     };
+  }
+
+  /**
+   * Soft delete a beneficiary (Admin only)
+   */
+  @Delete(':customerId/beneficiaries/:beneficiaryId')
+  @AdminOnly()
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({
+    summary: 'Soft delete beneficiary (Internal - Admin only)',
+    description: 'Soft deletes a beneficiary (Next of Kin). Only registration_admin can perform this action.',
+  })
+  @ApiParam({ name: 'customerId', description: 'Customer ID' })
+  @ApiParam({ name: 'beneficiaryId', description: 'Beneficiary ID' })
+  @ApiResponse({ status: 204, description: 'Beneficiary soft deleted successfully' })
+  @ApiResponse({ status: 404, description: 'Beneficiary not found' })
+  async deleteBeneficiary(
+    @Param('customerId') customerId: string,
+    @Param('beneficiaryId') beneficiaryId: string,
+    @CorrelationId() correlationId: string,
+    @Req() req: Request,
+  ): Promise<void> {
+    const userId = req.user?.id ?? 'system';
+    const userRoles = req.user?.roles ?? [];
+    await this.customerService.softDeleteBeneficiary(customerId, beneficiaryId, userId, userRoles, correlationId);
   }
 
   /**

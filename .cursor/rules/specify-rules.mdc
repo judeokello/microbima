@@ -5,6 +5,8 @@ Auto-generated from all feature plans. Last updated: 2025-11-27
 ## Active Technologies
 - TypeScript 5.3.x + NestJS 11.x (apps/api), Next.js (apps/agent-registration), Prisma 6.x, Express (001-member-cards)
 - PostgreSQL (via Prisma ORM); no server-side storage for card images (001-member-cards)
+- TypeScript 5.3.x, Node.js >= 18 + NestJS 11.x (`apps/api`), Prisma 6.x, `@nestjs/schedule`, `@sentry/nestjs`, Supabase JS client (001-customer-messaging)
+- PostgreSQL (Prisma), Supabase Storage for PDF attachments (private bucket) (001-customer-messaging)
 
 - TypeScript 5.3.x + NestJS 11.x, Prisma 6.x, Express (001-mpesa-ipn-integration)
 
@@ -24,6 +26,7 @@ npm test && npm run lint
 TypeScript 5.3.x: Follow standard conventions
 
 ## Recent Changes
+- 001-customer-messaging: Added TypeScript 5.3.x, Node.js >= 18 + NestJS 11.x (`apps/api`), Prisma 6.x, `@nestjs/schedule`, `@sentry/nestjs`, Supabase JS client
 - 001-member-cards: Added TypeScript 5.3.x + NestJS 11.x (apps/api), Next.js (apps/agent-registration), Prisma 6.x, Express
 
 - 001-mpesa-ipn-integration: Added TypeScript 5.3.x + NestJS 11.x, Prisma 6.x, Express

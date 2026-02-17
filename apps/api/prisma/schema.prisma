@@ -99,6 +99,7 @@ model Customer {
   lastName               String         @db.VarChar(50)
   email                  String?        @unique // Made nullable - when provided must be unique
   phoneNumber            String         @db.VarChar(20) // Numeric phone number, max 20 characters
+  defaultMessagingLanguage String       @default("en") @db.VarChar(5) // ISO language code (e.g., en, sw)
   dateOfBirth            DateTime?      @db.Date // Date only, no time component
   gender                 Gender? // Optional gender field
   idType                 IdType
@@ -107,6 +108,7 @@ model Customer {
   onboardingStep         OnboardingStep @default(BASIC_INFO)
   createdByPartnerId     Int // Partner who created this customer
   hasMissingRequirements Boolean        @default(false)
+  isTestUser             Boolean        @default(false) // True when phoneNumber exists in test_customers
 
   // Address information
   address Address?
@@ -136,6 +138,9 @@ model Customer {
 
   // Policy member relations
   policyMemberPrincipals PolicyMemberPrincipal[]
+
+  // Messaging relations
+  messagingDeliveries MessagingDelivery[]
 
   // Audit fields
   createdAt DateTime @default(now())
@@ -185,6 +190,10 @@ model Dependant {
   verificationRequired Boolean             @default(false) // Verification required for children 18-24 years old
   createdByPartnerId Int // Partner who created this dependant
 
+  // Soft delete
+  deletedAt DateTime? @db.Timestamptz
+  deletedBy String?   @db.Uuid // User ID who deleted
+
   // Policy member relations
   policyMemberDependants PolicyMemberDependant[]
 
@@ -215,6 +224,10 @@ model Beneficiary {
   verifiedAt              DateTime? // When verification was completed
   verifiedBy              String?   @db.Uuid // Who verified (user ID)
   createdByPartnerId      Int // Partner who created this beneficiary
+
+  // Soft delete
+  deletedAt DateTime? @db.Timestamptz
+  deletedBy String?   @db.Uuid // User ID who deleted
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -287,6 +300,7 @@ model Policy {
   packagePlan    PackagePlan?    @relation(fields: [packagePlanId], references: [id], onDelete: Restrict)
   policyPayments PolicyPayment[]
   policyTags     PolicyTag[]
+  messagingDeliveries MessagingDelivery[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -301,6 +315,7 @@ enum CustomerStatus {
   ACTIVE
   SUSPENDED
   TERMINATED
+  DELETED
 }
 
 enum OnboardingStep {
@@ -973,4 +988,217 @@ model PaymentAccountNumberSequence {
   lastUpdatedAt DateTime @default(now()) @updatedAt
 
   @@map("payment_account_number_sequences")
+}
+
+/// Test customer phone numbers - when a customer is created with a matching phone, is_test_user is set
+model TestCustomer {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String   @db.VarChar(100)
+  phoneNumber String   @unique @db.VarChar(20) // Normalized: 254XXXXXXXXX
+  createdAt   DateTime @default(now())
+  createdBy   String?  @db.Uuid
+
+  @@map("test_customers")
+}
+
+// ---------------------------------------------------------------------------
+// Messaging (Unified Customer Messaging)
+// ---------------------------------------------------------------------------
+
+enum MessagingChannel {
+  SMS
+  EMAIL
+}
+
+enum MessagingDeliveryStatus {
+  PENDING
+  PROCESSING
+  WAITING_FOR_ATTACHMENTS
+  RETRY_WAIT
+  SENT
+  FAILED
+}
+
+enum MessagingProvider {
+  AFRICAS_TALKING
+  SENDGRID
+}
+
+model MessagingTemplate {
+  id          String          @id @default(uuid()) @db.Uuid
+  templateKey String          @db.VarChar(100)
+  channel     MessagingChannel
+  language    String          @db.VarChar(5)
+  subject     String?         @db.VarChar(200)
+  body        String          @db.Text
+  textBody    String?         @db.Text
+  placeholders String[]
+  description String?         @db.VarChar(500)
+  isActive    Boolean         @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String?
+  updatedBy String?
+
+  @@unique([templateKey, channel, language], name: "unique_template_key_channel_language")
+  @@index([templateKey], name: "idx_messaging_template_key")
+  @@map("messaging_templates")
+}
+
+model MessagingRoute {
+  id          Int    @id @default(autoincrement())
+  templateKey String @unique @db.VarChar(100)
+  smsEnabled  Boolean @default(false)
+  emailEnabled Boolean @default(false)
+  isActive    Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String?
+  updatedBy String?
+
+  @@map("messaging_routes")
+}
+
+enum MessagingAttachmentTemplateType {
+  GENERIC_HTML
+  MEMBER_CARD
+}
+
+model MessagingAttachmentTemplate {
+  id             String                         @id @default(uuid()) @db.Uuid
+  templateKey    String                         @db.VarChar(100)
+  name           String                         @db.VarChar(100)
+  templatePath   String                         @db.VarChar(500)
+  attachmentType MessagingAttachmentTemplateType
+  parameterSpec  Json                           // e.g. { "policyId": "uuid", "customerId": "uuid" }
+  description    String?                        @db.VarChar(500)
+  isActive       Boolean                        @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String?
+  updatedBy String?
+
+  @@index([templateKey], name: "idx_messaging_attachment_template_key")
+  @@map("messaging_attachment_templates")
+}
+
+model MessagingDelivery {
+  id          String          @id @default(uuid()) @db.Uuid
+  templateKey String          @db.VarChar(100)
+  channel     MessagingChannel
+
+  customerId String? @db.Uuid
+  customer   Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+
+  policyId String? @db.Uuid
+  policy   Policy? @relation(fields: [policyId], references: [id], onDelete: SetNull)
+
+  recipientPhone String? @db.VarChar(20)
+  recipientEmail String? @db.VarChar(200)
+
+  requestedLanguage String @db.VarChar(5)
+  usedLanguage      String? @db.VarChar(5)
+
+  renderedSubject  String? @db.VarChar(500)
+  renderedBody     String  @db.Text
+  renderedTextBody String? @db.Text
+
+  // Render/processing errors (operator-visible)
+  errorMessage          String?  @db.VarChar(500)
+  missingPlaceholderKeys String[]
+  renderError           String?  @db.Text
+  lastError             String?  @db.Text
+
+  status       MessagingDeliveryStatus @default(PENDING)
+  attemptCount Int                    @default(0)
+  maxAttempts  Int
+  nextAttemptAt DateTime? @db.Timestamptz
+  lastAttemptAt DateTime? @db.Timestamptz
+
+  providerMessageId String? @db.VarChar(200)
+  correlationId     String? @db.VarChar(100)
+
+  // Resend tracing
+  originalDeliveryId String? @db.Uuid
+  originalDelivery   MessagingDelivery? @relation("DeliveryResendTrace", fields: [originalDeliveryId], references: [id], onDelete: SetNull)
+  resends            MessagingDelivery[] @relation("DeliveryResendTrace")
+
+  // Dynamic attachment generation: [{ attachmentTemplateId, params }]. Cleared after PDFs are generated.
+  dynamicAttachmentSpecs Json?
+
+  attachments   MessagingAttachment[]
+  providerEvents MessagingProviderEvent[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String?
+  updatedBy String?
+
+  @@index([status, nextAttemptAt], name: "idx_messaging_delivery_status_next_attempt")
+  @@index([customerId, createdAt], name: "idx_messaging_delivery_customer_created")
+  @@index([policyId, createdAt], name: "idx_messaging_delivery_policy_created")
+  @@index([providerMessageId], name: "idx_messaging_delivery_provider_message_id")
+  @@map("messaging_deliveries")
+}
+
+model MessagingAttachment {
+  id           String @id @default(uuid()) @db.Uuid
+  deliveryId   String @db.Uuid
+  delivery     MessagingDelivery @relation(fields: [deliveryId], references: [id], onDelete: Cascade)
+
+  fileName      String @db.VarChar(255)
+  mimeType      String @db.VarChar(100)
+  storageBucket String @db.VarChar(100)
+  storagePath   String @db.VarChar(500)
+  sizeBytes     Int?
+  checksum      String? @db.VarChar(200)
+
+  expiresAt DateTime @db.Timestamptz
+  deletedAt DateTime? @db.Timestamptz
+
+  createdAt DateTime @default(now())
+
+  @@unique([deliveryId, fileName], name: "unique_delivery_filename")
+  @@index([deliveryId], name: "idx_messaging_attachment_delivery")
+  @@map("messaging_attachments")
+}
+
+model MessagingProviderEvent {
+  id String @id @default(uuid()) @db.Uuid
+  provider MessagingProvider
+
+  deliveryId String? @db.Uuid
+  delivery   MessagingDelivery? @relation(fields: [deliveryId], references: [id], onDelete: SetNull)
+
+  providerEventId  String? @db.VarChar(200)
+  providerMessageId String? @db.VarChar(200)
+  eventType        String  @db.VarChar(100)
+  occurredAt       DateTime? @db.Timestamptz
+  payload          Json
+
+  createdAt DateTime @default(now())
+
+  @@unique([provider, providerEventId], name: "unique_provider_event_id")
+  @@index([deliveryId, createdAt], name: "idx_provider_event_delivery_created")
+  @@index([providerMessageId], name: "idx_provider_event_provider_message_id")
+  @@map("messaging_provider_events")
+}
+
+model SystemSetting {
+  key       String @id @db.VarChar(100)
+  value     Json
+  updatedAt DateTime @updatedAt
+  updatedBy String?
+
+  @@map("system_settings")
+}
+
+model SystemSettingsMeta {
+  id        Int      @id @default(1)
+  updatedAt DateTime @updatedAt
+
+  @@map("system_settings_meta")
 }
