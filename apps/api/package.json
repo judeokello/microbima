@@ -64,7 +64,8 @@
     "rxjs": "^7.8.1",
     "swagger-ui-express": "^5.0.1",
     "xlsx": "^0.18.5",
-    "zod": "^3.22.0"
+    "zod": "^3.22.0",
+    "uuid": "^9.0.1"
   },
   "devDependencies": {
     "@nestjs/cli": "^11.0.10",
@@ -82,7 +83,7 @@
     "@types/passport-jwt": "^3.0.8",
     "@types/passport-local": "^1.0.35",
     "@types/supertest": "^2.0.12",
-    "@types/uuid": "^11.0.0",
+    "@types/uuid": "^9.0.0",
     "@typescript-eslint/eslint-plugin": "^8.44.0",
     "@typescript-eslint/parser": "^8.44.0",
     "cron": "^4.3.0",
@@ -110,9 +111,6 @@
     "testRegex": ".*\\.spec\\.ts$",
     "transform": {
       "^.+\\.(t|j)s$": "ts-jest"
-    },
-    "moduleNameMapper": {
-      "^uuid$": "<rootDir>/__mocks__/uuid.ts"
     },
     "collectCoverageFrom": [
       "**/*.(t|j)s"
