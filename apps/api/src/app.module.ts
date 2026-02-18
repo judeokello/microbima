@@ -1,4 +1,5 @@
 import { Module, NestModule, MiddlewareConsumer, RequestMethod } from '@nestjs/common';
+import { ThrottlerModule } from '@nestjs/throttler';
 import { ScheduleModule } from '@nestjs/schedule';
 import { SentryModule } from '@sentry/nestjs/setup';
 import { ConfigurationModule } from './config/config.module';
@@ -53,6 +54,7 @@ import { MessagingModule } from './modules/messaging/messaging.module';
   imports: [
     SentryModule.forRoot(),
     ScheduleModule.forRoot(),
+    ThrottlerModule.forRoot([{ ttl: 60000, limit: 1000 }]), // Default high; webhooks override with @Throttle(60, 60)
     ConfigurationModule,
     PrismaModule,
     MessagingModule,

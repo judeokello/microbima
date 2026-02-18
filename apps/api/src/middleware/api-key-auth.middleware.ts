@@ -68,6 +68,15 @@ export class ApiKeyAuthMiddleware implements NestMiddleware {
       return next();
     }
 
+    // Skip authentication for messaging webhooks (public, rate-limited per T037)
+    if (
+      req.path.includes('webhooks/messaging') ||
+      req.originalUrl.includes('webhooks/messaging')
+    ) {
+      console.log('Skipping API key auth for messaging webhook:', req.path);
+      return next();
+    }
+
     console.log('Applying API key auth for route:', req.path);
 
     const apiKey = req.headers['x-api-key'] as string;

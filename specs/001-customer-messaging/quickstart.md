@@ -10,10 +10,14 @@
 - API running locally from `apps/api`
 - Postgres available (local/dev)
 - Environment variables set for:
-  - SendGrid sending (API key, from address)
+  - SMTP email (host, port, user, pass) — see apps/api/env.example (SendGrid removed)
   - Africa’s Talking SMS sending (username + API key)
   - Supabase Storage (URL + service key + bucket for attachments)
   - Sentry DSN (optional in dev, but errors should still be capturable)
+
+## Operations endpoints (for ops/support)
+
+Internal messaging API (base: `/api/internal/messaging`): settings, templates, attachment-templates, routes, deliveries (list, get, resend), attachments (list, download). Webhooks: `POST /api/webhooks/messaging/africas-talking` (public, 60/min per IP). See contracts/openapi.yaml for full spec.
 
 ## 1) Seed minimal configuration (admin/system)
 
@@ -73,7 +77,7 @@
 
 1. Configure callback URL in Africa’s Talking dashboard (or replay a sample payload).
 2. POST payload (form or JSON) to:
-   - `POST /webhooks/messaging/africas-talking/sms`
+   - `POST /api/webhooks/messaging/africas-talking`
 3. Verify:
    - Raw payload stored
    - Any derived status/message ID fields update the delivery where possible
@@ -98,3 +102,6 @@
    - Resent SMS uses the original rendered SMS text (no re-render)
    - Only the selected delivery/channel is resent (no automatic resend of email)
 
+---
+
+**T048 (Manual)**: After implementation, run steps 1–8 above and record any spec/plan deltas in spec.md and plan.md.

@@ -10,10 +10,12 @@ import { PlaceholderRendererService } from './rendering/placeholder-renderer.ser
 import { SmtpEmailService } from './providers/email-smtp.service';
 import { AfricasTalkingSmsService } from './providers/sms-africas-talking.service';
 import { MessagingAttachmentService } from './attachments/attachment.service';
+import { AttachmentRetentionCleanupService } from './attachments/attachment-retention-cleanup.service';
 import { AttachmentGeneratorService } from './attachments/attachment-generator.service';
 import { MessagingTemplatesService } from './messaging-templates.service';
 import { MessagingRoutesService } from './messaging-routes.service';
 import { MessagingAttachmentTemplatesService } from './messaging-attachment-templates.service';
+import { AfricasTalkingWebhookService } from './africas-talking-webhook.service';
 import { InternalMessagingController } from '../../controllers/internal/messaging.controller';
 import { AfricasTalkingWebhookController } from '../../controllers/webhooks/messaging/africas-talking-webhook.controller';
 
@@ -29,12 +31,14 @@ import { AfricasTalkingWebhookController } from '../../controllers/webhooks/mess
     MessagingTemplatesService,
     MessagingRoutesService,
     MessagingAttachmentTemplatesService,
+    AfricasTalkingWebhookService,
     TemplateResolverService,
     PlaceholderRendererService,
     SmtpEmailService,
     AfricasTalkingSmsService,
     MessagingAttachmentService,
     AttachmentGeneratorService,
+    AttachmentRetentionCleanupService,
   ],
   exports: [MessagingService, SystemSettingsService],
 })

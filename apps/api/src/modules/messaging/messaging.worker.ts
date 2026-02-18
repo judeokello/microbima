@@ -117,13 +117,14 @@ export class MessagingWorker {
           return;
         }
 
-        await this.smsProvider.sendSms({
+        const result = await this.smsProvider.sendSms({
           to: delivery.recipientPhone,
           message: delivery.renderedBody,
         });
 
         await this.outbox.updateDeliveryStatus(delivery.id, {
           status: 'SENT',
+          providerMessageId: result.messageId,
           attemptCount: { increment: 1 },
         });
       } else if (delivery.channel === 'EMAIL') {
