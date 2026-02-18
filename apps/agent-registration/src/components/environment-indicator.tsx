@@ -59,7 +59,7 @@ export function EnvironmentIndicator() {
   };
 
   return (
-    <div className={`${getIndicatorStyles()} w-full text-center py-1 text-xs font-medium tracking-wider z-50 relative`}>
+    <div className={`${getIndicatorStyles()} sticky top-0 w-full text-center py-1 text-xs font-medium tracking-wider z-50`}>
       {getIndicatorText()}
     </div>
   );

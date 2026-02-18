@@ -36,20 +36,20 @@ export class BootstrapController {
     },
   })
   async createBootstrapUser(
-    @Body() body: { email: string; password: string; displayName: string },
+    @Body() body: { email: string; password: string; displayName: string; phone?: string },
     @Headers('x-correlation-id') correlationId: string,
   ) {
     try {
       this.logger.log(`[${correlationId}] Creating bootstrap user: ${body.email}`);
 
-      // Create user with email auto-confirmation
-      // Store roles and displayName in user metadata
+      // Create user with email auto-confirmation (T055: optional phone in user_metadata)
       const userResult = await this.supabase.createUser({
         email: body.email,
         password: body.password,
         userMetadata: {
           roles: ['registration_admin', 'brand_ambassador'],
           displayName: body.displayName,
+          ...(body.phone ? { phone: body.phone } : {}),
         },
       });
 

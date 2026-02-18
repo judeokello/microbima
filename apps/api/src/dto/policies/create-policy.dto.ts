@@ -102,6 +102,19 @@ export class PaymentDataDto {
   paymentMessageBlob?: string;
 }
 
+/** T057: Optional override for messaging recipients (dev/staging only). When set, SMS/email go to these instead of the customer's. */
+export class MessagingOverrideDto {
+  @ApiProperty({ description: 'Override email recipient', required: false })
+  @IsOptional()
+  @IsString()
+  email?: string;
+
+  @ApiProperty({ description: 'Override SMS recipient phone', required: false })
+  @IsOptional()
+  @IsString()
+  phone?: string;
+}
+
 export class CreatePolicyRequestDto {
   @ApiProperty({
     description: 'Customer ID',
@@ -179,6 +192,16 @@ export class CreatePolicyRequestDto {
   @IsInt()
   @Min(1)
   customDays?: number;
+
+  @ApiProperty({
+    description: 'Optional messaging recipient override (dev/staging only). When set, SMS/email are sent to these instead of the customer.',
+    type: MessagingOverrideDto,
+    required: false,
+  })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => MessagingOverrideDto)
+  messagingOverride?: MessagingOverrideDto;
 }
 
 export class PolicyResponseDto {

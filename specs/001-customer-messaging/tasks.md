@@ -157,6 +157,41 @@
 
 ---
 
+## Phase 9: Dev/Staging Enhancements
+
+**Purpose**: Improve testing ergonomics for development and staging environments
+
+- [x] T049 [P] Make environment banner sticky at top when scrolling in `apps/agent-registration/src/components/environment-indicator.tsx`
+- [x] T050 Implement messaging recipient override in dev/staging: when NODE_ENV is development or staging and policy is created via web UI, redirect SMS/email to the current logged-in user's phone/email instead of the customer's
+  - Extend `EnqueueMessageRequest` in `apps/api/src/modules/messaging/messaging.types.ts` with optional `overrideRecipientPhone`, `overrideRecipientEmail`
+  - Use overrides in `MessagingService.enqueue()` when provided and env is dev/staging
+  - Add `messagingOverride` param to `PolicyService.createPolicyWithPayment()` and pass to `enqueuePolicyPurchaseMessage`
+  - In `PolicyController.createPolicy()`, inject `@Req() req`, resolve current user email (from `req.user`) and phone (from `PartnerManagementService.getBrandAmbassadorByUserId` when user is BA), pass as override when NODE_ENV is development or staging
+  - Uncomment `enqueuePolicyPurchaseMessage` call in `PolicyService.createPolicyWithPayment`
+
+---
+
+## Phase 10: user_metadata.phone + Messaging Override Refactor
+
+**Purpose**: Populate and sync `user_metadata.phone` for all auth users; refactor messaging override so the web app passes override from session (no API user lookup).
+
+**Part A: user_metadata.phone**
+
+- [x] T051 Add `phone` to Supabase user creation in `createBrandAmbassador` in `apps/api/src/services/partner-management.service.ts` (pass `phone: brandAmbassadorData.phoneNumber` in `userMetadata`)
+- [x] T052 In `createBrandAmbassadorFromExistingUser`, after creating the BA record, call `supabase.auth.admin.updateUserById` to set `user_metadata.phone` when `phoneNumber` is provided (merge with existing metadata)
+- [x] T053 In `updateBrandAmbassador`, when `updateData.phoneNumber` is provided, sync to Supabase: fetch current user metadata, merge `phone`, call `updateUserById`
+- [x] T054 In `updateBrandAmbassador`, when updating roles only, preserve existing `user_metadata.phone` in `updatedMetadata`
+- [x] T055 Add optional `phone` to bootstrap user creation in `apps/api/src/controllers/internal/bootstrap.controller.ts` (body + `userMetadata`)
+- [x] T056 Create backfill script `apps/api/scripts/backfill-user-metadata-phone.ts`: for each `brand_ambassadors` row with `phoneNumber`, update Supabase user `user_metadata.phone` (merge with existing). Document env/usage.
+
+**Part B: Messaging override from client**
+
+- [x] T057 Add `messagingOverride?: { phone?: string; email?: string }` to `CreatePolicyRequestDto` in `apps/api/src/dto/policies/create-policy.dto.ts`
+- [x] T058 Refactor `PolicyController.createPolicy`: remove `@Req()`, `PartnerManagementService`; read `messagingOverride` from `createRequest`; use only when `NODE_ENV` is development or staging; pass to `createPolicyWithPayment`
+- [x] T059 In agent-registration (e.g. `register/payment/page.tsx` and any other `createPolicy` callers): when hostname is localhost or staging, set `messagingOverride: { email: user.email, phone: user_metadata?.phone }` on the create-policy payload
+
+---
+
 ## Dependencies & Execution Order
 
 ### Phase Dependencies

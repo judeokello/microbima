@@ -465,13 +465,13 @@ export class PartnerManagementService {
     // Combine first and last name into displayName
     const displayName = `${brandAmbassadorData.firstName} ${brandAmbassadorData.lastName}`.trim();
 
-    // Step 1: Create Supabase user
-    // Only store roles in user metadata - other data is stored in brand_ambassadors table
+    // Step 1: Create Supabase user (T051: include phone in user_metadata for session use)
     const userResult = await this.supabaseService.createUser({
       email: brandAmbassadorData.email,
       password: brandAmbassadorData.password,
       userMetadata: {
         roles: brandAmbassadorData.roles,
+        ...(brandAmbassadorData.phoneNumber ? { phone: brandAmbassadorData.phoneNumber } : {}),
       }
     });
 
@@ -591,6 +591,28 @@ export class PartnerManagementService {
         updatedBy: createdByUserId,
       },
     });
+
+    // T052: Sync user_metadata.phone for existing user when phoneNumber provided
+    if (brandAmbassadorData.phoneNumber) {
+      try {
+        const { data, error: getUserError } = await this.supabaseService
+          .getClient()
+          .auth.admin.getUserById(brandAmbassadorData.userId);
+        if (!getUserError && data?.user) {
+          const currentMeta = ((data.user as { user_metadata?: Record<string, unknown> }).user_metadata ?? {});
+          const { error: updateError } = await this.supabaseService
+            .getClient()
+            .auth.admin.updateUserById(brandAmbassadorData.userId, {
+              user_metadata: { ...currentMeta, phone: brandAmbassadorData.phoneNumber },
+            });
+          if (updateError) {
+            this.logger.warn(`[${correlationId}] Could not sync user_metadata.phone: ${updateError.message}`);
+          }
+        }
+      } catch (err) {
+        this.logger.warn(`[${correlationId}] Could not sync user_metadata.phone: ${err instanceof Error ? err.message : String(err)}`);
+      }
+    }
 
     this.logger.log(`✅ Brand Ambassador created successfully from existing user: ${brandAmbassador.id}`);
     return brandAmbassador;
@@ -836,9 +858,31 @@ export class PartnerManagementService {
       },
     });
 
-    // Update user metadata roles if provided
+    // T053: Sync user_metadata.phone when phoneNumber is updated
+    if (updateData.phoneNumber !== undefined) {
+      try {
+        const { data, error: getUserError } = await this.supabaseService
+          .getClient()
+          .auth.admin.getUserById(existingBA.userId);
+        if (!getUserError && data?.user) {
+          const currentMeta = ((data.user as { user_metadata?: Record<string, unknown> }).user_metadata ?? {});
+          const newPhone = updateData.phoneNumber || null;
+          const { error: updateError } = await this.supabaseService
+            .getClient()
+            .auth.admin.updateUserById(existingBA.userId, {
+              user_metadata: { ...currentMeta, phone: newPhone },
+            });
+          if (updateError) {
+            this.logger.warn(`[${correlationId}] Could not sync user_metadata.phone: ${updateError.message}`);
+          }
+        }
+      } catch (err) {
+        this.logger.warn(`[${correlationId}] Could not sync user_metadata.phone: ${err instanceof Error ? err.message : String(err)}`);
+      }
+    }
+
+    // Update user metadata roles if provided (T054: preserve user_metadata.phone)
     if (updateData.roles !== undefined) {
-      // Get current user metadata
       const { data: { user }, error: getUserError } = await this.supabaseService
         .getClient()
         .auth.admin.getUserById(existingBA.userId);
@@ -846,12 +890,12 @@ export class PartnerManagementService {
       if (getUserError || !user) {
         this.logger.warn(`[${correlationId}] Could not fetch user metadata for role update: ${getUserError?.message}`);
       } else {
-        // Clean up metadata to only keep roles - remove other fields that are stored in DB
+        const currentMeta = (user.user_metadata ?? {}) as Record<string, unknown>;
         const updatedMetadata = {
           roles: updateData.roles,
+          ...(currentMeta.phone !== undefined ? { phone: currentMeta.phone } : {}),
         };
 
-        // Update user metadata with new roles
         const { error: updateMetadataError } = await this.supabaseService
           .getClient()
           .auth.admin.updateUserById(existingBA.userId, {
@@ -860,7 +904,6 @@ export class PartnerManagementService {
 
         if (updateMetadataError) {
           this.logger.error(`[${correlationId}] Error updating user metadata: ${updateMetadataError.message}`);
-          // Don't throw - BA update succeeded, role update is secondary
         } else {
           this.logger.log(`[${correlationId}] ✅ User roles updated successfully`);
         }
