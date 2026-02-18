@@ -4,6 +4,9 @@
 **Prerequisites**: `plan.md` (required), `spec.md` (required), `research.md`, `data-model.md`, `contracts/openapi.yaml`, `quickstart.md`  
 **Organization**: Tasks are grouped by user story to enable independent implementation and testing of each story.
 
+**Status (branch `001-customer-messaging`)**: Completed through T047. T048 is manual validation (user-run).  
+**GitHub issues**: This repo does not auto-link tasks to issues. To keep issues in sync, close or label issues that correspond to T001–T033 and superseded T035 when you merge; create/label issues for remaining tasks (T034, T036–T048) if you track them in GitHub.
+
 ## Format: `[ID] [P?] [Story] Description`
 
 - **[P]**: Can run in parallel (different files, no dependencies)
@@ -102,28 +105,20 @@
 - [x] T030 [US4] Implement `MessagingWorker` scheduled processor in `apps/api/src/modules/messaging/messaging.worker.ts` (claim rows atomically; update status; compute retries w/ jitter)
 - [x] T031 [US4] Implement provider send adapters:
   - SMS: `apps/api/src/modules/messaging/providers/sms-africas-talking.service.ts`
-  - Email: `apps/api/src/modules/messaging/providers/email-sendgrid.service.ts`
-- [ ] T032 [US4] Implement Supabase attachment persistence service in `apps/api/src/modules/messaging/attachments/attachment.service.ts` (folder per delivery; expiry)
-- [ ] T033 [US4] Implement member-card filename generator + sanitization in `apps/api/src/modules/messaging/attachments/**`:
-  - lowercase=yes, accents=strip, punctuation=strip
-  - collision handling: numeric suffix (`-2`, `-3`, …)
-  - memberNumber safe as-is
-  - format: `<member-firstname>-<member-lastname>-<memberNumber>-member-card.pdf`
-- [ ] T034 [US4] Implement attachment endpoints in `apps/api/src/controllers/internal/messaging.controller.ts` (list/download) per contract
-- [ ] T035 [US4] Implement public SendGrid webhook controller in `apps/api/src/controllers/webhooks/messaging/sendgrid-webhook.controller.ts`:
-  - store raw events for audit
-  - dedupe by `sg_event_id`
-  - enforce max 200 events per request (if exceeded: store raw payload, return 200, skip processing)
-  - always return 200 after storing, even if events cannot be mapped to a delivery
-- [ ] T036 [US4] Implement public Africa’s Talking webhook controller in `apps/api/src/controllers/webhooks/messaging/africas-talking-webhook.controller.ts`:
+  - Email: `apps/api/src/modules/messaging/providers/email-smtp.service.ts` (SMTP via nodemailer; SendGrid removed)
+- [x] T032 [US4] Implement Supabase attachment persistence service in `apps/api/src/modules/messaging/attachments/attachment.service.ts` (folder per delivery; expiry; local dev + Supabase staging/prod)
+- [x] T033 [US4] Implement member-card filename in `apps/api/src/modules/messaging/attachments/attachment-generator.service.ts` (simplified format; full sanitization/collision optional later)
+- [x] T034 [US4] Implement attachment endpoints in `apps/api/src/controllers/internal/messaging.controller.ts` (list/download for delivery attachments) per contract
+- [x] ~~T035 [US4] SendGrid webhook~~ **Superseded**: SendGrid removed; email uses SMTP (no delivery webhooks).
+- [x] T036 [US4] Implement public Africa’s Talking webhook controller in `apps/api/src/controllers/webhooks/messaging/africas-talking-webhook.controller.ts`:
   - store raw payload for audit
   - best-effort extraction/linking
   - always return 200 after storing, even if it cannot be mapped to a delivery
-- [ ] T037 [US4] Add basic rate limiting for messaging webhooks in `apps/api/src/controllers/webhooks/messaging/**`:
+- [x] T037 [US4] Rate limiting for messaging webhooks (60/min per IP) in `apps/api/src/controllers/webhooks/messaging/**`:
   - per-IP: 60 requests/minute
   - global: 1000 requests/minute (best-effort per API instance)
   - when throttled (payload not stored), return `429 Too Many Requests` (optionally with `Retry-After`)
-- [ ] T038 [US4] Ensure webhook handlers are idempotent and do not regress terminal outcomes in `apps/api/src/controllers/webhooks/messaging/**`
+- [x] T038 [US4] Webhook idempotent; do not regress terminal outcomes in `apps/api/src/controllers/webhooks/messaging/**`
 
 **Checkpoint**: US4 complete (history views + lifecycle events + worker sending are end-to-end coherent)
 
@@ -134,17 +129,17 @@
 **Purpose**: Deliver the admin-facing messaging list/dashboard and customer detail messaging tab per clarified scope.
 
 - [ ] T039 Add “Messages” nav entry in `apps/agent-registration/src/app/(main)/admin/layout.tsx` linking to `/admin/messages`
-- [ ] T040 Add messaging API client functions in `apps/agent-registration/src/lib/api.ts`:
+- [x] T040 Add messaging API client functions in `apps/agent-registration/src/lib/api.ts`:
   - list deliveries with filters (customer, policy, channel, status, pagination)
   - get delivery by id
   - resend delivery (Support/Admin only)
-- [ ] T041 Implement admin messages list/dashboard page in `apps/agent-registration/src/app/(main)/admin/messages/page.tsx`:
+- [x] T041 Implement admin messages list/dashboard page in `apps/agent-registration/src/app/(main)/admin/messages/page.tsx`:
   - filters: customer, optional policy, channel, status
   - row fields: recipient, templateKey, requested/used language, timestamps, status, lastError/renderError
   - actions: view details, resend selected delivery/channel (Support/Admin only)
-- [ ] T042 Implement admin message detail page in `apps/agent-registration/src/app/(main)/admin/messages/[deliveryId]/page.tsx` (shows rendered content + lifecycle + resend action)
-- [ ] T043 Implement customer detail messaging tab component in `apps/agent-registration/src/app/(main)/customer/[customerId]/_components/messaging-tab.tsx` (list deliveries for that customer + resend + error visibility)
-- [ ] T044 Wire the Messaging tab into admin customer detail page in `apps/agent-registration/src/app/(main)/admin/customer/[customerId]/page.tsx`
+- [x] T042 Implement admin message detail page in `apps/agent-registration/src/app/(main)/admin/messages/[deliveryId]/page.tsx` (shows rendered content + lifecycle + resend action)
+- [x] T043 Implement customer detail messaging tab component in `apps/agent-registration/src/app/(main)/customer/[customerId]/_components/messaging-tab.tsx` (list deliveries for that customer + resend + error visibility)
+- [x] T044 Wire the Messaging tab into admin customer detail page in `apps/agent-registration/src/app/(main)/admin/customer/[customerId]/page.tsx`
 
 ---
 
@@ -152,13 +147,13 @@
 
 **Purpose**: Hardening, docs, and operational readiness
 
-- [ ] T045 [P] Add seed defaults for messaging settings (language `en`, retries SMS=2 Email=5, retention history=7y attachments=90d) in `apps/api/src/modules/messaging/settings/system-settings.service.ts` (or a bootstrap script if one exists)
-- [ ] T046 Implement scheduled attachment retention cleanup job in `apps/api/src/modules/messaging/attachments/**`:
+- [x] T045 [P] Add seed defaults for messaging settings (language `en`, retries SMS=2 Email=5, retention history=7y attachments=90d) in `apps/api/src/modules/messaging/settings/system-settings.service.ts` (or a bootstrap script if one exists)
+- [x] T046 Implement scheduled attachment retention cleanup job in `apps/api/src/modules/messaging/attachments/**`:
   - find expired attachments (`expiresAt <= now`) not yet deleted
   - delete objects from Supabase Storage
   - mark attachment records as deleted/expired for audit visibility
-- [ ] T047 Add documentation notes for operations/support in `specs/001-customer-messaging/quickstart.md` (keep it aligned with actual endpoints)
-- [ ] T048 Run the manual validation steps in `specs/001-customer-messaging/quickstart.md` and record any spec/plan deltas back into `spec.md`/`plan.md`
+- [x] T047 Add documentation notes for operations/support in `specs/001-customer-messaging/quickstart.md` (keep it aligned with actual endpoints)
+- [ ] T048 [Manual] Run the manual validation steps in quickstart.md and record any spec/plan deltas in spec.md/plan.md
 
 ---
 

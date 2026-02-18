@@ -1,8 +1,10 @@
-import { Body, Controller, ForbiddenException, Get, HttpCode, HttpStatus, NotFoundException, Param, Patch, Post, Put, Query } from '@nestjs/common';
+import { Body, Controller, ForbiddenException, Get, HttpCode, HttpStatus, NotFoundException, Param, Patch, Post, Put, Query, Res, StreamableFile } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { Response } from 'express';
 import { PrismaService } from '../../prisma/prisma.service';
 import { MessagingService } from '../../modules/messaging/messaging.service';
 import { SystemSettingsService } from '../../modules/messaging/settings/system-settings.service';
+import { MessagingAttachmentService } from '../../modules/messaging/attachments/attachment.service';
 import { CorrelationId } from '../../decorators/correlation-id.decorator';
 import { User } from '../../decorators/user.decorator';
 import { AuthenticatedUser } from '../../types/express';
@@ -26,6 +28,7 @@ export class InternalMessagingController {
     private readonly templates: MessagingTemplatesService,
     private readonly routes: MessagingRoutesService,
     private readonly attachmentTemplates: MessagingAttachmentTemplatesService,
+    private readonly attachmentService: MessagingAttachmentService,
   ) {}
 
   @Get('settings')
@@ -497,6 +500,94 @@ export class InternalMessagingController {
       message: 'Delivery resend queued successfully',
       data: { newDeliveryId },
     };
+  }
+
+  /**
+   * T034: List attachments for an email delivery
+   */
+  @Get('deliveries/:deliveryId/attachments')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'List attachments for an email delivery' })
+  @ApiResponse({ status: 200, description: 'Attachment list' })
+  @ApiResponse({ status: 404, description: 'Delivery not found' })
+  async listDeliveryAttachments(
+    @User() user: AuthenticatedUser,
+    @Param('deliveryId') deliveryId: string,
+    @CorrelationId() correlationId?: string,
+  ) {
+    this.assertSupportOrAdmin(user);
+
+    const delivery = await this.prisma.messagingDelivery.findUnique({
+      where: { id: deliveryId },
+      select: { id: true },
+    });
+    if (!delivery) {
+      throw new NotFoundException({
+        error: { code: ErrorCodes.NOT_FOUND, message: `Delivery not found: ${deliveryId}` },
+      });
+    }
+
+    const attachments = await this.prisma.messagingAttachment.findMany({
+      where: { deliveryId },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    const data = attachments.map((a) => ({
+      id: a.id,
+      deliveryId: a.deliveryId,
+      fileName: a.fileName,
+      mimeType: a.mimeType,
+      storageBucket: a.storageBucket,
+      storagePath: a.storagePath,
+      expiresAt: a.expiresAt.toISOString(),
+      createdAt: a.createdAt.toISOString(),
+    }));
+
+    return {
+      status: HttpStatus.OK,
+      correlationId: correlationId ?? 'unknown',
+      message: 'Attachments retrieved successfully',
+      data,
+    };
+  }
+
+  /**
+   * T034: Download an attachment (RBAC-protected proxy)
+   */
+  @Get('deliveries/:deliveryId/attachments/:attachmentId/download')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Download an attachment' })
+  @ApiResponse({ status: 200, description: 'File stream' })
+  @ApiResponse({ status: 404, description: 'Delivery or attachment not found' })
+  async downloadDeliveryAttachment(
+    @User() user: AuthenticatedUser,
+    @Param('deliveryId') deliveryId: string,
+    @Param('attachmentId') attachmentId: string,
+    @Res({ passthrough: true }) res: Response,
+    @CorrelationId() _correlationId?: string,
+  ) {
+    this.assertSupportOrAdmin(user);
+
+    const attachment = await this.prisma.messagingAttachment.findFirst({
+      where: { id: attachmentId, deliveryId },
+    });
+    if (!attachment) {
+      throw new NotFoundException({
+        error: {
+          code: ErrorCodes.NOT_FOUND,
+          message: `Attachment not found: ${attachmentId} for delivery ${deliveryId}`,
+        },
+      });
+    }
+
+    const { buffer, contentType } = await this.attachmentService.getAttachment(attachment.storagePath);
+
+    res.set({
+      'Content-Type': attachment.mimeType || contentType,
+      'Content-Disposition': `attachment; filename="${attachment.fileName.replace(/"/g, '\\"')}"`,
+    });
+
+    return new StreamableFile(buffer);
   }
 
   private assertSupportOrAdmin(user: AuthenticatedUser) {

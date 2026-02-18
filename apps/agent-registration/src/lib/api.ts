@@ -1898,6 +1898,111 @@ export async function createPolicyFromRecovery(
   return response.json()
 }
 
+// Messaging API - list deliveries, get delivery, resend (Support/Admin only)
+
+export interface MessagingDelivery {
+  id: string
+  templateKey: string
+  channel: 'SMS' | 'EMAIL'
+  customerId: string | null
+  policyId: string | null
+  recipientPhone: string | null
+  recipientEmail: string | null
+  requestedLanguage: string
+  usedLanguage: string | null
+  status: string
+  attemptCount: number
+  maxAttempts: number
+  nextAttemptAt: string | null
+  lastAttemptAt: string | null
+  providerMessageId: string | null
+  renderedSubject: string | null
+  renderedBody: string | null
+  renderedTextBody: string | null
+  renderError: string | null
+  lastError: string | null
+  createdAt: string
+  updatedAt: string
+  customer?: { id: string; firstName: string; lastName: string } | null
+  policy?: { id: string; policyNumber: string } | null
+}
+
+export interface ListDeliveriesParams {
+  customerId?: string
+  policyId?: string
+  channel?: 'SMS' | 'EMAIL'
+  status?: string
+  page?: number
+  pageSize?: number
+}
+
+export async function listMessagingDeliveries(params?: ListDeliveriesParams): Promise<{ data: MessagingDelivery[] }> {
+  const token = await getSupabaseToken()
+  const searchParams = new URLSearchParams()
+  if (params?.customerId) searchParams.set('customerId', params.customerId)
+  if (params?.policyId) searchParams.set('policyId', params.policyId)
+  if (params?.channel) searchParams.set('channel', params.channel)
+  if (params?.status) searchParams.set('status', params.status)
+  if (params?.page) searchParams.set('page', String(params.page))
+  if (params?.pageSize) searchParams.set('pageSize', String(params.pageSize ?? 20))
+
+  const response = await fetch(
+    `${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/messaging/deliveries?${searchParams}`,
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'x-correlation-id': `messaging-list-${Date.now()}`,
+      },
+    }
+  )
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}))
+    throw new Error(err?.error?.message ?? `Failed to list deliveries: ${response.statusText}`)
+  }
+  const body = await response.json()
+  return { data: body.data ?? [] }
+}
+
+export async function getMessagingDelivery(deliveryId: string): Promise<MessagingDelivery> {
+  const token = await getSupabaseToken()
+  const response = await fetch(
+    `${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/messaging/deliveries/${deliveryId}`,
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'x-correlation-id': `messaging-get-${Date.now()}`,
+      },
+    }
+  )
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}))
+    throw new Error(err?.error?.message ?? `Failed to get delivery: ${response.statusText}`)
+  }
+  const body = await response.json()
+  return body.data
+}
+
+export async function resendMessagingDelivery(deliveryId: string): Promise<{ newDeliveryId: string }> {
+  const token = await getSupabaseToken()
+  const response = await fetch(
+    `${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/messaging/deliveries/${deliveryId}/resend`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+        'x-correlation-id': `messaging-resend-${Date.now()}`,
+      },
+    }
+  )
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}))
+    throw new Error(err?.error?.message ?? `Failed to resend delivery: ${response.statusText}`)
+  }
+  const body = await response.json()
+  return { newDeliveryId: body.data?.newDeliveryId ?? body.newDeliveryId ?? deliveryId }
+}
+
 async function getSupabaseToken(): Promise<string> {
   try {
     // Get the current session from the client-side supabase instance
