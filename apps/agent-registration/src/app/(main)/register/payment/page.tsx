@@ -86,7 +86,7 @@ interface BeneficiaryFormData {
 
 export default function PaymentStep() {
   const router = useRouter();
-  const { user, loading: authLoading } = useAuth();
+  const { user, userMetadata, loading: authLoading } = useAuth();
   const [customerData, setCustomerData] = useState<CustomerFormData | null>(null);
   const [beneficiaryData, setBeneficiaryData] = useState<BeneficiaryFormData | null>(null);
   const [paymentType, setPaymentType] = useState('MPESA');
@@ -397,6 +397,18 @@ export default function PaymentStep() {
         now.getUTCSeconds()
       ));
 
+      // T059: In dev/staging, redirect messaging to current user's email/phone
+      const isDevOrStaging =
+        typeof window !== 'undefined' &&
+        (window.location.hostname === 'localhost' ||
+          window.location.hostname.includes('127.0.0.1') ||
+          window.location.hostname.includes('staging') ||
+          window.location.hostname.includes('stg'));
+      const messagingOverride =
+        isDevOrStaging && user?.email
+          ? { email: user.email, phone: userMetadata?.phone }
+          : undefined;
+
       const policyRequest: CreatePolicyRequest = {
         customerId,
         packageId,
@@ -415,6 +427,7 @@ export default function PaymentStep() {
         },
         // Add customDays if CUSTOM frequency is selected
         ...(frequency === 'CUSTOM' && customCadence ? { customDays: parseInt(customCadence) } : {}),
+        ...(messagingOverride ? { messagingOverride } : {}),
       };
 
       console.log('Creating policy first (before payment):', policyRequest);

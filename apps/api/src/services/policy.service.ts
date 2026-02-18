@@ -290,7 +290,8 @@ export class PolicyService {
       };
       customDays?: number;
     },
-    correlationId: string
+    correlationId: string,
+    messagingOverride?: { phone?: string; email?: string }
   ) {
     // Capitalize transaction reference to ensure consistency in database
     const capitalizedTransactionReference = data.paymentData.transactionReference.trim().toUpperCase();
@@ -728,23 +729,22 @@ export class PolicyService {
       );
 
       // T018: Trigger messaging notification for policy purchase (fire-and-forget)
-      // COMMENTED OUT until after deploy to staging/master - uncomment when ready to enable SMS/email on registration.
-      // if (result.policy.status === 'ACTIVE' && result.policy.policyNumber) {
-      //   this.enqueuePolicyPurchaseMessage(result.policy, correlationId).catch((error) => {
-      //     this.logger.warn(
-      //       `[${correlationId}] Failed to enqueue policy purchase message: ${error instanceof Error ? error.message : 'Unknown error'}`
-      //     );
-      //     Sentry.captureException(error, {
-      //       tags: {
-      //         service: 'PolicyService',
-      //         operation: 'createPolicyWithPayment',
-      //         subOperation: 'enqueuePolicyPurchaseMessage',
-      //         correlationId,
-      //       },
-      //       extra: { policyId: result.policy.id },
-      //     });
-      //   });
-      // }
+      if (result.policy.status === 'ACTIVE' && result.policy.policyNumber) {
+        this.enqueuePolicyPurchaseMessage(result.policy, correlationId, messagingOverride).catch((error) => {
+          this.logger.warn(
+            `[${correlationId}] Failed to enqueue policy purchase message: ${error instanceof Error ? error.message : 'Unknown error'}`
+          );
+          Sentry.captureException(error, {
+            tags: {
+              service: 'PolicyService',
+              operation: 'createPolicyWithPayment',
+              subOperation: 'enqueuePolicyPurchaseMessage',
+              correlationId,
+            },
+            extra: { policyId: result.policy.id },
+          });
+        });
+      }
 
       return result;
     } catch (error) {
@@ -1492,10 +1492,12 @@ export class PolicyService {
   /**
    * T018: Enqueue policy purchase message.
    * Fire-and-forget; errors are logged but don't block policy creation.
+   * @param messagingOverride - Optional override for recipients (T050: dev/staging only). When provided, SMS/email go to these instead of the customer's.
    */
   private async enqueuePolicyPurchaseMessage(
     policy: Prisma.PolicyGetPayload<Record<string, never>>,
-    correlationId: string
+    correlationId: string,
+    messagingOverride?: { phone?: string; email?: string }
   ): Promise<void> {
     this.logger.log(
       `[${correlationId}] Enqueueing policy purchase message for policyId=${policy.id}, policyNumber=${policy.policyNumber}`
@@ -1514,6 +1516,8 @@ export class PolicyService {
           end_date: policy.endDate ?? new Date(),
         },
         correlationId,
+        overrideRecipientPhone: messagingOverride?.phone ?? undefined,
+        overrideRecipientEmail: messagingOverride?.email ?? undefined,
       });
 
       this.logger.log(

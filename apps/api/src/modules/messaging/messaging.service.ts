@@ -51,6 +51,9 @@ export class MessagingService {
     const createdDeliveryIds: string[] = [];
     const now = new Date();
 
+    const smsRecipient = req.overrideRecipientPhone ?? customer.phoneNumber;
+    const emailRecipient = req.overrideRecipientEmail ?? customer.email;
+
     if (route.smsEnabled) {
       const smsDelivery = await this.createDelivery({
         channel: 'SMS',
@@ -59,8 +62,8 @@ export class MessagingService {
         templateKey: req.templateKey,
         requestedLanguage,
         correlationId,
-        recipient: customer.phoneNumber,
-        missingRecipientReason: customer.phoneNumber ? null : 'Phone number not set for customer',
+        recipient: smsRecipient,
+        missingRecipientReason: smsRecipient ? null : 'Phone number not set for customer',
         maxAttempts: settings.smsMaxAttempts,
         createdAt: now,
       });
@@ -75,8 +78,8 @@ export class MessagingService {
         templateKey: req.templateKey,
         requestedLanguage,
         correlationId,
-        recipient: customer.email,
-        missingRecipientReason: customer.email ? null : 'Email not set for customer',
+        recipient: emailRecipient,
+        missingRecipientReason: emailRecipient ? null : 'Email not set for customer',
         maxAttempts: settings.emailMaxAttempts,
         createdAt: now,
         dynamicAttachmentSpecs: req.dynamicAttachmentSpecs ?? undefined,
