@@ -1,7 +1,7 @@
-import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, BadRequestException, ConflictException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { PAYMENT_CADENCE } from '../constants/payment-cadence.constants';
-import { PaymentFrequency, Prisma } from '@prisma/client';
+import { PaymentFrequency, PaymentType, Prisma } from '@prisma/client';
 import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
 import * as Sentry from '@sentry/nestjs';
 import { PaymentAccountNumberService } from './payment-account-number.service';
@@ -279,7 +279,7 @@ export class PolicyService {
       productName: string;
       tags?: Array<{ id?: number; name: string }>;
       paymentData: {
-        paymentType: 'MPESA' | 'SASAPAY';
+        paymentType: PaymentType;
         transactionReference: string;
         amount: number;
         accountNumber?: string;
@@ -357,10 +357,26 @@ export class PolicyService {
         );
       }
 
-      // Check if customer is in a postpaid scheme
+      // Check if customer already has a policy for this package (one policy per customer per package)
+      const existingPolicyForPackage = await this.prismaService.policy.findUnique({
+        where: {
+          customerId_packageId: {
+            customerId: data.customerId,
+            packageId: data.packageId,
+          },
+        },
+      });
+      if (existingPolicyForPackage) {
+        throw new ConflictException(
+          `Customer already has a policy for this package (policy ID: ${existingPolicyForPackage.id})`
+        );
+      }
+
+      // Resolve scheme by package: customer's scheme for this package (not just any scheme)
       const customerScheme = await this.prismaService.packageSchemeCustomer.findFirst({
         where: {
           customerId: data.customerId,
+          packageScheme: { packageId: data.packageId },
         },
         include: {
           packageScheme: {
@@ -443,8 +459,10 @@ export class PolicyService {
             `[${correlationId}] Generated payment account number for prepaid policy: ${paymentAcNumber} (first policy: ${isFirstPolicy})`
           );
         } else {
+          // Postpaid: use customer's idNumber as payment account number (for CSV matching)
+          paymentAcNumber = customer.idNumber;
           this.logger.log(
-            `[${correlationId}] Postpaid scheme - no payment account number will be assigned to policy`
+            `[${correlationId}] Postpaid scheme - using customer idNumber as payment account number`
           );
         }
 
@@ -1034,9 +1052,12 @@ export class PolicyService {
           throw new NotFoundException(`Policy with ID ${policyId} not found`);
         }
 
-        // Check if customer is in a postpaid scheme
+        // Resolve scheme by package (for this policy's package)
         const customerScheme = await txClient.packageSchemeCustomer.findFirst({
-          where: { customerId: policy.customerId },
+          where: {
+            customerId: policy.customerId,
+            packageScheme: { packageId: policy.packageId },
+          },
           include: {
             packageScheme: {
               include: {
@@ -1088,22 +1109,13 @@ export class PolicyService {
           `Policy number: ${policy.policyNumber ?? 'NULL (will remain NULL for postpaid)'}`
         );
 
-        // Generate policy number if it doesn't exist (prepaid schemes only)
-        // Postpaid schemes will have NULL policy number - DO NOT generate
+        // Generate policy number if it doesn't exist (for both prepaid and postpaid on first activation)
         let policyNumber = policy.policyNumber;
         if (!policyNumber) {
-          if (!isPostpaidScheme) {
-            // Only generate policy number for prepaid schemes
-            policyNumber = await this.generatePolicyNumber(policy.packageId, correlationId);
-            this.logger.log(
-              `[${correlationId}] Generated policy number for prepaid policy: ${policyNumber}`
-            );
-          } else {
-            // Postpaid scheme - keep policy number as NULL
-            this.logger.log(
-              `[${correlationId}] Postpaid policy - keeping policy number as NULL`
-            );
-          }
+          policyNumber = await this.generatePolicyNumber(policy.packageId, correlationId);
+          this.logger.log(
+            `[${correlationId}] Generated policy number for policy ${policyId}: ${policyNumber}`
+          );
         }
 
         // Set start and end dates if they don't exist
@@ -1290,6 +1302,10 @@ export class PolicyService {
       const accountNum = p.accountNumber?.trim().replace(/\s/g, '') ?? '';
       if (!accountNum) continue;
       const existing = customersByAccountNumber.get(accountNum) ?? [];
+      // Deduplicate by transactionReference: keep first record only (payments already ordered by completionTime asc)
+      if (existing.some((x) => x.transactionReference === p.transactionReference)) {
+        continue;
+      }
       existing.push({
         id: p.id,
         transactionReference: p.transactionReference,
@@ -1438,7 +1454,15 @@ export class PolicyService {
       );
     }
 
-    const earliestPayment = payments[0];
+    // Deduplicate by transactionReference: keep first record only (query already ordered by completionTime asc)
+    const seenRefs = new Set<string>();
+    const uniquePayments = payments.filter((p) => {
+      if (seenRefs.has(p.transactionReference)) return false;
+      seenRefs.add(p.transactionReference);
+      return true;
+    });
+
+    const earliestPayment = uniquePayments[0];
     const startDate = new Date(earliestPayment.completionTime);
     startDate.setUTCHours(0, 0, 0, 0);
     const endDate = new Date(startDate);
@@ -1469,7 +1493,7 @@ export class PolicyService {
         },
       });
 
-      for (const p of payments) {
+      for (const p of uniquePayments) {
         await tx.policyPayment.create({
           data: {
             policyId: policy.id,

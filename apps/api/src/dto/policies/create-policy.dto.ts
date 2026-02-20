@@ -12,7 +12,7 @@ import {
   MinLength,
 } from 'class-validator';
 import { Type } from 'class-transformer';
-import { PaymentFrequency } from '@prisma/client';
+import { PaymentFrequency, PaymentType } from '@prisma/client';
 
 export class TagInputDto {
   @ApiProperty({
@@ -37,10 +37,10 @@ export class PaymentDataDto {
   @ApiProperty({
     description: 'Payment type',
     example: 'MPESA',
-    enum: ['MPESA', 'SASAPAY'],
+    enum: ['MPESA', 'SASAPAY', 'BANK_TRANSFER', 'CHEQUE'],
   })
-  @IsEnum(['MPESA', 'SASAPAY'])
-  paymentType: 'MPESA' | 'SASAPAY';
+  @IsEnum(PaymentType)
+  paymentType: PaymentType;
 
   @ApiProperty({
     description: 'Transaction reference',

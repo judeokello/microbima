@@ -305,6 +305,7 @@ model Policy {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  @@unique([customerId, packageId])
   @@map("policies")
 }
 
@@ -384,6 +385,8 @@ enum PaymentFrequency {
 enum PaymentType {
   MPESA
   SASAPAY
+  BANK_TRANSFER
+  CHEQUE
 }
 
 // New enums for Agent Registration module
@@ -672,9 +675,10 @@ model Scheme {
   paymentAcNumber String?           @unique @db.VarChar(50)
 
   // Relations
-  packageSchemes PackageScheme[]
-  schemeTags     SchemeTag[]
-  schemeContacts SchemeContact[]
+  packageSchemes           PackageScheme[]
+  schemeTags               SchemeTag[]
+  schemeContacts          SchemeContact[]
+  postpaidSchemePayments   PostpaidSchemePayment[]
 
   // Audit fields
   createdAt DateTime @default(now())
@@ -782,12 +786,42 @@ model PolicyPayment {
   paymentMessageBlob   String?     @db.VarChar(500)
 
   // Relations
-  policy Policy @relation(fields: [policyId], references: [id])
+  policy                    Policy                    @relation(fields: [policyId], references: [id])
+  postpaidSchemePaymentItem PostpaidSchemePaymentItem?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@map("policy_payments")
+}
+
+model PostpaidSchemePayment {
+  id                   Int       @id @default(autoincrement())
+  schemeId             Int
+  amount               Decimal   @db.Decimal(10, 2) // Max 7 digits before decimal (9,999,999.99)
+  paymentType          PaymentType
+  transactionReference String    @unique @db.VarChar(35) // Format: used in PolicyPayment as postpaid-{this}-{rowIndex} (50 char max)
+  createdBy             String    @db.Uuid
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  // Relations
+  scheme Scheme                    @relation(fields: [schemeId], references: [id], onDelete: Restrict)
+  items  PostpaidSchemePaymentItem[]
+
+  @@map("postpaid_scheme_payments")
+}
+
+model PostpaidSchemePaymentItem {
+  id                     Int     @id @default(autoincrement())
+  postpaidSchemePaymentId Int
+  policyPaymentId        Int     @unique
+
+  // Relations
+  postpaidSchemePayment PostpaidSchemePayment @relation(fields: [postpaidSchemePaymentId], references: [id], onDelete: Cascade)
+  policyPayment          PolicyPayment        @relation(fields: [policyPaymentId], references: [id], onDelete: Restrict)
+
+  @@map("postpaid_scheme_payment_items")
 }
 
 model Tag {

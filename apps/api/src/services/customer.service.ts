@@ -9,7 +9,7 @@ import { CustomerMapper } from '../mappers/customer.mapper';
 import { CreatePrincipalMemberRequestDto } from '../dto/principal-member/create-principal-member-request.dto';
 import { CreatePrincipalMemberResponseDto } from '../dto/principal-member/create-principal-member-response.dto';
 import { BeneficiaryData } from '../entities/beneficiary.entity';
-import { Gender, IdType, DependantRelationship } from '@prisma/client';
+import { Gender, IdType, DependantRelationship, PaymentFrequency } from '@prisma/client';
 import { PrincipalMemberDto } from '../dto/principal-member/principal-member.dto';
 import { AddDependantsRequestDto } from '../dto/dependants/add-dependants-request.dto';
 import { AddDependantsResponseDto } from '../dto/dependants/add-dependants-response.dto';
@@ -248,6 +248,37 @@ export class CustomerService {
           },
         });
         this.logger.log(`[${correlationId}] Package scheme customer created successfully`);
+
+        // Option A: For postpaid schemes, create a policy at registration (no payment yet)
+        const packageScheme = await this.prismaService.packageScheme.findUnique({
+          where: { id: packageSchemeId },
+          include: {
+            scheme: { select: { isPostpaid: true, frequency: true, paymentCadence: true } },
+            package: { select: { id: true, name: true } },
+          },
+        });
+        if (packageScheme?.scheme?.isPostpaid) {
+          const scheme = packageScheme.scheme;
+          const frequency = scheme.frequency ?? PaymentFrequency.MONTHLY;
+          const paymentCadence = scheme.paymentCadence ?? 30;
+          await this.prismaService.policy.create({
+            data: {
+              customerId: createdCustomer.id,
+              packageId: packageScheme.package.id,
+              packagePlanId: null,
+              productName: packageScheme.package.name,
+              premium: 0,
+              frequency,
+              paymentCadence,
+              paymentAcNumber: createdCustomer.idNumber,
+              policyNumber: null,
+              startDate: null,
+              endDate: null,
+              status: 'PENDING_ACTIVATION',
+            },
+          });
+          this.logger.log(`[${correlationId}] Postpaid policy created for customer ${createdCustomer.id} (package ${packageScheme.package.id})`);
+        }
       } catch (error) {
         this.logger.error(`[${correlationId}] Failed to create package scheme customer: ${error instanceof Error ? error.message : 'Unknown error'}`);
         // Don't throw - allow the rest of customer creation to continue

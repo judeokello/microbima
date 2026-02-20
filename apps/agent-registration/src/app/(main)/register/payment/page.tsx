@@ -316,7 +316,16 @@ export default function PaymentStep() {
     setIsSubmitting(true);
 
     try {
-      // Step 1: Create policy first (with PENDING_ACTIVATION status)
+      // Postpaid: policy was already created at customer registration (Option A). Skip policy creation and STK push.
+      if (isPostpaidScheme) {
+        setSuccessMessage(
+          'Registration complete. The policy is set up for this postpaid scheme. Payment will be recorded when your scheme administrator uploads the payment batch (e.g. bank transfer or cheque).'
+        );
+        setIsPaymentInitiated(true);
+        return;
+      }
+
+      // Step 1: Create policy (prepaid only)
       // Get customer's packageId from their package scheme
       let packageId: number;
       try {
@@ -427,7 +436,7 @@ export default function PaymentStep() {
         const paymentAccountNumber = policyResult.policy.paymentAcNumber;
 
         if (!paymentAccountNumber) {
-          throw new Error('Payment account number not found. This may be a postpaid scheme which does not support STK push payments.');
+          throw new Error('Payment account number not found. Please try again or use Paybill.');
         }
 
         console.log('Payment account number:', paymentAccountNumber);
@@ -751,8 +760,9 @@ export default function PaymentStep() {
                   <SelectValue placeholder="Select payment type" />
                 </SelectTrigger>
                 <SelectContent>
+                  {/* Registration only supports MPESA and SASAPAY; BANK_TRANSFER/CHEQUE are for postpaid scheme payments */}
                   <SelectItem value="MPESA">MPESA</SelectItem>
-                  <SelectItem value="SasaPay">SasaPay</SelectItem>
+                  <SelectItem value="SASAPAY">SasaPay</SelectItem>
                 </SelectContent>
               </Select>
             </div>
