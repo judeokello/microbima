@@ -3,6 +3,8 @@ import {
   Get,
   Post,
   Body,
+  Patch,
+  Param,
   HttpStatus,
   HttpCode,
 } from '@nestjs/common';
@@ -16,6 +18,8 @@ import { PolicyService } from '../../services/policy.service';
 import {
   GetCustomersWithoutPoliciesResponseDto,
   CreatePolicyFromRecoveryRequestDto,
+  GetMemberNumberReconciliationResponseDto,
+  ReconcilePolicyMemberNumbersRequestDto,
 } from '../../dto/recovery/recovery.dto';
 import { CorrelationId } from '../../decorators/correlation-id.decorator';
 
@@ -104,6 +108,49 @@ export class RecoveryController {
         endDate: policy.endDate?.toISOString() ?? '',
         paymentAcNumber: policy.paymentAcNumber,
       },
+    };
+  }
+
+  @Get('member-number-reconciliation')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Get member number reconciliation list',
+    description:
+      'Returns first 50 customers (by createdAt) with their policies. Each row is one policy or one customer without policy (policy number N/A). For temporary reconciliation of member numbers on cards vs DB.',
+  })
+  @ApiResponse({ status: 200, description: 'List of rows for reconciliation' })
+  async getMemberNumberReconciliation(
+    @CorrelationId() correlationId: string
+  ): Promise<GetMemberNumberReconciliationResponseDto> {
+    const rows = await this.policyService.getMemberNumberReconciliationList(correlationId);
+    return { rows };
+  }
+
+  @Patch('member-number-reconciliation/:policyId')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Reconcile policy member numbers',
+    description:
+      'Updates policy number and regenerates principal + dependant member numbers using package format (spouses 01, 02, then others). Policy number must be unique and max 15 characters.',
+  })
+  @ApiResponse({ status: 200, description: 'Reconciliation completed' })
+  @ApiResponse({ status: 400, description: 'Validation error (e.g. policy number too long)' })
+  @ApiResponse({ status: 404, description: 'Policy not found' })
+  @ApiResponse({ status: 409, description: 'Policy number already in use' })
+  async reconcilePolicyMemberNumbers(
+    @Param('policyId') policyId: string,
+    @Body() body: ReconcilePolicyMemberNumbersRequestDto,
+    @CorrelationId() correlationId: string
+  ): Promise<{ status: number; correlationId: string; message: string }> {
+    await this.policyService.reconcilePolicyMemberNumbers(
+      policyId,
+      body.policyNumber,
+      correlationId
+    );
+    return {
+      status: HttpStatus.OK,
+      correlationId,
+      message: 'Member numbers reconciled successfully',
     };
   }
 }

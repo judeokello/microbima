@@ -6,6 +6,8 @@ import {
   IsInt,
   IsOptional,
   Min,
+  IsString,
+  MaxLength,
 } from 'class-validator';
 import { PaymentFrequency } from '@prisma/client';
 
@@ -83,4 +85,57 @@ export class CreatePolicyFromRecoveryRequestDto {
   @IsInt()
   @Min(1)
   customDays?: number;
+}
+
+/** Member number reconciliation: one row per policy (or per customer with no policy) */
+export class MemberNumberReconciliationDependantDto {
+  @ApiProperty({ description: 'Dependant full name' })
+  fullName: string;
+
+  @ApiProperty({ description: 'Member number' })
+  memberNumber: string;
+}
+
+export class MemberNumberReconciliationRowDto {
+  @ApiProperty({ description: 'Customer ID' })
+  customerId: string;
+
+  @ApiProperty({ description: 'Customer full name' })
+  fullName: string;
+
+  @ApiProperty({ description: 'Phone number' })
+  phoneNumber: string;
+
+  @ApiProperty({ description: 'ID number' })
+  idNumber: string;
+
+  @ApiProperty({ description: 'Count of dependants (from dependants table)' })
+  dependantCount: number;
+
+  @ApiProperty({ description: 'Policy ID', nullable: true })
+  policyId: string | null;
+
+  @ApiProperty({ description: 'Policy number or N/A when no policy', nullable: true })
+  policyNumber: string | null;
+
+  @ApiProperty({ description: 'Principal member number', nullable: true })
+  principalMemberNumber: string | null;
+
+  @ApiProperty({
+    description: 'Dependants with member numbers (for policies only)',
+    type: [MemberNumberReconciliationDependantDto],
+  })
+  dependants: MemberNumberReconciliationDependantDto[];
+}
+
+export class GetMemberNumberReconciliationResponseDto {
+  @ApiProperty({ description: 'Rows for reconciliation (one per policy or per customer without policy)', type: [MemberNumberReconciliationRowDto] })
+  rows: MemberNumberReconciliationRowDto[];
+}
+
+export class ReconcilePolicyMemberNumbersRequestDto {
+  @ApiProperty({ description: 'New policy number (max 15 characters)', example: 'MP/MFG/007' })
+  @IsString()
+  @MaxLength(15)
+  policyNumber: string;
 }
