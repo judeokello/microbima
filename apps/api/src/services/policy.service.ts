@@ -1,7 +1,7 @@
 import { Injectable, Logger, NotFoundException, BadRequestException, ConflictException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { PAYMENT_CADENCE } from '../constants/payment-cadence.constants';
-import { PaymentFrequency, PaymentType, Prisma } from '@prisma/client';
+import { PaymentFrequency, PaymentType, Prisma, DependantRelationship } from '@prisma/client';
 import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
 import * as Sentry from '@sentry/nestjs';
 import { PaymentAccountNumberService } from './payment-account-number.service';
@@ -34,6 +34,21 @@ export class PolicyService {
    */
   private escapeRegExp(value: string): string {
     return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  }
+
+  /**
+   * Order dependants for member number assignment: spouses first (01, 02, ...), then others (e.g. children).
+   * Used in policy activation and member number reconciliation.
+   */
+  orderDependantsForMemberNumbers<
+    T extends { id: string; relationship: DependantRelationship }
+  >(dependants: T[]): T[] {
+    return [...dependants].sort((a, b) => {
+      const aIsSpouse = a.relationship === 'SPOUSE' ? 1 : 0;
+      const bIsSpouse = b.relationship === 'SPOUSE' ? 1 : 0;
+      if (bIsSpouse !== aIsSpouse) return aIsSpouse - bIsSpouse; // Spouse first (1 before 0)
+      return 0; // Stable order within same relationship
+    });
   }
 
   /**
@@ -1173,14 +1188,17 @@ export class PolicyService {
         );
 
         // Create PolicyMemberDependant records for each dependant
-        // Dependants get sequential numbers starting from 1 (formatted as 01, 02, etc.)
+        // Order: spouses first (01, 02, ...), then others (e.g. children). Principal is always 00.
         if (policy.customer.dependants && policy.customer.dependants.length > 0) {
+          const orderedDependants = this.orderDependantsForMemberNumbers(
+            policy.customer.dependants
+          );
           this.logger.log(
-            `[${correlationId}] Creating member records for ${policy.customer.dependants.length} dependants`
+            `[${correlationId}] Creating member records for ${orderedDependants.length} dependants (spouses first)`
           );
 
-          for (let i = 0; i < policy.customer.dependants.length; i++) {
-            const dependant = policy.customer.dependants[i];
+          for (let i = 0; i < orderedDependants.length; i++) {
+            const dependant = orderedDependants[i];
             // Dependants start at sequence 1 (formatted as 01), then 2 (02), etc.
             const dependantMemberNumber = await this.generateMemberNumber(
               policy.packageId,
@@ -1551,6 +1569,214 @@ export class PolicyService {
       // Rethrow to be caught by caller for logging/Sentry
       throw error;
     }
+  }
+
+  /**
+   * Get first 50 customers (by createdAt) with their policies for member number reconciliation.
+   * Each row is one policy (or one row per customer with no policy, policyNumber N/A).
+   */
+  async getMemberNumberReconciliationList(correlationId: string): Promise<
+    Array<{
+      customerId: string;
+      fullName: string;
+      phoneNumber: string;
+      idNumber: string;
+      dependantCount: number;
+      policyId: string | null;
+      policyNumber: string | null;
+      principalMemberNumber: string | null;
+      dependants: Array<{ fullName: string; memberNumber: string }>;
+    }>
+  > {
+    this.logger.log(`[${correlationId}] Fetching member number reconciliation list (first 50 customers)`);
+
+    const customers = await this.prismaService.customer.findMany({
+      orderBy: { createdAt: 'asc' },
+      take: 50,
+      include: {
+        policies: { orderBy: { createdAt: 'asc' } },
+        dependants: { where: { deletedAt: null } },
+      },
+    });
+
+    const customerIds = customers.map((c) => c.id);
+    const principalsByCustomer =
+      customerIds.length > 0
+        ? await this.prismaService.policyMemberPrincipal.findMany({
+            where: { customerId: { in: customerIds } },
+            orderBy: { createdAt: 'desc' },
+          })
+        : [];
+    const latestPrincipalByCustomerId = new Map<string, { memberNumber: string }>();
+    for (const p of principalsByCustomer) {
+      if (!latestPrincipalByCustomerId.has(p.customerId)) {
+        latestPrincipalByCustomerId.set(p.customerId, { memberNumber: p.memberNumber });
+      }
+    }
+
+    const rows: Array<{
+      customerId: string;
+      fullName: string;
+      phoneNumber: string;
+      idNumber: string;
+      dependantCount: number;
+      policyId: string | null;
+      policyNumber: string | null;
+      principalMemberNumber: string | null;
+      dependants: Array<{ fullName: string; memberNumber: string }>;
+    }> = [];
+
+    for (const customer of customers) {
+      const fullName = [customer.firstName, customer.middleName ?? '', customer.lastName]
+        .filter(Boolean)
+        .join(' ')
+        .trim();
+      const dependantCount = customer.dependants.length;
+      const principalMember = latestPrincipalByCustomerId.get(customer.id) ?? null;
+
+      if (customer.policies.length === 0) {
+        rows.push({
+          customerId: customer.id,
+          fullName,
+          phoneNumber: customer.phoneNumber,
+          idNumber: customer.idNumber,
+          dependantCount,
+          policyId: null,
+          policyNumber: null,
+          principalMemberNumber: null,
+          dependants: [],
+        });
+        continue;
+      }
+
+      for (const policy of customer.policies) {
+        const dependantIds = customer.dependants.map((d) => d.id);
+        const policyMemberDependants =
+          dependantIds.length > 0
+            ? await this.prismaService.policyMemberDependant.findMany({
+                where: { dependantId: { in: dependantIds } },
+                include: { dependant: true },
+              })
+            : [];
+
+        const dependants = policyMemberDependants.map((pmd) => {
+          const d = pmd.dependant;
+          const name = [d.firstName, d.middleName ?? '', d.lastName].filter(Boolean).join(' ').trim();
+          return { fullName: name, memberNumber: pmd.memberNumber };
+        });
+
+        rows.push({
+          customerId: customer.id,
+          fullName,
+          phoneNumber: customer.phoneNumber,
+          idNumber: customer.idNumber,
+          dependantCount,
+          policyId: policy.id,
+          policyNumber: policy.policyNumber ?? null,
+          principalMemberNumber: principalMember?.memberNumber ?? null,
+          dependants,
+        });
+      }
+    }
+
+    return rows;
+  }
+
+  /**
+   * Reconcile policy member numbers: set new policy number and regenerate principal + dependant
+   * member numbers using package format (spouses first 01, 02, then others).
+   */
+  async reconcilePolicyMemberNumbers(
+    policyId: string,
+    newPolicyNumber: string,
+    correlationId: string
+  ): Promise<void> {
+    this.logger.log(`[${correlationId}] Reconciling member numbers for policy ${policyId}`);
+
+    if (newPolicyNumber.length > 15) {
+      throw new BadRequestException('Policy number must not exceed 15 characters');
+    }
+
+    const policy = await this.prismaService.policy.findUnique({
+      where: { id: policyId },
+      include: {
+        customer: {
+          include: {
+            dependants: { where: { deletedAt: null } },
+          },
+        },
+        package: {
+          select: {
+            id: true,
+            memberNumberFormat: true,
+            policyNumberFormat: true,
+          },
+        },
+      },
+    });
+
+    if (!policy) {
+      throw new NotFoundException(`Policy with ID ${policyId} not found`);
+    }
+
+    const existing = await this.prismaService.policy.findFirst({
+      where: {
+        policyNumber: newPolicyNumber,
+        id: { not: policyId },
+      },
+    });
+    if (existing) {
+      throw new ConflictException(
+        `Policy number "${newPolicyNumber}" is already in use by another policy`
+      );
+    }
+
+    await this.prismaService.$transaction(async (tx) => {
+      await tx.policy.update({
+        where: { id: policyId },
+        data: { policyNumber: newPolicyNumber },
+      });
+
+      const principal = await tx.policyMemberPrincipal.findFirst({
+        where: { customerId: policy.customerId },
+      });
+      if (principal) {
+        const newPrincipalNumber = await this.generateMemberNumber(
+          policy.packageId,
+          newPolicyNumber,
+          tx,
+          correlationId,
+          0
+        );
+        await tx.policyMemberPrincipal.update({
+          where: { id: principal.id },
+          data: { memberNumber: newPrincipalNumber, updatedAt: new Date() },
+        });
+      }
+
+      const orderedDependants = this.orderDependantsForMemberNumbers(policy.customer.dependants);
+      for (let i = 0; i < orderedDependants.length; i++) {
+        const dependant = orderedDependants[i];
+        const pmd = await tx.policyMemberDependant.findFirst({
+          where: { dependantId: dependant.id },
+        });
+        if (pmd) {
+          const newMemberNumber = await this.generateMemberNumber(
+            policy.packageId,
+            newPolicyNumber,
+            tx,
+            correlationId,
+            i + 1
+          );
+          await tx.policyMemberDependant.update({
+            where: { id: pmd.id },
+            data: { memberNumber: newMemberNumber, updatedAt: new Date() },
+          });
+        }
+      }
+    });
+
+    this.logger.log(`[${correlationId}] Successfully reconciled member numbers for policy ${policyId}`);
   }
 }
 
