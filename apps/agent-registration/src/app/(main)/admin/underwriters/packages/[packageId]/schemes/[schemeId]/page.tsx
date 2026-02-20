@@ -98,6 +98,24 @@ interface SchemeContactsResponse {
   data: SchemeContact[];
 }
 
+interface PostpaidSchemePaymentItem {
+  id: number;
+  schemeId: number;
+  amount: string;
+  paymentType: string;
+  transactionReference: string;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface PostpaidSchemePaymentsResponse {
+  status: number;
+  correlationId: string;
+  message: string;
+  data: PostpaidSchemePaymentItem[];
+}
+
 export default function SchemeDetailPage() {
   const router = useRouter();
   const params = useParams();
@@ -133,6 +151,21 @@ export default function SchemeDetailPage() {
   });
   const [contactLoading, setContactLoading] = useState(false);
   const [contactDialogError, setContactDialogError] = useState<string | null>(null);
+
+  // Scheme Payments (postpaid only)
+  const [postpaidPayments, setPostpaidPayments] = useState<PostpaidSchemePaymentItem[]>([]);
+  const [postpaidPaymentsLoading, setPostpaidPaymentsLoading] = useState(false);
+  const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
+  const [paymentFormData, setPaymentFormData] = useState({
+    amount: '',
+    paymentType: 'BANK_TRANSFER' as string,
+    transactionReference: '',
+    paymentMadeDate: '',
+  });
+  const [paymentFile, setPaymentFile] = useState<File | null>(null);
+  const [paymentLoading, setPaymentLoading] = useState(false);
+  const [paymentError, setPaymentError] = useState<string | null>(null);
+  const [validationErrors, setValidationErrors] = useState<string[] | null>(null);
 
   const getSupabaseToken = async () => {
     const { data: session } = await supabase.auth.getSession();
@@ -250,6 +283,28 @@ export default function SchemeDetailPage() {
     }
   }, [schemeId]);
 
+  const fetchPostpaidPayments = useCallback(async () => {
+    try {
+      setPostpaidPaymentsLoading(true);
+      const token = await getSupabaseToken();
+      const response = await fetch(`${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/product-management/schemes/${schemeId}/postpaid-payments`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'x-correlation-id': `req-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+        }
+      });
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      const data: PostpaidSchemePaymentsResponse = await response.json();
+      setPostpaidPayments(data.data);
+    } catch (err) {
+      console.error('Error fetching postpaid payments:', err);
+    } finally {
+      setPostpaidPaymentsLoading(false);
+    }
+  }, [schemeId]);
+
   useEffect(() => {
     fetchScheme();
     fetchContacts();
@@ -258,6 +313,12 @@ export default function SchemeDetailPage() {
   useEffect(() => {
     fetchCustomers();
   }, [fetchCustomers]);
+
+  useEffect(() => {
+    if (scheme?.isPostpaid) {
+      fetchPostpaidPayments();
+    }
+  }, [scheme?.isPostpaid, fetchPostpaidPayments]);
 
   const handleSave = async () => {
     try {
@@ -321,6 +382,84 @@ export default function SchemeDetailPage() {
 
   const handlePageChange = (newPage: number) => {
     setCurrentPage(newPage);
+  };
+
+  const handleOpenPaymentDialog = () => {
+    setPaymentDialogOpen(true);
+    setPaymentError(null);
+    setValidationErrors(null);
+    setPaymentFormData({ amount: '', paymentType: 'BANK_TRANSFER', transactionReference: '', paymentMadeDate: '' });
+    setPaymentFile(null);
+  };
+
+  const handlePaymentFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    setPaymentFile(file ?? null);
+    setValidationErrors(null);
+  };
+
+  const runValidatePayment = async () => {
+    if (!paymentFile || !paymentFormData.amount.trim()) return;
+    const amount = parseFloat(paymentFormData.amount);
+    if (Number.isNaN(amount) || amount < 0) return;
+    try {
+      const token = await getSupabaseToken();
+      const form = new FormData();
+      form.append('file', paymentFile);
+      form.append('amount', paymentFormData.amount);
+      form.append('transactionReference', paymentFormData.transactionReference);
+      const res = await fetch(`${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/product-management/schemes/${schemeId}/postpaid-payments/validate`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` },
+        body: form,
+      });
+      const data = await res.json();
+      if (data.valid === false && data.errors?.length) {
+        setValidationErrors(data.errors);
+      } else {
+        setValidationErrors(null);
+      }
+    } catch {
+      setValidationErrors(['Validation request failed']);
+    }
+  };
+
+  const handleSubmitPayment = async () => {
+    if (!paymentFile || !paymentFormData.amount.trim() || !paymentFormData.transactionReference.trim() || !paymentFormData.paymentMadeDate.trim()) {
+      setPaymentError('Please fill all fields and upload a CSV file.');
+      return;
+    }
+    const amount = parseFloat(paymentFormData.amount);
+    if (Number.isNaN(amount) || amount < 0 || amount > 9999999.99) {
+      setPaymentError('Amount must be between 0 and 9,999,999.99');
+      return;
+    }
+    setPaymentLoading(true);
+    setPaymentError(null);
+    try {
+      const token = await getSupabaseToken();
+      const form = new FormData();
+      form.append('file', paymentFile);
+      form.append('amount', paymentFormData.amount);
+      form.append('paymentType', paymentFormData.paymentType);
+      form.append('transactionReference', paymentFormData.transactionReference);
+      form.append('paymentMadeDate', new Date(paymentFormData.paymentMadeDate).toISOString());
+      const res = await fetch(`${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/product-management/schemes/${schemeId}/postpaid-payments`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` },
+        body: form,
+      });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.message ?? errData.error?.message ?? `HTTP ${res.status}`);
+      }
+      setPaymentDialogOpen(false);
+      fetchPostpaidPayments();
+    } catch (err) {
+      setPaymentError(err instanceof Error ? err.message : 'Failed to create payment');
+    } finally {
+      setPaymentLoading(false);
+    }
   };
 
   const handleOpenContactDialog = (contact?: SchemeContact) => {
@@ -795,6 +934,58 @@ export default function SchemeDetailPage() {
         </CardContent>
       </Card>
 
+      {/* Scheme Payments (postpaid only) */}
+      {scheme?.isPostpaid && (
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle>Scheme Payments</CardTitle>
+                <CardDescription>
+                  Upload postpaid payment batches (CSV). Columns: Name, phone number, amount, id number, paid date (optional).
+                </CardDescription>
+              </div>
+              <Button onClick={handleOpenPaymentDialog}>
+                <Plus className="h-4 w-4 mr-2" />
+                + Payment
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {postpaidPaymentsLoading ? (
+              <div className="text-center py-6 text-muted-foreground">Loading payments...</div>
+            ) : postpaidPayments.length === 0 ? (
+              <div className="text-center py-8">
+                <p className="text-muted-foreground">No payments yet</p>
+              </div>
+            ) : (
+              <div className="rounded-md border">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Transaction reference</TableHead>
+                      <TableHead>Amount</TableHead>
+                      <TableHead>Payment type</TableHead>
+                      <TableHead>Created</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {postpaidPayments.map((p) => (
+                      <TableRow key={p.id}>
+                        <TableCell className="font-medium">{p.transactionReference}</TableCell>
+                        <TableCell>{p.amount}</TableCell>
+                        <TableCell>{p.paymentType}</TableCell>
+                        <TableCell>{formatDate(p.createdAt)}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
       {/* Scheme Contacts Section */}
       <Card>
         <CardHeader>
@@ -982,6 +1173,99 @@ export default function SchemeDetailPage() {
             </Button>
             <Button onClick={handleSaveContact} disabled={contactLoading}>
               {contactLoading ? 'Saving...' : 'Save Contact'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Postpaid Payment Dialog */}
+      <Dialog open={paymentDialogOpen} onOpenChange={setPaymentDialogOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Add payment</DialogTitle>
+            <DialogDescription>
+              Upload a CSV and enter batch details. CSV columns: Name, phone number, amount, id number, paid date (optional). Total amount must match the sum of CSV amounts.
+            </DialogDescription>
+          </DialogHeader>
+          {paymentError && (
+            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md text-sm">
+              {paymentError}
+            </div>
+          )}
+          {validationErrors && validationErrors.length > 0 && (
+            <div className="bg-amber-50 border border-amber-200 text-amber-800 px-4 py-3 rounded-md text-sm">
+              <p className="font-medium mb-1">Validation issues:</p>
+              <ul className="list-disc list-inside">
+                {validationErrors.map((e, i) => (
+                  <li key={i}>{e}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+          <div className="space-y-4">
+            <div>
+              <Label>CSV file *</Label>
+              <Input
+                type="file"
+                accept=".csv"
+                onChange={handlePaymentFileChange}
+              />
+            </div>
+            <div>
+              <Label>Total amount (KES) *</Label>
+              <Input
+                type="number"
+                min={0}
+                max={9999999.99}
+                step={0.01}
+                value={paymentFormData.amount}
+                onChange={(e) => {
+                  setPaymentFormData({ ...paymentFormData, amount: e.target.value });
+                  setValidationErrors(null);
+                }}
+                placeholder="Must match sum of CSV amounts"
+              />
+            </div>
+            <div>
+              <Label>Payment type *</Label>
+              <select
+                className="w-full h-10 px-3 border rounded-md"
+                value={paymentFormData.paymentType}
+                onChange={(e) => setPaymentFormData({ ...paymentFormData, paymentType: e.target.value })}
+              >
+                <option value="MPESA">MPESA</option>
+                <option value="SASAPAY">SasaPay</option>
+                <option value="BANK_TRANSFER">Bank Transfer</option>
+                <option value="CHEQUE">Cheque</option>
+              </select>
+            </div>
+            <div>
+              <Label>Transaction reference * (max 35 characters)</Label>
+              <Input
+                value={paymentFormData.transactionReference}
+                onChange={(e) => setPaymentFormData({ ...paymentFormData, transactionReference: e.target.value.slice(0, 35) })}
+                placeholder="e.g. BATCH-JAN-2025-001"
+                maxLength={35}
+              />
+            </div>
+            <div>
+              <Label>Payment made date * (e.g. cheque date or bank transfer date)</Label>
+              <Input
+                type="date"
+                value={paymentFormData.paymentMadeDate}
+                onChange={(e) => setPaymentFormData({ ...paymentFormData, paymentMadeDate: e.target.value })}
+              />
+            </div>
+            <Button variant="outline" size="sm" onClick={runValidatePayment} disabled={!paymentFile || !paymentFormData.amount.trim()}>
+              Validate CSV
+            </Button>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPaymentDialogOpen(false)} disabled={paymentLoading}>
+              Cancel
+            </Button>
+            <Button onClick={handleSubmitPayment} disabled={paymentLoading || !paymentFile}>
+              {paymentLoading ? 'Submitting...' : 'Submit payment'}
             </Button>
           </DialogFooter>
         </DialogContent>

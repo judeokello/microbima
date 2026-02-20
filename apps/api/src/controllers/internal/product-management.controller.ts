@@ -10,7 +10,10 @@ import {
   HttpStatus,
   HttpCode,
   ParseIntPipe,
+  BadRequestException,
 } from '@nestjs/common';
+import { UseInterceptors, UploadedFile } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import {
   ApiTags,
   ApiOperation,
@@ -49,6 +52,12 @@ import {
   SchemeContactResponseDto,
   SchemeContactsListResponseDto,
 } from '../../dto/scheme-contacts/scheme-contact.dto';
+import { PostpaidSchemePaymentService, parsePostpaidPaymentCsv } from '../../services/postpaid-scheme-payment.service';
+import {
+  PostpaidSchemePaymentListResponseDto,
+  CreatePostpaidSchemePaymentResponseDto,
+} from '../../dto/postpaid-scheme-payments/postpaid-scheme-payment.dto';
+import { PaymentType } from '@prisma/client';
 
 /**
  * Internal Product Management Controller
@@ -70,7 +79,8 @@ import {
 export class ProductManagementController {
   constructor(
     private readonly productManagementService: ProductManagementService,
-    private readonly schemeContactService: SchemeContactService
+    private readonly schemeContactService: SchemeContactService,
+    private readonly postpaidSchemePaymentService: PostpaidSchemePaymentService
   ) {}
 
   /**
@@ -907,6 +917,142 @@ export class ProductManagementController {
       correlationId: correlationId ?? 'unknown',
       message: 'Contact deleted successfully',
       data: contact,
+    };
+  }
+
+  /**
+   * List postpaid scheme payments (postpaid schemes only)
+   */
+  @Get('schemes/:schemeId/postpaid-payments')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'List postpaid scheme payments',
+    description: 'List payments uploaded for a postpaid scheme. Only available for postpaid schemes.',
+  })
+  @ApiParam({ name: 'schemeId', description: 'Scheme ID', type: Number })
+  @ApiResponse({ status: 200, description: 'List of payments', type: PostpaidSchemePaymentListResponseDto })
+  @ApiResponse({ status: 400, description: 'Scheme is not postpaid' })
+  @ApiResponse({ status: 404, description: 'Scheme not found' })
+  async listPostpaidSchemePayments(
+    @Param('schemeId', ParseIntPipe) schemeId: number,
+    @CorrelationId() correlationId?: string
+  ): Promise<PostpaidSchemePaymentListResponseDto> {
+    const data = await this.postpaidSchemePaymentService.listByScheme(
+      schemeId,
+      correlationId ?? 'unknown'
+    );
+    return {
+      status: HttpStatus.OK,
+      correlationId: correlationId ?? 'unknown',
+      message: 'Postpaid scheme payments retrieved successfully',
+      data,
+    };
+  }
+
+  /**
+   * Validate CSV and amount for postpaid scheme payment (no persist)
+   */
+  @Post('schemes/:schemeId/postpaid-payments/validate')
+  @HttpCode(HttpStatus.OK)
+  @UseInterceptors(FileInterceptor('file'))
+  @ApiOperation({
+    summary: 'Validate postpaid payment CSV',
+    description: 'Validate CSV rows and amount match. Does not persist. Use before submitting payment.',
+  })
+  @ApiParam({ name: 'schemeId', description: 'Scheme ID', type: Number })
+  @ApiResponse({ status: 200, description: 'Validation result' })
+  @ApiResponse({ status: 400, description: 'Validation failed' })
+  async validatePostpaidSchemePayment(
+    @Param('schemeId', ParseIntPipe) schemeId: number,
+    @UploadedFile() file: Express.Multer.File,
+    @Body() body: { amount?: string; transactionReference?: string },
+    @CorrelationId() correlationId?: string
+  ): Promise<{ valid: boolean; errors?: string[] }> {
+    if (!file?.buffer) {
+      throw new BadRequestException('CSV file is required');
+    }
+    const amount = body.amount != null ? Number(body.amount) : NaN;
+    if (Number.isNaN(amount) || amount < 0 || amount > 9_999_999.99) {
+      throw new BadRequestException('Valid amount (0–9999999.99) is required');
+    }
+    const csvText = file.buffer.toString('utf-8');
+    const csvRows = parsePostpaidPaymentCsv(csvText);
+    if (csvRows.length === 0) {
+      return { valid: false, errors: ['CSV has no valid data rows'] };
+    }
+    const result = await this.postpaidSchemePaymentService.validateCsvAndAmount(
+      schemeId,
+      { amount, transactionReference: body.transactionReference ?? '' },
+      csvRows,
+      correlationId ?? 'unknown'
+    );
+    return result.valid ? { valid: true } : { valid: false, errors: result.errors };
+  }
+
+  /**
+   * Create postpaid scheme payment (upload CSV, create batch and policy payments, activate if first payment)
+   */
+  @Post('schemes/:schemeId/postpaid-payments')
+  @HttpCode(HttpStatus.CREATED)
+  @UseInterceptors(FileInterceptor('file'))
+  @ApiOperation({
+    summary: 'Create postpaid scheme payment',
+    description: 'Upload CSV and create batch payment. Validates amount vs CSV sum and that each ID is in scheme. Activates policies on first payment.',
+  })
+  @ApiParam({ name: 'schemeId', description: 'Scheme ID', type: Number })
+  @ApiResponse({ status: 201, description: 'Payment created', type: CreatePostpaidSchemePaymentResponseDto })
+  @ApiResponse({ status: 400, description: 'Validation failed' })
+  @ApiResponse({ status: 404, description: 'Scheme not found' })
+  async createPostpaidSchemePayment(
+    @Param('schemeId', ParseIntPipe) schemeId: number,
+    @UploadedFile() file: Express.Multer.File,
+    @Body()
+    body: {
+      amount?: string;
+      paymentType?: string;
+      transactionReference?: string;
+      paymentMadeDate?: string;
+    },
+    @UserId() userId: string,
+    @CorrelationId() correlationId?: string
+  ): Promise<CreatePostpaidSchemePaymentResponseDto> {
+    if (!file?.buffer) {
+      throw new BadRequestException('CSV file is required');
+    }
+    const amount = body.amount != null ? Number(body.amount) : NaN;
+    if (Number.isNaN(amount) || amount < 0 || amount > 9_999_999.99) {
+      throw new BadRequestException('Valid amount (0–9999999.99) is required');
+    }
+    const paymentType = body.paymentType as PaymentType | undefined;
+    const validTypes: PaymentType[] = ['MPESA', 'SASAPAY', 'BANK_TRANSFER', 'CHEQUE'];
+    if (!paymentType || !validTypes.includes(paymentType)) {
+      throw new BadRequestException('paymentType must be one of: MPESA, SASAPAY, BANK_TRANSFER, CHEQUE');
+    }
+    const transactionReference = (body.transactionReference ?? '').trim();
+    if (!transactionReference || transactionReference.length > 35) {
+      throw new BadRequestException('transactionReference is required (max 35 characters)');
+    }
+    const paymentMadeDate = body.paymentMadeDate?.trim();
+    if (!paymentMadeDate) {
+      throw new BadRequestException('paymentMadeDate is required');
+    }
+    const data = await this.postpaidSchemePaymentService.create(
+      schemeId,
+      {
+        amount,
+        paymentType,
+        transactionReference,
+        paymentMadeDate,
+      },
+      file.buffer,
+      userId,
+      correlationId ?? 'unknown'
+    );
+    return {
+      status: HttpStatus.CREATED,
+      correlationId: correlationId ?? 'unknown',
+      message: 'Postpaid scheme payment created successfully',
+      data,
     };
   }
 }

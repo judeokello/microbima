@@ -23,6 +23,7 @@ import { UnderwriterService } from './services/underwriter.service';
 import { MpesaPaymentsService } from './services/mpesa-payments.service';
 import { PaymentAccountNumberService } from './services/payment-account-number.service';
 import { SchemeContactService } from './services/scheme-contact.service';
+import { PostpaidSchemePaymentService } from './services/postpaid-scheme-payment.service';
 import { CustomerController } from './controllers/customer.controller';
 import { InternalCustomerController } from './controllers/internal/customer.controller';
 import { InternalPartnerManagementController } from './controllers/internal/partner-management.controller';
@@ -60,7 +61,7 @@ import { MessagingModule } from './modules/messaging/messaging.module';
     MessagingModule,
   ],
   controllers: [AppController, CustomerController, InternalCustomerController, InternalPartnerManagementController, PublicPartnerManagementController, SupabaseTestController, ConnectionMonitorController, SosController, AgentRegistrationController, BootstrapController, ProductManagementController, PolicyController, UnderwriterController, UserController, MpesaPaymentsController, MpesaIpnController, MpesaStkPushController, MpesaStkPushPublicController, RecoveryController, TestCustomersController],
-  providers: [AppService, ExternalIntegrationsService, CustomerService, PartnerManagementService, SupabaseService, SosService, AgentRegistrationService, MissingRequirementService, ProductManagementService, PolicyService, UnderwriterService, MpesaPaymentsService, PaymentAccountNumberService, SchemeContactService, MpesaIpnService, MpesaStkPushService, MpesaDarajaApiService, MpesaErrorMapperService, TestCustomersService, IpWhitelistGuard],
+  providers: [AppService, ExternalIntegrationsService, CustomerService, PartnerManagementService, SupabaseService, SosService, AgentRegistrationService, MissingRequirementService, ProductManagementService, PolicyService, UnderwriterService, MpesaPaymentsService, PaymentAccountNumberService, SchemeContactService, PostpaidSchemePaymentService, MpesaIpnService, MpesaStkPushService, MpesaDarajaApiService, MpesaErrorMapperService, TestCustomersService, IpWhitelistGuard],
   exports: [PrismaModule], // Export PrismaModule so middleware can access PrismaService
 })
 export class AppModule implements NestModule {
