@@ -42,14 +42,14 @@ export class BootstrapController {
     try {
       this.logger.log(`[${correlationId}] Creating bootstrap user: ${body.email}`);
 
-      // Create user with email auto-confirmation (T055: optional phone in user_metadata)
+      // Create user with email auto-confirmation (T055: phone in user_metadata, default international format)
       const userResult = await this.supabase.createUser({
         email: body.email,
         password: body.password,
         userMetadata: {
           roles: ['registration_admin', 'brand_ambassador'],
           displayName: body.displayName,
-          ...(body.phone ? { phone: body.phone } : {}),
+          phone: body.phone ?? '254722000999',
         },
       });
 

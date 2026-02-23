@@ -1,4 +1,4 @@
-import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { ValidationException } from '../exceptions/validation.exception';
 import { ErrorCodes } from '../enums/error-codes.enum';
 import { PrismaService } from '../prisma/prisma.service';
@@ -28,6 +28,10 @@ import {
   MemberCardDataDto,
 } from '../dto/customers/member-cards.dto';
 import { CustomerPoliciesResponseDto, CustomerPaymentsResponseDto, PolicyOptionDto, PaymentDto } from '../dto/customers/customer-payments-filter.dto';
+import {
+  CustomerPolicyListResponseDto,
+  CustomerPolicyDetailResponseDto,
+} from '../dto/customers/customer-products.dto';
 import { UpdateCustomerDto } from '../dto/customers/update-customer.dto';
 import { UpdateDependantDto } from '../dto/dependants/update-dependant.dto';
 import { UpdateBeneficiaryDto } from '../dto/beneficiaries/update-beneficiary.dto';
@@ -2267,6 +2271,236 @@ export class CustomerService {
       this.logger.error(`[${correlationId}] Error getting customer policies: ${error instanceof Error ? error.message : 'Unknown error'}`, error instanceof Error ? error.stack : undefined);
       throw error;
     }
+  }
+
+  /**
+   * Get customer policies as rich list for Products tab (underwriter, scheme, premium, installments paid, missed)
+   */
+  async getCustomerPoliciesList(
+    customerId: string,
+    userId: string,
+    userRoles: string[],
+    correlationId: string
+  ): Promise<CustomerPolicyListResponseDto> {
+    this.logger.log(`[${correlationId}] Getting customer policies list for ${customerId}`);
+    const canAccess = await this.canUserAccessCustomer(customerId, userId, userRoles);
+    if (!canAccess) {
+      throw new NotFoundException('Customer not found or not accessible');
+    }
+
+    const policies = await this.prismaService.policy.findMany({
+      where: { customerId },
+      include: {
+        package: {
+          select: {
+            name: true,
+            totalPremium: true,
+            underwriter: { select: { name: true } },
+          },
+        },
+        packagePlan: { select: { name: true } },
+        policyPayments: {
+          select: {
+            expectedPaymentDate: true,
+            actualPaymentDate: true,
+            amount: true,
+          },
+        },
+      },
+    });
+
+    const now = new Date();
+    const list: CustomerPolicyListResponseDto['data'] = [];
+
+    for (const p of policies) {
+      const schemeCustomer = await this.prismaService.packageSchemeCustomer.findFirst({
+        where: {
+          customerId,
+          packageScheme: { packageId: p.packageId },
+        },
+        include: {
+          packageScheme: {
+            include: { scheme: { select: { schemeName: true } } },
+          },
+        },
+      });
+      const schemeName = schemeCustomer?.packageScheme?.scheme?.schemeName ?? '—';
+      const installmentsPaid = p.policyPayments.filter((pm) => pm.actualPaymentDate != null).length;
+      const missedPayments = p.policyPayments.filter(
+        (pm) => pm.expectedPaymentDate < now && pm.actualPaymentDate == null
+      ).length;
+
+      list.push({
+        id: p.id,
+        productName: p.productName,
+        packageName: p.package.name,
+        planName: p.packagePlan?.name ?? null,
+        schemeName,
+        underwriterName: p.package.underwriter?.name ?? null,
+        status: p.status,
+        totalPremium: p.package.totalPremium != null ? p.package.totalPremium.toString() : '—',
+        installment: p.premium.toString(),
+        installmentsPaid,
+        missedPayments,
+      });
+    }
+
+    return {
+      status: 200,
+      correlationId,
+      message: 'Customer policies list retrieved successfully',
+      data: list,
+    };
+  }
+
+  /**
+   * Get single policy detail for customer (with customerId validation)
+   */
+  async getCustomerPolicyDetail(
+    customerId: string,
+    policyId: string,
+    userId: string,
+    userRoles: string[],
+    correlationId: string
+  ): Promise<CustomerPolicyDetailResponseDto> {
+    this.logger.log(`[${correlationId}] Getting policy detail ${policyId} for customer ${customerId}`);
+    const canAccess = await this.canUserAccessCustomer(customerId, userId, userRoles);
+    if (!canAccess) {
+      throw new NotFoundException('Customer not found or not accessible');
+    }
+
+    const policy = await this.prismaService.policy.findFirst({
+      where: { id: policyId, customerId },
+      include: {
+        package: {
+          select: {
+            name: true,
+            totalPremium: true,
+            underwriter: { select: { name: true } },
+          },
+        },
+        packagePlan: { select: { name: true } },
+        policyPayments: {
+          select: {
+            expectedPaymentDate: true,
+            actualPaymentDate: true,
+            amount: true,
+          },
+        },
+      },
+    });
+
+    if (!policy) {
+      throw new NotFoundException('Policy not found or does not belong to this customer');
+    }
+
+    const schemeCustomer = await this.prismaService.packageSchemeCustomer.findFirst({
+      where: {
+        customerId,
+        packageScheme: { packageId: policy.packageId },
+      },
+      include: {
+        packageScheme: {
+          include: { scheme: { select: { schemeName: true } } },
+        },
+      },
+    });
+    const schemeName = schemeCustomer?.packageScheme?.scheme?.schemeName ?? '—';
+    const packageSchemeId = schemeCustomer?.packageSchemeId ?? null;
+    const paidPayments = policy.policyPayments.filter((pm) => pm.actualPaymentDate != null);
+    const now = new Date();
+    const missedPayments = policy.policyPayments.filter(
+      (pm) => pm.expectedPaymentDate < now && pm.actualPaymentDate == null
+    ).length;
+    const totalPaid = paidPayments.reduce((sum, pm) => sum + Number(pm.amount), 0);
+
+    return {
+      status: 200,
+      correlationId,
+      message: 'Policy detail retrieved successfully',
+      data: {
+        id: policy.id,
+        policyNumber: policy.policyNumber,
+        status: policy.status,
+        packageId: policy.packageId,
+        packageSchemeId,
+        product: {
+          underwriterName: policy.package.underwriter?.name ?? null,
+          packageName: policy.package.name,
+          planName: policy.packagePlan?.name ?? null,
+          schemeName,
+          productName: policy.productName,
+        },
+        enrollment: {
+          startDate: policy.startDate?.toISOString() ?? null,
+          endDate: policy.endDate?.toISOString() ?? null,
+          frequency: policy.frequency,
+          paymentCadence: policy.paymentCadence,
+        },
+        totalPremium: policy.package.totalPremium != null ? policy.package.totalPremium.toString() : '—',
+        installmentAmount: policy.premium.toString(),
+        totalPaidToDate: totalPaid.toFixed(2),
+        installmentsPaid: paidPayments.length,
+        missedPayments,
+      },
+    };
+  }
+
+  /**
+   * Update customer's scheme for a policy (registration_admin only).
+   * Enforces one scheme per customer per package by updating the single PackageSchemeCustomer row.
+   * Postpaid → prepaid is not supported (400).
+   */
+  async updateCustomerPolicyScheme(
+    customerId: string,
+    policyId: string,
+    packageSchemeId: number,
+    userId: string,
+    userRoles: string[],
+    correlationId: string
+  ): Promise<{ schemeName: string }> {
+    this.logger.log(`[${correlationId}] Update policy scheme: customer=${customerId} policy=${policyId} packageSchemeId=${packageSchemeId}`);
+    if (!userRoles.includes('registration_admin')) {
+      throw new ForbiddenException('Only registration_admin can change customer scheme');
+    }
+    const canAccess = await this.canUserAccessCustomer(customerId, userId, userRoles);
+    if (!canAccess) {
+      throw new NotFoundException('Customer not found or not accessible');
+    }
+    const policy = await this.prismaService.policy.findFirst({
+      where: { id: policyId, customerId },
+      select: { packageId: true },
+    });
+    if (!policy) {
+      throw new NotFoundException('Policy not found or does not belong to this customer');
+    }
+    const newPackageScheme = await this.prismaService.packageScheme.findFirst({
+      where: { id: packageSchemeId },
+      include: { scheme: { select: { schemeName: true, isPostpaid: true } } },
+    });
+    if (!newPackageScheme || newPackageScheme.packageId !== policy.packageId) {
+      throw new BadRequestException('Scheme must belong to the same package as the policy');
+    }
+    const currentPsc = await this.prismaService.packageSchemeCustomer.findFirst({
+      where: {
+        customerId,
+        packageScheme: { packageId: policy.packageId },
+      },
+      include: {
+        packageScheme: { include: { scheme: { select: { isPostpaid: true } } } },
+      },
+    });
+    if (currentPsc?.packageScheme?.scheme?.isPostpaid === true && newPackageScheme.scheme.isPostpaid === false) {
+      throw new BadRequestException('Changing from a postpaid scheme to a prepaid scheme is not supported at this time.');
+    }
+    await this.prismaService.packageSchemeCustomer.updateMany({
+      where: {
+        customerId,
+        packageScheme: { packageId: policy.packageId },
+      },
+      data: { packageSchemeId },
+    });
+    return { schemeName: newPackageScheme.scheme.schemeName };
   }
 
   /**

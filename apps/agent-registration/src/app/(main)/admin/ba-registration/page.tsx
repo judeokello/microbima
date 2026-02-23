@@ -64,18 +64,16 @@ export default function BARegistrationPage() {
         throw new Error('Passwords do not match')
       }
 
-      if (!formData.email || !formData.password || !formData.firstName || !formData.lastName || !formData.partnerId) {
+      if (!formData.email || !formData.password || !formData.firstName || !formData.lastName || !formData.partnerId || !formData.phone?.trim()) {
         throw new Error('Please fill in all required fields')
       }
 
-      // Validate phone number if provided
-      if (formData.phone) {
-        const phoneErr = getPhoneValidationError(formData.phone)
-        if (phoneErr) {
-          setPhoneError(phoneErr)
-          setLoading(false)
-          return
-        }
+      // Validate phone number format
+      const phoneErr = getPhoneValidationError(formData.phone)
+      if (phoneErr) {
+        setPhoneError(phoneErr)
+        setLoading(false)
+        return
       }
 
       // Role validation - at least one role must be selected
@@ -234,7 +232,7 @@ export default function BARegistrationPage() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="phone">Phone Number</Label>
+                <Label htmlFor="phone">Phone Number *</Label>
                 <Input
                   id="phone"
                   value={formData.phone}
