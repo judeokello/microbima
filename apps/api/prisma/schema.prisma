@@ -580,15 +580,16 @@ model Underwriter {
 }
 
 model Package {
-  id                 Int     @id @default(autoincrement())
-  name               String  @db.VarChar(100)
-  description        String  @db.VarChar(500)
+  id                 Int      @id @default(autoincrement())
+  name               String   @db.VarChar(100)
+  description        String   @db.VarChar(500)
   underwriterId      Int?
-  isActive           Boolean @default(true)
-  policyNumberFormat String? @db.VarChar(200)
-  memberNumberFormat String? @db.VarChar(200)
-  logoPath           String? @db.VarChar(200)
-  cardTemplateName   String? @db.VarChar(100)
+  isActive           Boolean  @default(true)
+  policyNumberFormat String?  @db.VarChar(200)
+  memberNumberFormat String?  @db.VarChar(200)
+  logoPath           String?  @db.VarChar(200)
+  cardTemplateName   String?  @db.VarChar(100)
+  totalPremium       Decimal? @db.Decimal(10, 2) // Total premium for package (same type as Policy.premium)
 
   // Relations
   underwriter          Underwriter?           @relation(fields: [underwriterId], references: [id])

@@ -936,6 +936,62 @@ export interface CustomerPoliciesResponse {
   data: PolicyOption[]
 }
 
+/** Rich policy list item for Products tab */
+export interface CustomerPolicyListItem {
+  id: string
+  productName: string
+  packageName: string
+  planName?: string | null
+  schemeName: string
+  underwriterName?: string | null
+  status: string
+  totalPremium: string
+  installment: string
+  installmentsPaid: number
+  missedPayments: number
+}
+
+export interface CustomerPolicyListResponse {
+  status: number
+  correlationId: string
+  message: string
+  data: CustomerPolicyListItem[]
+}
+
+/** Policy detail for product detail page */
+export interface CustomerPolicyDetail {
+  id: string
+  policyNumber: string | null
+  status: string
+  packageId: number
+  packageSchemeId: number | null
+  product: {
+    underwriterName: string | null
+    packageName: string
+    planName: string | null
+    schemeName: string
+    productName: string
+  }
+  enrollment: {
+    startDate: string | null
+    endDate: string | null
+    frequency: string
+    paymentCadence: number
+  }
+  totalPremium: string
+  installmentAmount: string
+  totalPaidToDate: string
+  installmentsPaid: number
+  missedPayments: number
+}
+
+export interface CustomerPolicyDetailResponse {
+  status: number
+  correlationId: string
+  message: string
+  data: CustomerPolicyDetail
+}
+
 export interface PaymentFilter {
   policyId?: string
   fromDate?: string
@@ -1107,6 +1163,84 @@ export async function getCustomerPolicies(customerId: string): Promise<CustomerP
     return await response.json()
   } catch (error) {
     console.error('Error fetching customer policies:', error)
+    throw error
+  }
+}
+
+export async function getCustomerPoliciesList(customerId: string): Promise<CustomerPolicyListResponse> {
+  try {
+    const token = await getSupabaseToken()
+    const response = await fetch(
+      `${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/customers/${customerId}/policies/list`,
+      {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'x-correlation-id': `customer-policies-list-${Date.now()}`
+        }
+      }
+    )
+    if (!response.ok) {
+      const errorData = await response.json()
+      throw new Error(errorData.error?.message ?? `HTTP ${response.status}: ${response.statusText}`)
+    }
+    return await response.json()
+  } catch (error) {
+    console.error('Error fetching customer policies list:', error)
+    throw error
+  }
+}
+
+export async function getCustomerPolicyDetail(customerId: string, policyId: string): Promise<CustomerPolicyDetailResponse> {
+  try {
+    const token = await getSupabaseToken()
+    const response = await fetch(
+      `${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/customers/${customerId}/policies/${policyId}`,
+      {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'x-correlation-id': `customer-policy-detail-${Date.now()}`
+        }
+      }
+    )
+    if (!response.ok) {
+      const errorData = await response.json()
+      throw new Error(errorData.error?.message ?? `HTTP ${response.status}: ${response.statusText}`)
+    }
+    return await response.json()
+  } catch (error) {
+    console.error('Error fetching customer policy detail:', error)
+    throw error
+  }
+}
+
+export async function updateCustomerPolicyScheme(
+  customerId: string,
+  policyId: string,
+  packageSchemeId: number
+): Promise<{ status: number; correlationId: string; message: string; data: { schemeName: string } }> {
+  try {
+    const token = await getSupabaseToken()
+    const response = await fetch(
+      `${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/customers/${customerId}/policies/${policyId}/scheme`,
+      {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          'x-correlation-id': `customer-policy-scheme-${Date.now()}`
+        },
+        body: JSON.stringify({ packageSchemeId })
+      }
+    )
+    if (!response.ok) {
+      const errorData = await response.json()
+      throw new Error(errorData.error?.message ?? `HTTP ${response.status}: ${response.statusText}`)
+    }
+    return await response.json()
+  } catch (error) {
+    console.error('Error updating customer policy scheme:', error)
     throw error
   }
 }
@@ -1491,6 +1625,8 @@ export interface Scheme {
   id: number
   name: string
   description?: string
+  /** Junction id for scheme assignment (PackageScheme.id); use as value when updating customer scheme */
+  packageSchemeId?: number
 }
 
 export interface Plan {
@@ -1896,6 +2032,68 @@ export async function createPolicyFromRecovery(
   if (!response.ok) {
     const err = await response.json().catch(() => ({}))
     throw new Error(err?.error?.message ?? `Failed to create policy: ${response.statusText}`)
+  }
+  return response.json()
+}
+
+// Member number reconciliation (temp feature: align DB member numbers with issued cards)
+
+export interface MemberNumberReconciliationDependant {
+  fullName: string
+  memberNumber: string
+}
+
+export interface MemberNumberReconciliationRow {
+  customerId: string
+  fullName: string
+  phoneNumber: string
+  idNumber: string
+  dependantCount: number
+  policyId: string | null
+  policyNumber: string | null
+  principalMemberNumber: string | null
+  dependants: MemberNumberReconciliationDependant[]
+}
+
+export async function getMemberNumberReconciliation(): Promise<{ rows: MemberNumberReconciliationRow[] }> {
+  const token = await getSupabaseToken()
+  const response = await fetch(
+    `${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/recovery/member-number-reconciliation`,
+    {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'x-correlation-id': `reconciliation-${Date.now()}`,
+      },
+    }
+  )
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}))
+    throw new Error(err?.error?.message ?? err?.message ?? `Failed to fetch: ${response.statusText}`)
+  }
+  return response.json()
+}
+
+export async function reconcilePolicyMemberNumbers(
+  policyId: string,
+  policyNumber: string
+): Promise<{ message: string }> {
+  const token = await getSupabaseToken()
+  const response = await fetch(
+    `${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/recovery/member-number-reconciliation/${policyId}`,
+    {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+        'x-correlation-id': `reconciliation-update-${Date.now()}`,
+      },
+      body: JSON.stringify({ policyNumber }),
+    }
+  )
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}))
+    throw new Error(err?.error?.message ?? err?.message ?? `Failed to reconcile: ${response.statusText}`)
   }
   return response.json()
 }

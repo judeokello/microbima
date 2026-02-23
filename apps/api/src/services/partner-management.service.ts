@@ -2,6 +2,8 @@ import { Injectable, Logger, NotFoundException, BadRequestException } from '@nes
 import { PrismaService } from '../prisma/prisma.service';
 import { SupabaseService } from './supabase.service';
 import { Prisma } from '@prisma/client';
+import { ValidationException } from '../exceptions/validation.exception';
+import { normalizePhoneNumber } from '../utils/phone-number.util';
 import { Partner } from '../entities/partner.entity';
 import { PartnerApiKey } from '../entities/partner-api-key.entity';
 import * as crypto from 'crypto';
@@ -441,7 +443,7 @@ export class PartnerManagementService {
       firstName: string;
       lastName: string;
       roles: string[];
-      phoneNumber?: string;
+      phoneNumber: string;
       perRegistrationRateCents: number;
       isActive?: boolean;
       createdBy?: string;
@@ -449,6 +451,11 @@ export class PartnerManagementService {
     correlationId: string
   ) {
     this.logger.log(`[${correlationId}] Creating Brand Ambassador for partner ${partnerId}`);
+
+    if (!brandAmbassadorData.phoneNumber?.trim()) {
+      throw ValidationException.forField('phoneNumber', 'Phone number is required');
+    }
+    const normalizedPhone = normalizePhoneNumber(brandAmbassadorData.phoneNumber);
 
     // Validate that partner exists and is active
     const partner = await this.prismaService.partner.findFirst({
@@ -471,7 +478,7 @@ export class PartnerManagementService {
       password: brandAmbassadorData.password,
       userMetadata: {
         roles: brandAmbassadorData.roles,
-        ...(brandAmbassadorData.phoneNumber ? { phone: brandAmbassadorData.phoneNumber } : {}),
+        phone: normalizedPhone,
       }
     });
 
@@ -505,7 +512,7 @@ export class PartnerManagementService {
         userId: userId,
         partnerId: partnerId,
         displayName: displayName,
-        phoneNumber: brandAmbassadorData.phoneNumber,
+        phoneNumber: normalizedPhone,
         perRegistrationRateCents: brandAmbassadorData.perRegistrationRateCents,
         isActive: brandAmbassadorData.isActive ?? true,
         createdBy: createdByUserId,
@@ -529,7 +536,7 @@ export class PartnerManagementService {
     brandAmbassadorData: {
       userId: string;
       displayName: string;
-      phoneNumber?: string;
+      phoneNumber: string;
       perRegistrationRateCents: number;
       isActive?: boolean;
       createdBy?: string;
@@ -537,6 +544,11 @@ export class PartnerManagementService {
     correlationId: string
   ) {
     this.logger.log(`[${correlationId}] Creating Brand Ambassador from existing user ${brandAmbassadorData.userId} for partner ${partnerId}`);
+
+    if (!brandAmbassadorData.phoneNumber?.trim()) {
+      throw ValidationException.forField('phoneNumber', 'Phone number is required');
+    }
+    const normalizedPhone = normalizePhoneNumber(brandAmbassadorData.phoneNumber);
 
     // Validate that partner exists and is active
     const partner = await this.prismaService.partner.findFirst({
@@ -584,7 +596,7 @@ export class PartnerManagementService {
         userId: brandAmbassadorData.userId,
         partnerId: partnerId,
         displayName: brandAmbassadorData.displayName,
-        phoneNumber: brandAmbassadorData.phoneNumber,
+        phoneNumber: normalizedPhone,
         perRegistrationRateCents: brandAmbassadorData.perRegistrationRateCents,
         isActive: brandAmbassadorData.isActive ?? true,
         createdBy: createdByUserId,
@@ -592,26 +604,24 @@ export class PartnerManagementService {
       },
     });
 
-    // T052: Sync user_metadata.phone for existing user when phoneNumber provided
-    if (brandAmbassadorData.phoneNumber) {
-      try {
-        const { data, error: getUserError } = await this.supabaseService
+    // T052: Sync user_metadata.phone for existing user (always, phone is required)
+    try {
+      const { data, error: getUserError } = await this.supabaseService
+        .getClient()
+        .auth.admin.getUserById(brandAmbassadorData.userId);
+      if (!getUserError && data?.user) {
+        const currentMeta = ((data.user as { user_metadata?: Record<string, unknown> }).user_metadata ?? {});
+        const { error: updateError } = await this.supabaseService
           .getClient()
-          .auth.admin.getUserById(brandAmbassadorData.userId);
-        if (!getUserError && data?.user) {
-          const currentMeta = ((data.user as { user_metadata?: Record<string, unknown> }).user_metadata ?? {});
-          const { error: updateError } = await this.supabaseService
-            .getClient()
-            .auth.admin.updateUserById(brandAmbassadorData.userId, {
-              user_metadata: { ...currentMeta, phone: brandAmbassadorData.phoneNumber },
-            });
-          if (updateError) {
-            this.logger.warn(`[${correlationId}] Could not sync user_metadata.phone: ${updateError.message}`);
-          }
+          .auth.admin.updateUserById(brandAmbassadorData.userId, {
+            user_metadata: { ...currentMeta, phone: normalizedPhone },
+          });
+        if (updateError) {
+          this.logger.warn(`[${correlationId}] Could not sync user_metadata.phone: ${updateError.message}`);
         }
-      } catch (err) {
-        this.logger.warn(`[${correlationId}] Could not sync user_metadata.phone: ${err instanceof Error ? err.message : String(err)}`);
       }
+    } catch (err) {
+      this.logger.warn(`[${correlationId}] Could not sync user_metadata.phone: ${err instanceof Error ? err.message : String(err)}`);
     }
 
     this.logger.log(`✅ Brand Ambassador created successfully from existing user: ${brandAmbassador.id}`);

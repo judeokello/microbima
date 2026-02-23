@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsString, IsUUID, IsInt, IsOptional, IsBoolean, Min } from 'class-validator';
+import { IsString, IsUUID, IsInt, IsOptional, IsBoolean, Min, IsNotEmpty } from 'class-validator';
 
 export class CreateBrandAmbassadorFromExistingUserRequestDto {
   @ApiProperty({
@@ -18,13 +18,13 @@ export class CreateBrandAmbassadorFromExistingUserRequestDto {
   displayName: string;
 
   @ApiProperty({
-    description: 'Phone number (optional)',
-    example: '+254700000000',
-    required: false,
+    description: 'Phone number (required, 10 digits starting with 01 or 07)',
+    example: '0722000000',
+    required: true,
   })
-  @IsOptional()
+  @IsNotEmpty()
   @IsString()
-  phoneNumber?: string;
+  phoneNumber: string;
 
   @ApiProperty({
     description: 'Rate per registration in cents',

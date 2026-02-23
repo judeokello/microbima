@@ -15,6 +15,7 @@ import ChildrenSection from '../../../customer/[customerId]/_components/children
 import PaymentsTab from '../../../customer/[customerId]/_components/payments-tab';
 import MemberCardsTab from '../../../customer/[customerId]/_components/member-cards-tab';
 import MessagingTab from '../../../customer/[customerId]/_components/messaging-tab';
+import ProductsTab from '../../../customer/[customerId]/_components/products-tab';
 import { useEditPermissions } from '../../../customer/[customerId]/_hooks/use-edit-permissions';
 
 export default function CustomerDetailPage() {
@@ -114,6 +115,7 @@ export default function CustomerDetailPage() {
       <Tabs defaultValue="details" className="w-full">
         <TabsList>
           <TabsTrigger value="details">Customer Details</TabsTrigger>
+          <TabsTrigger value="products">Products</TabsTrigger>
           <TabsTrigger value="payments">Payments</TabsTrigger>
           <TabsTrigger value="member-cards">Member cards</TabsTrigger>
           <TabsTrigger value="messages">Messages</TabsTrigger>
@@ -148,6 +150,9 @@ export default function CustomerDetailPage() {
           />
         </TabsContent>
 
+        <TabsContent value="products">
+          <ProductsTab customerId={customerId} basePath="admin" />
+        </TabsContent>
         <TabsContent value="payments">
           <PaymentsTab customerId={customerId} />
         </TabsContent>

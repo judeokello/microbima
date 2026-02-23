@@ -1,5 +1,6 @@
 import {
   Controller,
+  Patch,
   Post,
   Put,
   Delete,
@@ -41,6 +42,7 @@ import { BrandAmbassadorDashboardStatsDto } from '../../dto/customers/brand-amba
 import { CustomerDetailResponseDto } from '../../dto/customers/customer-detail.dto';
 import { MemberCardsResponseDto } from '../../dto/customers/member-cards.dto';
 import { CustomerPoliciesResponseDto, CustomerPaymentsResponseDto, CustomerPaymentsFilterDto } from '../../dto/customers/customer-payments-filter.dto';
+import { CustomerPolicyListResponseDto, CustomerPolicyDetailResponseDto, UpdateCustomerPolicySchemeDto } from '../../dto/customers/customer-products.dto';
 import { UpdateCustomerDto } from '../../dto/customers/update-customer.dto';
 import { UpdateDependantDto } from '../../dto/dependants/update-dependant.dto';
 import { UpdateBeneficiaryDto } from '../../dto/beneficiaries/update-beneficiary.dto';
@@ -669,6 +671,92 @@ export class InternalCustomerController {
     const userId = req.user?.id ?? 'system';
     const userRoles = req.user?.roles ?? [];
     return this.customerService.getMemberCards(customerId, userId, userRoles, correlationId);
+  }
+
+  /**
+   * Get customer policies as rich list for Products tab (underwriter, scheme, premium, installments paid, missed)
+   */
+  @Get(':customerId/policies/list')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Get customer policies list (Internal)',
+    description: 'Gets customer policies with product/scheme/premium/payment counts for Products tab.',
+  })
+  @ApiParam({ name: 'customerId', description: 'Customer ID' })
+  @ApiResponse({ status: 200, description: 'Policies list', type: CustomerPolicyListResponseDto })
+  @ApiResponse({ status: 404, description: 'Customer not found or not accessible' })
+  async getCustomerPoliciesList(
+    @Param('customerId') customerId: string,
+    @CorrelationId() correlationId: string,
+    @Req() req: Request,
+  ): Promise<CustomerPolicyListResponseDto> {
+    const userId = req.user?.id ?? 'system';
+    const userRoles = req.user?.roles ?? [];
+    return this.customerService.getCustomerPoliciesList(customerId, userId, userRoles, correlationId);
+  }
+
+  /**
+   * Get single policy detail for customer (customerId validated)
+   */
+  @Get(':customerId/policies/:policyId')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Get customer policy detail (Internal)',
+    description: 'Gets one policy detail for the customer (product, enrollment, premium, payments).',
+  })
+  @ApiParam({ name: 'customerId', description: 'Customer ID' })
+  @ApiParam({ name: 'policyId', description: 'Policy ID' })
+  @ApiResponse({ status: 200, description: 'Policy detail', type: CustomerPolicyDetailResponseDto })
+  @ApiResponse({ status: 404, description: 'Customer or policy not found' })
+  async getCustomerPolicyDetail(
+    @Param('customerId') customerId: string,
+    @Param('policyId') policyId: string,
+    @CorrelationId() correlationId: string,
+    @Req() req: Request,
+  ): Promise<CustomerPolicyDetailResponseDto> {
+    const userId = req.user?.id ?? 'system';
+    const userRoles = req.user?.roles ?? [];
+    return this.customerService.getCustomerPolicyDetail(customerId, policyId, userId, userRoles, correlationId);
+  }
+
+  /**
+   * Update customer's scheme for a policy (registration_admin only)
+   */
+  @Patch(':customerId/policies/:policyId/scheme')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Update customer policy scheme (Internal)',
+    description: 'Updates the scheme assignment for a customer policy. Only registration_admin. New scheme must be in the same package. Postpaid→prepaid not supported.',
+  })
+  @ApiParam({ name: 'customerId', description: 'Customer ID' })
+  @ApiParam({ name: 'policyId', description: 'Policy ID' })
+  @ApiResponse({ status: 200, description: 'Scheme updated' })
+  @ApiResponse({ status: 400, description: 'Invalid scheme or postpaid→prepaid not allowed' })
+  @ApiResponse({ status: 403, description: 'Only registration_admin can change scheme' })
+  @ApiResponse({ status: 404, description: 'Customer or policy not found' })
+  async updateCustomerPolicyScheme(
+    @Param('customerId') customerId: string,
+    @Param('policyId') policyId: string,
+    @Body() body: UpdateCustomerPolicySchemeDto,
+    @CorrelationId() correlationId: string,
+    @Req() req: Request,
+  ): Promise<{ status: number; correlationId: string; message: string; data: { schemeName: string } }> {
+    const userId = req.user?.id ?? 'system';
+    const userRoles = req.user?.roles ?? [];
+    const data = await this.customerService.updateCustomerPolicyScheme(
+      customerId,
+      policyId,
+      body.packageSchemeId,
+      userId,
+      userRoles,
+      correlationId,
+    );
+    return {
+      status: HttpStatus.OK,
+      correlationId,
+      message: 'Scheme updated successfully',
+      data,
+    };
   }
 
   /**

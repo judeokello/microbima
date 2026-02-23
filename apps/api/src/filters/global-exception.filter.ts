@@ -330,8 +330,14 @@ export class GlobalExceptionFilter implements ExceptionFilter {
         return 'Invalid reference to related data';
       }
 
-      if (exception.message.includes('Invalid `this.prismaService')) {
-        return 'An error occurred while saving the data';
+      // Prisma invocation errors (variable name may be this.prismaService or prisma)
+      if (
+        exception.message.includes('Invalid `this.prismaService') ||
+        exception.message.includes('Invalid `prisma.')
+      ) {
+        return process.env.NODE_ENV === 'development'
+          ? exception.message
+          : 'An error occurred while saving the data';
       }
 
       // Handle Prisma validation errors (like Invalid Date)
