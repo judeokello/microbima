@@ -116,7 +116,7 @@ export class RecoveryController {
   @ApiOperation({
     summary: 'Get member number reconciliation list',
     description:
-      'Returns first 50 customers (by createdAt) with their policies. Each row is one policy or one customer without policy (policy number N/A). For temporary reconciliation of member numbers on cards vs DB.',
+      'Returns first 100 customers (by createdAt) with their policies. Each row is one policy or one customer without policy (policy number N/A). For temporary reconciliation of member numbers on cards vs DB.',
   })
   @ApiResponse({ status: 200, description: 'List of rows for reconciliation' })
   async getMemberNumberReconciliation(
