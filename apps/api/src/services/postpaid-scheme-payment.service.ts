@@ -227,7 +227,7 @@ export class PostpaidSchemePaymentService {
       const client = this.supabase.getClient();
       const { error } = await client.storage.from(BUCKET).upload(storagePath, csvBuffer, {
         contentType: 'text/csv',
-        upsert: false,
+        upsert: true, // Overwrite if path exists (e.g. retry with same ref in same second)
       });
       if (error) {
         this.logger.warn(`[${correlationId}] Supabase upload failed: ${error.message}`);

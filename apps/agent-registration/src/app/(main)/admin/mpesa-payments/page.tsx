@@ -115,7 +115,8 @@ export default function MpesaPaymentsPage() {
           const userResponse = await fetch(`${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/users/${userId}/display-name`, {
             headers: {
               'Authorization': `Bearer ${token}`,
-              'x-correlation-id': `req-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+              'x-correlation-id': `req-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+              'X-Source-Page': typeof window !== 'undefined' ? window.location.pathname : '',
             }
           });
           if (userResponse.ok) {
