@@ -90,6 +90,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
         requestUrl: request.url,
         requestMethod: request.method,
         userId: request['userId'], // Will be set by auth middleware
+        sourcePage: request.headers['x-source-page'] ?? undefined,
       };
       // Include request body for policy creation errors to aid debugging
       if (request.method === 'POST' && request.url?.includes('/internal/policies')) {
@@ -315,13 +316,18 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     }
 
     if (exception instanceof Error) {
-      // Handle Prisma database errors
+      // Handle Prisma database errors - use meta.target for targeted message
       if (exception.message.includes('Unique constraint failed')) {
         if (exception.message.includes('email')) {
           return 'Email address already exists';
         }
         if (exception.message.includes('idType') || exception.message.includes('idNumber')) {
           return 'ID number already exists for this ID type';
+        }
+        const targetFields = this.getPrismaUniqueConstraintTarget(exception);
+        if (targetFields.length > 0) {
+          const friendlyField = this.formatConstraintFieldsForMessage(targetFields);
+          return `A record with this ${friendlyField} already exists`;
         }
         return 'A record with this information already exists';
       }
@@ -379,6 +385,55 @@ export class GlobalExceptionFilter implements ExceptionFilter {
   }
 
   /**
+   * Extract constraint target from Prisma P2002 (unique constraint) error.
+   * Supports meta.target (Prisma 6) and meta.driverAdapterError (Prisma 7+).
+   */
+  private getPrismaUniqueConstraintTarget(exception: Error): string[] {
+    const err = exception as { meta?: { target?: string | string[]; driverAdapterError?: { cause?: { constraint?: { fields?: string[] } } } } };
+    const meta = err.meta;
+    if (!meta) return [];
+
+    if (meta.target) {
+      return Array.isArray(meta.target) ? meta.target : [String(meta.target)];
+    }
+    const fields = meta.driverAdapterError?.cause?.constraint?.fields;
+    return Array.isArray(fields) ? fields : [];
+  }
+
+  /** Map DB field names to user-friendly labels for constraint error messages */
+  private static readonly CONSTRAINT_FIELD_LABELS: Record<string, string> = {
+    transactionReference: 'transaction reference',
+    transaction_ref: 'transaction reference',
+    email: 'email',
+    idNumber: 'ID number',
+    id_number: 'ID number',
+    idType: 'ID type',
+    id_type: 'ID type',
+    policyNumber: 'policy number',
+    policy_number: 'policy number',
+    paymentAcNumber: 'payment account number',
+    payment_ac_number: 'payment account number',
+    phoneNumber: 'phone number',
+    phone_number: 'phone number',
+  };
+
+  /**
+   * Format constraint field names for display in error message.
+   * e.g. ['transactionReference'] -> 'transaction reference'
+   * e.g. ['schemeId', 'customerId'] -> 'scheme and customer combination'
+   */
+  private formatConstraintFieldsForMessage(fields: string[]): string {
+    const labels = fields.map((f) => {
+      const key = f.replace(/([A-Z])/g, '_$1').toLowerCase().replace(/^_/, '');
+      return GlobalExceptionFilter.CONSTRAINT_FIELD_LABELS[key] ?? GlobalExceptionFilter.CONSTRAINT_FIELD_LABELS[f] ?? f.replace(/([A-Z])/g, ' $1').toLowerCase().trim();
+    });
+    if (labels.length === 0) return 'information';
+    if (labels.length === 1) return labels[0];
+    if (labels.length === 2) return `${labels[0]} and ${labels[1]}`;
+    return `${labels.slice(0, -1).join(', ')}, and ${labels[labels.length - 1]}`;
+  }
+
+  /**
    * Get additional error details
    */
   private getErrorDetails(exception: unknown): Record<string, string> | undefined {
@@ -416,6 +471,15 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       }
     }
 
+    // For Prisma unique constraint errors, include which field(s) caused the conflict
+    if (exception instanceof Error && exception.message.includes('Unique constraint failed')) {
+      const targetFields = this.getPrismaUniqueConstraintTarget(exception);
+      if (targetFields.length > 0) {
+        const friendlyField = this.formatConstraintFieldsForMessage(targetFields);
+        return { constraint: `A record with this ${friendlyField} already exists` };
+      }
+    }
+
     return undefined;
   }
 
@@ -426,8 +490,20 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     const errorMessage = this.getErrorMessage(exception);
     const status = this.getHttpStatus(exception);
 
+    let logMessage = `[${correlationId}] ${request.method} ${request.url} - ${status}: ${errorMessage}`;
+    if (exception instanceof Error && exception.message.includes('Unique constraint failed')) {
+      const targetFields = this.getPrismaUniqueConstraintTarget(exception);
+      if (targetFields.length > 0) {
+        logMessage += ` (Prisma meta target: ${targetFields.join(', ')})`;
+      }
+      const err = exception as { meta?: unknown };
+      if (err.meta) {
+        this.logger.debug(`[${correlationId}] Prisma unique constraint meta: ${JSON.stringify(err.meta)}`);
+      }
+    }
+
     this.logger.error(
-      `[${correlationId}] ${request.method} ${request.url} - ${status}: ${errorMessage}`,
+      logMessage,
       exception instanceof Error ? exception.stack : undefined,
       'GlobalExceptionFilter',
     );

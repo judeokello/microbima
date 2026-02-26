@@ -1,11 +1,4 @@
-import {
-  Controller,
-  Get,
-  Param,
-  HttpStatus,
-  HttpCode,
-  NotFoundException,
-} from '@nestjs/common';
+import { Controller, Get, Param, HttpStatus, HttpCode } from '@nestjs/common';
 import {
   ApiTags,
   ApiOperation,
@@ -64,10 +57,6 @@ export class UserController {
     },
   })
   @ApiResponse({
-    status: 404,
-    description: 'User not found',
-  })
-  @ApiResponse({
     status: 500,
     description: 'Internal server error',
   })
@@ -82,7 +71,17 @@ export class UserController {
         .auth.admin.getUserById(userId);
 
       if (error || !user) {
-        throw new NotFoundException(`User with ID ${userId} not found`);
+        // User not found (e.g. deleted from auth) - return 200 with Unknown User
+        return {
+          status: HttpStatus.OK,
+          correlationId: correlationId ?? 'unknown',
+          message: 'Display name retrieved successfully',
+          data: {
+            userId,
+            displayName: 'Unknown User',
+            email: '',
+          },
+        };
       }
 
       const userMetadata = user.user_metadata ?? {};
@@ -99,9 +98,6 @@ export class UserController {
         },
       };
     } catch (error) {
-      if (error instanceof NotFoundException) {
-        throw error;
-      }
       throw new Error(`Failed to get user display name: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }

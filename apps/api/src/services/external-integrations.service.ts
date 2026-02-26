@@ -49,6 +49,7 @@ export class ExternalIntegrationsService {
               correlationId: context.correlationId,
               endpoint: context.requestUrl,
               method: context.requestMethod,
+              sourcePage: (context.sourcePage as string) ?? 'unknown',
             },
             extra: {
               userId: context.userId,
