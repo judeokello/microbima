@@ -1,10 +1,18 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 
 export function EnvironmentIndicator() {
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   const environment = useMemo(() => {
-    // Check environment based on URL or environment variables
+    if (!mounted) return 'production'; // Match server render - no indicator until hydrated
+
+    // Client-only: check environment based on URL
     if (typeof window !== 'undefined') {
       const hostname = window.location.hostname;
 
@@ -18,21 +26,14 @@ export function EnvironmentIndicator() {
         return 'staging';
       }
 
-      // Production environment (no indicator needed)
       return 'production';
     }
 
-    // Server-side: check environment variables
-    if (process.env.NODE_ENV === 'development') {
-      return 'development';
-    }
-
-    // Default to production for safety
     return 'production';
-  }, []);
+  }, [mounted]);
 
-  // Don't show indicator for production
-  if (environment === 'production') {
+  // Don't show indicator for production or before mount (prevents hydration mismatch)
+  if (!mounted || environment === 'production') {
     return null;
   }
 

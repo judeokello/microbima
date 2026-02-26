@@ -146,6 +146,17 @@ export default function CustomerStep() {
   const [selectedSchemeId, setSelectedSchemeId] = useState<number | null>(null);
   const [loadingSchemes, setLoadingSchemes] = useState(false);
 
+  // Date constraints - set after mount to avoid server/client hydration mismatch (new Date() differs by timezone)
+  const [minDateAdults, setMinDateAdults] = useState<string | undefined>(undefined);
+  const [maxDateChildren, setMaxDateChildren] = useState<string | undefined>(undefined);
+  const [minDateChildren, setMinDateChildren] = useState<string | undefined>(undefined);
+
+  useEffect(() => {
+    setMinDateAdults(getMinDateForAdults());
+    setMaxDateChildren(getMaxDateForChildren());
+    setMinDateChildren(getMinDateForChildren());
+  }, []);
+
   // Handle success notification from payment page
   useEffect(() => {
     const success = searchParams.get('success');
@@ -831,7 +842,7 @@ export default function CustomerStep() {
                 type="date"
                 value={formData.dateOfBirth}
                 onChange={(e) => handleInputChange('dateOfBirth', e.target.value)}
-                max={getMinDateForAdults()}
+                max={minDateAdults}
               />
             </div>
             <div>
@@ -1005,7 +1016,7 @@ export default function CustomerStep() {
                       type="date"
                       value={spouse.dateOfBirth}
                       onChange={(e) => handleSpouseChange(spouseIndex, 'dateOfBirth', e.target.value)}
-                      max={getMinDateForAdults()}
+                      max={minDateAdults}
                     />
                   </div>
                   <div>
@@ -1135,8 +1146,8 @@ export default function CustomerStep() {
                       type="date"
                       value={child.dateOfBirth}
                       onChange={(e) => handleChildChange(index, 'dateOfBirth', e.target.value)}
-                      max={getMaxDateForChildren()}
-                      min={getMinDateForChildren()}
+                      max={maxDateChildren}
+                      min={minDateChildren}
                     />
                   </div>
                   <div className="flex items-end">
