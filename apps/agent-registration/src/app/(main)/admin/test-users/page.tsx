@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { notFound } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -23,6 +24,7 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Plus, RefreshCw, Trash2, Loader2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { formatDate, formatPhoneNumber } from '@/lib/utils';
@@ -49,6 +51,16 @@ interface TestCustomersResponse {
   pagination: PaginationInfo;
 }
 
+interface DeletePreviewResult {
+  customersCount: number;
+  totalCustomersWithPhone: number;
+  customer?: {
+    firstName: string;
+    lastName: string;
+    phoneNumber: string;
+  };
+}
+
 export default function TestUsersPage() {
   const [testCustomers, setTestCustomers] = useState<TestCustomer[]>([]);
   const [pagination, setPagination] = useState<PaginationInfo | null>(null);
@@ -60,6 +72,13 @@ export default function TestUsersPage() {
   const [adding, setAdding] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<TestCustomer | null>(null);
+  const [hardDeleteChecked, setHardDeleteChecked] = useState(false);
+  const [deletePreview, setDeletePreview] = useState<DeletePreviewResult | null>(null);
+  const [deletePreviewLoading, setDeletePreviewLoading] = useState(false);
+  const [deletePreviewError, setDeletePreviewError] = useState<string | null>(null);
+  const [confirmText, setConfirmText] = useState('');
   const pageSize = 20;
   const [currentPage, setCurrentPage] = useState(1);
 
@@ -69,6 +88,12 @@ export default function TestUsersPage() {
       throw new Error('Not authenticated');
     }
     return session.session.access_token;
+  };
+
+  const getApiBaseUrl = () => {
+    const url = process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL;
+    if (!url) throw new Error('NEXT_PUBLIC_INTERNAL_API_BASE_URL not configured');
+    return url;
   };
 
   const fetchTestCustomers = useCallback(async () => {
@@ -82,7 +107,7 @@ export default function TestUsersPage() {
       });
 
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/test-customers?${params}`,
+        `${getApiBaseUrl()}/internal/test-customers?${params}`,
         {
           headers: {
             Authorization: `Bearer ${await getSupabaseToken()}`,
@@ -90,6 +115,10 @@ export default function TestUsersPage() {
           },
         }
       );
+
+      if (response.status === 404) {
+        notFound();
+      }
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
@@ -104,6 +133,7 @@ export default function TestUsersPage() {
       setTestCustomers(data.data);
       setPagination(data.pagination);
     } catch (err) {
+      if (err && typeof err === 'object' && 'digest' in err) return; // notFound throws
       setError(err instanceof Error ? err.message : 'Failed to fetch test users');
     } finally {
       setLoading(false);
@@ -123,7 +153,7 @@ export default function TestUsersPage() {
       setAddError(null);
 
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/test-customers`,
+        `${getApiBaseUrl()}/internal/test-customers`,
         {
           method: 'POST',
           headers: {
@@ -134,6 +164,10 @@ export default function TestUsersPage() {
           body: JSON.stringify({ name: addName.trim(), phoneNumber: addPhone.trim() }),
         }
       );
+
+      if (response.status === 404) {
+        notFound();
+      }
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
@@ -155,14 +189,35 @@ export default function TestUsersPage() {
     }
   };
 
-  const handleDelete = async (id: string) => {
+  const openDeleteDialog = (tc: TestCustomer) => {
+    setDeleteTarget(tc);
+    setDeleteDialogOpen(true);
+    setHardDeleteChecked(false);
+    setDeletePreview(null);
+    setDeletePreviewError(null);
+    setConfirmText('');
+  };
+
+  const closeDeleteDialog = () => {
+    setDeleteDialogOpen(false);
+    setDeleteTarget(null);
+    setHardDeleteChecked(false);
+    setDeletePreview(null);
+    setDeletePreviewError(null);
+    setConfirmText('');
+    setDeletingId(null);
+  };
+
+  const fetchDeletePreview = useCallback(async () => {
+    if (!deleteTarget) return;
     try {
-      setDeletingId(id);
+      setDeletePreviewLoading(true);
+      setDeletePreview(null);
+      setDeletePreviewError(null);
 
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/test-customers/${id}`,
+        `${getApiBaseUrl()}/internal/test-customers/${deleteTarget.id}/delete-preview`,
         {
-          method: 'DELETE',
           headers: {
             Authorization: `Bearer ${await getSupabaseToken()}`,
             'x-correlation-id': `req-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
@@ -170,10 +225,86 @@ export default function TestUsersPage() {
         }
       );
 
-      if (!response.ok) {
-        throw new Error(`Failed to delete: ${response.statusText}`);
+      if (response.status === 404) {
+        notFound();
       }
 
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(
+          errData.error?.message ?? `Failed to fetch delete preview (${response.status})`
+        );
+      }
+
+      const data: DeletePreviewResult = await response.json();
+      setDeletePreview(data);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Failed to fetch delete preview';
+      setDeletePreviewError(msg);
+      setDeletePreview(null);
+    } finally {
+      setDeletePreviewLoading(false);
+    }
+  }, [deleteTarget]);
+
+  useEffect(() => {
+    if (hardDeleteChecked && deleteTarget) {
+      fetchDeletePreview();
+    } else {
+      setDeletePreview(null);
+      setDeletePreviewError(null);
+    }
+  }, [hardDeleteChecked, deleteTarget, fetchDeletePreview]);
+
+  const confirmationString =
+    deletePreview?.customer
+      ? `DELETE ${deletePreview.customer.firstName} ${deletePreview.customer.lastName} ${deletePreview.customer.phoneNumber}`
+      : '';
+
+  const canDelete =
+    !hardDeleteChecked ||
+    (deletePreview?.customersCount === 1 &&
+      deletePreview.customer &&
+      confirmText === confirmationString);
+
+  const multipleCustomersError = hardDeleteChecked && deletePreview && deletePreview.customersCount > 1;
+
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    if (!canDelete) return;
+    if (multipleCustomersError) return;
+
+    try {
+      setDeletingId(deleteTarget.id);
+
+      const url = new URL(
+        `${getApiBaseUrl()}/internal/test-customers/${deleteTarget.id}`
+      );
+      if (hardDeleteChecked && deletePreview?.customersCount === 1) {
+        url.searchParams.set('deleteCustomerRecord', 'true');
+      }
+
+      const response = await fetch(url.toString(), {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${await getSupabaseToken()}`,
+          'x-correlation-id': `req-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        },
+      });
+
+      if (response.status === 404) {
+        notFound();
+      }
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        const msg =
+          errorData.error?.message ??
+          `Failed to delete: ${response.statusText}`;
+        throw new Error(msg);
+      }
+
+      closeDeleteDialog();
       await fetchTestCustomers();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete test user');
@@ -184,7 +315,7 @@ export default function TestUsersPage() {
 
   if (loading && testCustomers.length === 0) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
+      <div className="flex min-h-[400px] items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin" />
         <span className="ml-2">Loading test users...</span>
       </div>
@@ -193,7 +324,7 @@ export default function TestUsersPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
+      <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold">Test Users</h2>
           <p className="text-muted-foreground">
@@ -214,63 +345,63 @@ export default function TestUsersPage() {
               </Button>
             </DialogTrigger>
             <DialogContent>
-              <form onSubmit={handleAdd}>
-                <DialogHeader>
-                  <DialogTitle>Add Test User</DialogTitle>
-                  <DialogDescription>
-                    Add a phone number to the test users registry. When a customer is created with
-                    this phone number, they will be marked as a test user (is_test_user=true).
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="grid gap-4 py-4">
-                  {addError && (
-                    <Alert variant="destructive">
-                      <AlertDescription>{addError}</AlertDescription>
-                    </Alert>
-                  )}
-                  <div className="grid gap-2">
-                    <Label htmlFor="add-name">Name</Label>
-                    <Input
-                      id="add-name"
-                      placeholder="e.g. Test User 1"
-                      value={addName}
-                      onChange={(e) => setAddName(e.target.value)}
-                      required
-                    />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="add-phone">Phone Number</Label>
-                    <Input
-                      id="add-phone"
-                      placeholder="e.g. 254711234567 or 0711234567"
-                      value={addPhone}
-                      onChange={(e) => setAddPhone(e.target.value)}
-                      required
-                    />
-                  </div>
-                </div>
-                <DialogFooter>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => setAddDialogOpen(false)}
-                    disabled={adding}
-                  >
-                    Cancel
-                  </Button>
-                  <Button type="submit" disabled={adding}>
-                    {adding ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Adding...
-                      </>
-                    ) : (
-                      'Add'
+                <form onSubmit={handleAdd}>
+                  <DialogHeader>
+                    <DialogTitle>Add Test User</DialogTitle>
+                    <DialogDescription>
+                      Add a phone number to the test users registry. When a customer is created
+                      with this phone number, they will be marked as a test user (is_test_user=true).
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="grid gap-4 py-4">
+                    {addError && (
+                      <Alert variant="destructive">
+                        <AlertDescription>{addError}</AlertDescription>
+                      </Alert>
                     )}
-                  </Button>
-                </DialogFooter>
-              </form>
-            </DialogContent>
+                    <div className="grid gap-2">
+                      <Label htmlFor="add-name">Name</Label>
+                      <Input
+                        id="add-name"
+                        placeholder="e.g. Test User 1"
+                        value={addName}
+                        onChange={(e) => setAddName(e.target.value)}
+                        required
+                      />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor="add-phone">Phone Number</Label>
+                      <Input
+                        id="add-phone"
+                        placeholder="e.g. 254711234567 or 0711234567"
+                        value={addPhone}
+                        onChange={(e) => setAddPhone(e.target.value)}
+                        required
+                      />
+                    </div>
+                  </div>
+                  <DialogFooter>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setAddDialogOpen(false)}
+                      disabled={adding}
+                    >
+                      Cancel
+                    </Button>
+                    <Button type="submit" disabled={adding}>
+                      {adding ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Adding...
+                        </>
+                      ) : (
+                        'Add'
+                      )}
+                    </Button>
+                  </DialogFooter>
+                </form>
+              </DialogContent>
           </Dialog>
         </div>
       </div>
@@ -290,9 +421,9 @@ export default function TestUsersPage() {
         </CardHeader>
         <CardContent>
           {testCustomers.length === 0 ? (
-            <div className="text-center py-8">
+            <div className="py-8 text-center">
               <p className="text-muted-foreground">No test users found</p>
-              <p className="text-sm text-muted-foreground mt-2">
+              <p className="mt-2 text-sm text-muted-foreground">
                 Click &quot;Add Test User&quot; to register a phone number for test customer
                 creation
               </p>
@@ -318,9 +449,9 @@ export default function TestUsersPage() {
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => handleDelete(tc.id)}
+                          onClick={() => openDeleteDialog(tc)}
                           disabled={deletingId === tc.id}
-                          className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                          className="text-red-600 hover:bg-red-50 hover:text-red-700"
                         >
                           {deletingId === tc.id ? (
                             <Loader2 className="h-4 w-4 animate-spin" />
@@ -337,7 +468,7 @@ export default function TestUsersPage() {
           )}
 
           {pagination && pagination.totalPages > 1 && (
-            <div className="flex items-center justify-between mt-4">
+            <div className="mt-4 flex items-center justify-between">
               <p className="text-sm text-muted-foreground">
                 Page {pagination.page} of {pagination.totalPages}
               </p>
@@ -365,6 +496,105 @@ export default function TestUsersPage() {
           )}
         </CardContent>
       </Card>
+
+      <Dialog open={deleteDialogOpen} onOpenChange={(open) => !open && closeDeleteDialog()}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Test User</DialogTitle>
+            <DialogDescription>
+              {deleteTarget && (
+                <>
+                  Remove <strong>{deleteTarget.name}</strong> ({formatPhoneNumber(deleteTarget.phoneNumber)})
+                  {' '}from the test users registry.
+                </>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="hard-delete"
+                checked={hardDeleteChecked}
+                onCheckedChange={(checked) => setHardDeleteChecked(checked === true)}
+              />
+              <Label
+                htmlFor="hard-delete"
+                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+              >
+                Also delete the customer record (hard delete)
+              </Label>
+            </div>
+
+            {hardDeleteChecked && (
+              <div className="min-h-[80px] space-y-4">
+                {deletePreviewLoading ? (
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Checking for customer...
+                  </div>
+                ) : deletePreviewError ? (
+                  <Alert variant="destructive">
+                    <AlertDescription>{deletePreviewError}</AlertDescription>
+                  </Alert>
+                ) : multipleCustomersError ? (
+                  <Alert variant="destructive">
+                    <AlertDescription>
+                      Multiple customers with that phone number exist. Cannot delete. Please resolve
+                      the duplicate customers first.
+                    </AlertDescription>
+                  </Alert>
+                ) : deletePreview?.totalCustomersWithPhone === 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    No customer record found with this phone number. Hard delete is not available.
+                    Uncheck the box above to only remove from the test list.
+                  </p>
+                ) : deletePreview?.customersCount === 0 && deletePreview.totalCustomersWithPhone > 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    Customer record(s) exist with this phone number but none are marked as test user.
+                    They may have been created before this phone was added to the test list. Hard
+                    delete is not available. Uncheck the box above to only remove from the test list.
+                  </p>
+                ) : deletePreview?.customersCount === 1 && deletePreview.customer ? (
+                  <div className="space-y-2">
+                    <Label htmlFor="confirm-text">
+                      Type exactly to confirm:
+                    </Label>
+                    <p className="font-mono text-sm font-medium">
+                      {confirmationString}
+                    </p>
+                    <Input
+                      id="confirm-text"
+                      value={confirmText}
+                      onChange={(e) => setConfirmText(e.target.value)}
+                      placeholder="Type the text above exactly"
+                      className="font-mono"
+                    />
+                  </div>
+                ) : null}
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={closeDeleteDialog} disabled={!!deletingId}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleDelete}
+              disabled={!canDelete || !!deletingId || !!multipleCustomersError}
+            >
+              {deletingId ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                'Delete'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

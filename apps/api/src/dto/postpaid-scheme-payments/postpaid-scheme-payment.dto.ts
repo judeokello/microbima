@@ -43,11 +43,12 @@ export class CreatePostpaidSchemePaymentBodyDto {
   transactionReference: string;
 
   @ApiProperty({
-    description: 'Payment made date (e.g. cheque date or bank transfer date)',
+    description:
+      'Transaction date (date on payment method, e.g. cheque date or bank transfer date)',
     example: '2025-01-15T00:00:00.000Z',
   })
   @IsDateString()
-  paymentMadeDate: string;
+  transactionDate: string;
 }
 
 export class PostpaidSchemePaymentItemDto {

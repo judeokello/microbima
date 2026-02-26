@@ -160,7 +160,7 @@ export default function SchemeDetailPage() {
     amount: '',
     paymentType: 'BANK_TRANSFER' as string,
     transactionReference: '',
-    paymentMadeDate: '',
+    transactionDate: '',
   });
   const [paymentFile, setPaymentFile] = useState<File | null>(null);
   const [paymentLoading, setPaymentLoading] = useState(false);
@@ -388,7 +388,7 @@ export default function SchemeDetailPage() {
     setPaymentDialogOpen(true);
     setPaymentError(null);
     setValidationErrors(null);
-    setPaymentFormData({ amount: '', paymentType: 'BANK_TRANSFER', transactionReference: '', paymentMadeDate: '' });
+    setPaymentFormData({ amount: '', paymentType: 'BANK_TRANSFER', transactionReference: '', transactionDate: '' });
     setPaymentFile(null);
   };
 
@@ -425,7 +425,7 @@ export default function SchemeDetailPage() {
   };
 
   const handleSubmitPayment = async () => {
-    if (!paymentFile || !paymentFormData.amount.trim() || !paymentFormData.transactionReference.trim() || !paymentFormData.paymentMadeDate.trim()) {
+    if (!paymentFile || !paymentFormData.amount.trim() || !paymentFormData.transactionReference.trim() || !paymentFormData.transactionDate.trim()) {
       setPaymentError('Please fill all fields and upload a CSV file.');
       return;
     }
@@ -443,7 +443,7 @@ export default function SchemeDetailPage() {
       form.append('amount', paymentFormData.amount);
       form.append('paymentType', paymentFormData.paymentType);
       form.append('transactionReference', paymentFormData.transactionReference);
-      form.append('paymentMadeDate', new Date(paymentFormData.paymentMadeDate).toISOString());
+      form.append('transactionDate', new Date(paymentFormData.transactionDate).toISOString());
       const res = await fetch(`${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/product-management/schemes/${schemeId}/postpaid-payments`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}` },
@@ -1252,8 +1252,8 @@ export default function SchemeDetailPage() {
               <Label>Payment made date * (e.g. cheque date or bank transfer date)</Label>
               <Input
                 type="date"
-                value={paymentFormData.paymentMadeDate}
-                onChange={(e) => setPaymentFormData({ ...paymentFormData, paymentMadeDate: e.target.value })}
+                value={paymentFormData.transactionDate}
+                onChange={(e) => setPaymentFormData({ ...paymentFormData, transactionDate: e.target.value })}
               />
             </div>
             <Button variant="outline" size="sm" onClick={runValidatePayment} disabled={!paymentFile || !paymentFormData.amount.trim()}>

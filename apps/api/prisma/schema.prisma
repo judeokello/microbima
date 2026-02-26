@@ -802,6 +802,7 @@ model PostpaidSchemePayment {
   amount               Decimal   @db.Decimal(10, 2) // Max 7 digits before decimal (9,999,999.99)
   paymentType          PaymentType
   transactionReference String    @unique @db.VarChar(35) // Format: used in PolicyPayment as postpaid-{this}-{rowIndex} (50 char max)
+  transactionDate      DateTime  // Date on payment method (cheque, bank transfer etc); fallback for CSV paid date
   createdBy             String    @db.Uuid
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
