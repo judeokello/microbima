@@ -1179,7 +1179,7 @@ export default function CustomerStep() {
               <h3 className="text-sm font-medium text-red-800">
                 Registration Failed
               </h3>
-              <div className="mt-2 text-sm text-red-700">
+              <div className="mt-2 text-sm text-red-700 whitespace-pre-line">
                 {error}
               </div>
             </div>

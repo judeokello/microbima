@@ -1125,9 +1125,14 @@ export class PolicyService {
         );
 
         // Generate policy number if it doesn't exist (for both prepaid and postpaid on first activation)
+        // Use transaction-safe generator so batch activations (e.g. postpaid payment upload) get unique numbers
         let policyNumber = policy.policyNumber;
         if (!policyNumber) {
-          policyNumber = await this.generatePolicyNumber(policy.packageId, correlationId);
+          policyNumber = await this.generatePolicyNumberInTransaction(
+            policy.packageId,
+            txClient,
+            correlationId
+          );
           this.logger.log(
             `[${correlationId}] Generated policy number for policy ${policyId}: ${policyNumber}`
           );

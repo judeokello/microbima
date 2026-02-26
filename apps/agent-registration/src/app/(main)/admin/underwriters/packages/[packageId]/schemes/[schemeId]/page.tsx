@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { useRouter, useParams } from 'next/navigation';
+import { useParams } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -117,7 +117,6 @@ interface PostpaidSchemePaymentsResponse {
 }
 
 export default function SchemeDetailPage() {
-  const router = useRouter();
   const params = useParams();
   const schemeId = parseInt(params.schemeId as string);
 
@@ -452,7 +451,7 @@ export default function SchemeDetailPage() {
       });
       if (!res.ok) {
         const errData = await res.json().catch(() => ({}));
-        throw new Error(errData.message ?? errData.error?.message ?? `HTTP ${res.status}`);
+        throw new Error(errData.error?.message ?? errData.message ?? `HTTP ${res.status}`);
       }
       setPaymentDialogOpen(false);
       fetchPostpaidPayments();
@@ -566,7 +565,7 @@ export default function SchemeDetailPage() {
           if (typeof details === 'object') {
             const fieldErrors = Object.entries(details)
               .map(([field, message]) => `${field}: ${message}`)
-              .join(', ');
+              .join('\n');
             errorMessage = fieldErrors ?? errorMessage;
           } else {
             errorMessage = details ?? errorMessage;
@@ -854,7 +853,7 @@ export default function SchemeDetailPage() {
                       <TableRow
                         key={customer.id}
                         className="cursor-pointer hover:bg-gray-50"
-                        onClick={() => router.push(`/dashboard/customer/${customer.id}`)}
+                        onClick={() => window.open(`/dashboard/customer/${customer.id}`, '_blank')}
                       >
                         <TableCell className="font-medium">
                           <span className="text-blue-600 hover:underline">
@@ -948,7 +947,7 @@ export default function SchemeDetailPage() {
               </div>
               <Button onClick={handleOpenPaymentDialog}>
                 <Plus className="h-4 w-4 mr-2" />
-                + Payment
+                Payment
               </Button>
             </div>
           </CardHeader>
@@ -1075,7 +1074,7 @@ export default function SchemeDetailPage() {
           </DialogHeader>
 
           {contactDialogError && (
-            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md text-sm">
+            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md text-sm whitespace-pre-line">
               {contactDialogError}
             </div>
           )}
@@ -1189,7 +1188,7 @@ export default function SchemeDetailPage() {
             </DialogDescription>
           </DialogHeader>
           {paymentError && (
-            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md text-sm">
+            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md text-sm whitespace-pre-line">
               {paymentError}
             </div>
           )}

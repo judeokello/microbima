@@ -819,6 +819,13 @@ model PostpaidSchemePaymentItem {
   postpaidSchemePaymentId Int
   policyPaymentId        Int     @unique
 
+  // Audit fields from CSV (as uploaded) - nullable for existing rows
+  name       String?   @db.VarChar(255)
+  phoneNumber String?  @db.VarChar(20)
+  amount     Decimal?  @db.Decimal(10, 2)
+  idNumber   String?   @db.VarChar(20)
+  paidDate   DateTime? @db.Timestamptz(3)
+
   // Relations
   postpaidSchemePayment PostpaidSchemePayment @relation(fields: [postpaidSchemePaymentId], references: [id], onDelete: Cascade)
   policyPayment          PolicyPayment        @relation(fields: [policyPaymentId], references: [id], onDelete: Restrict)
