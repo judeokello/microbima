@@ -26,14 +26,14 @@ import {
   TestCustomerListResponseDto,
 } from '../../dto/test-customers';
 import { CorrelationId } from '../../decorators/correlation-id.decorator';
-import { AdminOnly } from '../../decorators/ba-auth.decorator';
+import { RootOnly } from '../../decorators/ba-auth.decorator';
 
 /**
  * Internal Test Customers Controller
  *
  * Manages test customer phone numbers. When a customer is created with a phone
  * number that exists in test_customers, the customer is marked is_test_user=true.
- * Registration admin only.
+ * Root (bootstrap) user only. Page is undocumented.
  */
 @ApiTags('Internal - Test Customers')
 @ApiBearerAuth()
@@ -42,7 +42,7 @@ export class TestCustomersController {
   constructor(private readonly testCustomersService: TestCustomersService) {}
 
   @Get()
-  @AdminOnly()
+  @RootOnly()
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'List test customers',
@@ -80,8 +80,25 @@ export class TestCustomersController {
     };
   }
 
+  @Get(':id/delete-preview')
+  @RootOnly()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Get delete preview',
+    description: 'Returns customer count and details for delete confirmation. Root only.',
+  })
+  @ApiParam({ name: 'id', description: 'Test customer ID' })
+  @ApiResponse({ status: 200, description: 'Delete preview with customer count and optional customer details' })
+  @ApiResponse({ status: 404, description: 'Test customer not found' })
+  async getDeletePreview(
+    @Param('id') id: string,
+    @CorrelationId() correlationId?: string
+  ) {
+    return this.testCustomersService.getDeletePreview(id, correlationId ?? 'unknown');
+  }
+
   @Post()
-  @AdminOnly()
+  @RootOnly()
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
     summary: 'Create test customer',
@@ -115,19 +132,33 @@ export class TestCustomersController {
   }
 
   @Delete(':id')
-  @AdminOnly()
+  @RootOnly()
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({
     summary: 'Delete test customer',
-    description: 'Remove a phone number from the test customers registry. Registration admin only.',
+    description:
+      'Remove a phone number from the test customers registry. Use ?deleteCustomerRecord=true to also hard-delete the customer. Root only.',
   })
   @ApiParam({ name: 'id', description: 'Test customer ID' })
+  @ApiQuery({
+    name: 'deleteCustomerRecord',
+    required: false,
+    type: Boolean,
+    description: 'If true, hard-deletes the customer record and all related data. Requires exactly one customer with that phone.',
+  })
   @ApiResponse({ status: 204, description: 'Test customer deleted' })
   @ApiResponse({ status: 404, description: 'Test customer not found' })
+  @ApiResponse({ status: 400, description: 'Multiple customers with that phone number exist' })
   async delete(
     @Param('id') id: string,
-    @CorrelationId() correlationId: string
+    @Query('deleteCustomerRecord') deleteCustomerRecord?: string,
+    @CorrelationId() correlationId?: string
   ): Promise<void> {
-    await this.testCustomersService.delete(id, correlationId ?? 'unknown');
+    const shouldDeleteRecord = deleteCustomerRecord === 'true';
+    await this.testCustomersService.delete(
+      id,
+      correlationId ?? 'unknown',
+      shouldDeleteRecord
+    );
   }
 }

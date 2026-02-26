@@ -1011,7 +1011,7 @@ export class ProductManagementController {
       amount?: string;
       paymentType?: string;
       transactionReference?: string;
-      paymentMadeDate?: string;
+      transactionDate?: string;
     },
     @UserId() userId: string,
     @CorrelationId() correlationId?: string
@@ -1032,9 +1032,9 @@ export class ProductManagementController {
     if (!transactionReference || transactionReference.length > 35) {
       throw new BadRequestException('transactionReference is required (max 35 characters)');
     }
-    const paymentMadeDate = body.paymentMadeDate?.trim();
-    if (!paymentMadeDate) {
-      throw new BadRequestException('paymentMadeDate is required');
+    const transactionDate = body.transactionDate?.trim();
+    if (!transactionDate) {
+      throw new BadRequestException('transactionDate is required');
     }
     const data = await this.postpaidSchemePaymentService.create(
       schemeId,
@@ -1042,7 +1042,7 @@ export class ProductManagementController {
         amount,
         paymentType,
         transactionReference,
-        paymentMadeDate,
+        transactionDate,
       },
       file.buffer,
       userId,

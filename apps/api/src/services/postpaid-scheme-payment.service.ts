@@ -180,7 +180,7 @@ export class PostpaidSchemePaymentService {
       amount: number;
       paymentType: PaymentType;
       transactionReference: string;
-      paymentMadeDate: string;
+      transactionDate: string;
     },
     csvBuffer: Buffer,
     createdBy: string,
@@ -237,7 +237,10 @@ export class PostpaidSchemePaymentService {
       this.logger.warn(`[${correlationId}] CSV upload error: ${e instanceof Error ? e.message : String(e)}`);
     }
 
-    const paymentMadeDate = new Date(body.paymentMadeDate);
+    const transactionDate = new Date(body.transactionDate);
+    if (Number.isNaN(transactionDate.getTime())) {
+      throw new BadRequestException('transactionDate must be a valid date');
+    }
 
     const created = await this.prisma.$transaction(async (tx) => {
       const postpaid = await tx.postpaidSchemePayment.create({
@@ -246,6 +249,7 @@ export class PostpaidSchemePaymentService {
           amount: body.amount,
           paymentType: body.paymentType,
           transactionReference: body.transactionReference,
+          transactionDate,
           createdBy,
         },
       });
@@ -288,14 +292,19 @@ export class PostpaidSchemePaymentService {
           );
         }
 
-        const actualDate = row.paidDate ? new Date(row.paidDate) : paymentMadeDate;
+        // Use CSV paid date if valid; otherwise fall back to postpaid.transactionDate
+        const parsedCsvDate = row.paidDate ? new Date(row.paidDate) : null;
+        const isValidCsvDate =
+          parsedCsvDate && !Number.isNaN(parsedCsvDate.getTime());
+        const actualDate = isValidCsvDate ? parsedCsvDate : postpaid.transactionDate;
+
         const policyPayment = await tx.policyPayment.create({
           data: {
             policyId: policy.id,
             paymentType: body.paymentType,
             transactionReference: ref,
             amount: row.amount,
-            expectedPaymentDate: paymentMadeDate,
+            expectedPaymentDate: postpaid.transactionDate,
             actualPaymentDate: actualDate,
           },
         });

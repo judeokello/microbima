@@ -1,6 +1,12 @@
 import { SetMetadata, applyDecorators, UseGuards } from '@nestjs/common';
-import { ApiBearerAuth, ApiUnauthorizedResponse, ApiForbiddenResponse } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiUnauthorizedResponse,
+  ApiForbiddenResponse,
+  ApiNotFoundResponse,
+} from '@nestjs/swagger';
 import { BAAuthorizationGuard } from '../guards/ba-authorization.guard';
+import { RootOnlyGuard } from '../guards/root-only.guard';
 
 /**
  * Decorator to specify required roles for endpoint access
@@ -65,3 +71,15 @@ export const AdminOrBA = () => BAAuth({
   allowBA: true,
   requireOwnership: true
 });
+
+/**
+ * Decorator for root-only endpoints (bootstrap user only).
+ * Returns 404 for non-root users. Requires authentication (middleware).
+ */
+export const RootOnly = () =>
+  applyDecorators(
+    UseGuards(BAAuthorizationGuard, RootOnlyGuard),
+    ApiBearerAuth(),
+    ApiUnauthorizedResponse({ description: 'Unauthorized - invalid authentication' }),
+    ApiNotFoundResponse({ description: 'Not found' })
+  );
