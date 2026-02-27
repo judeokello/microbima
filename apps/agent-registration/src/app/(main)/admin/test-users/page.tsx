@@ -218,6 +218,7 @@ export default function TestUsersPage() {
       const response = await fetch(
         `${getApiBaseUrl()}/internal/test-customers/${deleteTarget.id}/delete-preview`,
         {
+          cache: 'no-store',
           headers: {
             Authorization: `Bearer ${await getSupabaseToken()}`,
             'x-correlation-id': `req-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
