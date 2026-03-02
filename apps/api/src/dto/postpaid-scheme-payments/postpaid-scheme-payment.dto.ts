@@ -121,6 +121,7 @@ export interface PostpaidSchemePaymentCsvRow {
   name: string;
   phoneNumber: string;
   amount: number;
+  amountRaw: string;
   idNumber: string;
   paidDate: string | null;
 }

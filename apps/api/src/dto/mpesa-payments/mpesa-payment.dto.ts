@@ -385,5 +385,61 @@ export class MpesaPaymentUploadResponseDto {
     example: 0,
   })
   errors: number;
+
+  @ApiProperty({
+    description: 'Number of transactions that matched existing STATEMENT records (skipped on re-upload)',
+    example: 0,
+    required: false,
+  })
+  matchedStatementRecords?: number;
+
+  @ApiProperty({
+    description: 'Number of policy_payments records created from statement items',
+    example: 25,
+    required: false,
+  })
+  policyPaymentsCreated?: number;
+
+  @ApiProperty({
+    description: 'Number of statement items skipped (transactionReference already in policy_payments)',
+    example: 2,
+    required: false,
+  })
+  policyPaymentsSkippedAlreadyExist?: number;
+
+  @ApiProperty({
+    description: 'Number of statement items marked as processed/mapped',
+    example: 27,
+    required: false,
+  })
+  itemsUpdatedAsProcessed?: number;
+
+  @ApiProperty({
+    description: 'Number of statement items with no matching policy (paymentAcNumber)',
+    example: 3,
+    required: false,
+  })
+  noPolicyMatch?: number;
+
+  @ApiProperty({
+    description: 'Number of statement items with no account number (A/C No.)',
+    example: 1,
+    required: false,
+  })
+  noAccountNumber?: number;
+
+  @ApiProperty({
+    description: 'Number of statement items with zero or negative paidIn (skipped)',
+    example: 0,
+    required: false,
+  })
+  zeroOrNegativePaidIn?: number;
+
+  @ApiProperty({
+    description: 'Number of errors during policy payment processing',
+    example: 0,
+    required: false,
+  })
+  processingErrors?: number;
 }
 

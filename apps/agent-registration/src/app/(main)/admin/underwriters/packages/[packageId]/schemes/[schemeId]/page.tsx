@@ -451,7 +451,15 @@ export default function SchemeDetailPage() {
       });
       if (!res.ok) {
         const errData = await res.json().catch(() => ({}));
-        throw new Error(errData.error?.message ?? errData.message ?? `HTTP ${res.status}`);
+        const msg = errData.error?.message ?? errData.message ?? `HTTP ${res.status}`;
+        // If validation errors ("Row X:" messages), show in yellow box only
+        if (res.status === 400 && typeof msg === 'string' && msg.includes('Row ')) {
+          const errors = msg.includes('; ') ? msg.split('; ').map((s: string) => s.trim()) : [msg];
+          setValidationErrors(errors);
+          setPaymentError(null);
+          return;
+        }
+        throw new Error(msg);
       }
       setPaymentDialogOpen(false);
       fetchPostpaidPayments();

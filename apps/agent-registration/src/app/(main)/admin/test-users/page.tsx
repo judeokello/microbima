@@ -259,7 +259,7 @@ export default function TestUsersPage() {
 
   const confirmationString =
     deletePreview?.customer
-      ? `DELETE ${deletePreview.customer.firstName} ${deletePreview.customer.lastName} ${deletePreview.customer.phoneNumber}`
+      ? `DELETE ${(deletePreview.customer.firstName ?? '').trim()} ${(deletePreview.customer.lastName ?? '').trim()} ${(deletePreview.customer.phoneNumber ?? '').trim()}`
       : '';
 
   const canDelete =
