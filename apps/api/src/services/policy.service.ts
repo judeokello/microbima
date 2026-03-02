@@ -1577,7 +1577,7 @@ export class PolicyService {
   }
 
   /**
-   * Get first 100 customers (by createdAt) with their policies for member number reconciliation.
+   * Get first 140 customers (by createdAt) with their policies for member number reconciliation.
    * Each row is one policy (or one row per customer with no policy, policyNumber N/A).
    */
   async getMemberNumberReconciliationList(correlationId: string): Promise<
@@ -1593,11 +1593,11 @@ export class PolicyService {
       dependants: Array<{ fullName: string; memberNumber: string }>;
     }>
   > {
-    this.logger.log(`[${correlationId}] Fetching member number reconciliation list (first 100 customers)`);
+    this.logger.log(`[${correlationId}] Fetching member number reconciliation list (first 140 customers)`);
 
     const customers = await this.prismaService.customer.findMany({
       orderBy: { createdAt: 'asc' },
-      take: 100,
+      take: 140,
       include: {
         policies: { orderBy: { createdAt: 'asc' } },
         dependants: { where: { deletedAt: null } },
