@@ -34,12 +34,13 @@ export function parsePostpaidPaymentCsv(csvText: string): PostpaidSchemePaymentC
     if (parts.length < 4) continue;
     const name = parts[0] ?? '';
     const phoneNumber = parts[1] ?? '';
-    const amountRaw = parts[2]?.replace(/\s/g, '') ?? '0';
-    const amount = parseFloat(amountRaw) || 0;
+    const amountRaw = (parts[2] ?? '').trim();
+    const parsed = parseFloat(amountRaw.replace(/\s/g, ''));
+    const amount = Number.isFinite(parsed) ? parsed : 0;
     const idNumber = parts[3] ?? '';
     const paidDate = parts[4]?.trim() || null;
     if (!idNumber) continue;
-    rows.push({ name, phoneNumber, amount, idNumber, paidDate });
+    rows.push({ name, phoneNumber, amount, amountRaw, idNumber, paidDate });
   }
   return rows;
 }
@@ -114,16 +115,19 @@ export class PostpaidSchemePaymentService {
     }
 
     const packageSchemeIds = scheme.packageSchemes.map((ps) => ps.id);
-    const csvSum = csvRows.reduce((s, r) => s + r.amount, 0);
-    const amountMatch = Math.abs(csvSum - body.amount) < 0.01;
-    if (!amountMatch) {
-      errors.push(
-        `CSV total (${csvSum.toFixed(2)}) does not match entered amount (${body.amount})`
-      );
-    }
+    let csvSum = 0;
 
     for (let i = 0; i < csvRows.length; i++) {
       const row = csvRows[i];
+
+      // Amount must parse to a valid finite number and be > 0
+      const parsedAmount = parseFloat((row.amountRaw ?? '').replace(/\s/g, ''));
+      if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
+        const displayVal = (row.amountRaw ?? '').trim() || '(empty)';
+        errors.push(`Row ${i + 1}: Amount "${displayVal}" is not a valid number (must be greater than 0)`);
+        continue;
+      }
+
       const customer = await this.prisma.customer.findFirst({
         where: { idNumber: row.idNumber },
         select: { id: true },
@@ -160,9 +164,19 @@ export class PostpaidSchemePaymentService {
       }
       if (policy.paymentAcNumber !== row.idNumber) {
         errors.push(
-          `Row ${i + 1}: Policy payment account number does not match ID number for customer`
+          `Row ${i + 1}: Policy payment account number does not match ID number (${row.idNumber}) for Customer (${row.name})`
         );
+        continue;
       }
+
+      csvSum += row.amount;
+    }
+
+    const amountMatch = Math.abs(csvSum - body.amount) < 0.01;
+    if (!amountMatch) {
+      errors.push(
+        `CSV total (${csvSum.toFixed(2)}) does not match entered amount (${body.amount})`
+      );
     }
 
     if (errors.length > 0) {
@@ -262,6 +276,7 @@ export class PostpaidSchemePaymentService {
 
       for (let rowIndex = 1; rowIndex <= csvRows.length; rowIndex++) {
         const row = csvRows[rowIndex - 1];
+        if (row.amount <= 0) continue;
         const customer = await tx.customer.findFirst({
           where: { idNumber: row.idNumber },
           select: { id: true },

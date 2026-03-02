@@ -169,13 +169,14 @@ export class TestCustomersService {
     ]);
 
     if (testUserCustomers.length === 1) {
+      const c = testUserCustomers[0];
       return {
         customersCount: 1,
         totalCustomersWithPhone: totalWithPhone,
         customer: {
-          firstName: testUserCustomers[0].firstName,
-          lastName: testUserCustomers[0].lastName,
-          phoneNumber: testUserCustomers[0].phoneNumber,
+          firstName: c.firstName?.trim() ?? '',
+          lastName: c.lastName?.trim() ?? '',
+          phoneNumber: c.phoneNumber?.trim() ?? '',
         },
       };
     }

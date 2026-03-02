@@ -9,6 +9,18 @@ import { join } from 'path';
 import { existsSync } from 'fs';
 import { ValidationException } from '../exceptions/validation.exception';
 import { ErrorCodes } from '../enums/error-codes.enum';
+import { PolicyService } from './policy.service';
+
+/** Result of processing statement items into policy payments */
+export interface StatementItemsProcessingResult {
+  policyPaymentsCreated: number;
+  policyPaymentsSkippedAlreadyExist: number;
+  itemsUpdatedAsProcessed: number;
+  noPolicyMatch: number;
+  noAccountNumber: number;
+  zeroOrNegativePaidIn: number;
+  processingErrors: number;
+}
 
 interface ExcelHeaderData {
   accountHolder: string;
@@ -56,6 +68,7 @@ export class MpesaPaymentsService {
   constructor(
     private readonly prismaService: PrismaService,
     private readonly supabaseService: SupabaseService,
+    private readonly policyService: PolicyService,
   ) {}
 
   /**
@@ -490,10 +503,11 @@ export class MpesaPaymentsService {
     // Track statistics for deduplication
     const totalItems = transactions.length;
     let matchedIpnRecords = 0;
+    let matchedStatementRecords = 0;
     let gapsFilled = 0;
     let errors = 0;
 
-    // Check each transaction for existing IPN records before creating
+    // Check each transaction for existing records (IPN or STATEMENT) before creating
     const itemsToCreate: Array<{
       transactionReference: string;
       completionTime: Date;
@@ -520,28 +534,40 @@ export class MpesaPaymentsService {
       })
     );
 
-    // Process each transaction to check for IPN duplicates
+    // Collect IDs of existing items (IPN or STATEMENT) for policy payment processing
+    const existingItemIds: string[] = [];
+
+    // Process each transaction to check for existing records (IPN or STATEMENT)
     for (const transaction of transactions) {
       try {
-        // Check if IPN record already exists for this transaction reference
-        const existingIpnRecord = await this.prismaService.mpesaPaymentReportItem.findFirst({
-          where: {
-            transactionReference: transaction.transactionReference,
-            source: MpesaPaymentSource.IPN,
-          },
+        const existingRecord = await this.prismaService.mpesaPaymentReportItem.findFirst({
+          where: { transactionReference: transaction.transactionReference },
+          select: { id: true, source: true },
         });
 
-        if (existingIpnRecord) {
-          // IPN record exists - skip creating statement record (duplicate)
-          matchedIpnRecords++;
-          this.logger.debug(
-            JSON.stringify({
-              event: 'STATEMENT_ITEM_MATCHED_IPN',
-              correlationId,
-              transactionReference: transaction.transactionReference,
-              timestamp: new Date().toISOString(),
-            })
-          );
+        if (existingRecord) {
+          existingItemIds.push(existingRecord.id);
+          if (existingRecord.source === MpesaPaymentSource.IPN) {
+            matchedIpnRecords++;
+            this.logger.debug(
+              JSON.stringify({
+                event: 'STATEMENT_ITEM_MATCHED_IPN',
+                correlationId,
+                transactionReference: transaction.transactionReference,
+                timestamp: new Date().toISOString(),
+              })
+            );
+          } else {
+            matchedStatementRecords++;
+            this.logger.debug(
+              JSON.stringify({
+                event: 'STATEMENT_ITEM_MATCHED_STATEMENT',
+                correlationId,
+                transactionReference: transaction.transactionReference,
+                timestamp: new Date().toISOString(),
+              })
+            );
+          }
         } else {
           // No IPN record - create statement record (gap filled)
           itemsToCreate.push({
@@ -579,14 +605,15 @@ export class MpesaPaymentsService {
     }
 
     // Validate statistics equation
-    const calculatedTotal = matchedIpnRecords + gapsFilled + errors;
+    const calculatedTotal = matchedIpnRecords + matchedStatementRecords + gapsFilled + errors;
     if (calculatedTotal !== totalItems) {
-      const errorMessage = `Statistics validation failed: matchedIpnRecords (${matchedIpnRecords}) + gapsFilled (${gapsFilled}) + errors (${errors}) = ${calculatedTotal}, but totalItems = ${totalItems}`;
+      const errorMessage = `Statistics validation failed: matchedIpnRecords (${matchedIpnRecords}) + matchedStatementRecords (${matchedStatementRecords}) + gapsFilled (${gapsFilled}) + errors (${errors}) = ${calculatedTotal}, but totalItems = ${totalItems}`;
       this.logger.error(
         JSON.stringify({
           event: 'STATEMENT_STATISTICS_VALIDATION_ERROR',
           correlationId,
           matchedIpnRecords,
+          matchedStatementRecords,
           gapsFilled,
           errors,
           totalItems,
@@ -649,12 +676,41 @@ export class MpesaPaymentsService {
         uploadId: upload.id,
         totalItems,
         matchedIpnRecords,
+        matchedStatementRecords,
         gapsFilled,
         errors,
         itemsCreated: upload._count.items,
         timestamp: new Date().toISOString(),
       })
     );
+
+    // Process newly created STATEMENT items into policy_payments
+    let processing: StatementItemsProcessingResult = {
+      policyPaymentsCreated: 0,
+      policyPaymentsSkippedAlreadyExist: 0,
+      itemsUpdatedAsProcessed: 0,
+      noPolicyMatch: 0,
+      noAccountNumber: 0,
+      zeroOrNegativePaidIn: 0,
+      processingErrors: 0,
+    };
+
+    const createdItemIds =
+      upload._count.items > 0
+        ? (
+            await this.prismaService.mpesaPaymentReportItem.findMany({
+              where: { mpesaPaymentReportUploadId: upload.id },
+              select: { id: true },
+            })
+          ).map((i) => i.id)
+        : [];
+    const allItemIdsToProcess = [...new Set([...createdItemIds, ...existingItemIds])];
+    if (allItemIdsToProcess.length > 0) {
+      processing = await this.processStatementItemsToPolicyPayments(
+        allItemIdsToProcess,
+        correlationId
+      );
+    }
 
     return {
       upload: {
@@ -679,9 +735,176 @@ export class MpesaPaymentsService {
       itemsCount: upload._count.items,
       totalItems,
       matchedIpnRecords,
+      matchedStatementRecords,
       gapsFilled,
       errors,
+      ...processing,
     };
+  }
+
+  /**
+   * Normalize account number for matching (trim, remove spaces).
+   * Used to match mpesa_payment_report_items.accountNumber with policies.paymentAcNumber.
+   */
+  private normalizeAccountNumber(value: string | null | undefined): string {
+    if (!value || typeof value !== 'string') return '';
+    return value.trim().replace(/\s/g, '');
+  }
+
+  /**
+   * Process MpesaPaymentReportItems (IPN or STATEMENT) into policy_payments.
+   * Groups items by accountNumber for efficient policy lookups, matches policies by paymentAcNumber,
+   * and creates policy_payments records when they don't exist.
+   * If policy_payment already exists: sets isProcessed=true and isMapped=true on the item (sync).
+   * Updates isProcessed and isMapped only when the item is successfully matched to a policy_payment.
+   */
+  async processStatementItemsToPolicyPayments(
+    itemIds: string[],
+    correlationId: string
+  ): Promise<StatementItemsProcessingResult> {
+    const result: StatementItemsProcessingResult = {
+      policyPaymentsCreated: 0,
+      policyPaymentsSkippedAlreadyExist: 0,
+      itemsUpdatedAsProcessed: 0,
+      noPolicyMatch: 0,
+      noAccountNumber: 0,
+      zeroOrNegativePaidIn: 0,
+      processingErrors: 0,
+    };
+
+    if (itemIds.length === 0) return result;
+
+    const items = await this.prismaService.mpesaPaymentReportItem.findMany({
+      where: { id: { in: itemIds } },
+      select: {
+        id: true,
+        transactionReference: true,
+        paidIn: true,
+        completionTime: true,
+        accountNumber: true,
+        isProcessed: true,
+        isMapped: true,
+      },
+    });
+
+    // Group by normalized accountNumber
+    const byAccount = new Map<string, typeof items>();
+    for (const item of items) {
+      const norm = this.normalizeAccountNumber(item.accountNumber);
+      if (!norm) {
+        result.noAccountNumber++;
+        continue;
+      }
+      const paidIn = Number(item.paidIn);
+      if (paidIn <= 0) {
+        result.zeroOrNegativePaidIn++;
+        continue;
+      }
+      if (!byAccount.has(norm)) byAccount.set(norm, []);
+      byAccount.get(norm)!.push(item);
+    }
+
+    // Batch-fetch policies by paymentAcNumber (accountNumber == paymentAcNumber)
+    const accountNumbers = Array.from(byAccount.keys());
+    const policies = await this.prismaService.policy.findMany({
+      where: {
+        paymentAcNumber: { not: null },
+      },
+      select: {
+        id: true,
+        status: true,
+        paymentAcNumber: true,
+      },
+    });
+
+    const policyByAccount = new Map<string, { id: string; status: string }>();
+    for (const p of policies) {
+      const norm = this.normalizeAccountNumber(p.paymentAcNumber);
+      if (norm) policyByAccount.set(norm, { id: p.id, status: p.status });
+    }
+
+    // Check which transactionReferences already exist in policy_payments
+    const refs = items.map((i) => i.transactionReference);
+    const existingPayments = await this.prismaService.policyPayment.findMany({
+      where: { transactionReference: { in: refs } },
+      select: { transactionReference: true },
+    });
+    const existingRefs = new Set(existingPayments.map((p) => p.transactionReference));
+
+    for (const [accountNorm, groupItems] of byAccount) {
+      const policy = policyByAccount.get(accountNorm);
+      if (!policy) {
+        result.noPolicyMatch += groupItems.length;
+        continue;
+      }
+
+      for (const item of groupItems) {
+        try {
+          if (existingRefs.has(item.transactionReference)) {
+            result.policyPaymentsSkippedAlreadyExist++;
+            if (!item.isProcessed || !item.isMapped) {
+              await this.prismaService.mpesaPaymentReportItem.update({
+                where: { id: item.id },
+                data: { isProcessed: true, isMapped: true },
+              });
+              result.itemsUpdatedAsProcessed++;
+            }
+            continue;
+          }
+
+          await this.prismaService.$transaction(async (tx) => {
+            const payment = await tx.policyPayment.create({
+              data: {
+                policyId: policy.id,
+                paymentType: 'MPESA',
+                transactionReference: item.transactionReference,
+                amount: Number(item.paidIn),
+                accountNumber: item.accountNumber,
+                expectedPaymentDate: item.completionTime,
+                actualPaymentDate: item.completionTime,
+                details: 'M-Pesa statement import',
+              },
+            });
+
+            await tx.mpesaPaymentReportItem.update({
+              where: { id: item.id },
+              data: { isProcessed: true, isMapped: true },
+            });
+
+            existingRefs.add(item.transactionReference);
+            result.policyPaymentsCreated++;
+            result.itemsUpdatedAsProcessed++;
+
+            if (policy.status === 'PENDING_ACTIVATION') {
+              await this.policyService.activatePolicy(policy.id, correlationId, tx);
+            }
+          });
+        } catch (error) {
+          result.processingErrors++;
+          this.logger.error(
+            JSON.stringify({
+              event: 'STATEMENT_ITEM_POLICY_PAYMENT_ERROR',
+              correlationId,
+              itemId: item.id,
+              transactionReference: item.transactionReference,
+              error: error instanceof Error ? error.message : 'Unknown error',
+              timestamp: new Date().toISOString(),
+            })
+          );
+        }
+      }
+    }
+
+    this.logger.log(
+      JSON.stringify({
+        event: 'STATEMENT_ITEMS_PROCESSED_TO_POLICY_PAYMENTS',
+        correlationId,
+        ...result,
+        timestamp: new Date().toISOString(),
+      })
+    );
+
+    return result;
   }
 
   /**
