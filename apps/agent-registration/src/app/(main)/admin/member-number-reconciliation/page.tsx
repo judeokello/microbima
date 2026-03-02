@@ -101,7 +101,7 @@ export default function MemberNumberReconciliationPage() {
       <div>
         <h1 className="text-2xl font-bold">Member Number Reconciliation</h1>
         <p className="text-muted-foreground mt-1">
-          First 50 customers by creation date. Align policy numbers and member numbers with issued cards. Temporary feature.
+          First 140 customers by creation date. Align policy numbers and member numbers with issued cards. Temporary feature.
         </p>
       </div>
 
