@@ -1411,6 +1411,104 @@ export class PolicyService {
   }
 
   /**
+   * Get customers with no policy and no M-Pesa payments (accountNumber matching idNumber).
+   * Used for recovery: create policy record only (PENDING_ACTIVATION); activation on first payment.
+   */
+  async getCustomersWithoutPolicyAndWithoutPayments(
+    _correlationId: string
+  ): Promise<
+    Array<{
+      id: string;
+      fullName: string;
+      idNumber: string;
+      packageId: number;
+      packageName: string;
+      payments: Array<{
+        id: string;
+        transactionReference: string;
+        paidIn: number;
+        completionTime: Date;
+        accountNumber: string | null;
+      }>;
+      earliestPaymentDate: Date | null;
+    }>
+  > {
+    const payments = await this.prismaService.mpesaPaymentReportItem.findMany({
+      where: {
+        accountNumber: { not: null },
+        paidIn: { gt: 0 },
+      },
+      select: {
+        accountNumber: true,
+      },
+    });
+    const accountNumbersWithPayments = new Set<string>();
+    for (const p of payments) {
+      const accountNum = p.accountNumber?.trim().replace(/\s/g, '') ?? '';
+      if (accountNum) accountNumbersWithPayments.add(accountNum);
+    }
+
+    const allCustomers = await this.prismaService.customer.findMany({
+      select: {
+        id: true,
+        firstName: true,
+        middleName: true,
+        lastName: true,
+        idNumber: true,
+      },
+    });
+
+    const result: Array<{
+      id: string;
+      fullName: string;
+      idNumber: string;
+      packageId: number;
+      packageName: string;
+      payments: Array<never>;
+      earliestPaymentDate: Date | null;
+    }> = [];
+
+    for (const customer of allCustomers) {
+      const idNum = customer.idNumber?.trim().replace(/\s/g, '') ?? '';
+      if (!idNum) continue;
+      if (accountNumbersWithPayments.has(idNum)) continue;
+
+      const hasPolicy = await this.prismaService.policy.findFirst({
+        where: { customerId: customer.id },
+        select: { id: true },
+      });
+      if (hasPolicy) continue;
+
+      const psc = await this.prismaService.packageSchemeCustomer.findFirst({
+        where: { customerId: customer.id },
+        include: {
+          packageScheme: {
+            include: {
+              package: { select: { id: true, name: true } },
+            },
+          },
+        },
+      });
+      if (!psc?.packageScheme?.package) continue;
+
+      const fullName = [customer.firstName, customer.middleName, customer.lastName]
+        .filter(Boolean)
+        .join(' ');
+      result.push({
+        id: customer.id,
+        fullName,
+        idNumber: customer.idNumber ?? '',
+        packageId: psc.packageScheme.package.id,
+        packageName: psc.packageScheme.package.name,
+        payments: [],
+        earliestPaymentDate: null,
+      });
+    }
+
+    return result;
+  }
+
+  /**
    * Create policy from recovery flow - for customers whose policy creation failed.
    * Creates policy, policy_payments (from M-Pesa items), then activates.
    */
@@ -1533,6 +1631,67 @@ export class PolicyService {
       await this.activatePolicy(policy.id, correlationId, tx);
 
       return policy;
+    });
+  }
+
+  /**
+   * Create policy record only (no payments, no activation). For customers with no policy and no M-Pesa payments.
+   * Policy stays PENDING_ACTIVATION; policyNumber, startDate, endDate null until activatePolicy() runs (e.g. on first payment).
+   */
+  async createPolicyWithoutPayments(
+    data: {
+      customerId: string;
+      packageId: number;
+      packagePlanId: number;
+      premium: number;
+      frequency: PaymentFrequency;
+      customDays?: number;
+    },
+    _correlationId: string
+  ) {
+    const customer = await this.prismaService.customer.findUnique({
+      where: { id: data.customerId },
+      select: { id: true, idNumber: true },
+    });
+    if (!customer) {
+      throw new NotFoundException(`Customer ${data.customerId} not found`);
+    }
+
+    const packageData = await this.prismaService.package.findUnique({
+      where: { id: data.packageId },
+      include: {
+        packagePlans: { where: { id: data.packagePlanId } },
+      },
+    });
+    if (!packageData || !packageData.packagePlans[0]) {
+      throw new NotFoundException(
+        `Package plan ${data.packagePlanId} not found for package ${data.packageId}`
+      );
+    }
+
+    const plan = packageData.packagePlans[0];
+    const productName = `${packageData.name} ${plan.name}`;
+    if (data.frequency === PaymentFrequency.CUSTOM && (!data.customDays || data.customDays <= 0)) {
+      throw new BadRequestException('Custom days must be provided when frequency is CUSTOM');
+    }
+    const paymentCadence = this.calculatePaymentCadence(data.frequency, data.customDays);
+    const paymentAcNumber = customer.idNumber ?? null;
+
+    return this.prismaService.policy.create({
+      data: {
+        policyNumber: null,
+        status: 'PENDING_ACTIVATION',
+        customerId: data.customerId,
+        packageId: data.packageId,
+        packagePlanId: data.packagePlanId,
+        paymentAcNumber,
+        productName,
+        startDate: null,
+        endDate: null,
+        premium: data.premium,
+        frequency: data.frequency,
+        paymentCadence,
+      },
     });
   }
 
@@ -1688,8 +1847,9 @@ export class PolicyService {
   }
 
   /**
-   * Reconcile policy member numbers: set new policy number and regenerate principal + dependant
-   * member numbers using package format (spouses first 01, 02, then others).
+   * Reconcile policy member numbers: set new policy number and ensure principal + dependant
+   * member records exist. Creates missing policy_member_principal and policy_member_dependant
+   * records (spouses first 01, 02, then others); updates existing records with new member numbers.
    */
   async reconcilePolicyMemberNumbers(
     policyId: string,
@@ -1745,18 +1905,28 @@ export class PolicyService {
       const principal = await tx.policyMemberPrincipal.findFirst({
         where: { customerId: policy.customerId },
       });
+      const principalMemberNumber = await this.generateMemberNumber(
+        policy.packageId,
+        newPolicyNumber,
+        tx,
+        correlationId,
+        0
+      );
       if (principal) {
-        const newPrincipalNumber = await this.generateMemberNumber(
-          policy.packageId,
-          newPolicyNumber,
-          tx,
-          correlationId,
-          0
-        );
         await tx.policyMemberPrincipal.update({
           where: { id: principal.id },
-          data: { memberNumber: newPrincipalNumber, updatedAt: new Date() },
+          data: { memberNumber: principalMemberNumber, updatedAt: new Date() },
         });
+      } else {
+        await tx.policyMemberPrincipal.create({
+          data: {
+            customerId: policy.customerId,
+            memberNumber: principalMemberNumber,
+          },
+        });
+        this.logger.log(
+          `[${correlationId}] Created missing principal member record with number ${principalMemberNumber} for customer ${policy.customerId}`
+        );
       }
 
       const orderedDependants = this.orderDependantsForMemberNumbers(policy.customer.dependants);
@@ -1765,18 +1935,28 @@ export class PolicyService {
         const pmd = await tx.policyMemberDependant.findFirst({
           where: { dependantId: dependant.id },
         });
+        const dependantMemberNumber = await this.generateMemberNumber(
+          policy.packageId,
+          newPolicyNumber,
+          tx,
+          correlationId,
+          i + 1
+        );
         if (pmd) {
-          const newMemberNumber = await this.generateMemberNumber(
-            policy.packageId,
-            newPolicyNumber,
-            tx,
-            correlationId,
-            i + 1
-          );
           await tx.policyMemberDependant.update({
             where: { id: pmd.id },
-            data: { memberNumber: newMemberNumber, updatedAt: new Date() },
+            data: { memberNumber: dependantMemberNumber, updatedAt: new Date() },
           });
+        } else {
+          await tx.policyMemberDependant.create({
+            data: {
+              dependantId: dependant.id,
+              memberNumber: dependantMemberNumber,
+            },
+          });
+          this.logger.log(
+            `[${correlationId}] Created missing dependant member record with number ${dependantMemberNumber} for dependant ${dependant.id}`
+          );
         }
       }
     });

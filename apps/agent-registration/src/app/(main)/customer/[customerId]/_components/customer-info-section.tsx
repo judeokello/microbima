@@ -4,7 +4,57 @@ import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Pencil } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import EditCustomerDialog from './edit-customer-dialog';
+
+type CustomerStatusKey =
+  | 'ACTIVE'
+  | 'PENDING_ACTIVATION'
+  | 'PENDING_KYC'
+  | 'SUSPENDED'
+  | 'DELETED'
+  | 'TERMINATED'
+  | 'KYC_VERIFIED';
+
+function getCustomerStatusDisplay(status: string): { label: string; className: string } {
+  const map: Record<CustomerStatusKey, { label: string; className: string }> = {
+    ACTIVE: {
+      label: 'Active',
+      className: 'bg-green-50 text-green-700 border-green-200',
+    },
+    PENDING_ACTIVATION: {
+      label: 'Pending Activation',
+      className: 'bg-blue-50 text-blue-700 border-blue-200',
+    },
+    PENDING_KYC: {
+      label: 'KYC Pending',
+      className: 'bg-amber-50 text-amber-700 border-amber-200',
+    },
+    SUSPENDED: {
+      label: 'Suspended',
+      className: 'bg-amber-100 text-amber-800 border-amber-300',
+    },
+    DELETED: {
+      label: 'Deleted',
+      className: 'bg-red-50 text-red-700 border-red-200',
+    },
+    TERMINATED: {
+      label: 'Terminated',
+      className: 'bg-red-50 text-red-700 border-red-200',
+    },
+    KYC_VERIFIED: {
+      label: 'KYC Verified',
+      className: 'bg-green-50 text-green-700 border-green-200',
+    },
+  };
+  const key = status as CustomerStatusKey;
+  return (
+    map[key] ?? {
+      label: status,
+      className: 'bg-muted text-muted-foreground border-border',
+    }
+  );
+}
 
 interface CustomerInfoSectionProps {
   customer: {
@@ -23,6 +73,7 @@ interface CustomerInfoSectionProps {
     createdByDisplayName?: string;
     memberNumber?: string | null;
     memberNumberCreatedAt?: string | null;
+    status?: string;
   };
   canEdit: boolean;
   onUpdate: () => void;
@@ -128,6 +179,21 @@ export default function CustomerInfoSection({ customer, canEdit, onUpdate }: Cus
                 <p className="text-gray-900">{customer.createdByDisplayName ?? customer.createdBy}</p>
               </div>
             )}
+            {/* Spacer so Status appears in second column, below Created By */}
+            <div />
+            {customer.status != null && customer.status !== '' && (() => {
+              const { label, className } = getCustomerStatusDisplay(customer.status);
+              return (
+                <div className="md:col-start-2">
+                  <label className="text-sm font-medium text-gray-500">Status</label>
+                  <div className="mt-1">
+                    <Badge variant="outline" className={className}>
+                      {label}
+                    </Badge>
+                  </div>
+                </div>
+              );
+            })()}
           </div>
         </CardContent>
       </Card>

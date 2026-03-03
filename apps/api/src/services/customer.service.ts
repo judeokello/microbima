@@ -1719,24 +1719,26 @@ export class CustomerService {
   }
 
   /**
-   * Search customers by name, ID number, phone number, or email
+   * Search customers by name, ID number, phone number, email, or member number
    * Uses partial matching (LIKE query) for all search fields
-   * Name search searches across firstName, middleName, and lastName
+   * Name search: each space-separated token must match at least one of firstName, middleName, lastName (e.g. "Simon Gateri" matches both names)
+   * Member number: suffix 00 = principal (policy_member_principals), 01/02/... = dependant (policy_member_dependants); returns max 10 when used
    */
   async searchCustomers(
     name?: string,
     idNumber?: string,
     phoneNumber?: string,
     email?: string,
+    memberNumber?: string,
     page: number = 1,
     pageSize: number = 20,
     correlationId: string = 'unknown'
   ) {
     try {
-      this.logger.log(`[${correlationId}] Searching customers: name=${name}, idNumber=${idNumber}, phoneNumber=${phoneNumber}, email=${email}`);
+      this.logger.log(`[${correlationId}] Searching customers: name=${name}, idNumber=${idNumber}, phoneNumber=${phoneNumber}, email=${email}, memberNumber=${memberNumber}`);
 
       // At least one search parameter must be provided
-      if (!name && !idNumber && !phoneNumber && !email) {
+      if (!name && !idNumber && !phoneNumber && !email && !memberNumber) {
         return {
           data: [],
           pagination: {
@@ -1751,33 +1753,71 @@ export class CustomerService {
       }
 
       const skip = (page - 1) * pageSize;
+      const MEMBER_NUMBER_MAX_RESULTS = 10;
 
-      // Build OR conditions for partial matching
+      // Resolve member number to up to 10 customer IDs when memberNumber is provided
+      let memberNumberCustomerIds: string[] = [];
+      if (memberNumber?.trim()) {
+        const trimmed = memberNumber.trim();
+        const suffix = trimmed.length >= 2 ? trimmed.slice(-2) : '';
+        const isPrincipal = suffix === '00';
+
+        if (isPrincipal) {
+          const principals = await this.prismaService.policyMemberPrincipal.findMany({
+            where: {
+              memberNumber: {
+                contains: trimmed,
+                mode: 'insensitive',
+              },
+            },
+            select: { customerId: true },
+            take: MEMBER_NUMBER_MAX_RESULTS,
+          });
+          memberNumberCustomerIds = [...new Set(principals.map((p) => p.customerId))];
+        } else {
+          const dependants = await this.prismaService.policyMemberDependant.findMany({
+            where: {
+              memberNumber: {
+                contains: trimmed,
+                mode: 'insensitive',
+              },
+            },
+            select: { dependant: { select: { customerId: true } } },
+            take: MEMBER_NUMBER_MAX_RESULTS,
+          });
+          memberNumberCustomerIds = [...new Set(dependants.map((d) => d.dependant.customerId))];
+        }
+        // When member number is used but matched no records, return empty
+        if (memberNumberCustomerIds.length === 0) {
+          return {
+            data: [],
+            pagination: {
+              page: 1,
+              pageSize,
+              totalItems: 0,
+              totalPages: 0,
+              hasNextPage: false,
+              hasPreviousPage: false,
+            },
+          };
+        }
+      }
+
+      // Build OR conditions for partial matching (name, idNumber, phone, email)
       const orConditions: Prisma.CustomerWhereInput[] = [];
 
-      if (name) {
-        // Search across firstName, middleName, and lastName
-        orConditions.push({
+      if (name?.trim()) {
+        // Each token must match at least one of firstName, middleName, lastName (AND of ORs)
+        const tokens = name.trim().split(/\s+/).filter(Boolean);
+        const tokenConditions = tokens.map((token) => ({
           OR: [
-            {
-              firstName: {
-                contains: name,
-                mode: 'insensitive',
-              },
-            },
-            {
-              middleName: {
-                contains: name,
-                mode: 'insensitive',
-              },
-            },
-            {
-              lastName: {
-                contains: name,
-                mode: 'insensitive',
-              },
-            },
+            { firstName: { contains: token, mode: 'insensitive' as const } },
+            { middleName: { contains: token, mode: 'insensitive' as const } },
+            { lastName: { contains: token, mode: 'insensitive' as const } },
           ],
+        }));
+        orConditions.push({
+          AND: tokenConditions,
         });
       }
 
@@ -1808,9 +1848,28 @@ export class CustomerService {
         });
       }
 
-      const whereClause = {
-        OR: orConditions,
-      };
+      // When only member number is used, filter by customer IDs only; no other OR conditions
+      let whereClause: Prisma.CustomerWhereInput;
+      if (memberNumber?.trim() && memberNumberCustomerIds.length > 0 && orConditions.length === 0) {
+        whereClause = { id: { in: memberNumberCustomerIds } };
+      } else if (memberNumber?.trim() && memberNumberCustomerIds.length > 0 && orConditions.length > 0) {
+        whereClause = {
+          AND: [
+            { id: { in: memberNumberCustomerIds } },
+            { OR: orConditions },
+          ],
+        };
+      } else {
+        whereClause = { OR: orConditions };
+      }
+
+      // When filtering by member number only, cap at 10 and use pageSize 10 for that path
+      const effectiveTake = memberNumber?.trim() && memberNumberCustomerIds.length > 0 && orConditions.length === 0
+        ? MEMBER_NUMBER_MAX_RESULTS
+        : pageSize;
+      const effectiveSkip = memberNumber?.trim() && memberNumberCustomerIds.length > 0 && orConditions.length === 0
+        ? 0
+        : skip;
 
       // Get customers with dependant and beneficiary counts
       const [customers, totalCount] = await Promise.all([
@@ -1839,8 +1898,8 @@ export class CustomerService {
           orderBy: {
             createdAt: 'desc',
           },
-          skip,
-          take: pageSize,
+          skip: effectiveSkip,
+          take: effectiveTake,
         }),
         this.prismaService.customer.count({
           where: whereClause,
@@ -2194,6 +2253,7 @@ export class CustomerService {
           createdByDisplayName: createdByDisplayName,
           memberNumber: principalMember?.memberNumber ?? null,
           memberNumberCreatedAt: principalMember?.createdAt.toISOString() ?? null,
+          status: customer.status,
         },
         beneficiaries,
         dependants,

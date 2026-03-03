@@ -293,6 +293,7 @@ export class CustomerDetailDataDto {
     createdByDisplayName?: string;
     memberNumber?: string | null;
     memberNumberCreatedAt?: string | null;
+    status: string;
   };
 
   @ApiProperty({

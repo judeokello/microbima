@@ -1,8 +1,11 @@
 import { ApiProperty } from '@nestjs/swagger';
+import { IsInt, Min } from 'class-validator';
 
 /** Request body for PATCH .../customers/:customerId/policies/:policyId/scheme */
 export class UpdateCustomerPolicySchemeDto {
   @ApiProperty({ description: 'New PackageScheme id (must be for the same package)' })
+  @IsInt()
+  @Min(1)
   packageSchemeId: number;
 }
 
