@@ -1688,8 +1688,9 @@ export class PolicyService {
   }
 
   /**
-   * Reconcile policy member numbers: set new policy number and regenerate principal + dependant
-   * member numbers using package format (spouses first 01, 02, then others).
+   * Reconcile policy member numbers: set new policy number and ensure principal + dependant
+   * member records exist. Creates missing policy_member_principal and policy_member_dependant
+   * records (spouses first 01, 02, then others); updates existing records with new member numbers.
    */
   async reconcilePolicyMemberNumbers(
     policyId: string,
@@ -1745,18 +1746,28 @@ export class PolicyService {
       const principal = await tx.policyMemberPrincipal.findFirst({
         where: { customerId: policy.customerId },
       });
+      const principalMemberNumber = await this.generateMemberNumber(
+        policy.packageId,
+        newPolicyNumber,
+        tx,
+        correlationId,
+        0
+      );
       if (principal) {
-        const newPrincipalNumber = await this.generateMemberNumber(
-          policy.packageId,
-          newPolicyNumber,
-          tx,
-          correlationId,
-          0
-        );
         await tx.policyMemberPrincipal.update({
           where: { id: principal.id },
-          data: { memberNumber: newPrincipalNumber, updatedAt: new Date() },
+          data: { memberNumber: principalMemberNumber, updatedAt: new Date() },
         });
+      } else {
+        await tx.policyMemberPrincipal.create({
+          data: {
+            customerId: policy.customerId,
+            memberNumber: principalMemberNumber,
+          },
+        });
+        this.logger.log(
+          `[${correlationId}] Created missing principal member record with number ${principalMemberNumber} for customer ${policy.customerId}`
+        );
       }
 
       const orderedDependants = this.orderDependantsForMemberNumbers(policy.customer.dependants);
@@ -1765,18 +1776,28 @@ export class PolicyService {
         const pmd = await tx.policyMemberDependant.findFirst({
           where: { dependantId: dependant.id },
         });
+        const dependantMemberNumber = await this.generateMemberNumber(
+          policy.packageId,
+          newPolicyNumber,
+          tx,
+          correlationId,
+          i + 1
+        );
         if (pmd) {
-          const newMemberNumber = await this.generateMemberNumber(
-            policy.packageId,
-            newPolicyNumber,
-            tx,
-            correlationId,
-            i + 1
-          );
           await tx.policyMemberDependant.update({
             where: { id: pmd.id },
-            data: { memberNumber: newMemberNumber, updatedAt: new Date() },
+            data: { memberNumber: dependantMemberNumber, updatedAt: new Date() },
           });
+        } else {
+          await tx.policyMemberDependant.create({
+            data: {
+              dependantId: dependant.id,
+              memberNumber: dependantMemberNumber,
+            },
+          });
+          this.logger.log(
+            `[${correlationId}] Created missing dependant member record with number ${dependantMemberNumber} for dependant ${dependant.id}`
+          );
         }
       }
     });
