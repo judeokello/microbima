@@ -69,6 +69,36 @@ export class RecoveryController {
     };
   }
 
+  @Get('customers-without-policy-no-payments')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Get customers with no policy and no M-Pesa payments',
+    description:
+      'Returns customers who have a package (from scheme) but no policy and no payment records matching their idNumber. For recovery: create policy only (PENDING_ACTIVATION); activation on first payment.',
+  })
+  @ApiResponse({ status: 200, description: 'List of customers with no payments' })
+  async getCustomersWithoutPolicyNoPayments(
+    @CorrelationId() correlationId: string
+  ): Promise<GetCustomersWithoutPoliciesResponseDto> {
+    const customers =
+      await this.policyService.getCustomersWithoutPolicyAndWithoutPayments(
+        correlationId
+      );
+    return {
+      customers: customers.map((c) => ({
+        id: c.id,
+        fullName: c.fullName,
+        idNumber: c.idNumber,
+        packageId: c.packageId,
+        packageName: c.packageName,
+        payments: [],
+        earliestPaymentDate: c.earliestPaymentDate
+          ? c.earliestPaymentDate.toISOString()
+          : '',
+      })),
+    };
+  }
+
   @Post('create-policy')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
@@ -98,6 +128,48 @@ export class RecoveryController {
       status: HttpStatus.CREATED,
       correlationId,
       message: 'Policy created and activated successfully',
+      policy: {
+        id: policy.id,
+        policyNumber: policy.policyNumber,
+        status: policy.status,
+        productName: policy.productName,
+        premium: Number(policy.premium),
+        startDate: policy.startDate?.toISOString() ?? '',
+        endDate: policy.endDate?.toISOString() ?? '',
+        paymentAcNumber: policy.paymentAcNumber,
+      },
+    };
+  }
+
+  @Post('create-policy-no-payments')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({
+    summary: 'Create policy only (no payments, no activation)',
+    description:
+      'Creates policy record with PENDING_ACTIVATION; policyNumber, startDate, endDate null. For customers with no policy and no M-Pesa payments. Activation (and member records) happen when first payment is received.',
+  })
+  @ApiResponse({ status: 201, description: 'Policy created' })
+  @ApiResponse({ status: 400, description: 'Validation error' })
+  @ApiResponse({ status: 404, description: 'Customer or package not found' })
+  async createPolicyWithoutPayments(
+    @Body() body: CreatePolicyFromRecoveryRequestDto,
+    @CorrelationId() correlationId: string
+  ) {
+    const policy = await this.policyService.createPolicyWithoutPayments(
+      {
+        customerId: body.customerId,
+        packageId: body.packageId,
+        packagePlanId: body.packagePlanId,
+        premium: body.premium,
+        frequency: body.frequency,
+        customDays: body.customDays,
+      },
+      correlationId
+    );
+    return {
+      status: HttpStatus.CREATED,
+      correlationId,
+      message: 'Policy created (pending activation on first payment)',
       policy: {
         id: policy.id,
         policyNumber: policy.policyNumber,

@@ -2194,6 +2194,7 @@ export class CustomerService {
           createdByDisplayName: createdByDisplayName,
           memberNumber: principalMember?.memberNumber ?? null,
           memberNumberCreatedAt: principalMember?.createdAt.toISOString() ?? null,
+          status: customer.status,
         },
         beneficiaries,
         dependants,

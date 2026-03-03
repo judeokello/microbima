@@ -875,6 +875,7 @@ export interface CustomerDetailData {
     createdByDisplayName?: string
     memberNumber?: string | null
     memberNumberCreatedAt?: string | null
+    status?: string
   }
   beneficiaries: Array<{
     id: string
@@ -2013,6 +2014,27 @@ export async function getCustomersWithoutPolicies(): Promise<{ customers: Recove
   return response.json()
 }
 
+export async function getCustomersWithoutPolicyNoPayments(): Promise<{
+  customers: RecoveryCustomer[]
+}> {
+  const token = await getSupabaseToken()
+  const response = await fetch(
+    `${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/recovery/customers-without-policy-no-payments`,
+    {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'x-correlation-id': `recovery-no-payments-${Date.now()}`
+      }
+    }
+  )
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}))
+    throw new Error(err?.error?.message ?? `Failed to fetch: ${response.statusText}`)
+  }
+  return response.json()
+}
+
 export async function createPolicyFromRecovery(
   data: CreatePolicyFromRecoveryRequest
 ): Promise<{ policy: { id: string; policyNumber: string; status: string } }> {
@@ -2032,6 +2054,31 @@ export async function createPolicyFromRecovery(
   if (!response.ok) {
     const err = await response.json().catch(() => ({}))
     throw new Error(err?.error?.message ?? `Failed to create policy: ${response.statusText}`)
+  }
+  return response.json()
+}
+
+export async function createPolicyWithoutPayments(
+  data: CreatePolicyFromRecoveryRequest
+): Promise<{ policy: { id: string; policyNumber: string | null; status: string } }> {
+  const token = await getSupabaseToken()
+  const response = await fetch(
+    `${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/recovery/create-policy-no-payments`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+        'x-correlation-id': `recovery-create-no-payments-${Date.now()}`
+      },
+      body: JSON.stringify(data)
+    }
+  )
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}))
+    throw new Error(
+      err?.error?.message ?? `Failed to create policy: ${response.statusText}`
+    )
   }
   return response.json()
 }

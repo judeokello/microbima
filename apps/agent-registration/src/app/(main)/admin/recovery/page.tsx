@@ -23,7 +23,9 @@ import {
 } from '@/components/ui/select';
 import {
   getCustomersWithoutPolicies,
+  getCustomersWithoutPolicyNoPayments,
   createPolicyFromRecovery,
+  createPolicyWithoutPayments,
   getPackagePlans,
   type RecoveryCustomer,
   type Plan,
@@ -71,7 +73,8 @@ const FREQUENCY_OPTIONS = [
 ];
 
 export default function RecoveryPage() {
-  const [customers, setCustomers] = useState<RecoveryCustomer[]>([]);
+  const [customersWithPayments, setCustomersWithPayments] = useState<RecoveryCustomer[]>([]);
+  const [customersNoPayments, setCustomersNoPayments] = useState<RecoveryCustomer[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
@@ -93,8 +96,12 @@ export default function RecoveryPage() {
     try {
       setLoading(true);
       setError(null);
-      const res = await getCustomersWithoutPolicies();
-      setCustomers(res.customers);
+      const [withPaymentsRes, noPaymentsRes] = await Promise.all([
+        getCustomersWithoutPolicies(),
+        getCustomersWithoutPolicyNoPayments(),
+      ]);
+      setCustomersWithPayments(withPaymentsRes.customers);
+      setCustomersNoPayments(noPaymentsRes.customers);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load');
     } finally {
@@ -180,17 +187,29 @@ export default function RecoveryPage() {
       setError('Custom days required for CUSTOM frequency');
       return;
     }
+    const hasPayments = selectedCustomer.payments.length > 0;
     try {
       setSubmitting(true);
       setError(null);
-      await createPolicyFromRecovery({
-        customerId: selectedCustomer.id,
-        packageId: selectedCustomer.packageId,
-        packagePlanId,
-        premium,
-        frequency: formData.frequency as 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'QUARTERLY' | 'ANNUALLY' | 'CUSTOM',
-        customDays: formData.frequency === 'CUSTOM' ? parseInt(formData.customDays, 10) : undefined,
-      });
+      if (hasPayments) {
+        await createPolicyFromRecovery({
+          customerId: selectedCustomer.id,
+          packageId: selectedCustomer.packageId,
+          packagePlanId,
+          premium,
+          frequency: formData.frequency as 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'QUARTERLY' | 'ANNUALLY' | 'CUSTOM',
+          customDays: formData.frequency === 'CUSTOM' ? parseInt(formData.customDays, 10) : undefined,
+        });
+      } else {
+        await createPolicyWithoutPayments({
+          customerId: selectedCustomer.id,
+          packageId: selectedCustomer.packageId,
+          packagePlanId,
+          premium,
+          frequency: formData.frequency as 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'QUARTERLY' | 'ANNUALLY' | 'CUSTOM',
+          customDays: formData.frequency === 'CUSTOM' ? parseInt(formData.customDays, 10) : undefined,
+        });
+      }
       setCreateDialogOpen(false);
       setSelectedCustomer(null);
       await loadCustomers();
@@ -210,7 +229,7 @@ export default function RecoveryPage() {
       <div>
         <h1 className="text-2xl font-bold">Policy Recovery</h1>
         <p className="text-muted-foreground mt-1">
-          Customers with M-Pesa payments but no policy record. Create policy and activate.
+          Customers with no policy: with M-Pesa payments (create and activate) or with no payments (create policy only; activation on first payment).
         </p>
       </div>
 
@@ -231,40 +250,71 @@ export default function RecoveryPage() {
         <div className="flex items-center justify-center py-12">
           <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         </div>
-      ) : customers.length === 0 ? (
+      ) : customersWithPayments.length === 0 && customersNoPayments.length === 0 ? (
         <Card>
           <CardContent className="py-12 text-center text-muted-foreground">
-            No customers found without policies. Import an M-Pesa statement first.
+            No customers found without policies.
           </CardContent>
         </Card>
       ) : (
-        <div className="space-y-4">
-          {customers.map((c) => (
-            <Card key={c.id}>
-              <CardHeader className="pb-2">
-                <div className="flex justify-between items-start">
-                  <div>
-                    <CardTitle className="text-lg">{c.fullName}</CardTitle>
-                    <CardDescription>ID: {c.idNumber} | Package: {c.packageName}</CardDescription>
-                  </div>
-                  <Button size="sm" onClick={() => openCreateDialog(c)}>
-                    <Plus className="h-4 w-4 mr-1" />
-                    Create Policy
-                  </Button>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="text-sm font-medium mb-2">Payments ({c.payments.length})</div>
-                <ul className="text-sm text-muted-foreground space-y-1">
-                  {c.payments.map((p) => (
-                    <li key={p.id}>
-                      {p.transactionReference} - KES {p.paidIn.toLocaleString()} - {new Date(p.completionTime).toLocaleString()}
-                    </li>
-                  ))}
-                </ul>
-              </CardContent>
-            </Card>
-          ))}
+        <div className="space-y-8">
+          {customersWithPayments.length > 0 && (
+            <div className="space-y-4">
+              <h2 className="text-lg font-semibold">With M-Pesa payments (no policy)</h2>
+              <p className="text-sm text-muted-foreground">Create policy and activate using payment dates.</p>
+              {customersWithPayments.map((c) => (
+                <Card key={c.id}>
+                  <CardHeader className="pb-2">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <CardTitle className="text-lg">{c.fullName}</CardTitle>
+                        <CardDescription>ID: {c.idNumber} | Package: {c.packageName}</CardDescription>
+                      </div>
+                      <Button size="sm" onClick={() => openCreateDialog(c)}>
+                        <Plus className="h-4 w-4 mr-1" />
+                        Create Policy
+                      </Button>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-sm font-medium mb-2">Payments ({c.payments.length})</div>
+                    <ul className="text-sm text-muted-foreground space-y-1">
+                      {c.payments.map((p) => (
+                        <li key={p.id}>
+                          {p.transactionReference} - KES {p.paidIn.toLocaleString()} - {new Date(p.completionTime).toLocaleString()}
+                        </li>
+                      ))}
+                    </ul>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+          {customersNoPayments.length > 0 && (
+            <div className="space-y-4">
+              <h2 className="text-lg font-semibold">No policy, no payments</h2>
+              <p className="text-sm text-muted-foreground">Create policy only (PENDING_ACTIVATION); activation when first payment is received.</p>
+              {customersNoPayments.map((c) => (
+                <Card key={c.id}>
+                  <CardHeader className="pb-2">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <CardTitle className="text-lg">{c.fullName}</CardTitle>
+                        <CardDescription>ID: {c.idNumber} | Package: {c.packageName}</CardDescription>
+                      </div>
+                      <Button size="sm" onClick={() => openCreateDialog(c)}>
+                        <Plus className="h-4 w-4 mr-1" />
+                        Create Policy
+                      </Button>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-sm text-muted-foreground">No M-Pesa payments</div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
