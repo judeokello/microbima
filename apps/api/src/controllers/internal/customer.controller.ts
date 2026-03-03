@@ -343,6 +343,12 @@ export class InternalCustomerController {
     example: 'john',
   })
   @ApiQuery({
+    name: 'memberNumber',
+    description: 'Member number (partial match). Suffix 00 = principal, 01/02/... = dependant. Returns max 10 when used.',
+    required: false,
+    example: 'SCHEME00100',
+  })
+  @ApiQuery({
     name: 'page',
     description: 'Page number (1-based)',
     required: false,
@@ -370,6 +376,7 @@ export class InternalCustomerController {
     @Query('idNumber') idNumber?: string,
     @Query('phoneNumber') phoneNumber?: string,
     @Query('email') email?: string,
+    @Query('memberNumber') memberNumber?: string,
     @Query('page') page: string = '1',
     @Query('pageSize') pageSize: string = '20',
   ): Promise<CustomerSearchResponseDto> {
@@ -378,6 +385,7 @@ export class InternalCustomerController {
       idNumber,
       phoneNumber,
       email,
+      memberNumber,
       parseInt(page),
       parseInt(pageSize),
       correlationId

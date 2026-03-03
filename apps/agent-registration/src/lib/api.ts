@@ -762,6 +762,7 @@ export async function searchCustomers(
   idNumber?: string,
   phoneNumber?: string,
   email?: string,
+  memberNumber?: string,
   page: number = 1,
   pageSize: number = 20
 ): Promise<CustomerSearchResponse> {
@@ -774,6 +775,7 @@ export async function searchCustomers(
     if (idNumber) params.append('idNumber', idNumber)
     if (phoneNumber) params.append('phoneNumber', phoneNumber)
     if (email) params.append('email', email)
+    if (memberNumber) params.append('memberNumber', memberNumber)
     params.append('page', page.toString())
     params.append('pageSize', pageSize.toString())
 

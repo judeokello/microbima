@@ -16,6 +16,7 @@ export default function CustomerSearchPage() {
   const [idNumber, setIdNumber] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
   const [email, setEmail] = useState('');
+  const [memberNumber, setMemberNumber] = useState('');
 
   const [searchResults, setSearchResults] = useState<CustomerSearchResult[]>([]);
   const [pagination, setPagination] = useState<CustomerSearchPagination | null>(null);
@@ -25,8 +26,8 @@ export default function CustomerSearchPage() {
 
   const handleSearch = async (page: number = 1) => {
     // At least one search field must be filled
-    if (!name.trim() && !idNumber.trim() && !phoneNumber.trim() && !email.trim()) {
-      setError('Please enter at least one search criterion (Name, ID Number, Phone Number, or Email)');
+    if (!name.trim() && !idNumber.trim() && !phoneNumber.trim() && !email.trim() && !memberNumber.trim()) {
+      setError('Please enter at least one search criterion (Name, ID Number, Phone Number, Email, or Member Number)');
       return;
     }
 
@@ -40,6 +41,7 @@ export default function CustomerSearchPage() {
         idNumber.trim() || undefined,
         phoneNumber.trim() || undefined,
         email.trim() || undefined,
+        memberNumber.trim() || undefined,
         page,
         20
       );
@@ -61,6 +63,7 @@ export default function CustomerSearchPage() {
     setIdNumber('');
     setPhoneNumber('');
     setEmail('');
+    setMemberNumber('');
     setSearchResults([]);
     setPagination(null);
     setError(null);
@@ -78,7 +81,7 @@ export default function CustomerSearchPage() {
       <div>
         <h1 className="text-3xl font-bold text-gray-900">Customer Search</h1>
         <p className="text-gray-600 mt-2">
-          Search for customers by name, ID number, phone number, or email address
+          Search for customers by name, ID number, phone number, email address, or member number
         </p>
       </div>
 
@@ -91,18 +94,18 @@ export default function CustomerSearchPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
             <div className="space-y-2">
               <Label htmlFor="name">Name</Label>
               <Input
                 id="name"
-                placeholder="e.g. John Doe..."
+                placeholder="e.g. Simon Gateri..."
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 onKeyPress={handleKeyPress}
                 disabled={loading}
               />
-              <p className="text-xs text-gray-500">Searches first, middle, and last name</p>
+              <p className="text-xs text-gray-500">First, middle, last — multi-word matches all</p>
             </div>
 
             <div className="space-y-2">
@@ -143,6 +146,19 @@ export default function CustomerSearchPage() {
                 disabled={loading}
               />
               <p className="text-xs text-gray-500">Partial match supported</p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="memberNumber">Member Number</Label>
+              <Input
+                id="memberNumber"
+                placeholder="e.g. SCHEME00100..."
+                value={memberNumber}
+                onChange={(e) => setMemberNumber(e.target.value)}
+                onKeyPress={handleKeyPress}
+                disabled={loading}
+              />
+              <p className="text-xs text-gray-500">Suffix 00 = principal, 01/02… = dependant (max 10)</p>
             </div>
           </div>
 
