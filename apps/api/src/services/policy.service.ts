@@ -453,34 +453,23 @@ export class PolicyService {
           `[${correlationId}] ✓ Idempotency check passed: No existing payment found for transactionReference ${data.paymentData.transactionReference}. Proceeding with policy creation.`
         );
 
-        // Determine payment account number based on postpaid status
-        let paymentAcNumber: string | null = null;
+        // Determine payment account number: first policy (any type) gets idNumber; subsequent get idNumber+letter
+        const isFirstPolicy = !(await this.paymentAccountNumberService.customerHasExistingPolicies(
+          data.customerId,
+          tx,
+          correlationId
+        ));
 
-        if (!isPostpaidScheme) {
-          // For prepaid schemes, generate payment account number
-          const isFirstPolicy = !(await this.paymentAccountNumberService.customerHasExistingPolicies(
-            data.customerId,
-            tx,
-            correlationId
-          ));
+        const paymentAcNumber = await this.paymentAccountNumberService.generateForPolicy(
+          data.customerId,
+          isFirstPolicy,
+          tx,
+          correlationId
+        );
 
-          paymentAcNumber = await this.paymentAccountNumberService.generateForPolicy(
-            data.customerId,
-            isFirstPolicy,
-            tx,
-            correlationId
-          );
-
-          this.logger.log(
-            `[${correlationId}] Generated payment account number for prepaid policy: ${paymentAcNumber} (first policy: ${isFirstPolicy})`
-          );
-        } else {
-          // Postpaid: use customer's idNumber as payment account number (for CSV matching)
-          paymentAcNumber = customer.idNumber;
-          this.logger.log(
-            `[${correlationId}] Postpaid scheme - using customer idNumber as payment account number`
-          );
-        }
+        this.logger.log(
+          `[${correlationId}] Payment account number for ${isPostpaidScheme ? 'postpaid' : 'prepaid'} policy: ${paymentAcNumber} (first policy: ${isFirstPolicy})`
+        );
 
         // Calculate payment cadence
         // For postpaid schemes, use scheme's frequency and cadence; for prepaid, use provided values
