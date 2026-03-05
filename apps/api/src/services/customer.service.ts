@@ -36,6 +36,7 @@ import { UpdateCustomerDto } from '../dto/customers/update-customer.dto';
 import { UpdateDependantDto } from '../dto/dependants/update-dependant.dto';
 import { UpdateBeneficiaryDto } from '../dto/beneficiaries/update-beneficiary.dto';
 import { SupabaseService } from './supabase.service';
+import { PaymentAccountNumberService } from './payment-account-number.service';
 import { normalizePhoneNumber } from '../utils/phone-number.util';
 
 /**
@@ -72,6 +73,7 @@ export class CustomerService {
   constructor(
     private readonly prismaService: PrismaService,
     private readonly supabaseService: SupabaseService,
+    private readonly paymentAccountNumberService: PaymentAccountNumberService,
   ) {}
 
   /**
@@ -2685,6 +2687,59 @@ export class CustomerService {
         }
       }
 
+      const trimmedNewIdNumber =
+        updateData.idNumber !== undefined && updateData.idNumber?.trim()
+          ? updateData.idNumber.trim()
+          : undefined;
+
+      let idNumberUpdateContext: { oldIdNumber: string; policies: Array<{ id: string; paymentAcNumber: string | null }> } | null = null;
+
+      if (trimmedNewIdNumber !== undefined) {
+        const currentCustomer = await this.prismaService.customer.findUnique({
+          where: { id: customerId },
+          select: { idNumber: true },
+        });
+        if (!currentCustomer) {
+          throw new NotFoundException('Customer not found or not accessible');
+        }
+        const oldIdNumber = (currentCustomer.idNumber ?? '').trim();
+        const policies = await this.prismaService.policy.findMany({
+          where: { customerId },
+          select: { id: true, paymentAcNumber: true },
+        });
+        idNumberUpdateContext = { oldIdNumber, policies };
+
+        const inUse = await this.paymentAccountNumberService.isPaymentAcNumberOrIdNumberInUse(
+          trimmedNewIdNumber,
+          customerId
+        );
+        if (inUse) {
+          throw ValidationException.forField(
+            'idNumber',
+            'ID number is already in use by another customer or policy'
+          );
+        }
+
+        for (const policy of policies) {
+          const newPaymentAc = this.paymentAccountNumberService.computePaymentAcNumberAfterIdNumberChange(
+            oldIdNumber,
+            trimmedNewIdNumber,
+            policy.paymentAcNumber
+          );
+          if (newPaymentAc === (policy.paymentAcNumber ?? '').trim()) continue;
+          const paymentAcInUse = await this.paymentAccountNumberService.isPaymentAcNumberOrIdNumberInUse(
+            newPaymentAc,
+            customerId
+          );
+          if (paymentAcInUse) {
+            throw ValidationException.forField(
+              'idNumber',
+              `Cannot update ID number: payment account ${newPaymentAc} is already in use`
+            );
+          }
+        }
+      }
+
       // Build update data
       const updatePayload: Prisma.CustomerUpdateInput = {};
       if (updateData.firstName !== undefined) updatePayload.firstName = updateData.firstName;
@@ -2708,7 +2763,33 @@ export class CustomerService {
       }
       updatePayload.updatedBy = userId;
 
-      // Update customer
+      if (idNumberUpdateContext) {
+        const { oldIdNumber, policies } = idNumberUpdateContext;
+        const updated = await this.prismaService.$transaction(async (tx) => {
+          const updatedCustomer = await tx.customer.update({
+            where: { id: customerId },
+            data: updatePayload,
+          });
+          for (const policy of policies) {
+            const newPaymentAc = this.paymentAccountNumberService.computePaymentAcNumberAfterIdNumberChange(
+              oldIdNumber,
+              trimmedNewIdNumber!,
+              policy.paymentAcNumber
+            );
+            if (newPaymentAc === (policy.paymentAcNumber ?? '').trim()) continue;
+            await tx.policy.update({
+              where: { id: policy.id },
+              data: { paymentAcNumber: newPaymentAc },
+            });
+          }
+          return updatedCustomer;
+        });
+
+        const customerEntity = Customer.fromPrismaData(updated);
+        return CustomerMapper.toPrincipalMemberDto(customerEntity);
+      }
+
+      // Update customer (no idNumber change)
       const updated = await this.prismaService.customer.update({
         where: { id: customerId },
         data: updatePayload,

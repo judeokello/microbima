@@ -4,24 +4,36 @@ import { Prisma } from '@prisma/client';
 import * as Sentry from '@sentry/nestjs';
 
 /**
+ * Letters for policy payment account suffix (2nd policy = B, 3rd = C, ...).
+ * Excludes A, I, J, O to avoid confusion with numbers and readability.
+ */
+const POLICY_SUFFIX_LETTERS = 'BCDEFGHKLMNPQRSTUVWXYZ';
+
+/**
  * Payment Account Number Generation Service
  *
  * Generates unique payment account numbers for policies and schemes.
- * Uses a sequence-based approach that skips numbers containing digits 0 and 1
- * to avoid confusion with letters O, I, and L.
- *
- * Features:
- * - Generates numbers without 0 or 1 digits
- * - Auto-expands from 3 to 4 to 5 digits as needed
- * - Provides different formats for schemes (G-prefix) vs policies
- * - First policy uses customer ID, subsequent use generated numbers
- * - Transaction-safe with row-level locking
+ * Policies: first policy uses customer idNumber; 2nd+ use idNumber + letter (B, C, ...).
+ * Schemes: G + first 2 digits + N + rest (e.g. G12N345), skipping numbers that conflict with idNumber or policy paymentAcNumber.
+ * Sequence-based scheme numbers skip digits 0 and 1.
  */
 @Injectable()
 export class PaymentAccountNumberService {
   private readonly logger = new Logger(PaymentAccountNumberService.name);
 
   constructor(private readonly prismaService: PrismaService) {}
+
+  /**
+   * Get letter suffix for (n+1)th policy: index 0 = B (2nd), 1 = C (3rd), ... 21 = Z, 22+ = two letters (e.g. BB, BC).
+   */
+  private getPolicySuffixLetter(index: number): string {
+    const n = POLICY_SUFFIX_LETTERS.length;
+    if (index < n) return POLICY_SUFFIX_LETTERS[index];
+    const i = index - n;
+    const first = Math.floor(i / n);
+    const second = i % n;
+    return POLICY_SUFFIX_LETTERS[first] + POLICY_SUFFIX_LETTERS[second];
+  }
 
   /**
    * Check if a number contains digits 0 or 1
@@ -121,8 +133,7 @@ export class PaymentAccountNumberService {
 
   /**
    * Generate payment account number for a policy
-   * First policy for a customer uses their ID number
-   * Subsequent policies use generated numbers
+   * First policy: customer idNumber. Subsequent: idNumber + letter (B, C, D, ... excluding A, I, J, O).
    *
    * @param customerId - Customer UUID
    * @param isFirstPolicy - Whether this is the customer's first policy
@@ -142,26 +153,36 @@ export class PaymentAccountNumberService {
           `Customer: ${customerId}, First policy: ${isFirstPolicy}`
       );
 
-      if (isFirstPolicy) {
-        // Use customer's ID number for first policy
-        const customer = await tx.customer.findUnique({
-          where: { id: customerId },
-          select: { idNumber: true },
-        });
+      const customer = await tx.customer.findUnique({
+        where: { id: customerId },
+        select: { idNumber: true },
+      });
 
-        if (!customer) {
-          throw new Error(`Customer ${customerId} not found`);
-        }
-
-        this.logger.log(
-          `[${correlationId}] Using customer ID number for first policy: ${customer.idNumber}`
-        );
-
-        return customer.idNumber;
-      } else {
-        // Generate new number for subsequent policies
-        return await this.generateNextNumber(tx, correlationId);
+      if (!customer) {
+        throw new Error(`Customer ${customerId} not found`);
       }
+
+      const idNumber = customer.idNumber?.trim() ?? '';
+      if (!idNumber) {
+        throw new Error(`Customer ${customerId} has no idNumber`);
+      }
+
+      if (isFirstPolicy) {
+        this.logger.log(
+          `[${correlationId}] Using customer ID number for first policy: ${idNumber}`
+        );
+        return idNumber;
+      }
+
+      const existingCount = await tx.policy.count({
+        where: { customerId },
+      });
+      const suffix = this.getPolicySuffixLetter(existingCount);
+      const paymentAcNumber = idNumber + suffix;
+      this.logger.log(
+        `[${correlationId}] Using idNumber + suffix for policy ${existingCount + 1}: ${paymentAcNumber}`
+      );
+      return paymentAcNumber;
     } catch (error) {
       this.logger.error(
         `[${correlationId}] Error generating payment account number for policy`,
@@ -180,12 +201,41 @@ export class PaymentAccountNumberService {
   }
 
   /**
-   * Generate payment account number for a scheme
-   * Schemes always get a generated number prefixed with 'G'
-   *
-   * @param tx - Prisma transaction client
-   * @param correlationId - Correlation ID for logging
-   * @returns Payment account number with 'G' prefix
+   * Format scheme number as G + first 2 digits + N + remaining digits (e.g. 12345 -> G12N345).
+   */
+  private formatSchemeNumber(numStr: string): string {
+    if (numStr.length < 2) return `GN${numStr}`;
+    return `G${numStr.slice(0, 2)}N${numStr.slice(2)}`;
+  }
+
+  /**
+   * Check if the numeric string is already used as customers.idNumber or policies.paymentAcNumber.
+   */
+  private async numericConflictsWithIdOrPolicy(
+    numStr: string,
+    tx: Prisma.TransactionClient
+  ): Promise<boolean> {
+    const normalized = numStr.trim().replace(/\s/g, '');
+    if (!normalized) return false;
+
+    const [customerMatch, policyMatch] = await Promise.all([
+      tx.customer.findFirst({
+        where: { idNumber: normalized },
+        select: { id: true },
+      }),
+      tx.policy.findFirst({
+        where: { paymentAcNumber: normalized },
+        select: { id: true },
+      }),
+    ]);
+
+    return !!(customerMatch || policyMatch);
+  }
+
+  /**
+   * Generate payment account number for a scheme.
+   * Format: G + first 2 digits + N + rest (e.g. G12N345).
+   * Skips numbers that exist as customers.idNumber or policies.paymentAcNumber.
    */
   async generateForScheme(
     tx: Prisma.TransactionClient,
@@ -194,12 +244,25 @@ export class PaymentAccountNumberService {
     try {
       this.logger.log(`[${correlationId}] Generating payment account number for scheme`);
 
-      const number = await this.generateNextNumber(tx, correlationId);
-      const schemeNumber = `G${number}`;
+      const maxAttempts = 100;
+      for (let attempt = 0; attempt < maxAttempts; attempt++) {
+        const number = await this.generateNextNumber(tx, correlationId);
+        const conflicts = await this.numericConflictsWithIdOrPolicy(number, tx);
+        if (!conflicts) {
+          const schemeNumber = this.formatSchemeNumber(number);
+          this.logger.log(
+            `[${correlationId}] Generated scheme payment account number: ${schemeNumber}`
+          );
+          return schemeNumber;
+        }
+        this.logger.log(
+          `[${correlationId}] Skipping ${number} (conflicts with idNumber or policy paymentAcNumber), attempt ${attempt + 1}`
+        );
+      }
 
-      this.logger.log(`[${correlationId}] Generated scheme payment account number: ${schemeNumber}`);
-
-      return schemeNumber;
+      throw new Error(
+        `Failed to generate scheme payment account number after ${maxAttempts} attempts (all conflicted with idNumber or policy)`
+      );
     } catch (error) {
       this.logger.error(
         `[${correlationId}] Error generating payment account number for scheme`,
@@ -214,6 +277,65 @@ export class PaymentAccountNumberService {
       });
       throw error;
     }
+  }
+
+  /**
+   * Check if a value is already used as customers.idNumber or policies.paymentAcNumber by another customer or policy.
+   * Use when validating a new idNumber or new paymentAcNumber (e.g. on customer idNumber update).
+   *
+   * @param value - Payment account number or idNumber to check (trimmed)
+   * @param excludeCustomerId - When provided, exclude this customer's idNumber and their policies' paymentAcNumber from the check
+   * @returns True if the value is in use elsewhere (another customer or another customer's policy)
+   */
+  async isPaymentAcNumberOrIdNumberInUse(
+    value: string,
+    excludeCustomerId?: string
+  ): Promise<boolean> {
+    const normalized = value?.trim().replace(/\s/g, '') ?? '';
+    if (!normalized) return false;
+
+    const [customerMatch, policyMatch] = await Promise.all([
+      this.prismaService.customer.findFirst({
+        where: {
+          idNumber: normalized,
+          ...(excludeCustomerId ? { id: { not: excludeCustomerId } } : {}),
+        },
+        select: { id: true },
+      }),
+      this.prismaService.policy.findFirst({
+        where: {
+          paymentAcNumber: normalized,
+          ...(excludeCustomerId ? { customerId: { not: excludeCustomerId } } : {}),
+        },
+        select: { id: true },
+      }),
+    ]);
+
+    return !!(customerMatch || policyMatch);
+  }
+
+  /**
+   * Compute the new policy paymentAcNumber when a customer's idNumber changes.
+   * Replaces the numeric part (oldIdNumber) with newIdNumber and keeps the existing suffix unchanged.
+   *
+   * @param oldIdNumber - Current customer idNumber (before update)
+   * @param newIdNumber - New customer idNumber (after update)
+   * @param currentPaymentAcNumber - Policy's current paymentAcNumber
+   * @returns New paymentAcNumber (newIdNumber or newIdNumber + existing suffix)
+   */
+  computePaymentAcNumberAfterIdNumberChange(
+    oldIdNumber: string,
+    newIdNumber: string,
+    currentPaymentAcNumber: string | null
+  ): string {
+    const old = (oldIdNumber ?? '').trim();
+    const next = (newIdNumber ?? '').trim();
+    const current = (currentPaymentAcNumber ?? '').trim();
+    if (!current) return next;
+    if (!old) return next; // First time setting idNumber: use new idNumber only
+    if (current === old) return next;
+    if (current.startsWith(old)) return next + current.slice(old.length);
+    return next;
   }
 
   /**
