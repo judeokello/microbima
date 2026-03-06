@@ -50,8 +50,10 @@ export default function CreatePackageDialog({
     setLoading(true);
 
     try {
-      // Validate required fields
-      if (!formData.name || !formData.description) {
+      // Trim and validate required fields
+      const name = formData.name.trim();
+      const description = formData.description.trim();
+      if (!name || !description) {
         throw new Error('All fields are required');
       }
 
@@ -67,8 +69,8 @@ export default function CreatePackageDialog({
           'x-correlation-id': `req-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
         },
         body: JSON.stringify({
-          name: formData.name,
-          description: formData.description,
+          name,
+          description,
           underwriterId: underwriterId,
           isActive: formData.isActive,
         }),

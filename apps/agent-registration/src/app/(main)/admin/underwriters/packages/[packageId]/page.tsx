@@ -27,6 +27,7 @@ interface Package {
   logoPath?: string | null;
   cardTemplateName?: string | null;
   createdBy: string;
+  createdByDisplayName?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -54,17 +55,6 @@ interface SchemesResponse {
   data: Scheme[];
 }
 
-interface UserDisplayNameResponse {
-  status: number;
-  correlationId: string;
-  message: string;
-  data: {
-    userId: string;
-    displayName: string;
-    email: string;
-  };
-}
-
 export default function PackageDetailPage() {
   const router = useRouter();
   const params = useParams();
@@ -72,7 +62,6 @@ export default function PackageDetailPage() {
 
   const [pkg, setPkg] = useState<Package | null>(null);
   const [schemes, setSchemes] = useState<Scheme[]>([]);
-  const [createdByName, setCreatedByName] = useState<string>('Loading...');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
@@ -113,26 +102,6 @@ export default function PackageDetailPage() {
         description: data.data.description,
         isActive: data.data.isActive,
       });
-
-      // Fetch createdBy display name
-      if (data.data.createdBy) {
-        try {
-          const userResponse = await fetch(`${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/users/${data.data.createdBy}/display-name`, {
-            headers: {
-              'Authorization': `Bearer ${token}`,
-              'x-correlation-id': `req-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-              'X-Source-Page': typeof window !== 'undefined' ? window.location.pathname : '',
-            }
-          });
-          if (userResponse.ok) {
-            const userData: UserDisplayNameResponse = await userResponse.json();
-            setCreatedByName(userData.data.displayName);
-          }
-        } catch (err) {
-          console.error('Error fetching user display name:', err);
-          setCreatedByName('Unknown');
-        }
-      }
     } catch (err) {
       console.error('Error fetching package:', err);
       // Report error to Sentry
@@ -295,6 +264,11 @@ export default function PackageDetailPage() {
       setError(null);
 
       const token = await getSupabaseToken();
+      const payload = {
+        name: formData.name.trim(),
+        description: formData.description.trim(),
+        isActive: formData.isActive,
+      };
       const response = await fetch(`${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/product-management/packages/${packageId}`, {
         method: 'PUT',
         headers: {
@@ -302,7 +276,7 @@ export default function PackageDetailPage() {
           'Authorization': `Bearer ${token}`,
           'x-correlation-id': `req-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
         },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(payload),
       });
 
       if (!response.ok) {
@@ -421,6 +395,7 @@ export default function PackageDetailPage() {
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   required
+                  maxLength={100}
                 />
               ) : (
                 <p className="text-sm font-medium">{pkg.name}</p>
@@ -443,6 +418,7 @@ export default function PackageDetailPage() {
                   placeholder="Enter package description"
                   aria-label="Package description"
                   required
+                  maxLength={500}
                 />
               ) : (
                 <div className="flex items-start gap-2">
@@ -476,7 +452,7 @@ export default function PackageDetailPage() {
 
             <div>
               <Label>Created By</Label>
-              <p className="text-sm font-medium">{createdByName}</p>
+              <p className="text-sm font-medium">{pkg.createdByDisplayName ?? 'Unknown'}</p>
             </div>
 
             <div>

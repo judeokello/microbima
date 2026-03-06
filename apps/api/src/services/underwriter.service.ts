@@ -1,7 +1,9 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { SupabaseService } from './supabase.service';
 import { ValidationException } from '../exceptions/validation.exception';
 import { ErrorCodes } from '../enums/error-codes.enum';
+import { trimOrNull } from '../utils/string.util';
 
 /**
  * Underwriter Service
@@ -17,7 +19,10 @@ import { ErrorCodes } from '../enums/error-codes.enum';
 export class UnderwriterService {
   private readonly logger = new Logger(UnderwriterService.name);
 
-  constructor(private readonly prismaService: PrismaService) {}
+  constructor(
+    private readonly prismaService: PrismaService,
+    private readonly supabaseService: SupabaseService,
+  ) {}
 
   /**
    * Get all underwriters with pagination
@@ -112,6 +117,11 @@ export class UnderwriterService {
         throw new NotFoundException(`Underwriter with ID ${id} not found`);
       }
 
+      let createdByDisplayName: string | undefined;
+      if (underwriter.createdBy) {
+        createdByDisplayName = await this.getCreatedByDisplayName(underwriter.createdBy);
+      }
+
       return {
         id: underwriter.id,
         name: underwriter.name,
@@ -121,6 +131,7 @@ export class UnderwriterService {
         isActive: underwriter.isActive,
         logoPath: underwriter.logoPath,
         createdBy: underwriter.createdBy,
+        createdByDisplayName,
         createdAt: underwriter.createdAt.toISOString(),
         updatedAt: underwriter.updatedAt.toISOString(),
       };
@@ -131,6 +142,20 @@ export class UnderwriterService {
       );
       throw error;
     }
+  }
+
+  /**
+   * Resolve display name for createdBy userId: try Brand Ambassador first, then Supabase Auth.
+   */
+  private async getCreatedByDisplayName(userId: string): Promise<string> {
+    const brandAmbassador = await this.prismaService.brandAmbassador.findUnique({
+      where: { userId },
+      select: { displayName: true },
+    });
+    if (brandAmbassador?.displayName) {
+      return brandAmbassador.displayName;
+    }
+    return this.supabaseService.getUserDisplayName(userId);
   }
 
   /**
@@ -155,11 +180,18 @@ export class UnderwriterService {
     this.logger.log(`[${correlationId}] Creating underwriter: ${data.name}`);
 
     try {
+      // Trim string fields before validation and persistence
+      const name = data.name.trim();
+      const shortName = data.shortName.trim();
+      const website = data.website.trim();
+      const officeLocation = data.officeLocation.trim();
+      const logoPath = trimOrNull(data.logoPath);
+
       // Pre-save validation: Check for duplicates
       const validationErrors: Record<string, string> = {};
 
       // Normalize website URL for comparison (remove protocol, trailing slash, lowercase)
-      const normalizedWebsite = data.website
+      const normalizedWebsite = website
         .toLowerCase()
         .replace(/^https?:\/\//, '')
         .replace(/\/$/, '');
@@ -168,7 +200,7 @@ export class UnderwriterService {
       const existingByName = await this.prismaService.underwriter.findFirst({
         where: {
           name: {
-            equals: data.name,
+            equals: name,
             mode: 'insensitive',
           },
         },
@@ -182,7 +214,7 @@ export class UnderwriterService {
       const existingByShortName = await this.prismaService.underwriter.findFirst({
         where: {
           shortName: {
-            equals: data.shortName,
+            equals: shortName,
             mode: 'insensitive',
           },
         },
@@ -220,11 +252,11 @@ export class UnderwriterService {
 
       const underwriter = await this.prismaService.underwriter.create({
         data: {
-          name: data.name,
-          shortName: data.shortName,
-          website: data.website,
-          officeLocation: data.officeLocation,
-          logoPath: data.logoPath,
+          name,
+          shortName,
+          website,
+          officeLocation,
+          logoPath,
           isActive: data.isActive ?? false, // Default to false
           createdBy: userId,
         },
@@ -318,11 +350,11 @@ export class UnderwriterService {
       const underwriter = await this.prismaService.underwriter.update({
         where: { id },
         data: {
-          ...(data.name !== undefined && { name: data.name }),
-          ...(data.shortName !== undefined && { shortName: data.shortName }),
-          ...(data.website !== undefined && { website: data.website }),
-          ...(data.officeLocation !== undefined && { officeLocation: data.officeLocation }),
-          ...(data.logoPath !== undefined && { logoPath: data.logoPath }),
+          ...(data.name !== undefined && { name: data.name.trim() }),
+          ...(data.shortName !== undefined && { shortName: data.shortName.trim() }),
+          ...(data.website !== undefined && { website: data.website.trim() }),
+          ...(data.officeLocation !== undefined && { officeLocation: data.officeLocation.trim() }),
+          ...(data.logoPath !== undefined && { logoPath: trimOrNull(data.logoPath) }),
           ...(data.isActive !== undefined && { isActive: data.isActive }),
         },
       });

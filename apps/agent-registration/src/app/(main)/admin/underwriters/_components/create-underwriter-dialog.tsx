@@ -50,8 +50,11 @@ export default function CreateUnderwriterDialog({
     setUploading(false);
 
     try {
-      // Validate required fields
-      if (!formData.name || !formData.shortName || !formData.website || !formData.officeLocation) {
+      // Trim and validate required fields
+      const name = formData.name.trim();
+      const shortName = formData.shortName.trim();
+      const officeLocation = formData.officeLocation.trim();
+      if (!name || !shortName || !formData.website.trim() || !officeLocation) {
         throw new Error('All fields are required');
       }
 
@@ -83,10 +86,10 @@ export default function CreateUnderwriterDialog({
           'x-correlation-id': `req-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
         },
         body: JSON.stringify({
-          name: formData.name,
-          shortName: formData.shortName,
+          name,
+          shortName,
           website: websiteUrl,
-          officeLocation: formData.officeLocation,
+          officeLocation,
           logoPath: logoPath,
           isActive: false, // Always create as inactive
         }),

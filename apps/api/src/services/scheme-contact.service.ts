@@ -1,5 +1,6 @@
 import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { trimOrNull } from '../utils/string.util';
 import * as Sentry from '@sentry/nestjs';
 
 /**
@@ -69,17 +70,21 @@ export class SchemeContactService {
         );
       }
 
+      // Trim string fields before persistence; optional fields use trimOrNull
+      const firstName = data.firstName.trim();
+      const phoneNumber = data.phoneNumber != null ? data.phoneNumber.trim() || null : null;
+
       // Create the contact
       const contact = await this.prismaService.schemeContact.create({
         data: {
           schemeId: data.schemeId,
-          firstName: data.firstName,
-          otherName: data.otherName ?? null,
-          phoneNumber: data.phoneNumber ?? null,
-          phoneNumber2: data.phoneNumber2 ?? null,
-          email: data.email ?? null,
-          designation: data.designation ?? null,
-          notes: data.notes ?? null,
+          firstName,
+          otherName: trimOrNull(data.otherName),
+          phoneNumber,
+          phoneNumber2: trimOrNull(data.phoneNumber2),
+          email: trimOrNull(data.email),
+          designation: trimOrNull(data.designation),
+          notes: trimOrNull(data.notes),
           createdBy: userId,
         },
       });
@@ -142,17 +147,17 @@ export class SchemeContactService {
         throw new NotFoundException(`Contact with ID ${contactId} not found`);
       }
 
-      // Update the contact
+      // Update the contact (trim strings; optional fields use trimOrNull)
       const updatedContact = await this.prismaService.schemeContact.update({
         where: { id: contactId },
         data: {
-          ...(data.firstName !== undefined && { firstName: data.firstName }),
-          ...(data.otherName !== undefined && { otherName: data.otherName || null }),
-          ...(data.phoneNumber !== undefined && { phoneNumber: data.phoneNumber || null }),
-          ...(data.phoneNumber2 !== undefined && { phoneNumber2: data.phoneNumber2 || null }),
-          ...(data.email !== undefined && { email: data.email || null }),
-          ...(data.designation !== undefined && { designation: data.designation || null }),
-          ...(data.notes !== undefined && { notes: data.notes || null }),
+          ...(data.firstName !== undefined && { firstName: data.firstName.trim() }),
+          ...(data.otherName !== undefined && { otherName: trimOrNull(data.otherName) }),
+          ...(data.phoneNumber !== undefined && { phoneNumber: data.phoneNumber.trim() || null }),
+          ...(data.phoneNumber2 !== undefined && { phoneNumber2: trimOrNull(data.phoneNumber2) }),
+          ...(data.email !== undefined && { email: trimOrNull(data.email) }),
+          ...(data.designation !== undefined && { designation: trimOrNull(data.designation) }),
+          ...(data.notes !== undefined && { notes: trimOrNull(data.notes) }),
           updatedAt: new Date(),
         },
       });

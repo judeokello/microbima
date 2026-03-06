@@ -26,6 +26,7 @@ interface MpesaPaymentUpload {
   totalWithdrawn?: number;
   filePath?: string;
   createdBy?: string;
+  createdByDisplayName?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -74,7 +75,6 @@ export default function MpesaPaymentDetailsPage() {
   const [pagination, setPagination] = useState<UploadDetailsResponse['pagination'] | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [processedByName, setProcessedByName] = useState<string>('');
 
   const [pageSize, setPageSize] = useState(20);
   const [currentPage, setCurrentPage] = useState(1);
@@ -111,31 +111,6 @@ export default function MpesaPaymentDetailsPage() {
       setPagination(data.pagination);
       // Sync currentPage with pagination.page from API
       setCurrentPage(data.pagination.page);
-
-      // Fetch user display name for createdBy
-      if (data.upload.createdBy) {
-        try {
-          const token = await getSupabaseToken();
-          const userResponse = await fetch(`${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/users/${data.upload.createdBy}/display-name`, {
-            headers: {
-              'Authorization': `Bearer ${token}`,
-              'x-correlation-id': `req-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-              'X-Source-Page': typeof window !== 'undefined' ? window.location.pathname : '',
-            }
-          });
-          if (userResponse.ok) {
-            const userData = await userResponse.json();
-            setProcessedByName(userData.data.displayName);
-          } else {
-            setProcessedByName('Unknown');
-          }
-        } catch (err) {
-          console.error('Error fetching user display name:', err);
-          setProcessedByName('Unknown');
-        }
-      } else {
-        setProcessedByName('');
-      }
     } catch (err) {
       console.error('Error fetching upload details:', err);
       setError(err instanceof Error ? err.message : 'Failed to fetch upload details');
@@ -290,7 +265,7 @@ export default function MpesaPaymentDetailsPage() {
               <div>
                 <p className="text-sm font-medium text-muted-foreground">Processed By</p>
                 <p className="text-sm font-semibold">
-                  {processedByName || (upload.createdBy ? 'Loading...' : '-')}
+                  {upload.createdByDisplayName ?? (upload.createdBy ? 'Unknown' : '-')}
                 </p>
               </div>
               <div>

@@ -26,6 +26,7 @@ interface Scheme {
   paymentCadence?: number | null;
   paymentAcNumber?: string | null;
   createdBy: string;
+  createdByDisplayName?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -80,17 +81,6 @@ interface CustomersResponse {
   };
 }
 
-interface UserDisplayNameResponse {
-  status: number;
-  correlationId: string;
-  message: string;
-  data: {
-    userId: string;
-    displayName: string;
-    email: string;
-  };
-}
-
 interface SchemeContactsResponse {
   status: number;
   correlationId: string;
@@ -123,7 +113,6 @@ export default function SchemeDetailPage() {
   const [scheme, setScheme] = useState<Scheme | null>(null);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [pagination, setPagination] = useState<CustomersResponse['pagination'] | null>(null);
-  const [createdByName, setCreatedByName] = useState<string>('Loading...');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
@@ -195,26 +184,6 @@ export default function SchemeDetailPage() {
         description: data.data.description,
         isActive: data.data.isActive,
       });
-
-      // Fetch createdBy display name
-      if (data.data.createdBy) {
-        try {
-          const userResponse = await fetch(`${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/users/${data.data.createdBy}/display-name`, {
-            headers: {
-              'Authorization': `Bearer ${token}`,
-              'x-correlation-id': `req-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-              'X-Source-Page': typeof window !== 'undefined' ? window.location.pathname : '',
-            }
-          });
-          if (userResponse.ok) {
-            const userData: UserDisplayNameResponse = await userResponse.json();
-            setCreatedByName(userData.data.displayName);
-          }
-        } catch (err) {
-          console.error('Error fetching user display name:', err);
-          setCreatedByName('Unknown');
-        }
-      }
     } catch (err) {
       console.error('Error fetching scheme:', err);
       // Report error to Sentry
@@ -326,6 +295,11 @@ export default function SchemeDetailPage() {
       setError(null);
 
       const token = await getSupabaseToken();
+      const payload = {
+        schemeName: formData.schemeName.trim(),
+        description: formData.description.trim(),
+        isActive: formData.isActive,
+      };
       const response = await fetch(`${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/product-management/schemes/${schemeId}`, {
         method: 'PUT',
         headers: {
@@ -333,7 +307,7 @@ export default function SchemeDetailPage() {
           'Authorization': `Bearer ${token}`,
           'x-correlation-id': `req-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
         },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(payload),
       });
 
       if (!response.ok) {
@@ -553,6 +527,24 @@ export default function SchemeDetailPage() {
         ? `${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/product-management/schemes/${schemeId}/contacts/${editingContact.id}`
         : `${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/product-management/schemes/${schemeId}/contacts`;
 
+      const trimOrNull = (v: string) => {
+        if (v == null) return null;
+        const t = v.trim();
+        return t === '' ? null : t;
+      };
+      const payload = {
+        firstName: contactFormData.firstName.trim(),
+        otherName: trimOrNull(contactFormData.otherName),
+        phoneNumber: contactFormData.phoneNumber.trim(),
+        phoneNumber2: trimOrNull(contactFormData.phoneNumber2),
+        email: trimOrNull(contactFormData.email),
+        designation: trimOrNull(contactFormData.designation),
+        notes: trimOrNull(contactFormData.notes),
+      };
+      if (!editingContact) {
+        (payload as Record<string, unknown>).schemeId = schemeId;
+      }
+
       const response = await fetch(url, {
         method: editingContact ? 'PUT' : 'POST',
         headers: {
@@ -560,7 +552,7 @@ export default function SchemeDetailPage() {
           'Authorization': `Bearer ${token}`,
           'x-correlation-id': `req-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
         },
-        body: JSON.stringify(contactFormData),
+        body: JSON.stringify(payload),
       });
 
       if (!response.ok) {
@@ -741,6 +733,7 @@ export default function SchemeDetailPage() {
                   value={formData.schemeName}
                   onChange={(e) => setFormData({ ...formData, schemeName: e.target.value })}
                   required
+                  maxLength={100}
                 />
               ) : (
                 <p className="text-sm font-medium">{scheme.schemeName}</p>
@@ -784,6 +777,7 @@ export default function SchemeDetailPage() {
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                   className="w-full min-h-[100px] px-3 py-2 border rounded-md"
                   required
+                  maxLength={300}
                 />
               ) : (
                 <div className="flex items-start gap-2">
@@ -822,7 +816,7 @@ export default function SchemeDetailPage() {
 
             <div>
               <Label>Created By</Label>
-              <p className="text-sm font-medium">{createdByName}</p>
+              <p className="text-sm font-medium">{scheme.createdByDisplayName ?? 'Unknown'}</p>
             </div>
           </div>
         </CardContent>

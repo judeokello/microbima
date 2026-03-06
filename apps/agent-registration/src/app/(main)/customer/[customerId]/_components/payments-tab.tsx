@@ -8,8 +8,24 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Loader2 } from 'lucide-react';
-import { getCustomerPolicies, getCustomerPayments, PolicyOption, Payment, PaymentFilter } from '@/lib/api';
+import {
+  getCustomerPolicies,
+  getCustomerPayments,
+  getCustomerPolicyDetail,
+  PolicyOption,
+  Payment,
+  PaymentFilter,
+  type CustomerPolicyDetail,
+} from '@/lib/api';
 import * as Sentry from '@sentry/nextjs';
+
+/** Premium period in days per year; used to calculate number of installments. */
+const PREMIUM_DAYS_PER_YEAR = 276;
+
+function numberOfInstallments(paymentCadenceDays: number): number {
+  if (paymentCadenceDays <= 0) return 0;
+  return Math.round(PREMIUM_DAYS_PER_YEAR / paymentCadenceDays);
+}
 
 interface PaymentsTabProps {
   customerId: string;
@@ -21,6 +37,7 @@ export default function PaymentsTab({ customerId }: PaymentsTabProps) {
   const [fromDate, setFromDate] = useState<string>('');
   const [toDate, setToDate] = useState<string>('');
   const [payments, setPayments] = useState<Payment[]>([]);
+  const [policyDetail, setPolicyDetail] = useState<CustomerPolicyDetail | null>(null);
   const [loading, setLoading] = useState(false);
   const [policiesLoading, setPoliciesLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -31,6 +48,10 @@ export default function PaymentsTab({ customerId }: PaymentsTabProps) {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [customerId]);
+
+  useEffect(() => {
+    setPolicyDetail(null);
+  }, [selectedPolicyId]);
 
   const loadPolicies = async () => {
     try {
@@ -73,8 +94,16 @@ export default function PaymentsTab({ customerId }: PaymentsTabProps) {
         toDate: toDate || undefined,
       };
 
-      const response = await getCustomerPayments(customerId, filters);
-      setPayments(response.data);
+      const [paymentsRes, policyDetailRes] = await Promise.all([
+        getCustomerPayments(customerId, filters),
+        getCustomerPolicyDetail(customerId, selectedPolicyId).catch((e) => {
+          console.error('Error loading policy detail:', e);
+          return null;
+        }),
+      ]);
+
+      setPayments(paymentsRes.data);
+      setPolicyDetail(policyDetailRes?.data ?? null);
     } catch (err) {
       console.error('Error loading payments:', err);
       // Report error to Sentry
@@ -96,6 +125,7 @@ export default function PaymentsTab({ customerId }: PaymentsTabProps) {
       }
       setError(err instanceof Error ? err.message : 'Failed to load payments');
       setPayments([]);
+      setPolicyDetail(null);
     } finally {
       setLoading(false);
     }
@@ -115,11 +145,30 @@ export default function PaymentsTab({ customerId }: PaymentsTabProps) {
     }
   };
 
+  const formatDateOnly = (dateString: string | null) => {
+    if (!dateString) return '—';
+    try {
+      return new Date(dateString).toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+      });
+    } catch {
+      return dateString;
+    }
+  };
+
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-KE', {
       style: 'currency',
       currency: 'KES',
     }).format(amount);
+  };
+
+  const formatCurrencyFromString = (value: string) => {
+    const n = parseFloat(value);
+    if (Number.isNaN(n)) return value;
+    return formatCurrency(n);
   };
 
   return (
@@ -183,6 +232,68 @@ export default function PaymentsTab({ customerId }: PaymentsTabProps) {
           <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
             {error}
           </div>
+        )}
+
+        {/* Policy summary card – shown when a policy is selected and results are loaded */}
+        {policyDetail && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Policy summary</CardTitle>
+              <CardDescription>Payment and enrollment details for the selected policy</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <dl className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-4">
+                <div>
+                  <dt className="text-sm font-medium text-muted-foreground">Frequency</dt>
+                  <dd className="mt-1 text-sm">{policyDetail.enrollment.frequency ?? '—'}</dd>
+                </div>
+                <div>
+                  <dt className="text-sm font-medium text-muted-foreground">Installment amount</dt>
+                  <dd className="mt-1 text-sm">
+                    {formatCurrencyFromString(policyDetail.installmentAmount)}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-sm font-medium text-muted-foreground">Category / plan</dt>
+                  <dd className="mt-1 text-sm">{policyDetail.product.planName ?? '—'}</dd>
+                </div>
+                <div>
+                  <dt className="text-sm font-medium text-muted-foreground">No. of installments</dt>
+                  <dd className="mt-1 text-sm">
+                    {numberOfInstallments(policyDetail.enrollment.paymentCadence)}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-sm font-medium text-muted-foreground">Annual premium</dt>
+                  <dd className="mt-1 text-sm">
+                    {formatCurrencyFromString(policyDetail.totalPremium)}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-sm font-medium text-muted-foreground">Total premium paid</dt>
+                  <dd className="mt-1 text-sm">
+                    {formatCurrencyFromString(policyDetail.totalPaidToDate)}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-sm font-medium text-muted-foreground">Missed payments (total amount missed)</dt>
+                  <dd className="mt-1 text-sm">N/A</dd>
+                </div>
+                <div>
+                  <dt className="text-sm font-medium text-muted-foreground">Policy start date</dt>
+                  <dd className="mt-1 text-sm">
+                    {formatDateOnly(policyDetail.enrollment.startDate)}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-sm font-medium text-muted-foreground">Policy end date</dt>
+                  <dd className="mt-1 text-sm">
+                    {formatDateOnly(policyDetail.enrollment.endDate)}
+                  </dd>
+                </div>
+              </dl>
+            </CardContent>
+          </Card>
         )}
 
         {/* Payments Table */}

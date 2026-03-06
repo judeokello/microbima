@@ -229,7 +229,7 @@ export class PaymentAccountNumberService {
       }),
     ]);
 
-    return !!(customerMatch || policyMatch);
+    return !!(customerMatch ?? policyMatch);
   }
 
   /**
@@ -311,7 +311,7 @@ export class PaymentAccountNumberService {
       }),
     ]);
 
-    return !!(customerMatch || policyMatch);
+    return !!(customerMatch ?? policyMatch);
   }
 
   /**
