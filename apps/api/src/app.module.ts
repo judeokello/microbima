@@ -71,7 +71,7 @@ export class AppModule implements NestModule {
     // Log M-Pesa callbacks first (before other middleware)
     consumer
       .apply(MpesaCallbackLoggerMiddleware)
-      .forRoutes({ path: 'public/mpesa/*', method: RequestMethod.ALL });
+      .forRoutes({ path: 'public/mpayesa/*', method: RequestMethod.ALL });
 
     consumer
       .apply(CorrelationIdMiddleware)

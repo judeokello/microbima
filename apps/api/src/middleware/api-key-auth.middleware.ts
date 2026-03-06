@@ -57,12 +57,12 @@ export class ApiKeyAuthMiddleware implements NestMiddleware {
     }
 
     // Skip authentication for M-Pesa callback endpoints (required by M-Pesa)
-    // These endpoints use IP whitelist validation instead
+    // These endpoints use IP whitelist validation instead (path uses mpayesa to satisfy Safaricom URL constraint)
     if (
-      req.path.startsWith('/api/public/mpesa/confirmation') ||
-      req.path.startsWith('/api/public/mpesa/stk-push/callback') ||
-      req.originalUrl.startsWith('/api/public/mpesa/confirmation') ||
-      req.originalUrl.startsWith('/api/public/mpesa/stk-push/callback')
+      req.path.startsWith('/api/public/mpayesa/confirmation') ||
+      req.path.startsWith('/api/public/mpayesa/stk-push/callback') ||
+      req.originalUrl.startsWith('/api/public/mpayesa/confirmation') ||
+      req.originalUrl.startsWith('/api/public/mpayesa/stk-push/callback')
     ) {
       console.log('Skipping API key auth for M-Pesa callback endpoint:', req.path);
       return next();

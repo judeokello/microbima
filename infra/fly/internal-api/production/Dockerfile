@@ -33,7 +33,7 @@ COPY . .
 WORKDIR /app/packages/common-config
 RUN pnpm build
 
-# Build the application
+# Build the application (includes Nest + trim-onboarding-text-fields script for Fly one-off runs)
 WORKDIR /app/apps/api
 RUN npx prisma generate
 RUN pnpm build

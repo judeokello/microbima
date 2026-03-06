@@ -1,7 +1,8 @@
 /**
  * E2E tests for M-Pesa callback endpoints (T037).
- * - IPN confirmation: POST /api/public/mpesa/confirmation
- * - STK Push callback: POST /api/public/mpesa/stk-push/callback
+ * - IPN confirmation: POST /api/public/mpayesa/confirmation
+ * - STK Push callback: POST /api/public/mpayesa/stk-push/callback
+ * - Path uses mpayesa to satisfy Safaricom URL constraint (no "mpesa" in callback URL).
  * - IP whitelist guard allows localhost in non-production (development/test).
  */
 import { Test, TestingModule } from '@nestjs/testing';
@@ -44,7 +45,7 @@ describe('M-Pesa Callbacks (e2e)', () => {
     await app.close();
   });
 
-  describe('POST /api/public/mpesa/confirmation (IPN)', () => {
+  describe('POST /api/public/mpayesa/confirmation (IPN)', () => {
     const validIpnPayload = {
       TransactionType: 'Pay Bill',
       TransID: 'E2E-TEST-' + Date.now(),
@@ -59,7 +60,7 @@ describe('M-Pesa Callbacks (e2e)', () => {
 
     it('returns 200 and ResultCode 0 (Accepted)', () => {
       return request(app.getHttpServer())
-        .post('/api/public/mpesa/confirmation')
+        .post('/api/public/mpayesa/confirmation')
         .set('Content-Type', 'application/json')
         .send(validIpnPayload)
         .expect([200, 201])
@@ -71,7 +72,7 @@ describe('M-Pesa Callbacks (e2e)', () => {
 
     it('returns 200 even with minimal required fields', () => {
       return request(app.getHttpServer())
-        .post('/api/public/mpesa/confirmation')
+        .post('/api/public/mpayesa/confirmation')
         .set('Content-Type', 'application/json')
         .send({
           TransactionType: 'Pay Bill',
@@ -89,7 +90,7 @@ describe('M-Pesa Callbacks (e2e)', () => {
     });
   });
 
-  describe('POST /api/public/mpesa/stk-push/callback (STK Push)', () => {
+  describe('POST /api/public/mpayesa/stk-push/callback (STK Push)', () => {
     const validStkCallbackPayload = {
       Body: {
         stkCallback: {
@@ -111,7 +112,7 @@ describe('M-Pesa Callbacks (e2e)', () => {
 
     it('returns 200 and ResultCode 0 (Accepted)', () => {
       return request(app.getHttpServer())
-        .post('/api/public/mpesa/stk-push/callback')
+        .post('/api/public/mpayesa/stk-push/callback')
         .set('Content-Type', 'application/json')
         .send(validStkCallbackPayload)
         .expect([200, 201])
@@ -123,7 +124,7 @@ describe('M-Pesa Callbacks (e2e)', () => {
 
     it('returns 200 for cancelled/failed callback (non-zero ResultCode)', () => {
       return request(app.getHttpServer())
-        .post('/api/public/mpesa/stk-push/callback')
+        .post('/api/public/mpayesa/stk-push/callback')
         .set('Content-Type', 'application/json')
         .send({
           Body: {
@@ -146,7 +147,7 @@ describe('M-Pesa Callbacks (e2e)', () => {
   describe('IP whitelist guard', () => {
     it('allows request from localhost (development/test)', () => {
       return request(app.getHttpServer())
-        .post('/api/public/mpesa/confirmation')
+        .post('/api/public/mpayesa/confirmation')
         .set('Content-Type', 'application/json')
         .set('X-Forwarded-For', '127.0.0.1')
         .send({

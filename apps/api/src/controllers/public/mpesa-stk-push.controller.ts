@@ -17,7 +17,7 @@ import { IpWhitelistGuard } from '../../guards/ip-whitelist.guard';
  * Public controller for receiving STK Push callback notifications from M-Pesa Daraja API.
  * This endpoint is publicly accessible (no API key authentication) as required by M-Pesa.
  */
-@Controller('public/mpesa/stk-push')
+@Controller('public/mpayesa/stk-push')
 @ApiTags('M-Pesa STK Push (System Endpoints)')
 export class MpesaStkPushPublicController {
   private readonly logger = new Logger(MpesaStkPushPublicController.name);
