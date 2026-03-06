@@ -805,7 +805,7 @@ export class MpesaPaymentsService {
     }
 
     // Batch-fetch policies by paymentAcNumber (accountNumber == paymentAcNumber)
-    const accountNumbers = Array.from(byAccount.keys());
+    const _accountNumbers = Array.from(byAccount.keys());
     const policies = await this.prismaService.policy.findMany({
       where: {
         paymentAcNumber: { not: null },
@@ -853,7 +853,7 @@ export class MpesaPaymentsService {
           }
 
           await this.prismaService.$transaction(async (tx) => {
-            const payment = await tx.policyPayment.create({
+            const _payment = await tx.policyPayment.create({
               data: {
                 policyId: policy.id,
                 paymentType: 'MPESA',
@@ -908,6 +908,20 @@ export class MpesaPaymentsService {
   }
 
   /**
+   * Resolve display name for createdBy userId: try Brand Ambassador first, then Supabase Auth.
+   */
+  private async getCreatedByDisplayName(userId: string): Promise<string> {
+    const brandAmbassador = await this.prismaService.brandAmbassador.findUnique({
+      where: { userId },
+      select: { displayName: true },
+    });
+    if (brandAmbassador?.displayName) {
+      return brandAmbassador.displayName;
+    }
+    return this.supabaseService.getUserDisplayName(userId);
+  }
+
+  /**
    * Get list of uploads with pagination
    */
   async getUploads(page: number = 1, pageSize: number = 20, correlationId: string) {
@@ -931,6 +945,15 @@ export class MpesaPaymentsService {
 
       const totalPages = Math.ceil(totalCount / validatedPageSize);
 
+      const createdByIds = [...new Set(uploads.map((u) => u.createdBy).filter((id): id is string => id != null))];
+      const createdByDisplayNames = new Map<string, string>();
+      await Promise.all(
+        createdByIds.map(async (userId) => {
+          const name = await this.getCreatedByDisplayName(userId);
+          createdByDisplayNames.set(userId, name);
+        })
+      );
+
       const uploadsDto = uploads.map((u) => ({
         id: u.id,
         accountHolder: u.accountHolder,
@@ -947,6 +970,7 @@ export class MpesaPaymentsService {
         totalWithdrawn: u.totalWithdrawn ? Number(u.totalWithdrawn) : undefined,
         filePath: u.filePath ?? undefined,
         createdBy: u.createdBy ?? undefined,
+        createdByDisplayName: u.createdBy ? createdByDisplayNames.get(u.createdBy) : undefined,
         createdAt: u.createdAt,
         updatedAt: u.updatedAt,
       }));
@@ -989,6 +1013,11 @@ export class MpesaPaymentsService {
 
       if (!upload) {
         throw new BadRequestException(`Upload with ID ${uploadId} not found`);
+      }
+
+      let createdByDisplayName: string | undefined;
+      if (upload.createdBy) {
+        createdByDisplayName = await this.getCreatedByDisplayName(upload.createdBy);
       }
 
       const validatedPage = Math.max(1, page);
@@ -1049,6 +1078,7 @@ export class MpesaPaymentsService {
           totalWithdrawn: upload.totalWithdrawn ? Number(upload.totalWithdrawn) : undefined,
           filePath: upload.filePath ?? undefined,
           createdBy: upload.createdBy ?? undefined,
+          createdByDisplayName,
           createdAt: upload.createdAt,
           updatedAt: upload.updatedAt,
         },

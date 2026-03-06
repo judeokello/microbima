@@ -1,10 +1,12 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { SupabaseService } from './supabase.service';
 import { ValidationException } from '../exceptions/validation.exception';
 import { ErrorCodes } from '../enums/error-codes.enum';
 import { PaymentAccountNumberService } from './payment-account-number.service';
 import { PaymentFrequency } from '@prisma/client';
 import { PAYMENT_CADENCE } from '../constants/payment-cadence.constants';
+import { trimOrNull } from '../utils/string.util';
 import * as Sentry from '@sentry/nestjs';
 
 /**
@@ -25,7 +27,8 @@ export class ProductManagementService {
 
   constructor(
     private readonly prismaService: PrismaService,
-    private readonly paymentAccountNumberService: PaymentAccountNumberService
+    private readonly paymentAccountNumberService: PaymentAccountNumberService,
+    private readonly supabaseService: SupabaseService,
   ) {}
 
   /**
@@ -320,6 +323,20 @@ export class ProductManagementService {
   }
 
   /**
+   * Resolve display name for createdBy userId: try Brand Ambassador first, then Supabase Auth.
+   */
+  private async getCreatedByDisplayName(userId: string): Promise<string> {
+    const brandAmbassador = await this.prismaService.brandAmbassador.findUnique({
+      where: { userId },
+      select: { displayName: true },
+    });
+    if (brandAmbassador?.displayName) {
+      return brandAmbassador.displayName;
+    }
+    return this.supabaseService.getUserDisplayName(userId);
+  }
+
+  /**
    * Get package by ID with underwriter info
    * @param packageId - Package ID
    * @param correlationId - Correlation ID for tracing
@@ -345,6 +362,11 @@ export class ProductManagementService {
         throw new NotFoundException(`Package with ID ${packageId} not found`);
       }
 
+      let createdByDisplayName: string | undefined;
+      if (pkg.createdBy) {
+        createdByDisplayName = await this.getCreatedByDisplayName(pkg.createdBy);
+      }
+
       return {
         id: pkg.id,
         name: pkg.name,
@@ -355,6 +377,7 @@ export class ProductManagementService {
         logoPath: pkg.logoPath,
         cardTemplateName: pkg.cardTemplateName ?? null,
         createdBy: pkg.createdBy,
+        createdByDisplayName,
         createdAt: pkg.createdAt.toISOString(),
         updatedAt: pkg.updatedAt.toISOString(),
       };
@@ -400,11 +423,11 @@ export class ProductManagementService {
       const pkg = await this.prismaService.package.update({
         where: { id: packageId },
         data: {
-          ...(data.name !== undefined && { name: data.name }),
-          ...(data.description !== undefined && { description: data.description }),
+          ...(data.name !== undefined && { name: data.name.trim() }),
+          ...(data.description !== undefined && { description: data.description.trim() }),
           ...(data.underwriterId !== undefined && { underwriterId: data.underwriterId }),
           ...(data.isActive !== undefined && { isActive: data.isActive }),
-          ...(data.logoPath !== undefined && { logoPath: data.logoPath }),
+          ...(data.logoPath !== undefined && { logoPath: trimOrNull(data.logoPath) }),
         },
         include: {
           underwriter: {
@@ -525,6 +548,11 @@ export class ProductManagementService {
         throw new NotFoundException(`Scheme with ID ${schemeId} not found`);
       }
 
+      let createdByDisplayName: string | undefined;
+      if (scheme.createdBy) {
+        createdByDisplayName = await this.getCreatedByDisplayName(scheme.createdBy);
+      }
+
       return {
         id: scheme.id,
         schemeName: scheme.schemeName,
@@ -535,6 +563,7 @@ export class ProductManagementService {
         paymentCadence: scheme.paymentCadence,
         paymentAcNumber: scheme.paymentAcNumber,
         createdBy: scheme.createdBy,
+        createdByDisplayName,
         createdAt: scheme.createdAt.toISOString(),
         updatedAt: scheme.updatedAt.toISOString(),
       };
@@ -578,8 +607,8 @@ export class ProductManagementService {
       const scheme = await this.prismaService.scheme.update({
         where: { id: schemeId },
         data: {
-          ...(data.schemeName !== undefined && { schemeName: data.schemeName }),
-          ...(data.description !== undefined && { description: data.description }),
+          ...(data.schemeName !== undefined && { schemeName: data.schemeName.trim() }),
+          ...(data.description !== undefined && { description: data.description.trim() }),
           ...(data.isActive !== undefined && { isActive: data.isActive }),
         },
       });
@@ -762,11 +791,15 @@ export class ProductManagementService {
     this.logger.log(`[${correlationId}] Creating package: ${data.name}`);
 
     try {
+      // Trim string fields before validation and persistence
+      const name = data.name.trim();
+      const description = data.description.trim();
+
       // Pre-save validation: Check for duplicates (name + underwriterId combination)
       const existingPackage = await this.prismaService.package.findFirst({
         where: {
           name: {
-            equals: data.name,
+            equals: name,
             mode: 'insensitive',
           },
           underwriterId: data.underwriterId ?? null,
@@ -783,8 +816,8 @@ export class ProductManagementService {
 
       const pkg = await this.prismaService.package.create({
         data: {
-          name: data.name,
-          description: data.description,
+          name,
+          description,
           underwriterId: data.underwriterId,
           isActive: data.isActive ?? false, // Default to false
           createdBy: userId,
@@ -864,6 +897,10 @@ export class ProductManagementService {
     this.logger.log(`[${correlationId}] Creating scheme: ${data.schemeName}`);
 
     try {
+      // Trim string fields before validation and persistence
+      const schemeName = data.schemeName.trim();
+      const description = data.description.trim();
+
       // Pre-save validation
       const validationErrors: Record<string, string> = {};
 
@@ -871,7 +908,7 @@ export class ProductManagementService {
       const existingScheme = await this.prismaService.scheme.findFirst({
         where: {
           schemeName: {
-            equals: data.schemeName,
+            equals: schemeName,
             mode: 'insensitive',
           },
         },
@@ -921,8 +958,8 @@ export class ProductManagementService {
           // Create the scheme
           const scheme = await tx.scheme.create({
             data: {
-              schemeName: data.schemeName,
-              description: data.description,
+              schemeName,
+              description,
               isActive: data.isActive ?? true,
               isPostpaid: data.isPostpaid ?? false,
               frequency: data.frequency ?? null,
@@ -972,8 +1009,8 @@ export class ProductManagementService {
         // Create non-postpaid scheme (no payment account number needed)
         const scheme = await this.prismaService.scheme.create({
           data: {
-            schemeName: data.schemeName,
-            description: data.description,
+            schemeName,
+            description,
             isActive: data.isActive ?? true,
             isPostpaid: false,
             createdBy: userId,

@@ -24,6 +24,7 @@ interface MpesaPaymentUpload {
   totalPaidIn?: number;
   totalWithdrawn?: number;
   createdBy?: string;
+  createdByDisplayName?: string;
   createdAt: string;
 }
 
@@ -41,15 +42,6 @@ interface UploadsResponse {
   pagination: PaginationInfo;
 }
 
-interface UserDisplayNameResponse {
-  status: number;
-  data: {
-    userId: string;
-    displayName: string;
-    email: string;
-  };
-}
-
 export default function MpesaPaymentsPage() {
   const router = useRouter();
   const [uploads, setUploads] = useState<MpesaPaymentUpload[]>([]);
@@ -58,7 +50,6 @@ export default function MpesaPaymentsPage() {
   const [error, setError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [processedByMap, setProcessedByMap] = useState<Map<string, string>>(new Map());
 
   const [pageSize, setPageSize] = useState(20);
   const [currentPage, setCurrentPage] = useState(1);
@@ -106,32 +97,6 @@ export default function MpesaPaymentsPage() {
       const data: UploadsResponse = await response.json();
       setUploads(data.data);
       setPagination(data.pagination);
-
-      // Fetch user display names for createdBy fields
-      const userIds = [...new Set(data.data.map(u => u.createdBy).filter((id): id is string => id !== undefined && id !== null))];
-      const token = await getSupabaseToken();
-      const displayNamePromises = userIds.map(async (userId) => {
-        try {
-          const userResponse = await fetch(`${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/users/${userId}/display-name`, {
-            headers: {
-              'Authorization': `Bearer ${token}`,
-              'x-correlation-id': `req-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-              'X-Source-Page': typeof window !== 'undefined' ? window.location.pathname : '',
-            }
-          });
-          if (userResponse.ok) {
-            const userData: UserDisplayNameResponse = await userResponse.json();
-            return [userId, userData.data.displayName] as [string, string];
-          }
-        } catch (err) {
-          console.error(`Error fetching display name for user ${userId}:`, err);
-        }
-        return [userId, 'Unknown'] as [string, string];
-      });
-
-      const displayNames = await Promise.all(displayNamePromises);
-      const newMap = new Map(displayNames);
-      setProcessedByMap(newMap);
     } catch (err) {
       console.error('Error fetching uploads:', err);
       setError(err instanceof Error ? err.message : 'Failed to fetch uploads');
@@ -342,7 +307,7 @@ export default function MpesaPaymentsPage() {
                         <TableCell>{formatCurrency(upload.totalPaidIn)}</TableCell>
                         <TableCell>{formatCurrency(upload.totalWithdrawn)}</TableCell>
                         <TableCell>
-                          {upload.createdBy ? (processedByMap.get(upload.createdBy) ?? 'Unknown') : '-'}
+                          {upload.createdByDisplayName ?? (upload.createdBy ? 'Unknown' : '-')}
                         </TableCell>
                         <TableCell>{formatDate(upload.createdAt)}</TableCell>
                       </TableRow>

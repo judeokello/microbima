@@ -77,6 +77,13 @@ export class SchemeDetailDto {
   createdBy: string;
 
   @ApiProperty({
+    description: 'Display name of the user who created this scheme',
+    example: 'Jane Doe',
+    required: false,
+  })
+  createdByDisplayName?: string;
+
+  @ApiProperty({
     description: 'Creation timestamp',
     example: '2025-01-15T10:30:00Z',
   })

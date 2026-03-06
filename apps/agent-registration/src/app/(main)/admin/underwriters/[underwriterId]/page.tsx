@@ -24,6 +24,7 @@ interface Underwriter {
   isActive: boolean;
   logoPath?: string | null;
   createdBy: string;
+  createdByDisplayName?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -51,17 +52,6 @@ interface PackagesResponse {
   data: Package[];
 }
 
-interface UserDisplayNameResponse {
-  status: number;
-  correlationId: string;
-  message: string;
-  data: {
-    userId: string;
-    displayName: string;
-    email: string;
-  };
-}
-
 export default function UnderwriterDetailPage() {
   const router = useRouter();
   const params = useParams();
@@ -69,7 +59,6 @@ export default function UnderwriterDetailPage() {
 
   const [underwriter, setUnderwriter] = useState<Underwriter | null>(null);
   const [packages, setPackages] = useState<Package[]>([]);
-  const [createdByName, setCreatedByName] = useState<string>('Loading...');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
@@ -114,26 +103,6 @@ export default function UnderwriterDetailPage() {
         officeLocation: data.data.officeLocation,
         isActive: data.data.isActive,
       });
-
-      // Fetch createdBy display name
-      if (data.data.createdBy) {
-        try {
-          const userResponse = await fetch(`${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/users/${data.data.createdBy}/display-name`, {
-            headers: {
-              'Authorization': `Bearer ${token}`,
-              'x-correlation-id': `req-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-              'X-Source-Page': typeof window !== 'undefined' ? window.location.pathname : '',
-            }
-          });
-          if (userResponse.ok) {
-            const userData: UserDisplayNameResponse = await userResponse.json();
-            setCreatedByName(userData.data.displayName);
-          }
-        } catch (err) {
-          console.error('Error fetching user display name:', err);
-          setCreatedByName('Unknown');
-        }
-      }
     } catch (err) {
       console.error('Error fetching underwriter:', err);
       // Report error to Sentry
@@ -293,6 +262,13 @@ export default function UnderwriterDetailPage() {
       setError(null);
 
       const token = await getSupabaseToken();
+      const payload = {
+        name: formData.name.trim(),
+        shortName: formData.shortName.trim(),
+        website: formData.website.trim(),
+        officeLocation: formData.officeLocation.trim(),
+        isActive: formData.isActive,
+      };
       const response = await fetch(`${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/underwriters/${underwriterId}`, {
         method: 'PUT',
         headers: {
@@ -300,7 +276,7 @@ export default function UnderwriterDetailPage() {
           'Authorization': `Bearer ${token}`,
           'x-correlation-id': `req-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
         },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(payload),
       });
 
       if (!response.ok) {
@@ -421,6 +397,7 @@ export default function UnderwriterDetailPage() {
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   required
+                  maxLength={100}
                 />
               ) : (
                 <p className="text-sm font-medium">{underwriter.name}</p>
@@ -434,6 +411,7 @@ export default function UnderwriterDetailPage() {
                   value={formData.shortName}
                   onChange={(e) => setFormData({ ...formData, shortName: e.target.value })}
                   required
+                  maxLength={50}
                 />
               ) : (
                 <p className="text-sm font-medium">{underwriter.shortName}</p>
@@ -468,6 +446,7 @@ export default function UnderwriterDetailPage() {
                   value={formData.officeLocation}
                   onChange={(e) => setFormData({ ...formData, officeLocation: e.target.value })}
                   required
+                  maxLength={200}
                 />
               ) : (
                 <p className="text-sm font-medium">{underwriter.officeLocation}</p>
@@ -498,7 +477,7 @@ export default function UnderwriterDetailPage() {
 
             <div>
               <Label>Created By</Label>
-              <p className="text-sm font-medium">{createdByName}</p>
+              <p className="text-sm font-medium">{underwriter.createdByDisplayName ?? 'Unknown'}</p>
             </div>
 
             <div>

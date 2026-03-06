@@ -54,8 +54,10 @@ export default function CreateSchemeDialog({
     setLoading(true);
 
     try {
-      // Validate required fields
-      if (!formData.schemeName || !formData.description) {
+      // Trim and validate required fields
+      const schemeName = formData.schemeName.trim();
+      const description = formData.description.trim();
+      if (!schemeName || !description) {
         throw new Error('All fields are required');
       }
 
@@ -84,8 +86,8 @@ export default function CreateSchemeDialog({
         frequency?: string;
         paymentCadence?: number;
       } = {
-        schemeName: formData.schemeName,
-        description: formData.description,
+        schemeName,
+        description,
         isActive: formData.isActive,
         packageId: packageId,
       };
