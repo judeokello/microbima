@@ -1,0 +1,9 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "outDir": "./dist/scripts",
+    "rootDir": "scripts"
+  },
+  "include": ["scripts/trim-onboarding-text-fields.ts"],
+  "exclude": ["node_modules", "dist"]
+}
