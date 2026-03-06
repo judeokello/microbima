@@ -13,7 +13,7 @@ import { IpWhitelistGuard } from '../../guards/ip-whitelist.guard';
  * Public controller for receiving Instant Payment Notification (IPN) callbacks from M-Pesa Daraja API.
  * This endpoint is publicly accessible (no API key authentication) as required by M-Pesa.
  */
-@Controller('public/mpesa')
+@Controller('public/mpayesa')
 @ApiTags('M-Pesa IPN (System Endpoints)')
 export class MpesaIpnController {
   private readonly logger = new Logger(MpesaIpnController.name);

@@ -44,13 +44,14 @@ export class CorrelationIdMiddleware implements NestMiddleware {
 
     // Skip correlation ID requirement for M-Pesa public callback endpoints
     // M-Pesa doesn't send correlation ID headers, so we generate them in the controller
+    // Path uses mpayesa to satisfy Safaricom URL constraint (no "mpesa" in callback URL)
     const isMpesaPublicCallback =
-      path.includes('/api/public/mpesa/') ||
-      originalUrl.includes('/api/public/mpesa/') ||
-      url.includes('/api/public/mpesa/') ||
-      path.startsWith('/public/mpesa/') ||
-      originalUrl.startsWith('/public/mpesa/') ||
-      url.startsWith('/public/mpesa/');
+      path.includes('/api/public/mpayesa/') ||
+      originalUrl.includes('/api/public/mpayesa/') ||
+      url.includes('/api/public/mpayesa/') ||
+      path.startsWith('/public/mpayesa/') ||
+      originalUrl.startsWith('/public/mpayesa/') ||
+      url.startsWith('/public/mpayesa/');
 
     if (isMpesaPublicCallback) {
       // Generate correlation ID for M-Pesa callbacks (they don't send one)
