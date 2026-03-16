@@ -2,7 +2,7 @@ import { Injectable, Logger, forwardRef, Inject } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { PolicyService } from './policy.service';
 import { MpesaIpnPayloadDto, MpesaIpnResponseDto } from '../dto/mpesa-ipn/mpesa-ipn.dto';
-import { normalizePhoneNumber } from '../utils/phone-number.util';
+import { normalizeMsisdnOrReturnRaw } from '../utils/phone-number.util';
 import { MpesaStatementReasonType, MpesaPaymentSource, MpesaStkPushStatus, MpesaStkPushRequest, MpesaPaymentReportItem, PolicyPayment } from '@prisma/client';
 import { ValidationException } from '../exceptions/validation.exception';
 import * as Sentry from '@sentry/nestjs';
@@ -66,24 +66,17 @@ export class MpesaIpnService {
         })
       );
 
-      // Parse and normalize data
-      const normalizedPhone = normalizePhoneNumber(payload.MSISDN);
-      const amount = parseFloat(payload.TransAmount);
-      const transactionTime = this.parseTransactionTime(payload.TransTime);
-      const reasonType = this.mapTransactionTypeToReasonType(payload.TransactionType);
-
-      // Check for duplicate in policy_payments first (idempotency)
-      const existingPolicyPayment = await this.prismaService.policyPayment.findFirst({
-        where: {
-          transactionReference: payload.TransID,
-        },
-      });
-
-      // Check for existing IPN record
+      // Idempotency: check for existing IPN record by TransID (no parsing required)
       const existingIpnRecord = await this.prismaService.mpesaPaymentReportItem.findFirst({
         where: {
           transactionReference: payload.TransID,
           source: MpesaPaymentSource.IPN,
+        },
+      });
+
+      const existingPolicyPayment = await this.prismaService.policyPayment.findFirst({
+        where: {
+          transactionReference: payload.TransID,
         },
       });
 
@@ -99,11 +92,15 @@ export class MpesaIpnService {
           })
         );
 
+        const msisdnResult = normalizeMsisdnOrReturnRaw(payload.MSISDN);
+        const amount = parseFloat(payload.TransAmount);
+        const transactionTime = this.parseTransactionTime(payload.TransTime);
+        const reasonType = this.mapTransactionTypeToReasonType(payload.TransactionType);
         await this.updateExistingRecords(
           existingIpnRecord.id,
           existingPolicyPayment.id,
           payload,
-          normalizedPhone,
+          msisdnResult.value,
           amount,
           transactionTime,
           reasonType,
@@ -172,13 +169,9 @@ export class MpesaIpnService {
         return { ResultCode: 0, ResultDesc: 'Accepted' };
       }
 
-      // Process new IPN notification
-      await this.processNewIpnNotification(
+      // Process IPN: insert blob first if new, then parse and update (Option A)
+      await this.processNewOrExistingIpnNotification(
         payload,
-        normalizedPhone,
-        amount,
-        transactionTime,
-        reasonType,
         correlationId,
         existingPolicyPayment,
         existingIpnRecord
@@ -298,84 +291,128 @@ export class MpesaIpnService {
   }
 
   /**
-   * Process new IPN notification (not a duplicate)
+   * Process new or existing IPN: insert blob first if no existing record, then parse and update (Option A).
+   * When existingIpnRecord exists (e.g. previous run failed after insert), use it and avoid duplicate insert.
    */
-  private async processNewIpnNotification(
+  private async processNewOrExistingIpnNotification(
     payload: MpesaIpnPayloadDto,
-    normalizedPhone: string,
-    amount: number,
-    transactionTime: Date,
-    reasonType: MpesaStatementReasonType,
     correlationId: string,
     existingPolicyPayment: PolicyPayment | null,
-    _existingIpnRecord: MpesaPaymentReportItem | null
+    existingIpnRecord: MpesaPaymentReportItem | null
   ): Promise<void> {
-    // Always create MpesaPaymentReportItem record
-    const ipnRecord = await this.prismaService.mpesaPaymentReportItem.create({
-      data: {
-        mpesaPaymentReportUploadId: null, // IPN records don't have upload ID
-        transactionReference: payload.TransID,
-        completionTime: transactionTime,
-        initiationTime: transactionTime, // IPN doesn't provide separate initiation time
-        paymentDetails: payload.TransactionType,
-        transactionStatus: 'Completed', // IPN notifications are for completed transactions
-        paidIn: amount, // All IPN transactions are incoming payments
-        withdrawn: 0,
-        accountBalance: payload.OrgAccountBalance ? parseFloat(payload.OrgAccountBalance) : 0,
-        balanceConfirmed: null,
-        reasonType,
-        otherPartyInfo: null,
-        linkedTransactionId: null,
-        accountNumber: payload.BillRefNumber ?? null,
-        source: MpesaPaymentSource.IPN,
-        msisdn: normalizedPhone,
-        firstName: payload.FirstName ?? null,
-        middleName: payload.MiddleName ?? null,
-        lastName: payload.LastName ?? null,
-        businessShortCode: payload.BusinessShortCode,
-        mpesaStkPushRequestId: null, // Will be set if linked to STK Push
-      },
-    });
+    let ipnRecord: MpesaPaymentReportItem;
 
-    // Attempt to link to STK Push request
-    let stkPushRequest = null;
-    if (payload.BillRefNumber) {
-      stkPushRequest = await this.linkToStkPushRequest(
-        ipnRecord,
-        payload.BillRefNumber,
-        normalizedPhone,
-        amount,
-        correlationId
-      );
+    if (existingIpnRecord) {
+      ipnRecord = existingIpnRecord;
+    } else {
+      // 1. Insert with messageBlob and transactionReference (so idempotency by TransID works)
+      ipnRecord = await this.prismaService.mpesaPaymentReportItem.create({
+        data: {
+          messageBlob: JSON.stringify(payload),
+          transactionReference: payload.TransID,
+          source: MpesaPaymentSource.IPN,
+        },
+      });
     }
 
-    // Determine payment record creation logic based on STK Push match
-    const shouldCreatePolicyPayment = await this.shouldCreatePolicyPaymentRecord(
-      stkPushRequest,
-      existingPolicyPayment,
-      correlationId
-    );
+    try {
+      // 2. Parse payload (may throw for invalid data)
+      const amount = parseFloat(payload.TransAmount);
+      const transactionTime = this.parseTransactionTime(payload.TransTime);
+      const reasonType = this.mapTransactionTypeToReasonType(payload.TransactionType);
+      const msisdnResult = normalizeMsisdnOrReturnRaw(payload.MSISDN);
+      const msisdnForStorage = msisdnResult.value; // normalized phone or raw hash
 
-    if (shouldCreatePolicyPayment) {
-      await this.createPolicyPaymentRecord(
-        payload,
-        normalizedPhone,
-        amount,
-        transactionTime,
+      // 3. Update row with parsed fields and set isProcessed = true
+      await this.prismaService.mpesaPaymentReportItem.update({
+        where: { id: ipnRecord.id },
+        data: {
+          transactionReference: payload.TransID,
+          completionTime: transactionTime,
+          initiationTime: transactionTime,
+          paymentDetails: payload.TransactionType,
+          transactionStatus: 'Completed',
+          paidIn: amount,
+          withdrawn: 0,
+          accountBalance: payload.OrgAccountBalance ? parseFloat(payload.OrgAccountBalance) : 0,
+          balanceConfirmed: null,
+          reasonType,
+          otherPartyInfo: null,
+          linkedTransactionId: null,
+          accountNumber: payload.BillRefNumber ?? null,
+          msisdn: msisdnForStorage,
+          firstName: payload.FirstName ?? null,
+          middleName: payload.MiddleName ?? null,
+          lastName: payload.LastName ?? null,
+          businessShortCode: payload.BusinessShortCode,
+          mpesaStkPushRequestId: null,
+          isProcessed: true,
+        },
+      });
+
+      // Reload so we have latest for linkToStkPushRequest
+      const updatedRecord = await this.prismaService.mpesaPaymentReportItem.findUniqueOrThrow({
+        where: { id: ipnRecord.id },
+      });
+
+      // 4. Attempt to link to STK Push request (msisdnForStorage may be phone or hash; match may fail when hash)
+      let stkPushRequest: MpesaStkPushRequest | null = null;
+      if (payload.BillRefNumber) {
+        stkPushRequest = await this.linkToStkPushRequest(
+          updatedRecord,
+          payload.BillRefNumber,
+          msisdnForStorage,
+          amount,
+          correlationId
+        );
+      }
+
+      // 5. Create/update policy_payment when appropriate; use customer.idNumber for accountNumber
+      const shouldCreatePolicyPayment = await this.shouldCreatePolicyPaymentRecord(
+        stkPushRequest,
+        existingPolicyPayment,
         correlationId
       );
-    } else {
-      this.logger.log(
+
+      if (shouldCreatePolicyPayment) {
+        const mapped = await this.createPolicyPaymentRecord(
+          payload,
+          amount,
+          transactionTime,
+          correlationId
+        );
+        if (mapped) {
+          await this.prismaService.mpesaPaymentReportItem.update({
+            where: { id: ipnRecord.id },
+            data: { isMapped: true },
+          });
+        }
+      } else {
+        this.logger.log(
+          JSON.stringify({
+            event: 'IPN_SKIP_POLICY_PAYMENT',
+            correlationId,
+            transactionId: payload.TransID,
+            reason: stkPushRequest
+              ? 'STK Push already created policy payment (COMPLETED)'
+              : 'No account reference',
+            timestamp: new Date().toISOString(),
+          })
+        );
+      }
+    } catch (parseOrUpdateError) {
+      // Parsing or update failed; leave isProcessed false for later handling; blob already stored
+      this.logger.warn(
         JSON.stringify({
-          event: 'IPN_SKIP_POLICY_PAYMENT',
+          event: 'IPN_PARSE_OR_UPDATE_FAILED',
           correlationId,
+          ipnRecordId: ipnRecord.id,
           transactionId: payload.TransID,
-          reason: stkPushRequest
-            ? 'STK Push already created policy payment (COMPLETED)'
-            : 'No account reference',
+          error: parseOrUpdateError instanceof Error ? parseOrUpdateError.message : String(parseOrUpdateError),
           timestamp: new Date().toISOString(),
         })
       );
+      throw parseOrUpdateError;
     }
   }
 
@@ -407,19 +444,15 @@ export class MpesaIpnService {
   }
 
   /**
-   * Create policy payment record
-   *
-   * If a placeholder payment exists (transactionReference starts with "PENDING-STK-"),
-   * it will be updated with the real transaction reference and payment data.
-   * Otherwise, a new payment record is created.
+   * Create or update policy payment record. Uses customer.idNumber for policy_payment.accountNumber.
+   * Returns true when a policy_payment was created or updated (so caller can set isMapped on report item).
    */
   private async createPolicyPaymentRecord(
     payload: MpesaIpnPayloadDto,
-    normalizedPhone: string,
     amount: number,
     transactionTime: Date,
     correlationId: string
-  ): Promise<void> {
+  ): Promise<boolean> {
     if (!payload.BillRefNumber) {
       this.logger.warn(
         JSON.stringify({
@@ -430,21 +463,23 @@ export class MpesaIpnService {
           timestamp: new Date().toISOString(),
         })
       );
-      return;
+      return false;
     }
 
-    // Find policy by payment account number (including status for activation check)
-    const policy = await this.prismaService.policy.findFirst({
+    // Find policy and customer (for accountNumber = customer.idNumber)
+    const policyWithCustomer = await this.prismaService.policy.findFirst({
       where: {
         paymentAcNumber: payload.BillRefNumber,
       },
       select: {
         id: true,
         status: true,
+        customerId: true,
+        customer: { select: { idNumber: true } },
       },
     });
 
-    if (!policy) {
+    if (!policyWithCustomer) {
       this.logger.warn(
         JSON.stringify({
           event: 'IPN_POLICY_NOT_FOUND',
@@ -455,8 +490,11 @@ export class MpesaIpnService {
           timestamp: new Date().toISOString(),
         })
       );
-      return;
+      return false;
     }
+
+    const policy = { id: policyWithCustomer.id, status: policyWithCustomer.status };
+    const customerIdNumber = policyWithCustomer.customer?.idNumber ?? null;
 
     // Check for duplicate transaction reference in policy_payments (real transaction ID)
     const existingPayment = await this.prismaService.policyPayment.findFirst({
@@ -475,7 +513,7 @@ export class MpesaIpnService {
           timestamp: new Date().toISOString(),
         })
       );
-      return;
+      return true; // Already mapped
     }
 
     // Check for placeholder payment (transactionReference starts with "PENDING-STK-")
@@ -485,28 +523,26 @@ export class MpesaIpnService {
         transactionReference: {
           startsWith: 'PENDING-STK-',
         },
-        // Only update if actualPaymentDate is null (payment hasn't completed yet)
         actualPaymentDate: null,
       },
     });
 
     if (placeholderPayment) {
-      // Update placeholder payment with real transaction reference and payment data
       await this.prismaService.policyPayment.update({
         where: { id: placeholderPayment.id },
         data: {
-          transactionReference: payload.TransID, // Update with real transaction reference
+          transactionReference: payload.TransID,
           amount,
-          accountNumber: normalizedPhone,
+          accountNumber: customerIdNumber,
           details: `IPN payment - ${payload.TransactionType}`,
-          expectedPaymentDate: transactionTime, // transactionTime is already in UTC from IPN parsing
-          actualPaymentDate: transactionTime, // Mark as paid
+          expectedPaymentDate: transactionTime,
+          actualPaymentDate: transactionTime,
           paymentMessageBlob: JSON.stringify({
             firstName: payload.FirstName,
             middleName: payload.MiddleName,
             lastName: payload.LastName,
             businessShortCode: payload.BusinessShortCode,
-            originalPlaceholderRef: placeholderPayment.transactionReference, // Keep record of original placeholder
+            originalPlaceholderRef: placeholderPayment.transactionReference,
           }),
         },
       });
@@ -525,16 +561,15 @@ export class MpesaIpnService {
         })
       );
     } else {
-      // No placeholder payment found - create new payment record
       await this.prismaService.policyPayment.create({
         data: {
           policyId: policy.id,
           paymentType: 'MPESA',
           transactionReference: payload.TransID,
           amount,
-          accountNumber: normalizedPhone,
+          accountNumber: customerIdNumber,
           details: `IPN payment - ${payload.TransactionType}`,
-          expectedPaymentDate: transactionTime, // transactionTime is already in UTC from IPN parsing
+          expectedPaymentDate: transactionTime,
           actualPaymentDate: transactionTime,
           paymentMessageBlob: JSON.stringify({
             firstName: payload.FirstName,
@@ -586,6 +621,8 @@ export class MpesaIpnService {
         );
       }
     }
+
+    return true;
   }
 
   /**
@@ -774,26 +811,25 @@ export class MpesaIpnService {
   }
 
   /**
-   * Update existing records (idempotent handling)
+   * Update existing records (idempotent handling). Uses customer.idNumber for policy_payment.accountNumber.
    */
   private async updateExistingRecords(
     ipnRecordId: string,
     policyPaymentId: number,
     payload: MpesaIpnPayloadDto,
-    normalizedPhone: string,
+    msisdnForStorage: string,
     amount: number,
     transactionTime: Date,
     _reasonType: MpesaStatementReasonType,
     _correlationId: string
   ): Promise<void> {
-    // Update IPN record
     await this.prismaService.mpesaPaymentReportItem.update({
       where: { id: ipnRecordId },
       data: {
         completionTime: transactionTime,
         initiationTime: transactionTime,
         paidIn: amount,
-        msisdn: normalizedPhone,
+        msisdn: msisdnForStorage,
         firstName: payload.FirstName ?? null,
         middleName: payload.MiddleName ?? null,
         lastName: payload.LastName ?? null,
@@ -801,12 +837,18 @@ export class MpesaIpnService {
       },
     });
 
-    // Update policy payment record
+    const policyPayment = await this.prismaService.policyPayment.findUnique({
+      where: { id: policyPaymentId },
+      include: { policy: { include: { customer: { select: { idNumber: true } } } } },
+    });
+    const customerIdNumber = policyPayment?.policy?.customer?.idNumber ?? null;
+
     await this.prismaService.policyPayment.update({
       where: { id: policyPaymentId },
       data: {
         amount,
         actualPaymentDate: transactionTime,
+        accountNumber: customerIdNumber,
       },
     });
   }

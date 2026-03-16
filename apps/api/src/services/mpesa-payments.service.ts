@@ -823,8 +823,8 @@ export class MpesaPaymentsService {
       if (norm) policyByAccount.set(norm, { id: p.id, status: p.status });
     }
 
-    // Check which transactionReferences already exist in policy_payments
-    const refs = items.map((i) => i.transactionReference);
+    // Check which transactionReferences already exist in policy_payments (only non-null refs)
+    const refs = items.map((i) => i.transactionReference).filter((r): r is string => r != null);
     const existingPayments = await this.prismaService.policyPayment.findMany({
       where: { transactionReference: { in: refs } },
       select: { transactionReference: true },
@@ -839,8 +839,13 @@ export class MpesaPaymentsService {
       }
 
       for (const item of groupItems) {
+        if (item.transactionReference == null || item.completionTime == null) {
+          continue; // Skip blob-only or incomplete items
+        }
+        const txRef = item.transactionReference;
+        const compTime = item.completionTime;
         try {
-          if (existingRefs.has(item.transactionReference)) {
+          if (existingRefs.has(txRef)) {
             result.policyPaymentsSkippedAlreadyExist++;
             if (!item.isProcessed || !item.isMapped) {
               await this.prismaService.mpesaPaymentReportItem.update({
@@ -857,11 +862,11 @@ export class MpesaPaymentsService {
               data: {
                 policyId: policy.id,
                 paymentType: 'MPESA',
-                transactionReference: item.transactionReference,
-                amount: Number(item.paidIn),
+                transactionReference: txRef,
+                amount: Number(item.paidIn ?? 0),
                 accountNumber: item.accountNumber,
-                expectedPaymentDate: item.completionTime,
-                actualPaymentDate: item.completionTime,
+                expectedPaymentDate: compTime,
+                actualPaymentDate: compTime,
                 details: 'M-Pesa statement import',
               },
             });
@@ -871,7 +876,7 @@ export class MpesaPaymentsService {
               data: { isProcessed: true, isMapped: true },
             });
 
-            existingRefs.add(item.transactionReference);
+            existingRefs.add(txRef);
             result.policyPaymentsCreated++;
             result.itemsUpdatedAsProcessed++;
 
@@ -1042,16 +1047,16 @@ export class MpesaPaymentsService {
 
       const itemsDto = items.map((item) => ({
         id: item.id,
-        transactionReference: item.transactionReference,
-        completionTime: item.completionTime,
-        initiationTime: item.initiationTime,
+        transactionReference: item.transactionReference ?? '',
+        completionTime: item.completionTime ?? new Date(0),
+        initiationTime: item.initiationTime ?? new Date(0),
         paymentDetails: item.paymentDetails ?? undefined,
         transactionStatus: item.transactionStatus ?? undefined,
-        paidIn: Number(item.paidIn),
-        withdrawn: Number(item.withdrawn),
-        accountBalance: Number(item.accountBalance),
+        paidIn: Number(item.paidIn ?? 0),
+        withdrawn: Number(item.withdrawn ?? 0),
+        accountBalance: Number(item.accountBalance ?? 0),
         balanceConfirmed: item.balanceConfirmed ?? undefined,
-        reasonType: item.reasonType,
+        reasonType: item.reasonType ?? MpesaStatementReasonType.Unmapped,
         otherPartyInfo: item.otherPartyInfo ?? undefined,
         linkedTransactionId: item.linkedTransactionId ?? undefined,
         accountNumber: item.accountNumber ?? undefined,

@@ -907,24 +907,27 @@ model MpesaPaymentReportUpload {
 model MpesaPaymentReportItem {
   id                        String                    @id @default(uuid()) @db.Uuid
   mpesaPaymentReportUploadId String?                  @db.Uuid // Made nullable for IPN records
-  transactionReference      String                    @db.VarChar(50)
-  completionTime            DateTime
-  initiationTime         DateTime
+  transactionReference      String?                   @db.VarChar(50) // Nullable for blob-first IPN insert
+  completionTime            DateTime?                 // Nullable for blob-first IPN insert
+  initiationTime            DateTime?                 // Nullable for blob-first IPN insert
   paymentDetails            String?                   @db.VarChar(500)
-  transactionStatus        String?                   @db.VarChar(100)
-  paidIn                   Decimal                   @db.Decimal(10, 2)
-  withdrawn                Decimal                   @db.Decimal(10, 2)
-  accountBalance           Decimal                   @db.Decimal(10, 2)
-  balanceConfirmed         String?                   @db.VarChar(20)
-  reasonType               MpesaStatementReasonType
-  otherPartyInfo           String?                   @db.VarChar(500)
-  linkedTransactionId      String?                   @db.VarChar(100)
+  transactionStatus         String?                   @db.VarChar(100)
+  paidIn                    Decimal?                  @db.Decimal(10, 2) // Nullable for blob-first IPN insert
+  withdrawn                 Decimal?                  @db.Decimal(10, 2) // Nullable for blob-first IPN insert
+  accountBalance            Decimal?                  @db.Decimal(10, 2) // Nullable for blob-first IPN insert
+  balanceConfirmed          String?                   @db.VarChar(20)
+  reasonType                MpesaStatementReasonType? // Nullable for blob-first IPN insert
+  otherPartyInfo            String?                   @db.VarChar(500)
+  linkedTransactionId       String?                   @db.VarChar(100)
   accountNumber             String?                   @db.VarChar(100)
   isProcessed               Boolean                   @default(false)
   isMapped                  Boolean                   @default(false)
 
+  // Raw payload from M-Pesa (IPN only). Inserted first; then parsed and other fields updated.
+  messageBlob               String?                   @db.Text
+
   // New fields for IPN and STK Push integration
-  msisdn                    String?                   @db.VarChar(20) // Customer phone number (normalized: 254XXXXXXXXX)
+  msisdn                    String?                   @db.VarChar(64) // Phone (normalized) or SHA-256 hashed MSISDN from M-Pesa
   firstName                 String?                   @db.VarChar(100) // Customer first name from IPN
   middleName                String?                   @db.VarChar(100) // Customer middle name from IPN
   lastName                  String?                   @db.VarChar(100) // Customer last name from IPN
@@ -962,6 +965,8 @@ model MpesaStkPushRequest {
   initiatedBy       String?          // Agent/user ID who initiated
   initiatedAt       DateTime          @default(now()) // When STK Push was initiated
   completedAt       DateTime?        // When transaction completed
+  requestPayload    String?           @db.Text // Outgoing JSON request sent to Daraja STK Push (for troubleshooting)
+  responsePayload   String?           @db.Text // Synchronous JSON response from Daraja initiate (for troubleshooting)
   createdAt         DateTime          @default(now())
   updatedAt         DateTime          @updatedAt
 

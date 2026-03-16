@@ -184,21 +184,29 @@ export class MpesaDarajaApiService {
     merchantRequestId: string,
     callbackUrl: string,
     correlationId: string
-  ): Promise<{ CheckoutRequestID: string; ResponseCode: string; ResponseDescription: string; MerchantRequestID: string; CustomerMessage: string }> {
+  ): Promise<{
+    CheckoutRequestID: string;
+    ResponseCode: string;
+    ResponseDescription: string;
+    MerchantRequestID: string;
+    CustomerMessage: string;
+    requestPayload: string;
+    responsePayload: string;
+  }> {
     const maxRetries = 3;
     const retryDelays = [1000, 2000, 4000]; // 1s, 2s, 4s
     const errors: Array<{ attempt: number; error: string; timestamp: string }> = [];
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      let requestPayloadSerialized: string | null = null;
+
       try {
         const accessToken = await this.generateAccessToken(correlationId);
         const config = this.configService.mpesa;
 
-        // Generate password: Base64(BusinessShortCode + Passkey + Timestamp)
         const timestamp = this.generateTimestamp();
         const password = this.generatePassword(config.businessShortCode, config.passkey, timestamp);
 
-        // Debug logging (mask sensitive values)
         this.logger.debug(
           JSON.stringify({
             event: 'STK_PUSH_PASSWORD_GENERATED',
@@ -226,8 +234,9 @@ export class MpesaDarajaApiService {
           CallBackURL: callbackUrl,
           AccountReference: accountReference,
           TransactionDesc: 'Premium payment',
-          MerchantRequestID: merchantRequestId, // Use camelCase in code, but M-Pesa expects MerchantRequestID
+          MerchantRequestID: merchantRequestId,
         };
+        requestPayloadSerialized = JSON.stringify(payload);
 
         // Debug: Log the actual payload being sent (mask sensitive values)
         this.logger.debug(
@@ -309,8 +318,9 @@ export class MpesaDarajaApiService {
             });
 
             if (attempt === maxRetries) {
-              // Convert to ValidationException on final attempt
-              throw this.mpesaErrorMapper.toValidationException(errorInfo);
+              const err = this.mpesaErrorMapper.toValidationException(errorInfo);
+              if (requestPayloadSerialized) (err as { requestPayload?: string }).requestPayload = requestPayloadSerialized;
+              throw err;
             }
           }
 
@@ -359,8 +369,9 @@ export class MpesaDarajaApiService {
             });
 
             if (attempt === maxRetries) {
-              // Convert to ValidationException on final attempt
-              throw this.mpesaErrorMapper.toValidationException(errorInfo);
+              const err = this.mpesaErrorMapper.toValidationException(errorInfo);
+              if (requestPayloadSerialized) (err as { requestPayload?: string }).requestPayload = requestPayloadSerialized;
+              throw err;
             }
           }
 
@@ -386,8 +397,15 @@ export class MpesaDarajaApiService {
           })
         );
 
-        return data;
+        return {
+          ...data,
+          requestPayload: requestPayloadSerialized ?? '',
+          responsePayload: JSON.stringify(response.data),
+        };
       } catch (error) {
+        if (requestPayloadSerialized && error && typeof error === 'object') {
+          (error as { requestPayload?: string }).requestPayload = requestPayloadSerialized;
+        }
         // If it's already a ValidationException (from error mapper), rethrow it on final attempt
         // Otherwise, allow retries for retryable errors
         if (error instanceof ValidationException) {
@@ -482,7 +500,9 @@ export class MpesaDarajaApiService {
                 },
               });
 
-              throw this.mpesaErrorMapper.toValidationException(errorInfo);
+              const err = this.mpesaErrorMapper.toValidationException(errorInfo);
+              if (requestPayloadSerialized) (err as { requestPayload?: string }).requestPayload = requestPayloadSerialized;
+              throw err;
             }
           }
         } else {
@@ -539,8 +559,10 @@ export class MpesaDarajaApiService {
               },
             });
 
-            // For network errors, throw generic error
-            throw new Error(`STK Push failed after ${maxRetries} attempts. Errors: ${JSON.stringify(errors)}`);
+            // For network errors, throw generic error (requestPayload attached in catch above)
+            const err = new Error(`STK Push failed after ${maxRetries} attempts. Errors: ${JSON.stringify(errors)}`);
+            if (requestPayloadSerialized) (err as { requestPayload?: string }).requestPayload = requestPayloadSerialized;
+            throw err;
           }
         }
 

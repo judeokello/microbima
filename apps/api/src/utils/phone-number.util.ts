@@ -68,3 +68,29 @@ export function normalizePhoneNumber(phone: string): string {
   );
 }
 
+/** Regex for 64-char lowercase hex (SHA-256 hash from M-Pesa IPN). */
+const SHA256_HEX_REGEX = /^[a-f0-9]{64}$/;
+
+/**
+ * Returns true if the value looks like a SHA-256 hashed MSISDN (64 lowercase hex chars).
+ * M-Pesa may send hashed MSISDN in production IPN; do not normalize or validate as phone.
+ */
+export function isHashedMsisdn(value: string | null | undefined): boolean {
+  if (!value || typeof value !== 'string') return false;
+  return SHA256_HEX_REGEX.test(value.trim().toLowerCase());
+}
+
+/**
+ * Returns normalized phone (254XXXXXXXXX) or raw value for storage.
+ * If value is a hashed MSISDN (64 hex chars), returns { normalized: false, value: raw } and caller should store as-is.
+ * Otherwise normalizes and returns { normalized: true, value: normalizedPhone }; throws if invalid phone.
+ */
+export function normalizeMsisdnOrReturnRaw(
+  value: string
+): { normalized: true; value: string } | { normalized: false; value: string } {
+  if (isHashedMsisdn(value)) {
+    return { normalized: false, value: value.trim() };
+  }
+  return { normalized: true, value: normalizePhoneNumber(value) };
+}
+
