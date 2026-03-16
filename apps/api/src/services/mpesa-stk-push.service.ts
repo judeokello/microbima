@@ -93,6 +93,7 @@ export class MpesaStkPushService implements OnModuleInit {
     correlationId: string,
     userId?: string
   ): Promise<StkPushRequestResponseDto> {
+    let stkPushRequest: { id: string } | null = null;
     try {
       this.logger.log(
         JSON.stringify({
@@ -133,7 +134,7 @@ export class MpesaStkPushService implements OnModuleInit {
       }
 
       // Create STK Push request record (id is auto-generated UUID by Prisma)
-      const stkPushRequest = await this.prismaService.mpesaStkPushRequest.create({
+      stkPushRequest = await this.prismaService.mpesaStkPushRequest.create({
         data: {
           phoneNumber: normalizedPhone,
           amount: dto.amount,
@@ -154,21 +155,22 @@ export class MpesaStkPushService implements OnModuleInit {
       );
 
       // Call M-Pesa Daraja API with the auto-generated id as MerchantRequestID
-      // Note: M-Pesa API expects "MerchantRequestID" in the payload, but we use camelCase in code
       const mpesaResponse = await this.mpesaDarajaApiService.initiateStkPush(
         normalizedPhone,
         dto.amount,
         dto.accountReference,
-        stkPushRequest.id, // Use auto-generated UUID as MerchantRequestID
+        stkPushRequest.id,
         this.configService.mpesa.stkPushCallbackUrl,
         correlationId
       );
 
-      // Update STK Push request with CheckoutRequestID from M-Pesa response
+      // Update STK Push request with CheckoutRequestID and request/response payloads for troubleshooting
       const updatedRequest = await this.prismaService.mpesaStkPushRequest.update({
         where: { id: stkPushRequest.id },
         data: {
           checkoutRequestId: mpesaResponse.CheckoutRequestID,
+          requestPayload: mpesaResponse.requestPayload ?? null,
+          responsePayload: mpesaResponse.responsePayload ?? null,
         },
       });
 
@@ -211,6 +213,29 @@ export class MpesaStkPushService implements OnModuleInit {
         initiatedAt: updatedRequest.initiatedAt,
       };
     } catch (error) {
+      // Persist requestPayload on failure so we have the outgoing request for troubleshooting (e.g. transient network error)
+      const requestPayloadFromError = error && typeof error === 'object' && 'requestPayload' in error
+        ? (error as { requestPayload?: string }).requestPayload
+        : undefined;
+      if (requestPayloadFromError && stkPushRequest?.id) {
+        try {
+          await this.prismaService.mpesaStkPushRequest.update({
+            where: { id: stkPushRequest.id },
+            data: { requestPayload: requestPayloadFromError },
+          });
+        } catch (updateErr) {
+          this.logger.warn(
+            JSON.stringify({
+              event: 'STK_PUSH_REQUEST_PAYLOAD_UPDATE_FAILED',
+              correlationId,
+              stkPushRequestId: stkPushRequest.id,
+              error: updateErr instanceof Error ? updateErr.message : String(updateErr),
+              timestamp: new Date().toISOString(),
+            })
+          );
+        }
+      }
+
       // If error is ValidationException, rethrow it
       if (error instanceof ValidationException) {
         throw error;

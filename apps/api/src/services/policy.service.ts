@@ -714,14 +714,20 @@ export class PolicyService {
           );
         }
 
-        // Create policy payment
+        // Create policy payment. For PENDING-STK placeholders use customer.idNumber for accountNumber.
+        const isPlaceholderStk =
+          data.paymentData.transactionReference.trim().toUpperCase().startsWith('PENDING-STK-');
+        const accountNumberForPayment = isPlaceholderStk
+          ? customer.idNumber ?? null
+          : data.paymentData.accountNumber ?? null;
+
         const policyPayment = await tx.policyPayment.create({
           data: {
             policyId: policy.id,
             paymentType: data.paymentData.paymentType,
             transactionReference: data.paymentData.transactionReference,
             amount: data.paymentData.amount,
-            accountNumber: data.paymentData.accountNumber ?? null,
+            accountNumber: accountNumberForPayment,
             details: data.paymentData.details ?? null,
             expectedPaymentDate: data.paymentData.expectedPaymentDate,
             actualPaymentDate: data.paymentData.actualPaymentDate ?? null,
@@ -1311,6 +1317,7 @@ export class PolicyService {
     >();
 
     for (const p of payments) {
+      if (p.transactionReference == null || p.completionTime == null) continue;
       const accountNum = p.accountNumber?.trim().replace(/\s/g, '') ?? '';
       if (!accountNum) continue;
       const existing = customersByAccountNumber.get(accountNum) ?? [];
