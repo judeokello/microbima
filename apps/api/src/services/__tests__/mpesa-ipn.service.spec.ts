@@ -18,11 +18,13 @@ describe('MpesaIpnService', () => {
   const createPrismaMock = () => ({
     policyPayment: {
       findFirst: jest.fn(),
+      findUnique: jest.fn(),
       create: jest.fn(),
       update: jest.fn(),
     },
     mpesaPaymentReportItem: {
       findFirst: jest.fn(),
+      findUniqueOrThrow: jest.fn(),
       create: jest.fn(),
       update: jest.fn(),
     },
@@ -87,18 +89,26 @@ describe('MpesaIpnService', () => {
     };
 
     it('should process new IPN notification and create payment records', async () => {
-      // Setup: No existing records
+      // Setup: No existing records; blob-first flow: create -> update -> findUniqueOrThrow -> createPolicyPayment
       prismaService.policyPayment.findFirst.mockResolvedValue(null);
       prismaService.mpesaPaymentReportItem.findFirst.mockResolvedValue(null);
       prismaService.policy.findFirst.mockResolvedValue({
         id: 1,
         status: 'ACTIVE',
+        customerId: 'cust-1',
+        customer: { idNumber: '12345678' },
       });
       prismaService.mpesaStkPushRequest.findMany.mockResolvedValue([]);
       prismaService.mpesaPaymentReportItem.create.mockResolvedValue({
         id: 'ipn-record-id',
         transactionReference: 'RKTQDM7W6S',
         source: MpesaPaymentSource.IPN,
+      });
+      prismaService.mpesaPaymentReportItem.update.mockResolvedValue({});
+      prismaService.mpesaPaymentReportItem.findUniqueOrThrow.mockResolvedValue({
+        id: 'ipn-record-id',
+        transactionReference: 'RKTQDM7W6S',
+        mpesaStkPushRequestId: null,
       });
       prismaService.policyPayment.create.mockResolvedValue({
         id: 1,
@@ -113,7 +123,7 @@ describe('MpesaIpnService', () => {
     });
 
     it('should handle duplicate IPN notifications idempotently', async () => {
-      // Setup: Both records already exist
+      // Setup: Both records already exist; updateExistingRecords uses policyPayment.findUnique for customer
       const existingPolicyPayment = {
         id: 1,
         transactionReference: 'RKTQDM7W6S',
@@ -127,6 +137,10 @@ describe('MpesaIpnService', () => {
       prismaService.policyPayment.findFirst.mockResolvedValue(existingPolicyPayment);
       prismaService.mpesaPaymentReportItem.findFirst.mockResolvedValue(existingIpnRecord);
       prismaService.mpesaPaymentReportItem.update.mockResolvedValue(existingIpnRecord);
+      prismaService.policyPayment.findUnique.mockResolvedValue({
+        id: 1,
+        policy: { customer: { idNumber: '12345678' } },
+      });
       prismaService.policyPayment.update.mockResolvedValue(existingPolicyPayment);
 
       const result = await service.processIpnNotification(validPayload, correlationId);
@@ -139,7 +153,7 @@ describe('MpesaIpnService', () => {
     });
 
     it('should link IPN to STK Push request when match found', async () => {
-      // Setup: STK Push request exists and matches
+      // Setup: STK Push request exists and matches; flow: create -> update (parsed) -> findUniqueOrThrow -> linkToStkPushRequest (update with mpesaStkPushRequestId)
       const stkPushRequest = {
         id: 'stk-push-id',
         accountReference: 'POL123456',
@@ -161,9 +175,16 @@ describe('MpesaIpnService', () => {
         id: 'ipn-record-id',
         mpesaStkPushRequestId: 'stk-push-id',
       });
+      prismaService.mpesaPaymentReportItem.findUniqueOrThrow.mockResolvedValue({
+        id: 'ipn-record-id',
+        transactionReference: 'RKTQDM7W6S',
+        mpesaStkPushRequestId: null,
+      });
       prismaService.policy.findFirst.mockResolvedValue({
         id: 1,
         status: 'ACTIVE',
+        customerId: 'cust-1',
+        customer: { idNumber: '12345678' },
       });
       prismaService.policyPayment.create.mockResolvedValue({
         id: 1,
@@ -173,10 +194,13 @@ describe('MpesaIpnService', () => {
       const result = await service.processIpnNotification(validPayload, correlationId);
 
       expect(result).toEqual({ ResultCode: 0, ResultDesc: 'Accepted' });
-      expect(prismaService.mpesaPaymentReportItem.update).toHaveBeenCalledWith({
-        where: { id: 'ipn-record-id' },
-        data: { mpesaStkPushRequestId: 'stk-push-id' },
-      });
+      // linkToStkPushRequest does an update with mpesaStkPushRequestId (after first update with parsed fields)
+      expect(prismaService.mpesaPaymentReportItem.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'ipn-record-id' },
+          data: expect.objectContaining({ mpesaStkPushRequestId: 'stk-push-id' }),
+        })
+      );
     });
 
     it('should skip policy payment creation if STK Push is already COMPLETED', async () => {
@@ -197,8 +221,10 @@ describe('MpesaIpnService', () => {
         id: 'ipn-record-id',
         transactionReference: 'RKTQDM7W6S',
       });
-      prismaService.mpesaPaymentReportItem.update.mockResolvedValue({
+      prismaService.mpesaPaymentReportItem.update.mockResolvedValue({});
+      prismaService.mpesaPaymentReportItem.findUniqueOrThrow.mockResolvedValue({
         id: 'ipn-record-id',
+        transactionReference: 'RKTQDM7W6S',
         mpesaStkPushRequestId: 'stk-push-id',
       });
 
@@ -222,6 +248,11 @@ describe('MpesaIpnService', () => {
         id: 'ipn-record-id',
         transactionReference: 'RKTQDM7W6S',
       });
+      prismaService.mpesaPaymentReportItem.update.mockResolvedValue({});
+      prismaService.mpesaPaymentReportItem.findUniqueOrThrow.mockResolvedValue({
+        id: 'ipn-record-id',
+        transactionReference: 'RKTQDM7W6S',
+      });
 
       const result = await service.processIpnNotification(payloadWithoutRef, correlationId);
 
@@ -235,6 +266,11 @@ describe('MpesaIpnService', () => {
       prismaService.mpesaPaymentReportItem.findFirst.mockResolvedValue(null);
       prismaService.mpesaStkPushRequest.findMany.mockResolvedValue([]);
       prismaService.mpesaPaymentReportItem.create.mockResolvedValue({
+        id: 'ipn-record-id',
+        transactionReference: 'RKTQDM7W6S',
+      });
+      prismaService.mpesaPaymentReportItem.update.mockResolvedValue({});
+      prismaService.mpesaPaymentReportItem.findUniqueOrThrow.mockResolvedValue({
         id: 'ipn-record-id',
         transactionReference: 'RKTQDM7W6S',
       });
@@ -255,9 +291,16 @@ describe('MpesaIpnService', () => {
         id: 'ipn-record-id',
         transactionReference: 'RKTQDM7W6S',
       });
+      prismaService.mpesaPaymentReportItem.update.mockResolvedValue({});
+      prismaService.mpesaPaymentReportItem.findUniqueOrThrow.mockResolvedValue({
+        id: 'ipn-record-id',
+        transactionReference: 'RKTQDM7W6S',
+      });
       prismaService.policy.findFirst.mockResolvedValue({
         id: 1,
         status: 'PENDING_ACTIVATION',
+        customerId: 'cust-1',
+        customer: { idNumber: '12345678' },
       });
       prismaService.policyPayment.create.mockResolvedValue({
         id: 1,
@@ -279,9 +322,16 @@ describe('MpesaIpnService', () => {
         id: 'ipn-record-id',
         transactionReference: 'RKTQDM7W6S',
       });
+      prismaService.mpesaPaymentReportItem.update.mockResolvedValue({});
+      prismaService.mpesaPaymentReportItem.findUniqueOrThrow.mockResolvedValue({
+        id: 'ipn-record-id',
+        transactionReference: 'RKTQDM7W6S',
+      });
       prismaService.policy.findFirst.mockResolvedValue({
         id: 1,
         status: 'PENDING_ACTIVATION',
+        customerId: 'cust-1',
+        customer: { idNumber: '12345678' },
       });
       prismaService.policyPayment.create.mockResolvedValue({
         id: 1,
@@ -312,6 +362,8 @@ describe('MpesaIpnService', () => {
       prismaService.policy.findFirst.mockResolvedValue({
         id: 1,
         status: 'ACTIVE',
+        customerId: 'cust-1',
+        customer: { idNumber: '12345678' },
       });
 
       const payloadWithSpecificTime: MpesaIpnPayloadDto = {
@@ -319,22 +371,27 @@ describe('MpesaIpnService', () => {
         TransTime: '20250127143045', // Jan 27, 2025 14:30:45 UTC
       };
 
+      prismaService.mpesaPaymentReportItem.create.mockResolvedValue({
+        id: 'ipn-record-id',
+        transactionReference: 'RKTQDM7W6S',
+      });
+      // Blob-first flow: completionTime is set on update, not create
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      prismaService.mpesaPaymentReportItem.create.mockImplementation((args: any) => {
-        // Verify that completionTime is parsed correctly
-        const parsedTime = args.data.completionTime;
-        expect(parsedTime).toBeInstanceOf(Date);
-        expect(parsedTime.getUTCFullYear()).toBe(2025);
-        expect(parsedTime.getUTCMonth()).toBe(0); // January is 0
-        expect(parsedTime.getUTCDate()).toBe(27);
-        expect(parsedTime.getUTCHours()).toBe(14);
-        expect(parsedTime.getUTCMinutes()).toBe(30);
-        expect(parsedTime.getUTCSeconds()).toBe(45);
-
-        return Promise.resolve({
-          id: 'ipn-record-id',
-          transactionReference: 'RKTQDM7W6S',
-        });
+      prismaService.mpesaPaymentReportItem.update.mockImplementation((args: any) => {
+        const parsedTime = args.data?.completionTime;
+        if (parsedTime instanceof Date) {
+          expect(parsedTime.getUTCFullYear()).toBe(2025);
+          expect(parsedTime.getUTCMonth()).toBe(0); // January is 0
+          expect(parsedTime.getUTCDate()).toBe(27);
+          expect(parsedTime.getUTCHours()).toBe(14);
+          expect(parsedTime.getUTCMinutes()).toBe(30);
+          expect(parsedTime.getUTCSeconds()).toBe(45);
+        }
+        return Promise.resolve({});
+      });
+      prismaService.mpesaPaymentReportItem.findUniqueOrThrow.mockResolvedValue({
+        id: 'ipn-record-id',
+        transactionReference: 'RKTQDM7W6S',
       });
       prismaService.policyPayment.create.mockResolvedValue({
         id: 1,
@@ -344,6 +401,7 @@ describe('MpesaIpnService', () => {
       await service.processIpnNotification(payloadWithSpecificTime, correlationId);
 
       expect(prismaService.mpesaPaymentReportItem.create).toHaveBeenCalled();
+      expect(prismaService.mpesaPaymentReportItem.update).toHaveBeenCalled();
     });
 
     it('should map transaction types to reason types correctly', async () => {
@@ -353,6 +411,8 @@ describe('MpesaIpnService', () => {
       prismaService.policy.findFirst.mockResolvedValue({
         id: 1,
         status: 'ACTIVE',
+        customerId: 'cust-1',
+        customer: { idNumber: '12345678' },
       });
 
       const testCases = [
@@ -368,6 +428,11 @@ describe('MpesaIpnService', () => {
           id: 'ipn-record-id',
           transactionReference: 'RKTQDM7W6S',
         });
+        prismaService.mpesaPaymentReportItem.update.mockResolvedValue({});
+        prismaService.mpesaPaymentReportItem.findUniqueOrThrow.mockResolvedValue({
+          id: 'ipn-record-id',
+          transactionReference: 'RKTQDM7W6S',
+        });
         prismaService.policyPayment.create.mockResolvedValue({
           id: 1,
           transactionReference: 'RKTQDM7W6S',
@@ -380,11 +445,14 @@ describe('MpesaIpnService', () => {
 
         await service.processIpnNotification(payload, correlationId);
 
-        expect(prismaService.mpesaPaymentReportItem.create).toHaveBeenCalledWith({
-          data: expect.objectContaining({
-            reasonType: testCase.expectedReasonType,
-          }),
-        });
+        // reasonType is set on update (blob-first flow), not create
+        expect(prismaService.mpesaPaymentReportItem.update).toHaveBeenCalledWith(
+          expect.objectContaining({
+            data: expect.objectContaining({
+              reasonType: testCase.expectedReasonType,
+            }),
+          })
+        );
       }
     });
 
@@ -395,8 +463,15 @@ describe('MpesaIpnService', () => {
       prismaService.policy.findFirst.mockResolvedValue({
         id: 1,
         status: 'ACTIVE',
+        customerId: 'cust-1',
+        customer: { idNumber: '12345678' },
       });
       prismaService.mpesaPaymentReportItem.create.mockResolvedValue({
+        id: 'ipn-record-id',
+        transactionReference: 'RKTQDM7W6S',
+      });
+      prismaService.mpesaPaymentReportItem.update.mockResolvedValue({});
+      prismaService.mpesaPaymentReportItem.findUniqueOrThrow.mockResolvedValue({
         id: 'ipn-record-id',
         transactionReference: 'RKTQDM7W6S',
       });
@@ -412,11 +487,14 @@ describe('MpesaIpnService', () => {
 
       await service.processIpnNotification(payloadWithLocalPhone, correlationId);
 
-      expect(prismaService.mpesaPaymentReportItem.create).toHaveBeenCalledWith({
-        data: expect.objectContaining({
-          msisdn: '254722000000', // Should be normalized
-        }),
-      });
+      // msisdn is set on update (blob-first flow), not create
+      expect(prismaService.mpesaPaymentReportItem.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            msisdn: '254722000000', // Should be normalized
+          }),
+        })
+      );
     });
   });
 });

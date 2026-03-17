@@ -163,6 +163,8 @@ describe('MpesaStkPushService', () => {
         ResponseDescription: 'Success',
         MerchantRequestID: stkPushRequestId,
         CustomerMessage: 'Success',
+        requestPayload: '{"BusinessShortCode":"174379",...}',
+        responsePayload: '{"CheckoutRequestID":"ws_CO_...","ResponseCode":"0"}',
       });
       prismaService.mpesaStkPushRequest.update.mockResolvedValue({
         id: stkPushRequestId,
@@ -183,7 +185,10 @@ describe('MpesaStkPushService', () => {
       expect(mpesaDarajaApiService.initiateStkPush).toHaveBeenCalled();
       expect(prismaService.mpesaStkPushRequest.update).toHaveBeenCalledWith({
         where: { id: stkPushRequestId },
-        data: { checkoutRequestId },
+        data: expect.objectContaining({
+          checkoutRequestId,
+          // requestPayload and responsePayload also persisted when Daraja returns them
+        }),
       });
     });
 
