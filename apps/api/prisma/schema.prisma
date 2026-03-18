@@ -965,6 +965,9 @@ model MpesaStkPushRequest {
   initiatedBy       String?          // Agent/user ID who initiated
   initiatedAt       DateTime          @default(now()) // When STK Push was initiated
   completedAt       DateTime?        // When transaction completed
+  queryAttemptCount Int               @default(0) // Number of times M-Pesa Query API has been called for this request
+  lastQueryAt       DateTime?        // When M-Pesa Query API was last called for this request
+  nextQueryAt       DateTime?        // When to next query M-Pesa (null = no more queries needed)
   requestPayload    String?           @db.Text // Outgoing JSON request sent to Daraja STK Push (for troubleshooting)
   responsePayload   String?           @db.Text // Synchronous JSON response from Daraja initiate (for troubleshooting)
   createdAt         DateTime          @default(now())
@@ -978,6 +981,7 @@ model MpesaStkPushRequest {
   @@index([accountReference]) // For matching with IPN BillRefNumber
   @@index([status, createdAt]) // For querying pending requests
   @@index([phoneNumber]) // For matching with IPN MSISDN
+  @@index([status, nextQueryAt, queryAttemptCount]) // For query worker to find requests needing query
   @@map("mpesa_stk_push_requests")
 }
 
