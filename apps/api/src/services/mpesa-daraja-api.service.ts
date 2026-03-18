@@ -582,6 +582,185 @@ export class MpesaDarajaApiService {
   }
 
   /**
+   * Query STK Push transaction status
+   *
+   * Uses M-Pesa Express Query API to check the status of a previously initiated STK Push request.
+   * This is useful when callbacks are delayed or lost.
+   *
+   * @param checkoutRequestId - The CheckoutRequestID from the original STK Push response
+   * @param correlationId - Correlation ID for logging
+   * @returns Query response with ResultCode and ResultDesc
+   */
+  async queryStkPushStatus(
+    checkoutRequestId: string,
+    correlationId: string
+  ): Promise<{
+    MerchantRequestID: string;
+    CheckoutRequestID: string;
+    ResponseCode: string;
+    ResponseDescription: string;
+    ResultCode: string;
+    ResultDesc: string;
+  }> {
+    const maxRetries = 2; // Fewer retries for query (not as critical as initiation)
+    const retryDelays = [1000, 2000]; // 1s, 2s
+    const errors: Array<{ attempt: number; error: string; timestamp: string }> = [];
+
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        const accessToken = await this.generateAccessToken(correlationId);
+        const config = this.configService.mpesa;
+
+        const timestamp = this.generateTimestamp();
+        const password = this.generatePassword(config.businessShortCode, config.passkey, timestamp);
+
+        const queryUrl = `${config.baseUrl}/stkpushquery/v1/query`;
+
+        const payload = {
+          BusinessShortCode: config.businessShortCode,
+          Password: password,
+          Timestamp: timestamp,
+          CheckoutRequestID: checkoutRequestId,
+        };
+
+        this.logger.log(
+          JSON.stringify({
+            event: 'STK_PUSH_QUERY_REQUEST',
+            correlationId,
+            attempt,
+            checkoutRequestId,
+            timestamp: new Date().toISOString(),
+          })
+        );
+
+        const response = await axios.post<{
+          MerchantRequestID: string;
+          CheckoutRequestID: string;
+          ResponseCode: string;
+          ResponseDescription: string;
+          ResultCode: string;
+          ResultDesc: string;
+        }>(queryUrl, payload, {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+          timeout: 30000, // 30 second timeout
+          validateStatus: (status) => status < 500, // Don't throw on 4xx, we'll handle it
+        });
+
+        if (response.status !== 200) {
+          // Extract error code and message from response
+          const errorData = response.data as { errorCode?: string; requestId?: string; errorMessage?: string; error?: string } | undefined;
+          const errorCode = errorData?.errorCode ?? errorData?.requestId ?? String(response.status);
+          const errorMessage = errorData?.errorMessage ?? errorData?.error ?? response.statusText;
+
+          // Map HTTP error to MPESA error info
+          const errorInfo = this.mpesaErrorMapper.mapHttpError(
+            response.status,
+            errorCode,
+            errorMessage,
+            'QUERY'
+          );
+
+          this.logger.warn(
+            JSON.stringify({
+              event: 'STK_PUSH_QUERY_HTTP_ERROR',
+              correlationId,
+              attempt,
+              statusCode: response.status,
+              errorCode: errorInfo.context.mpesaCode,
+              errorInfo: errorInfo.code,
+              retryable: errorInfo.context.retryable,
+              timestamp: new Date().toISOString(),
+            })
+          );
+
+          // For non-retryable errors or final attempt, throw
+          if (!errorInfo.context.retryable || attempt === maxRetries) {
+            errors.push({
+              attempt,
+              error: errorInfo.message,
+              timestamp: new Date().toISOString(),
+            });
+
+            if (attempt === maxRetries) {
+              throw this.mpesaErrorMapper.toValidationException(errorInfo);
+            }
+          }
+
+          // Wait before retry
+          await this.sleep(retryDelays[attempt - 1]);
+          errors.push({
+            attempt,
+            error: errorInfo.message,
+            timestamp: new Date().toISOString(),
+          });
+          continue;
+        }
+
+        const data = response.data;
+
+        this.logger.log(
+          JSON.stringify({
+            event: 'STK_PUSH_QUERY_SUCCESS',
+            correlationId,
+            attempt,
+            checkoutRequestId,
+            resultCode: data.ResultCode,
+            resultDesc: data.ResultDesc,
+            timestamp: new Date().toISOString(),
+          })
+        );
+
+        return data;
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        this.logger.error(
+          JSON.stringify({
+            event: 'STK_PUSH_QUERY_ERROR',
+            correlationId,
+            attempt,
+            checkoutRequestId,
+            error: errorMessage,
+            timestamp: new Date().toISOString(),
+          })
+        );
+
+        // Capture error in Sentry
+        Sentry.captureException(error, {
+          tags: {
+            operation: 'queryStkPushStatus',
+            attempt: String(attempt),
+            checkoutRequestId,
+          },
+          extra: {
+            correlationId,
+            errorMessage,
+          },
+        });
+
+        errors.push({
+          attempt,
+          error: errorMessage,
+          timestamp: new Date().toISOString(),
+        });
+
+        // If final attempt or non-retryable error, throw
+        if (attempt === maxRetries) {
+          throw error;
+        }
+
+        // Wait before retry
+        await this.sleep(retryDelays[attempt - 1]);
+      }
+    }
+
+    // This should never be reached, but TypeScript needs it
+    throw new Error(`STK Push query failed after ${maxRetries} attempts. Errors: ${JSON.stringify(errors)}`);
+  }
+
+  /**
    * Generate timestamp in format YYYYMMDDHHmmss
    */
   private generateTimestamp(): string {
