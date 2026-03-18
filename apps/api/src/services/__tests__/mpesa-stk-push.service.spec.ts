@@ -73,6 +73,11 @@ describe('MpesaStkPushService', () => {
       stkPushCallbackUrl: 'https://api.example.com/public/mpesa/stk-push-callback',
       stkPushTimeoutMinutes: 5,
       stkPushExpirationCheckIntervalMinutes: 2,
+      stkPushQueryEnabled: true,
+      stkPushWorkerQueryIntervalSeconds: 15,
+      stkPushFirstQueryDelaySeconds: 40,
+      stkPushQueryRetryDelaySeconds: 30,
+      stkPushMaxQueryAttempts: 3,
     },
   });
 
@@ -660,8 +665,8 @@ describe('MpesaStkPushService', () => {
       const cutoff = new Date();
       cutoff.setUTCMinutes(cutoff.getUTCMinutes() - 10);
       const expiredRows = [
-        { id: 'exp-1', initiatedAt: cutoff },
-        { id: 'exp-2', initiatedAt: cutoff },
+        { id: 'exp-1', initiatedAt: cutoff, queryAttemptCount: 3 },
+        { id: 'exp-2', initiatedAt: cutoff, queryAttemptCount: 3 },
       ];
       prismaService.mpesaStkPushRequest.findMany.mockResolvedValue(expiredRows);
       prismaService.mpesaStkPushRequest.updateMany.mockResolvedValue({ count: 2 });
@@ -674,8 +679,12 @@ describe('MpesaStkPushService', () => {
         where: {
           status: MpesaStkPushStatus.PENDING,
           initiatedAt: { lt: expect.any(Date) },
+          OR: [
+            { nextQueryAt: null },
+            { queryAttemptCount: { gte: 3 } },
+          ],
         },
-        select: { id: true, initiatedAt: true },
+        select: { id: true, initiatedAt: true, queryAttemptCount: true },
       });
       expect(prismaService.mpesaStkPushRequest.updateMany).toHaveBeenCalledWith({
         where: { id: { in: ['exp-1', 'exp-2'] } },
