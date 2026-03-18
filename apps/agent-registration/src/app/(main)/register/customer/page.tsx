@@ -854,8 +854,6 @@ export default function CustomerStep() {
                 <SelectContent>
                   <SelectItem value="MALE">Male</SelectItem>
                   <SelectItem value="FEMALE">Female</SelectItem>
-                  <SelectItem value="OTHER">Other</SelectItem>
-                  <SelectItem value="PREFER_NOT_TO_SAY">Prefer not to say</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -1004,8 +1002,6 @@ export default function CustomerStep() {
                       <SelectContent>
                         <SelectItem value="MALE">Male</SelectItem>
                         <SelectItem value="FEMALE">Female</SelectItem>
-                        <SelectItem value="OTHER">Other</SelectItem>
-                        <SelectItem value="PREFER_NOT_TO_SAY">Prefer not to say</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -1134,8 +1130,6 @@ export default function CustomerStep() {
                       <SelectContent>
                         <SelectItem value="MALE">Male</SelectItem>
                         <SelectItem value="FEMALE">Female</SelectItem>
-                        <SelectItem value="OTHER">Other</SelectItem>
-                        <SelectItem value="PREFER_NOT_TO_SAY">Prefer not to say</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>

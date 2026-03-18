@@ -38,6 +38,7 @@ import { UpdateBeneficiaryDto } from '../dto/beneficiaries/update-beneficiary.dt
 import { SupabaseService } from './supabase.service';
 import { PaymentAccountNumberService } from './payment-account-number.service';
 import { normalizePhoneNumber } from '../utils/phone-number.util';
+import { MessagingService } from '../modules/messaging/messaging.service';
 
 /**
  * Customer Service
@@ -74,6 +75,7 @@ export class CustomerService {
     private readonly prismaService: PrismaService,
     private readonly supabaseService: SupabaseService,
     private readonly paymentAccountNumberService: PaymentAccountNumberService,
+    private readonly messagingService: MessagingService,
   ) {}
 
   /**
@@ -438,6 +440,13 @@ export class CustomerService {
 
       this.logger.log(`[${correlationId}] Customer created successfully: ${customer.id}`);
 
+      // Enqueue welcome/notification message (SMS + Email per route config). Fire-and-forget.
+      this.enqueueCustomerCreatedMessage(createdCustomer, correlationId).catch((err) => {
+        this.logger.error(
+          `[${correlationId}] Failed to enqueue customer-created message: ${err instanceof Error ? err.message : String(err)}`
+        );
+      });
+
       // Return response using mapper with dependants and beneficiaries
       return CustomerMapper.toCreatePrincipalMemberResponseDto(
         customer,
@@ -452,6 +461,28 @@ export class CustomerService {
       this.logger.error(`[${correlationId}] Error creating customer: ${error instanceof Error ? error.message : 'Unknown error'}`, error instanceof Error ? error.stack : undefined);
       throw error;
     }
+  }
+
+  /**
+   * Enqueue customer-created notification (SMS + Email per route config).
+   * Template key: customer_created. Placeholders: first_name, last_name, email.
+   */
+  private async enqueueCustomerCreatedMessage(
+    customer: { id: string; firstName: string; lastName: string; email: string | null },
+    correlationId: string
+  ): Promise<void> {
+    this.logger.log(`[${correlationId}] Enqueueing customer-created message for customerId=${customer.id}`);
+    await this.messagingService.enqueue({
+      templateKey: 'customer_created',
+      customerId: customer.id,
+      placeholderValues: {
+        first_name: customer.firstName,
+        last_name: customer.lastName,
+        email: customer.email ?? '',
+      },
+      correlationId,
+    });
+    this.logger.log(`[${correlationId}] Enqueued customer-created message for customerId=${customer.id}`);
   }
 
   /**

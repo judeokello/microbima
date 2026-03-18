@@ -94,25 +94,61 @@ export class MessagingWorker {
         }
       }
 
-      // 2. If already rendered (e.g., from resend), skip rendering and send directly
+      // 2. Render template + placeholders if not already rendered (e.g. initial enqueue vs resend)
       const needsRendering = !delivery.renderedBody || delivery.renderedBody.trim() === '';
 
       if (needsRendering) {
-        // Render template + placeholders (not yet implemented for initial deliveries in this worker)
-        this.logger.warn(`Delivery ${delivery.id} needs rendering - skipping for now (not yet implemented)`);
-        await this.outbox.updateDeliveryStatus(delivery.id, {
-          status: 'FAILED',
-          lastError: 'Rendering not yet implemented in worker',
+        const settings = await this.systemSettings.getSnapshot();
+        const defaultLanguage = settings.defaultMessagingLanguage ?? 'en';
+        const requestedLanguage = delivery.requestedLanguage ?? defaultLanguage;
+
+        const { template, usedLanguage } = await this.templateResolver.resolveTemplate({
+          templateKey: delivery.templateKey,
+          channel: delivery.channel,
+          requestedLanguage,
+          defaultLanguage,
         });
-        return;
+
+        // Build placeholder values from delivery context (customer; policy can be added later)
+        const placeholderValues: Record<string, string> = {};
+        if (delivery.customer) {
+          placeholderValues['first_name'] = delivery.customer.firstName ?? '';
+          placeholderValues['last_name'] = delivery.customer.lastName ?? '';
+          placeholderValues['email'] = delivery.customer.email ?? '';
+        }
+
+        const { rendered: renderedBody } = this.placeholderRenderer.render(template.body, placeholderValues);
+        let renderedSubject: string | null = null;
+        let renderedTextBody: string | null = null;
+        if (template.subject) {
+          const subj = this.placeholderRenderer.render(template.subject, placeholderValues);
+          renderedSubject = subj.rendered;
+        }
+        if (template.textBody) {
+          const text = this.placeholderRenderer.render(template.textBody, placeholderValues);
+          renderedTextBody = text.rendered;
+        }
+
+        await this.outbox.updateDeliveryStatus(delivery.id, {
+          renderedBody,
+          renderedSubject: renderedSubject ?? undefined,
+          renderedTextBody: renderedTextBody ?? undefined,
+          usedLanguage,
+        });
+        (delivery).renderedBody = renderedBody;
+        (delivery).renderedSubject = renderedSubject;
+        (delivery).renderedTextBody = renderedTextBody;
+        (delivery).usedLanguage = usedLanguage;
       }
 
       // 3. Send via provider
       if (delivery.channel === 'SMS') {
         if (!delivery.recipientPhone) {
-          await this.outbox.updateDeliveryStatus(delivery.id, {
-            status: 'FAILED',
-            lastError: 'No recipient phone number',
+          const lastError = 'No recipient phone number';
+          await this.outbox.updateDeliveryStatus(delivery.id, { status: 'FAILED', lastError });
+          Sentry.captureMessage(`Messaging delivery failed: ${lastError}`, {
+            level: 'warning',
+            tags: { service: 'MessagingWorker', deliveryId: delivery.id, channel: 'SMS', reason: 'no_recipient' },
           });
           return;
         }
@@ -126,12 +162,15 @@ export class MessagingWorker {
           status: 'SENT',
           providerMessageId: result.messageId,
           attemptCount: { increment: 1 },
+          lastError: null,
         });
       } else if (delivery.channel === 'EMAIL') {
         if (!delivery.recipientEmail) {
-          await this.outbox.updateDeliveryStatus(delivery.id, {
-            status: 'FAILED',
-            lastError: 'No recipient email',
+          const lastError = 'No recipient email';
+          await this.outbox.updateDeliveryStatus(delivery.id, { status: 'FAILED', lastError });
+          Sentry.captureMessage(`Messaging delivery failed: ${lastError}`, {
+            level: 'warning',
+            tags: { service: 'MessagingWorker', deliveryId: delivery.id, channel: 'EMAIL', reason: 'no_recipient' },
           });
           return;
         }
@@ -156,6 +195,7 @@ export class MessagingWorker {
         await this.outbox.updateDeliveryStatus(delivery.id, {
           status: 'SENT',
           attemptCount: { increment: 1 },
+          lastError: null,
         });
       }
 
@@ -165,15 +205,26 @@ export class MessagingWorker {
         `Failed to process delivery ${delivery.id}: ${error instanceof Error ? error.message : 'Unknown error'}`
       );
 
-      // Report to Sentry
-      Sentry.captureException(error, {
-        tags: {
-          service: 'MessagingWorker',
-          operation: 'processDelivery',
-          deliveryId: delivery.id,
-          channel: delivery.channel,
-        },
-      });
+      // Report to Sentry with enhanced tagging for AT failures
+      const sentryTags: Record<string, string | number> = {
+        service: 'MessagingWorker',
+        operation: 'processDelivery',
+        deliveryId: delivery.id,
+        channel: delivery.channel,
+      };
+
+      // Add AT-specific tags if available (statusCode 406 = UserInBlacklist, 403 = InvalidPhoneNumber, etc.)
+      if (error && typeof error === 'object') {
+        const err = error as Error & { atStatusCode?: number; atStatus?: string };
+        if (err.atStatusCode !== undefined) {
+          sentryTags.atStatusCode = err.atStatusCode;
+        }
+        if (err.atStatus) {
+          sentryTags.atStatus = err.atStatus;
+        }
+      }
+
+      Sentry.captureException(error, { tags: sentryTags });
 
       // Mark as failed or retry
       await this.outbox.updateDeliveryStatus(delivery.id, {

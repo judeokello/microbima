@@ -46,19 +46,27 @@ export class AfricasTalkingSmsService {
         },
       });
 
-      // Response format: { SMSMessageData: { Message: "Sent to 1/1 Total Cost: KES 0.8000", Recipients: [{ statusCode: 101, number: "+254...", cost: "KES 0.8", status: "Success", messageId: "..." }] } }
+      // Response format: { SMSMessageData: { Message: "...", Recipients: [{ statusCode, number, cost, status, messageId }] } }
+      // AT status codes: 100 = Processed, 101 = Sent, 102 = Queued (success); 406 = UserInBlacklist, etc. (failure)
       const messageData = response.data?.SMSMessageData;
       const recipient = messageData?.Recipients?.[0];
       const messageId = recipient?.messageId ?? `at-${Date.now()}`;
+      const statusCode = recipient?.statusCode;
+      const statusText = recipient?.status ?? 'Unknown';
 
-      if (recipient?.statusCode === 101 || recipient?.statusCode === 102) {
-        // 101 = Sent successfully, 102 = Queued
+      const successCodes = [100, 101, 102]; // 100 Processed, 101 Sent, 102 Queued
+      if (recipient && typeof statusCode === 'number' && successCodes.includes(statusCode)) {
         this.logger.log(`SMS sent successfully to ${params.to}, messageId=${messageId}, cost=${recipient?.cost}`);
         return { messageId, status: 'sent', cost: recipient?.cost };
-      } else {
-        this.logger.warn(`SMS send returned non-success status: ${recipient?.status} (code: ${recipient?.statusCode})`);
-        throw new Error(`Africa's Talking returned status: ${recipient?.status ?? 'Unknown'}`);
       }
+
+      // Actual delivery failure: surface statusCode and status so lastError reflects the real situation
+      const reason = statusText ?? `statusCode ${statusCode}`;
+      this.logger.warn(`SMS delivery failed for ${params.to}: ${reason} (statusCode: ${statusCode})`);
+      const error = new Error(`SMS delivery failed: ${reason} (statusCode ${statusCode})`) as Error & { atStatusCode?: number; atStatus?: string };
+      error.atStatusCode = statusCode;
+      error.atStatus = statusText;
+      throw error;
     } catch (error) {
       if (axios.isAxiosError(error)) {
         this.logger.error(

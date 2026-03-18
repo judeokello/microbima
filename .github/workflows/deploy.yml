@@ -164,10 +164,10 @@ jobs:
           flyctl ssh console -a maishapoa-staging-internal-api -C "sh -c 'cd /app/apps/api && npx prisma db execute --file prisma/seed-policy-number-sequence.sql --schema prisma/schema.prisma'"
           echo "✅ Policy number sequences seeded"
 
-          # Seed policy number sequences for all packages (idempotent)
-          echo "🔢 Seeding policy number sequences..."
-          flyctl ssh console -a maishapoa-staging-internal-api -C "sh -c 'cd /app/apps/api && npx prisma db execute --file prisma/seed-policy-number-sequence.sql --schema prisma/schema.prisma'"
-          echo "✅ Policy number sequences seeded"
+          # Seed messaging routes and templates (idempotent)
+          echo "📬 Seeding messaging routes and templates..."
+          flyctl ssh console -a maishapoa-staging-internal-api -C "sh -c 'cd /app/apps/api && npx prisma db execute --file prisma/seed-messaging.sql --schema prisma/schema.prisma'"
+          echo "✅ Messaging routes and templates seeded"
 
       - name: Deploy Agent Registration to Staging
         if: env.DEPLOY_AGENT_REGISTRATION != 'false'
@@ -449,10 +449,10 @@ jobs:
           flyctl ssh console -a maishapoa-production-internal-api -C "sh -c 'cd /app/apps/api && npx prisma db execute --file prisma/seed-policy-number-sequence.sql --schema prisma/schema.prisma'"
           echo "✅ Policy number sequences seeded"
 
-          # Seed policy number sequences for all packages (idempotent)
-          echo "🔢 Seeding policy number sequences..."
-          flyctl ssh console -a maishapoa-production-internal-api -C "sh -c 'cd /app/apps/api && npx prisma db execute --file prisma/seed-policy-number-sequence.sql --schema prisma/schema.prisma'"
-          echo "✅ Policy number sequences seeded"
+          # Seed messaging routes and templates (idempotent)
+          echo "📬 Seeding messaging routes and templates..."
+          flyctl ssh console -a maishapoa-production-internal-api -C "sh -c 'cd /app/apps/api && npx prisma db execute --file prisma/seed-messaging.sql --schema prisma/schema.prisma'"
+          echo "✅ Messaging routes and templates seeded"
 
       - name: Deploy Agent Registration to Production
         if: env.DEPLOY_AGENT_REGISTRATION != 'false'

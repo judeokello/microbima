@@ -102,7 +102,44 @@ async function createRootUser(): Promise<string | null> {
 }
 
 /**
- * Execute a SQL seed file
+ * Split SQL into single statements so Prisma can run each (prepared statement allows only one command).
+ * Respects $$ ... $$ blocks so DO $$ ... $$; is not split on semicolons inside the block.
+ */
+function splitSqlStatements(sql: string): string[] {
+  // Strip single-line comments (-- to EOL) so we don't execute comment-only "statements"
+  const withoutLineComments = sql.replace(/^\s*--[^\n]*/gm, '')
+  const statements: string[] = []
+  let current = ''
+  let i = 0
+  let inDollarQuote = false
+  const s = withoutLineComments
+  while (i < s.length) {
+    if (!inDollarQuote && s.substring(i, i + 2) === '$$') {
+      inDollarQuote = true
+      current += s[i++] + s[i++]
+      continue
+    }
+    if (inDollarQuote && s.substring(i, i + 2) === '$$') {
+      inDollarQuote = false
+      current += s[i++] + s[i++]
+      continue
+    }
+    if (!inDollarQuote && s[i] === ';') {
+      const stmt = current.trim()
+      if (stmt.length > 0) statements.push(stmt)
+      current = ''
+      i++
+      continue
+    }
+    current += s[i++]
+  }
+  const stmt = current.trim()
+  if (stmt.length > 0) statements.push(stmt)
+  return statements
+}
+
+/**
+ * Execute a SQL seed file (may contain multiple statements; each is run separately).
  */
 async function executeSqlSeedFile(filename: string): Promise<void> {
   const filePath = path.join(__dirname, filename)
@@ -116,7 +153,10 @@ async function executeSqlSeedFile(filename: string): Promise<void> {
   
   try {
     const sql = fs.readFileSync(filePath, 'utf-8')
-    await prisma.$executeRawUnsafe(sql)
+    const statements = splitSqlStatements(sql)
+    for (let idx = 0; idx < statements.length; idx++) {
+      await prisma.$executeRawUnsafe(statements[idx])
+    }
     console.log(`✅ Completed: ${filename}`)
   } catch (error) {
     console.error(`❌ Error executing ${filename}:`, error)
@@ -158,7 +198,10 @@ async function main() {
     // Step 5: Seed policy number sequences (for all packages - last_sequence = 0)
     await executeSqlSeedFile('seed-policy-number-sequence.sql')
 
-    // Step 6: Seed agent registration data (deferred requirements)
+    // Step 6: Seed messaging routes and templates (customer_created, etc.)
+    await executeSqlSeedFile('seed-messaging.sql')
+
+    // Step 7: Seed agent registration data (deferred requirements)
     console.log('📝 Seeding agent registration data...')
     await seedAgentRegistrationData(prisma)
 
