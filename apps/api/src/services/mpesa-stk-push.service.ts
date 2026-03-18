@@ -60,6 +60,32 @@ export class MpesaStkPushService implements OnModuleInit {
       `STK Push expiration job scheduled every ${expirationIntervalMinutes} minute(s) (cron: ${expirationCron})`
     );
 
+    // Query job for checking pending STK Push status
+    if (this.configService.mpesa.stkPushQueryEnabled) {
+      const queryIntervalSeconds = this.configService.mpesa.stkPushWorkerQueryIntervalSeconds;
+      const queryCron = `*/${queryIntervalSeconds} * * * * *`;
+      const queryJob = new CronJob(queryCron, () => {
+        const correlationId = `query-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+        this.queryStkPushRequests(correlationId).catch((err) =>
+          this.logger.error(
+            JSON.stringify({
+              event: 'STK_PUSH_QUERY_JOB_ERROR',
+              correlationId,
+              error: err instanceof Error ? err.message : String(err),
+              timestamp: new Date().toISOString(),
+            })
+          )
+        );
+      });
+      this.schedulerRegistry.addCronJob('stk-push-query', queryJob);
+      queryJob.start();
+      this.logger.log(
+        `STK Push query job scheduled every ${queryIntervalSeconds} second(s) (cron: ${queryCron})`
+      );
+    } else {
+      this.logger.log('STK Push query job disabled (MPESA_STK_PUSH_QUERY_ENABLED=false)');
+    }
+
     const missingIpnJob = new CronJob('0 * * * *', () => {
       const correlationId = `missing-ipn-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
       this.checkMissingIpn(correlationId).catch((err) =>
@@ -133,6 +159,12 @@ export class MpesaStkPushService implements OnModuleInit {
         );
       }
 
+      // Calculate initial nextQueryAt (first query delay)
+      const firstQueryDelaySeconds = this.configService.mpesa.stkPushFirstQueryDelaySeconds;
+      const nextQueryAt = this.configService.mpesa.stkPushQueryEnabled
+        ? new Date(Date.now() + firstQueryDelaySeconds * 1000)
+        : null;
+
       // Create STK Push request record (id is auto-generated UUID by Prisma)
       stkPushRequest = await this.prismaService.mpesaStkPushRequest.create({
         data: {
@@ -141,6 +173,7 @@ export class MpesaStkPushService implements OnModuleInit {
           accountReference: dto.accountReference,
           transactionDesc: dto.transactionDesc ?? null,
           status: MpesaStkPushStatus.PENDING,
+          nextQueryAt, // Set initial query time if query enabled
           initiatedBy: userId ?? null,
         },
       });
@@ -334,6 +367,24 @@ export class MpesaStkPushService implements OnModuleInit {
         return { ResultCode: 0, ResultDesc: 'Accepted' };
       }
 
+      // Idempotency check: If request is not PENDING, it's already been processed
+      if (stkPushRequest.status !== MpesaStkPushStatus.PENDING) {
+        this.logger.log(
+          JSON.stringify({
+            event: 'STK_PUSH_CALLBACK_DUPLICATE',
+            correlationId,
+            checkoutRequestId,
+            currentStatus: stkPushRequest.status,
+            callbackResultCode: stkCallback.ResultCode,
+            message: 'Callback received for non-pending request, skipping processing (likely duplicate or already processed by query)',
+            timestamp: new Date().toISOString(),
+          })
+        );
+
+        // Return success to M-Pesa (idempotent - already processed)
+        return { ResultCode: 0, ResultDesc: 'Accepted' };
+      }
+
       // Store callback response for audit (all responses: success, timeout, cancelled, etc.)
       await this.prismaService.mpesaStkPushCallbackResponse.create({
         data: {
@@ -389,6 +440,7 @@ export class MpesaStkPushService implements OnModuleInit {
           resultCode: String(stkCallback.ResultCode),
           resultDesc: stkCallback.ResultDesc,
           completedAt: newStatus === MpesaStkPushStatus.COMPLETED ? new Date() : null,
+          nextQueryAt: null, // Stop further queries since callback received
         },
       });
 
@@ -752,6 +804,198 @@ export class MpesaStkPushService implements OnModuleInit {
   }
 
   /**
+   * Query M-Pesa for pending STK Push request statuses
+   *
+   * Runs periodically to check status of PENDING requests that need querying.
+   * Updates request status based on M-Pesa response and processes completed transactions.
+   * Includes execution lock to prevent concurrent runs.
+   *
+   * @param correlationId - Correlation ID for logging
+   */
+  private isQueryJobRunning = false;
+
+  async queryStkPushRequests(correlationId?: string): Promise<{ queriedCount: number; requestIds: string[] }> {
+    const cid = correlationId ?? `query-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+
+    // Prevent concurrent execution
+    if (this.isQueryJobRunning) {
+      this.logger.warn(
+        JSON.stringify({
+          event: 'STK_PUSH_QUERY_JOB_SKIPPED',
+          correlationId: cid,
+          reason: 'Previous execution still running',
+          timestamp: new Date().toISOString(),
+        })
+      );
+      return { queriedCount: 0, requestIds: [] };
+    }
+
+    try {
+      this.isQueryJobRunning = true;
+
+      const now = new Date();
+      const maxQueryAttempts = this.configService.mpesa.stkPushMaxQueryAttempts;
+
+      // Find pending requests that need querying (limit to 100 per run)
+      const pendingRequests = await this.prismaService.mpesaStkPushRequest.findMany({
+        where: {
+          status: MpesaStkPushStatus.PENDING,
+          nextQueryAt: { lte: now },
+          queryAttemptCount: { lt: maxQueryAttempts },
+        },
+        take: 100, // Batch size limit
+        orderBy: { nextQueryAt: 'asc' }, // Oldest first
+      });
+
+      if (pendingRequests.length === 0) {
+        return { queriedCount: 0, requestIds: [] };
+      }
+
+      this.logger.log(
+        JSON.stringify({
+          event: 'STK_PUSH_QUERY_JOB_STARTED',
+          correlationId: cid,
+          pendingCount: pendingRequests.length,
+          timestamp: new Date().toISOString(),
+        })
+      );
+
+      const queriedIds: string[] = [];
+
+      for (const request of pendingRequests) {
+        try {
+          // Query M-Pesa for status
+          const queryResponse = await this.mpesaDarajaApiService.queryStkPushStatus(
+            request.checkoutRequestId!,
+            cid
+          );
+
+          // Increment query attempt count and update last query time
+          const newAttemptCount = request.queryAttemptCount + 1;
+          const retryDelaySeconds = this.configService.mpesa.stkPushQueryRetryDelaySeconds;
+          const nextQueryTime = newAttemptCount < maxQueryAttempts
+            ? new Date(Date.now() + retryDelaySeconds * 1000)
+            : null;
+
+          // Map ResultCode to status
+          let newStatus: MpesaStkPushStatus = MpesaStkPushStatus.PENDING;
+          if (queryResponse.ResultCode === '0') {
+            newStatus = MpesaStkPushStatus.COMPLETED;
+          } else if (queryResponse.ResultDesc?.toLowerCase().includes('cancelled')) {
+            newStatus = MpesaStkPushStatus.CANCELLED;
+          } else if (queryResponse.ResultCode !== '0') {
+            newStatus = MpesaStkPushStatus.FAILED;
+          }
+
+          // Update request with query results
+          await this.prismaService.mpesaStkPushRequest.update({
+            where: { id: request.id },
+            data: {
+              status: newStatus,
+              resultCode: queryResponse.ResultCode,
+              resultDesc: queryResponse.ResultDesc,
+              queryAttemptCount: newAttemptCount,
+              lastQueryAt: now,
+              nextQueryAt: newStatus === MpesaStkPushStatus.PENDING ? nextQueryTime : null,
+              completedAt: newStatus === MpesaStkPushStatus.COMPLETED ? new Date() : null,
+            },
+          });
+
+          this.logger.log(
+            JSON.stringify({
+              event: 'STK_PUSH_QUERY_RESULT',
+              correlationId: cid,
+              stkPushRequestId: request.id,
+              checkoutRequestId: request.checkoutRequestId,
+              resultCode: queryResponse.ResultCode,
+              resultDesc: queryResponse.ResultDesc,
+              newStatus,
+              queryAttemptCount: newAttemptCount,
+              nextQueryAt: nextQueryTime?.toISOString() ?? null,
+              timestamp: new Date().toISOString(),
+            })
+          );
+
+          // If completed, process payment (reuse callback logic)
+          if (newStatus === MpesaStkPushStatus.COMPLETED) {
+            // Create synthetic callback to reuse existing payment processing
+            const syntheticCallback = {
+              Body: {
+                stkCallback: {
+                  MerchantRequestID: queryResponse.MerchantRequestID,
+                  CheckoutRequestID: queryResponse.CheckoutRequestID,
+                  ResultCode: parseInt(queryResponse.ResultCode),
+                  ResultDesc: queryResponse.ResultDesc,
+                  // Note: Query API doesn't return CallbackMetadata
+                  // Payment processing will use stored amount/phone from request
+                },
+              },
+            };
+
+            await this.createPaymentRecordsFromStkPushCallback(
+              {
+                id: request.id,
+                phoneNumber: request.phoneNumber,
+                amount: Number(request.amount),
+                accountReference: request.accountReference,
+                transactionDesc: request.transactionDesc,
+              },
+              syntheticCallback.Body.stkCallback,
+              cid
+            );
+
+            this.logger.log(
+              JSON.stringify({
+                event: 'STK_PUSH_QUERY_PAYMENT_PROCESSED',
+                correlationId: cid,
+                stkPushRequestId: request.id,
+                checkoutRequestId: request.checkoutRequestId,
+                message: 'Payment processed from query result',
+                timestamp: new Date().toISOString(),
+              })
+            );
+          }
+
+          queriedIds.push(request.id);
+        } catch (error) {
+          this.logger.error(
+            JSON.stringify({
+              event: 'STK_PUSH_QUERY_ERROR',
+              correlationId: cid,
+              stkPushRequestId: request.id,
+              checkoutRequestId: request.checkoutRequestId,
+              error: error instanceof Error ? error.message : String(error),
+              timestamp: new Date().toISOString(),
+            })
+          );
+
+          // Increment attempt count even on error
+          await this.prismaService.mpesaStkPushRequest.update({
+            where: { id: request.id },
+            data: {
+              queryAttemptCount: request.queryAttemptCount + 1,
+              lastQueryAt: now,
+            },
+          });
+        }
+      }
+
+      this.logger.log(
+        JSON.stringify({
+          event: 'STK_PUSH_QUERY_JOB_COMPLETED',
+          correlationId: cid,
+          queriedCount: queriedIds.length,
+          timestamp: new Date().toISOString(),
+        })
+      );
+
+      return { queriedCount: queriedIds.length, requestIds: queriedIds };
+    } finally {
+      this.isQueryJobRunning = false;
+    }
+  }
+
+  /**
    * Mark PENDING STK Push requests older than timeout as EXPIRED (T042).
    * Uses UTC for all time calculations.
    */
@@ -763,12 +1007,18 @@ export class MpesaStkPushService implements OnModuleInit {
     const cutoff = new Date();
     cutoff.setUTCMinutes(cutoff.getUTCMinutes() - timeoutMinutes);
 
+    const maxQueryAttempts = this.configService.mpesa.stkPushMaxQueryAttempts;
+
     const expired = await this.prismaService.mpesaStkPushRequest.findMany({
       where: {
         status: MpesaStkPushStatus.PENDING,
         initiatedAt: { lt: cutoff },
+        OR: [
+          { nextQueryAt: null }, // Queries exhausted
+          { queryAttemptCount: { gte: maxQueryAttempts } }, // Max attempts reached
+        ],
       },
-      select: { id: true, initiatedAt: true },
+      select: { id: true, initiatedAt: true, queryAttemptCount: true },
     });
 
     const ids = expired.map((r) => r.id);
