@@ -44,6 +44,11 @@ export interface AppConfig {
     stkPushTimeoutMinutes: number;
     stkPushExpirationCheckIntervalMinutes: number;
     stkPushEnabled: boolean;
+    stkPushQueryEnabled: boolean;
+    stkPushWorkerQueryIntervalSeconds: number;
+    stkPushFirstQueryDelaySeconds: number;
+    stkPushQueryRetryDelaySeconds: number;
+    stkPushMaxQueryAttempts: number;
   };
   supabase: {
     url: string;
@@ -125,6 +130,11 @@ export class ConfigurationService extends BaseConfigurationService implements On
         stkPushTimeoutMinutes: parseInt(process.env.MPESA_STK_PUSH_TIMEOUT_MINUTES ?? '5', 10),
         stkPushExpirationCheckIntervalMinutes: parseInt(process.env.MPESA_STK_PUSH_EXPIRATION_CHECK_INTERVAL_MINUTES ?? '2', 10),
         stkPushEnabled: process.env.MPESA_STK_PUSH_ENABLED?.toLowerCase() === 'true',
+        stkPushQueryEnabled: process.env.MPESA_STK_PUSH_QUERY_ENABLED?.toLowerCase() === 'true',
+        stkPushWorkerQueryIntervalSeconds: parseInt(process.env.MPESA_STK_PUSH_WORKER_QUERY_INTERVAL_SECONDS ?? '15', 10),
+        stkPushFirstQueryDelaySeconds: parseInt(process.env.MPESA_STK_PUSH_FIRST_QUERY_DELAY_SECONDS ?? '40', 10),
+        stkPushQueryRetryDelaySeconds: parseInt(process.env.MPESA_STK_PUSH_QUERY_RETRY_DELAY_SECONDS ?? '30', 10),
+        stkPushMaxQueryAttempts: parseInt(process.env.MPESA_STK_PUSH_MAX_QUERY_ATTEMPTS ?? '3', 10),
       },
       messaging: {
         smtpHost: process.env.SMTP_HOST ?? '',
