@@ -17,6 +17,7 @@ import { MpesaStkPushStatus, MpesaPaymentSource } from '@prisma/client';
 import { ValidationException } from '../exceptions/validation.exception';
 import { ErrorCodes } from '../enums/error-codes.enum';
 import * as Sentry from '@sentry/nestjs';
+import { PaymentStatusGateway, PaymentStatusUpdate } from '../gateways/payment-status.gateway';
 
 /**
  * M-Pesa STK Push Service
@@ -35,7 +36,9 @@ export class MpesaStkPushService implements OnModuleInit {
     private readonly configService: ConfigurationService,
     private readonly schedulerRegistry: SchedulerRegistry,
     @Inject(forwardRef(() => PolicyService))
-    private readonly policyService: PolicyService
+    private readonly policyService: PolicyService,
+    @Inject(forwardRef(() => PaymentStatusGateway))
+    private readonly paymentStatusGateway: PaymentStatusGateway
   ) {}
 
   onModuleInit() {
@@ -102,6 +105,30 @@ export class MpesaStkPushService implements OnModuleInit {
     this.schedulerRegistry.addCronJob('missing-ipn-check', missingIpnJob);
     missingIpnJob.start();
     this.logger.log('Missing IPN check job scheduled hourly (cron: 0 * * * *)');
+  }
+
+  /**
+   * Get user-friendly status message for UI display
+   *
+   * @param status - STK Push status
+   * @param resultDesc - Optional result description from M-Pesa
+   * @returns User-friendly message
+   */
+  private getStatusMessage(status: MpesaStkPushStatus, resultDesc?: string): string {
+    switch (status) {
+      case MpesaStkPushStatus.PENDING:
+        return 'Waiting for customer to enter M-Pesa PIN...';
+      case MpesaStkPushStatus.COMPLETED:
+        return 'Payment completed successfully!';
+      case MpesaStkPushStatus.FAILED:
+        return resultDesc || 'Payment failed. Please try again.';
+      case MpesaStkPushStatus.CANCELLED:
+        return 'Payment was cancelled by customer.';
+      case MpesaStkPushStatus.EXPIRED:
+        return 'Payment request expired. Please try again.';
+      default:
+        return 'Processing payment...';
+    }
   }
 
   /**
@@ -476,6 +503,17 @@ export class MpesaStkPushService implements OnModuleInit {
           })
         );
       }
+
+      // Emit WebSocket event for real-time UI updates
+      const statusUpdate: PaymentStatusUpdate = {
+        stkPushRequestId: updatedRequest.id,
+        status: newStatus,
+        resultCode: String(stkCallback.ResultCode),
+        resultDesc: stkCallback.ResultDesc,
+        timestamp: new Date().toISOString(),
+        message: this.getStatusMessage(newStatus, stkCallback.ResultDesc),
+      };
+      this.paymentStatusGateway.emitPaymentStatusUpdate(statusUpdate);
 
       // Only create payment records if status is COMPLETED (ResultCode === 0)
       // For failed/timeout/cancelled, we don't create payment records
@@ -916,6 +954,19 @@ export class MpesaStkPushService implements OnModuleInit {
             })
           );
 
+          // Emit WebSocket event if status changed from PENDING
+          if (newStatus !== MpesaStkPushStatus.PENDING) {
+            const statusUpdate: PaymentStatusUpdate = {
+              stkPushRequestId: request.id,
+              status: newStatus,
+              resultCode: queryResponse.ResultCode,
+              resultDesc: queryResponse.ResultDesc,
+              timestamp: new Date().toISOString(),
+              message: this.getStatusMessage(newStatus, queryResponse.ResultDesc),
+            };
+            this.paymentStatusGateway.emitPaymentStatusUpdate(statusUpdate);
+          }
+
           // If completed, process payment (reuse callback logic)
           if (newStatus === MpesaStkPushStatus.COMPLETED) {
             // Create synthetic callback to reuse existing payment processing
@@ -1039,6 +1090,15 @@ export class MpesaStkPushService implements OnModuleInit {
             timestamp: new Date().toISOString(),
           })
         );
+
+        // Emit WebSocket event for expired request
+        const statusUpdate: PaymentStatusUpdate = {
+          stkPushRequestId: r.id,
+          status: MpesaStkPushStatus.EXPIRED,
+          timestamp: new Date().toISOString(),
+          message: this.getStatusMessage(MpesaStkPushStatus.EXPIRED),
+        };
+        this.paymentStatusGateway.emitPaymentStatusUpdate(statusUpdate);
       }
       this.logger.log(
         JSON.stringify({
