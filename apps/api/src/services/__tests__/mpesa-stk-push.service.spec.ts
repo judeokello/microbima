@@ -15,6 +15,7 @@ import { MpesaStkPushStatus } from '@prisma/client';
 import { ValidationException } from '../../exceptions/validation.exception';
 import { ErrorCodes } from '../../enums/error-codes.enum';
 import { Logger } from '@nestjs/common';
+import { PaymentStatusGateway } from '../../gateways/payment-status.gateway';
 
 describe('MpesaStkPushService', () => {
   let service: MpesaStkPushService;
@@ -86,16 +87,26 @@ describe('MpesaStkPushService', () => {
     activatePolicy: jest.fn(),
   });
 
+  /** WebSocket gateway (emit only; no real Socket.IO in unit tests) */
+  const createPaymentStatusGatewayMock = () => ({
+    emitPaymentStatusUpdate: jest.fn(),
+  });
+
   beforeEach(async () => {
     const prismaMock = createPrismaMock();
     const mpesaDarajaApiMock = createMpesaDarajaApiMock();
     const mpesaErrorMapperMock = createMpesaErrorMapperMock();
     const configServiceMock = createConfigServiceMock();
     const policyServiceMock = createPolicyServiceMock();
+    const paymentStatusGatewayMock = createPaymentStatusGatewayMock();
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         MpesaStkPushService,
+        {
+          provide: PaymentStatusGateway,
+          useValue: paymentStatusGatewayMock,
+        },
         {
           provide: PrismaService,
           useValue: prismaMock,
