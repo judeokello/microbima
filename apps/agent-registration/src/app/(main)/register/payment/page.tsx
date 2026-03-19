@@ -9,10 +9,11 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 // import { Separator } from '@/components/ui/separator';
-import { CheckCircle, CreditCard, Users, User, Loader2 } from 'lucide-react';
+import { CheckCircle, CreditCard, Users, User, Loader2, XCircle, Clock, LayoutDashboard } from 'lucide-react';
 import { createPolicy, CreatePolicyRequest, getPackagePlans, Plan, initiateStkPush, InitiateStkPushRequest, getInternalConfig } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
+import { usePaymentStatus, PaymentStatusUpdate } from '@/hooks/usePaymentStatus';
 
 interface InsurancePricing {
   plans: {
@@ -96,6 +97,35 @@ export default function PaymentStep() {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [isPaymentInitiated, setIsPaymentInitiated] = useState(false);
   const [stkPushEnabled, setStkPushEnabled] = useState(false);
+
+  // WebSocket payment status state
+  const [stkPushRequestId, setStkPushRequestId] = useState<string | null>(null);
+  const [paymentStatus, setPaymentStatus] = useState<'idle' | 'processing' | 'completed' | 'failed' | 'cancelled' | 'expired'>('idle');
+  const [paymentStartTime, setPaymentStartTime] = useState<number | null>(null);
+  const [elapsedTime, setElapsedTime] = useState<number>(0);
+
+  // WebSocket hook for real-time payment updates
+  const { status: wsStatus, isConnected } = usePaymentStatus({
+    stkPushRequestId,
+    onStatusUpdate: (update: PaymentStatusUpdate) => {
+      console.log('Payment status update:', update);
+    },
+    onComplete: (update: PaymentStatusUpdate) => {
+      setPaymentStatus('completed');
+      setSuccessMessage(update.message);
+      setIsPaymentInitiated(true);
+    },
+    onError: (update: PaymentStatusUpdate) => {
+      if (update.status === 'CANCELLED') {
+        setPaymentStatus('cancelled');
+      } else if (update.status === 'EXPIRED') {
+        setPaymentStatus('expired');
+      } else {
+        setPaymentStatus('failed');
+      }
+      setError(update.message);
+    },
+  });
 
   // Insurance pricing state
   const [pricingData, setPricingData] = useState<InsurancePricing | null>(null);
@@ -222,6 +252,16 @@ export default function PaymentStep() {
       .catch(() => setStkPushEnabled(false));
   }, []);
 
+  // Timer effect for elapsed time display
+  useEffect(() => {
+    if (paymentStatus === 'processing' && paymentStartTime) {
+      const interval = setInterval(() => {
+        setElapsedTime(Math.floor((Date.now() - paymentStartTime) / 1000));
+      }, 1000);
+      return () => clearInterval(interval);
+    }
+  }, [paymentStatus, paymentStartTime]);
+
   // Calculate pricing when selections change
   useEffect(() => {
     if (!pricingData || !selectedPlan || !selectedCategory) {
@@ -256,6 +296,40 @@ export default function PaymentStep() {
 
   const handleBack = () => {
     router.push('/register/beneficiary');
+  };
+
+  /**
+   * Handle "Try Again" action
+   * Re-initiates STK push with same customer data
+   */
+  const handleTryAgain = async () => {
+    // Reset states
+    setPaymentStatus('idle');
+    setError(null);
+    setSuccessMessage(null);
+    setStkPushRequestId(null);
+    setIsPaymentInitiated(false);
+    setElapsedTime(0);
+    setPaymentStartTime(null);
+
+    // Re-initiate STK push with same customer data
+    // handleSubmit will use existing customerData from localStorage
+    await handleSubmit();
+  };
+
+  /**
+   * Handle "Register Another Customer" action
+   * Clears all data and starts new registration flow
+   */
+  const handleRegisterAnother = () => {
+    // Clear localStorage
+    localStorage.removeItem('customerFormData');
+    localStorage.removeItem('beneficiaryFormData');
+    localStorage.removeItem('customerId');
+    localStorage.removeItem('registrationId');
+
+    // Navigate to start of registration flow
+    router.push('/register/customer');
   };
 
   const handleSubmit = async () => {
@@ -467,8 +541,13 @@ export default function PaymentStep() {
         const stkPushResult = await initiateStkPush(stkPushRequest);
         console.log('STK push initiated successfully:', stkPushResult);
 
-        // STK push has been initiated - payment will complete on customer's phone
-        setSuccessMessage(`STK push payment request has been sent to ${paymentPhone}. Please ask the customer to check their phone and enter their M-Pesa PIN to complete the payment.`);
+        // Set WebSocket state for real-time updates
+        setStkPushRequestId(stkPushResult.id);
+        setPaymentStatus('processing');
+        setPaymentStartTime(Date.now());
+
+        // Don't set success message yet - wait for WebSocket updates
+        // setSuccessMessage(`STK push payment request has been sent to ${paymentPhone}. Please ask the customer to check their phone and enter their M-Pesa PIN to complete the payment.`);
       } else if (paymentType === 'MPESA' && !stkPushEnabled) {
         // STK push disabled: policy created; customer pays via Paybill
         setSuccessMessage('Policy created. Customer can complete the payment by paying via Paybill.');
@@ -815,8 +894,160 @@ export default function PaymentStep() {
         </CardContent>
       </Card>
 
+      {/* Payment Processing State */}
+      {paymentStatus === 'processing' && (
+        <Card className="border-blue-200 bg-blue-50">
+          <CardContent className="pt-6">
+            <div className="flex flex-col items-center space-y-4">
+              {/* Animated spinner */}
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600" />
+
+              {/* Status message */}
+              <div className="text-center space-y-2">
+                <p className="font-semibold text-blue-900">
+                  {wsStatus?.message || 'Processing payment...'}
+                </p>
+
+                {/* Connection indicator */}
+                {isConnected ? (
+                  <p className="text-sm text-blue-600 flex items-center justify-center gap-2">
+                    <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+                    Connected • Waiting for confirmation
+                  </p>
+                ) : (
+                  <p className="text-sm text-orange-600 flex items-center justify-center gap-2">
+                    <span className="w-2 h-2 bg-orange-500 rounded-full animate-pulse" />
+                    Reconnecting...
+                  </p>
+                )}
+
+                {/* Elapsed time */}
+                <p className="text-xs text-gray-600">
+                  Elapsed: {elapsedTime}s • Status: {wsStatus?.status || 'PENDING'}
+                </p>
+
+                {/* Instructional text */}
+                <div className="mt-4 text-sm text-blue-800 space-y-1">
+                  <p>📱 STK push sent to {paymentPhone}</p>
+                  <p>Please ask the customer to:</p>
+                  <ol className="list-decimal list-inside space-y-1">
+                    <li>Check their phone for M-Pesa prompt</li>
+                    <li>Enter their M-Pesa PIN</li>
+                    <li>Confirm the payment</li>
+                  </ol>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Payment Completed State */}
+      {paymentStatus === 'completed' && (
+        <Card className="border-green-200 bg-green-50">
+          <CardContent className="pt-6">
+            <div className="flex flex-col items-center space-y-4">
+              <CheckCircle className="h-16 w-16 text-green-600" />
+
+              <div className="text-center space-y-2">
+                <h3 className="text-xl font-bold text-green-900">
+                  Payment Completed Successfully!
+                </h3>
+                <p className="text-green-700">{wsStatus?.message || successMessage}</p>
+
+                {/* Transaction details if available */}
+                {wsStatus?.resultDesc && (
+                  <div className="mt-4 text-sm text-green-800">
+                    <p>Transaction Reference: {wsStatus.resultCode}</p>
+                    <p>Time: {wsStatus.timestamp ? new Date(wsStatus.timestamp).toLocaleTimeString() : ''}</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Action buttons */}
+              <div className="flex gap-3 mt-4">
+                <Button onClick={() => router.push('/dashboard')}>
+                  <LayoutDashboard className="mr-2 h-4 w-4" />
+                  Dashboard
+                </Button>
+                <Button onClick={handleRegisterAnother} variant="outline">
+                  Register Another Customer
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Payment Failed/Cancelled State */}
+      {(paymentStatus === 'failed' || paymentStatus === 'cancelled') && (
+        <Card className="border-red-200 bg-red-50">
+          <CardContent className="pt-6">
+            <div className="flex flex-col items-center space-y-4">
+              <XCircle className="h-16 w-16 text-red-600" />
+
+              <div className="text-center space-y-2">
+                <h3 className="text-xl font-bold text-red-900">
+                  {paymentStatus === 'cancelled' ? 'Payment Cancelled' : 'Payment Failed'}
+                </h3>
+                <p className="text-red-700">{error || wsStatus?.message}</p>
+              </div>
+
+              {/* Action buttons */}
+              <div className="flex gap-3 mt-4">
+                <Button onClick={handleTryAgain} variant="default">
+                  Try Again
+                </Button>
+                <Button onClick={() => router.push('/dashboard')} variant="outline">
+                  <LayoutDashboard className="mr-2 h-4 w-4" />
+                  Dashboard
+                </Button>
+                <Button onClick={handleRegisterAnother} variant="outline">
+                  Register Another Customer
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Payment Expired State */}
+      {paymentStatus === 'expired' && (
+        <Card className="border-orange-200 bg-orange-50">
+          <CardContent className="pt-6">
+            <div className="flex flex-col items-center space-y-4">
+              <Clock className="h-16 w-16 text-orange-600" />
+
+              <div className="text-center space-y-2">
+                <h3 className="text-xl font-bold text-orange-900">
+                  Payment Request Expired
+                </h3>
+                <p className="text-orange-700">{error || wsStatus?.message}</p>
+                <p className="text-sm text-orange-600">
+                  The customer did not respond within the allowed time.
+                </p>
+              </div>
+
+              {/* Action buttons */}
+              <div className="flex gap-3 mt-4">
+                <Button onClick={handleTryAgain} variant="default">
+                  Try Again
+                </Button>
+                <Button onClick={() => router.push('/dashboard')} variant="outline">
+                  <LayoutDashboard className="mr-2 h-4 w-4" />
+                  Dashboard
+                </Button>
+                <Button onClick={handleRegisterAnother} variant="outline">
+                  Register Another Customer
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Success Display */}
-      {successMessage && (
+      {successMessage && paymentStatus !== 'processing' && paymentStatus !== 'completed' && (
         <div className="bg-green-50 border border-green-200 rounded-md p-4">
           <div className="flex">
             <div className="flex-shrink-0">
