@@ -1,4 +1,5 @@
 import { Injectable, Logger, forwardRef, Inject, OnModuleInit } from '@nestjs/common';
+import { JwtService } from '@nestjs/jwt';
 import { CronJob } from 'cron';
 import { SchedulerRegistry } from '@nestjs/schedule';
 import { PrismaService } from '../prisma/prisma.service';
@@ -35,6 +36,7 @@ export class MpesaStkPushService implements OnModuleInit {
     private readonly mpesaErrorMapper: MpesaErrorMapperService,
     private readonly configService: ConfigurationService,
     private readonly schedulerRegistry: SchedulerRegistry,
+    private readonly jwtService: JwtService,
     @Inject(forwardRef(() => PolicyService))
     private readonly policyService: PolicyService,
     @Inject(forwardRef(() => PaymentStatusGateway))
@@ -262,6 +264,18 @@ export class MpesaStkPushService implements OnModuleInit {
         })
       );
 
+      // Generate WebSocket authentication token (payment-scoped JWT)
+      const wsToken = await this.jwtService.signAsync(
+        {
+          sub: updatedRequest.id, // stkPushRequestId
+          purpose: 'payment_status_ws',
+        },
+        {
+          secret: this.configService.jwt.secret,
+          expiresIn: '90m', // 90 minutes (longer than STK push timeout)
+        }
+      );
+
       return {
         id: updatedRequest.id,
         checkoutRequestID: mpesaResponse.CheckoutRequestID,
@@ -271,6 +285,7 @@ export class MpesaStkPushService implements OnModuleInit {
         amount: Number(updatedRequest.amount),
         accountReference: updatedRequest.accountReference,
         initiatedAt: updatedRequest.initiatedAt,
+        wsToken,
       };
     } catch (error) {
       // Persist requestPayload on failure so we have the outgoing request for troubleshooting (e.g. transient network error)

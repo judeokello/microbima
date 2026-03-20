@@ -99,6 +99,12 @@ export class StkPushRequestResponseDto {
     example: '2025-01-27T14:30:45Z',
   })
   initiatedAt: Date;
+
+  @ApiProperty({
+    description: 'WebSocket authentication token for payment status updates (short-lived JWT, 90 minutes)',
+    example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
+  })
+  wsToken: string;
 }
 
 /**
