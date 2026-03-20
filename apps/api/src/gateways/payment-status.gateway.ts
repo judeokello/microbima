@@ -178,6 +178,25 @@ export class PaymentStatusGateway
       return;
     }
 
+    // Security check: verify token's sub matches the requested stkPushRequestId
+    const tokenSub = client.data.user?.sub;
+    if (tokenSub !== stkPushRequestId) {
+      this.logger.warn(
+        JSON.stringify({
+          event: 'WEBSOCKET_SUBSCRIBE_UNAUTHORIZED',
+          clientId: client.id,
+          tokenSub,
+          requestedStkPushRequestId: stkPushRequestId,
+          reason: 'Token sub does not match requested stkPushRequestId',
+          timestamp: new Date().toISOString(),
+        })
+      );
+      client.emit('subscription-error', {
+        error: 'Unauthorized: token does not match payment request',
+      });
+      return;
+    }
+
     // Add subscription
     this.addSubscription(stkPushRequestId, client.id);
 

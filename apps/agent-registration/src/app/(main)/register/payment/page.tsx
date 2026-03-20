@@ -100,6 +100,7 @@ export default function PaymentStep() {
 
   // WebSocket payment status state
   const [stkPushRequestId, setStkPushRequestId] = useState<string | null>(null);
+  const [wsToken, setWsToken] = useState<string | null>(null);
   const [paymentStatus, setPaymentStatus] = useState<'idle' | 'processing' | 'completed' | 'failed' | 'cancelled' | 'expired'>('idle');
   const [paymentStartTime, setPaymentStartTime] = useState<number | null>(null);
   const [elapsedTime, setElapsedTime] = useState<number>(0);
@@ -107,6 +108,7 @@ export default function PaymentStep() {
   // WebSocket hook for real-time payment updates
   const { status: wsStatus, isConnected } = usePaymentStatus({
     stkPushRequestId,
+    wsToken,
     onStatusUpdate: (update: PaymentStatusUpdate) => {
       console.log('Payment status update:', update);
     },
@@ -308,6 +310,7 @@ export default function PaymentStep() {
     setError(null);
     setSuccessMessage(null);
     setStkPushRequestId(null);
+    setWsToken(null);
     setIsPaymentInitiated(false);
     setElapsedTime(0);
     setPaymentStartTime(null);
@@ -543,6 +546,7 @@ export default function PaymentStep() {
 
         // Set WebSocket state for real-time updates
         setStkPushRequestId(stkPushResult.id);
+        setWsToken(stkPushResult.wsToken);
         setPaymentStatus('processing');
         setPaymentStartTime(Date.now());
 

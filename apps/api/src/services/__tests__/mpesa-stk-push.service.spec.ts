@@ -1,5 +1,6 @@
 /// <reference types="jest" />
 import { Test, TestingModule } from '@nestjs/testing';
+import { JwtService } from '@nestjs/jwt';
 import { MpesaStkPushService } from '../mpesa-stk-push.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { MpesaDarajaApiService } from '../mpesa-daraja-api.service';
@@ -80,6 +81,10 @@ describe('MpesaStkPushService', () => {
       stkPushQueryRetryDelaySeconds: 30,
       stkPushMaxQueryAttempts: 3,
     },
+    jwt: {
+      secret: 'test-jwt-secret',
+      expiresIn: '90m',
+    },
   });
 
   // Mock Policy service
@@ -92,6 +97,12 @@ describe('MpesaStkPushService', () => {
     emitPaymentStatusUpdate: jest.fn(),
   });
 
+  /** Mock JwtService */
+  const createJwtServiceMock = () => ({
+    signAsync: jest.fn().mockResolvedValue('mock-ws-token'),
+    verifyAsync: jest.fn(),
+  });
+
   beforeEach(async () => {
     const prismaMock = createPrismaMock();
     const mpesaDarajaApiMock = createMpesaDarajaApiMock();
@@ -99,6 +110,7 @@ describe('MpesaStkPushService', () => {
     const configServiceMock = createConfigServiceMock();
     const policyServiceMock = createPolicyServiceMock();
     const paymentStatusGatewayMock = createPaymentStatusGatewayMock();
+    const jwtServiceMock = createJwtServiceMock();
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -122,6 +134,10 @@ describe('MpesaStkPushService', () => {
         {
           provide: ConfigurationService,
           useValue: configServiceMock,
+        },
+        {
+          provide: JwtService,
+          useValue: jwtServiceMock,
         },
         {
           provide: PolicyService,

@@ -1522,6 +1522,7 @@ export interface InitiateStkPushResponse {
   amount: number
   accountReference: string
   initiatedAt: string
+  wsToken: string
 }
 
 export interface InternalConfigResponse {
