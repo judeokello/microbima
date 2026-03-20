@@ -40,10 +40,11 @@ RUN pnpm build
 # Ensure scripts are executable
 RUN chmod +x scripts/*.sh
 
-# Fix pnpm symlinks for production (CI disables interactive prompts during layer build)
+# Production deps only for the API subtree (avoid workspace packages like agent-registration
+# running `prepare` → husky, which is a devDependency and absent under --prod)
 WORKDIR /app
 ENV CI=true
-RUN pnpm install --prod --frozen-lockfile --shamefully-hoist
+RUN pnpm install --prod --frozen-lockfile --shamefully-hoist --filter @microbima/api... --filter microbima
 
 # NODE_ENV will be set by Fly.io environment variables
 

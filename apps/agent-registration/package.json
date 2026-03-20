@@ -9,7 +9,7 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "prepare": "husky",
+    "prepare": "node -e \"try{require.resolve('husky');require('child_process').execSync('husky',{stdio:'inherit'});}catch{process.exit(0)}\"",
     "generate:presets": "ts-node --compiler-options '{\"module\":\"CommonJS\"}' src/scripts/generate-theme-presets.ts",
     "dev:all": "../../start-dev.sh",
     "dev:api": "../../start-api.sh",
