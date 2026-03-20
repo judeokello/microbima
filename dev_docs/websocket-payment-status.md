@@ -121,7 +121,7 @@ interface PaymentStatusUpdate {
 ### Files Modified
 
 - `apps/agent-registration/src/app/(main)/register/payment/page.tsx` - Added real-time UI states
-- `apps/agent-registration/.env.local` - Added NEXT_PUBLIC_API_URL
+- `apps/agent-registration/.env.local` - Added `NEXT_PUBLIC_SOCKET_API_ORIGIN`
 
 ### usePaymentStatus Hook
 
@@ -204,7 +204,7 @@ JWT_SECRET=<existing-value>                    # For JWT authentication
 
 ```bash
 # apps/agent-registration/.env.local
-NEXT_PUBLIC_API_URL=http://localhost:3001  # Backend API URL (without /api)
+NEXT_PUBLIC_SOCKET_API_ORIGIN=http://localhost:3001  # Internal API origin (without /api) for Socket.IO
 ```
 
 ## Testing
@@ -247,7 +247,7 @@ NEXT_PUBLIC_API_URL=http://localhost:3001  # Backend API URL (without /api)
 **Common Issues**:
 
 1. **WebSocket not connecting**
-   - Check NEXT_PUBLIC_API_URL is set correctly
+   - Check NEXT_PUBLIC_SOCKET_API_ORIGIN is set correctly (build-time on Fly)
    - Check AGENT_REGISTRATION_URL in backend .env
    - Check JWT token is available in localStorage
 
