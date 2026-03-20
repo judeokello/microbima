@@ -426,6 +426,7 @@ export default function UnderwriterDetailPage() {
                   value={formData.website}
                   onChange={(e) => setFormData({ ...formData, website: e.target.value })}
                   required
+                  maxLength={100}
                 />
               ) : (
                 <a
@@ -460,9 +461,11 @@ export default function UnderwriterDetailPage() {
                   <input
                     type="checkbox"
                     id="isActive"
+                    name="isActive"
                     checked={formData.isActive}
                     onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
                     className="h-4 w-4"
+                    aria-label="Underwriter active status"
                   />
                   <Label htmlFor="isActive" className="font-normal cursor-pointer">
                     Active

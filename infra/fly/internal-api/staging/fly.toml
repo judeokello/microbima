@@ -40,8 +40,8 @@ primary_region = "fra"
   [[services.http_checks]]
     interval = "10s"
     timeout = "5s"
-    # App may spend time on config/Sentry/bootstrap; avoid false failures while still starting
-    grace_period = "120s"
+    # Fly caps HTTP check grace at 1m; use the max to reduce false negatives during boot
+    grace_period = "60s"
     method = "GET"
     path = "/health"
     protocol = "http"
