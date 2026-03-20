@@ -34,12 +34,14 @@ primary_region = "fra"
   [[services.tcp_checks]]
     interval = "15s"
     timeout = "2s"
-    grace_period = "1s"
+    # Allow time for container start + Node bootstrap before expecting :3001 open
+    grace_period = "30s"
 
   [[services.http_checks]]
     interval = "10s"
     timeout = "5s"
-    grace_period = "30s"
+    # App may spend time on config/Sentry/bootstrap; avoid false failures while still starting
+    grace_period = "120s"
     method = "GET"
     path = "/health"
     protocol = "http"
