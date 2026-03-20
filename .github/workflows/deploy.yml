@@ -73,6 +73,45 @@ jobs:
             fi
           done
 
+      # flyctl ssh console requires at least one *started* machine (deploy can succeed then leave VMs stopped/crashed)
+      - name: Ensure Fly machine running (staging Internal API)
+        if: env.DEPLOY_INTERNAL_API != 'false' && env.AUTO_DEPLOY_DB == 'true'
+        run: |
+          set -e
+          APP="maishapoa-staging-internal-api"
+          echo "🛫 Ensuring $APP has a started VM for SSH migrations..."
+          flyctl status -a "$APP" || true
+          LIST="$(flyctl machine list -a "$APP" --json)"
+          COUNT="$(echo "$LIST" | jq 'length')"
+          if [ "$COUNT" -eq 0 ]; then
+            echo "::error::No Fly Machines found for $APP. Fix the Internal API deploy step or run: flyctl deploy -a $APP -c infra/fly/internal-api/staging/fly.toml"
+            exit 1
+          fi
+          STARTED="$(echo "$LIST" | jq '[.[] | select(.state == "started")] | length')"
+          if [ "$STARTED" -lt 1 ]; then
+            echo "▶️ No started machines; starting stopped machines..."
+            echo "$LIST" | jq -r '.[] | select(.state != "started") | .id' | while read -r mid; do
+              [ -z "$mid" ] && continue
+              echo "Starting machine $mid..."
+              flyctl machine start "$mid" -a "$APP"
+            done
+          fi
+          echo "⏳ Waiting for flyctl ssh (up to ~3m)..."
+          ok=0
+          for i in $(seq 1 36); do
+            if flyctl ssh console -a "$APP" -C "echo ssh_ok" >/dev/null 2>&1; then
+              ok=1
+              break
+            fi
+            echo "  attempt $i/36 ..."
+            sleep 5
+          done
+          if [ "$ok" -ne 1 ]; then
+            echo "::error::Cannot open SSH to $APP. Check: flyctl logs -a $APP && flyctl machine list -a $APP"
+            exit 1
+          fi
+          echo "✅ SSH ready for $APP"
+
       - name: Run Database Migrations on Staging
         if: env.DEPLOY_INTERNAL_API != 'false' && env.AUTO_DEPLOY_DB == 'true'
         run: |
@@ -279,6 +318,44 @@ jobs:
               fi
             fi
           done
+
+      - name: Ensure Fly machine running (production Internal API)
+        if: env.DEPLOY_INTERNAL_API != 'false' && env.AUTO_DEPLOY_DB == 'true'
+        run: |
+          set -e
+          APP="maishapoa-production-internal-api"
+          echo "🛫 Ensuring $APP has a started VM for SSH migrations..."
+          flyctl status -a "$APP" || true
+          LIST="$(flyctl machine list -a "$APP" --json)"
+          COUNT="$(echo "$LIST" | jq 'length')"
+          if [ "$COUNT" -eq 0 ]; then
+            echo "::error::No Fly Machines found for $APP. Fix the Internal API deploy step."
+            exit 1
+          fi
+          STARTED="$(echo "$LIST" | jq '[.[] | select(.state == "started")] | length')"
+          if [ "$STARTED" -lt 1 ]; then
+            echo "▶️ No started machines; starting stopped machines..."
+            echo "$LIST" | jq -r '.[] | select(.state != "started") | .id' | while read -r mid; do
+              [ -z "$mid" ] && continue
+              echo "Starting machine $mid..."
+              flyctl machine start "$mid" -a "$APP"
+            done
+          fi
+          echo "⏳ Waiting for flyctl ssh (up to ~3m)..."
+          ok=0
+          for i in $(seq 1 36); do
+            if flyctl ssh console -a "$APP" -C "echo ssh_ok" >/dev/null 2>&1; then
+              ok=1
+              break
+            fi
+            echo "  attempt $i/36 ..."
+            sleep 5
+          done
+          if [ "$ok" -ne 1 ]; then
+            echo "::error::Cannot open SSH to $APP. Check: flyctl logs -a $APP"
+            exit 1
+          fi
+          echo "✅ SSH ready for $APP"
 
       - name: Run Database Migrations on Production
         if: env.DEPLOY_INTERNAL_API != 'false' && env.AUTO_DEPLOY_DB == 'true'
