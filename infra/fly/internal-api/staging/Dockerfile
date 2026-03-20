@@ -40,8 +40,9 @@ RUN pnpm build
 # Ensure scripts are executable
 RUN chmod +x scripts/*.sh
 
-# Fix pnpm symlinks for production
+# Fix pnpm symlinks for production (CI disables interactive prompts during layer build)
 WORKDIR /app
+ENV CI=true
 RUN pnpm install --prod --frozen-lockfile --shamefully-hoist
 
 # NODE_ENV will be set by Fly.io environment variables
