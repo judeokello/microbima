@@ -19,6 +19,7 @@ export interface PaymentStatusUpdate {
  */
 interface UsePaymentStatusOptions {
   stkPushRequestId: string | null;
+  wsToken: string | null;
   onStatusUpdate?: (update: PaymentStatusUpdate) => void;
   onComplete?: (update: PaymentStatusUpdate) => void;
   onError?: (update: PaymentStatusUpdate) => void;
@@ -34,35 +35,12 @@ interface UsePaymentStatusReturn {
 }
 
 /**
- * Get authentication token from localStorage
- * Assumes token is stored under 'sb-access-token' key (Supabase default)
- */
-const getAuthToken = (): string | null => {
-  if (typeof window === 'undefined') return null;
-
-  try {
-    // Try to get Supabase session
-    const supabaseAuthToken = localStorage.getItem('sb-127.0.0.1-auth-token');
-    if (supabaseAuthToken) {
-      const session = JSON.parse(supabaseAuthToken);
-      return session?.access_token || null;
-    }
-
-    // Fallback to direct token storage
-    return localStorage.getItem('access_token');
-  } catch (error) {
-    console.error('Error getting auth token:', error);
-    return null;
-  }
-};
-
-/**
  * Custom hook for real-time payment status updates via WebSocket
  *
  * Connects to the payment-status WebSocket namespace and subscribes to
  * updates for a specific STK Push request. Automatically handles:
  * - Connection/disconnection
- * - Authentication via JWT token
+ * - Authentication via payment-scoped JWT token (wsToken)
  * - Reconnection on connection loss
  * - Subscription management
  * - Status update callbacks
@@ -74,6 +52,7 @@ const getAuthToken = (): string | null => {
  * ```tsx
  * const { status, isConnected } = usePaymentStatus({
  *   stkPushRequestId: 'req-123',
+ *   wsToken: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
  *   onComplete: (update) => {
  *     console.log('Payment completed!', update);
  *   },
@@ -85,6 +64,7 @@ const getAuthToken = (): string | null => {
  */
 export function usePaymentStatus({
   stkPushRequestId,
+  wsToken,
   onStatusUpdate,
   onComplete,
   onError,
@@ -117,31 +97,23 @@ export function usePaymentStatus({
   );
 
   useEffect(() => {
-    // Don't connect if no stkPushRequestId provided
-    if (!stkPushRequestId) {
-      console.log('[usePaymentStatus] No stkPushRequestId provided, skipping connection');
+    // Don't connect if no stkPushRequestId or wsToken provided
+    if (!stkPushRequestId || !wsToken) {
+      console.log('[usePaymentStatus] No stkPushRequestId or wsToken provided, skipping connection');
       return;
     }
 
     // Internal API origin (no /api) — Socket.IO connects to ${origin}/payment-status
     const apiUrl = process.env.NEXT_PUBLIC_SOCKET_API_ORIGIN || 'http://localhost:3001';
 
-    // Get authentication token
-    const token = getAuthToken();
-
-    if (!token) {
-      console.error('[usePaymentStatus] No authentication token found');
-      return;
-    }
-
     console.log('[usePaymentStatus] Connecting to WebSocket:', {
       url: `${apiUrl}/payment-status`,
       stkPushRequestId,
     });
 
-    // Create socket connection
+    // Create socket connection with payment-scoped wsToken
     const socket = io(`${apiUrl}/payment-status`, {
-      auth: { token }, // Send JWT token during handshake
+      auth: { token: wsToken }, // Send payment-scoped JWT token during handshake
       transports: ['websocket', 'polling'], // Try WebSocket first, fallback to polling
       reconnection: true, // Enable auto-reconnection
       reconnectionDelay: 1000, // Wait 1s before reconnecting
@@ -206,7 +178,7 @@ export function usePaymentStatus({
 
       setIsConnected(false);
     };
-  }, [stkPushRequestId, handleStatusUpdate]);
+  }, [stkPushRequestId, wsToken, handleStatusUpdate]);
 
   // Manual disconnect function
   const disconnect = useCallback(() => {
