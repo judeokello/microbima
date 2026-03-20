@@ -31,6 +31,7 @@
     "db:seed": "npx prisma db seed",
     "db:seed:direct": "node -r ts-node/register prisma/seed.ts",
     "db:seed:ts": "ts-node prisma/seed.ts",
+    "db:seed:agent": "ts-node prisma/seed-agent-registration.ts",
     "seed:stk-job-test": "ts-node -r dotenv/config scripts/seed-stk-job-test-data.ts"
   },
   "dependencies": {
@@ -39,11 +40,12 @@
     "@nestjs/config": "^4.0.2",
     "@nestjs/core": "^11.1.6",
     "@nestjs/jwt": "^11.0.0",
+    "@nestjs/mapped-types": "^2.1.0",
     "@nestjs/passport": "^11.0.5",
     "@nestjs/platform-express": "^11.1.6",
     "@nestjs/platform-socket.io": "^11.1.17",
     "@nestjs/schedule": "^6.1.0",
-    "@nestjs/swagger": "^8.1.1",
+    "@nestjs/swagger": "^11.2.6",
     "@nestjs/throttler": "^6.5.0",
     "@nestjs/typeorm": "^11.0.0",
     "@nestjs/websockets": "^11.1.17",
@@ -124,10 +126,5 @@
     "coverageDirectory": "../coverage",
     "testEnvironment": "node",
     "passWithNoTests": true
-  },
-  "prisma": {
-    "seed": "ts-node prisma/seed.ts",
-    "seed:ts": "ts-node prisma/seed.ts",
-    "seed:agent": "ts-node prisma/seed-agent-registration.ts"
   }
 }
