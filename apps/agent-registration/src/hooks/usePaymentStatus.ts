@@ -123,8 +123,8 @@ export function usePaymentStatus({
       return;
     }
 
-    // Get API URL from environment
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+    // Internal API origin (no /api) — Socket.IO connects to ${origin}/payment-status
+    const apiUrl = process.env.NEXT_PUBLIC_SOCKET_API_ORIGIN || 'http://localhost:3001';
 
     // Get authentication token
     const token = getAuthToken();
