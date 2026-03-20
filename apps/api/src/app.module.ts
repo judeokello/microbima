@@ -1,8 +1,10 @@
 import { Module, NestModule, MiddlewareConsumer, RequestMethod } from '@nestjs/common';
+import { JwtModule } from '@nestjs/jwt';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { ScheduleModule } from '@nestjs/schedule';
 import { SentryModule } from '@sentry/nestjs/setup';
 import { ConfigurationModule } from './config/config.module';
+import { ConfigurationService } from './config/configuration.service';
 import { PrismaModule } from './prisma/prisma.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -60,6 +62,14 @@ import { PaymentStatusGateway } from './gateways/payment-status.gateway';
     ScheduleModule.forRoot(),
     ThrottlerModule.forRoot([{ ttl: 60000, limit: 1000 }]), // Default high; webhooks override with @Throttle(60, 60)
     ConfigurationModule,
+    JwtModule.registerAsync({
+      imports: [ConfigurationModule],
+      inject: [ConfigurationService],
+      useFactory: (config: ConfigurationService) => ({
+        secret: config.jwt.secret,
+        signOptions: { expiresIn: config.jwt.expiresIn },
+      }),
+    }),
     PrismaModule,
     MessagingModule,
   ],
