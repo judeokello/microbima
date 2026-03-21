@@ -16,6 +16,7 @@ import { Loader2 } from 'lucide-react';
 import { addBeneficiaries, BeneficiaryData } from '@/lib/api';
 import { useParams } from 'next/navigation';
 import { formatPhoneNumber, getPhoneValidationError } from '@/lib/phone-validation';
+import { getIdNumberValidationError, ID_NUMBER_MAX_LENGTH } from '@/lib/id-number-validation';
 import * as Sentry from '@sentry/nextjs';
 
 interface AddBeneficiaryDialogProps {
@@ -99,6 +100,13 @@ export default function AddBeneficiaryDialog({
     // Validate relationship description if relationship is "other"
     if (formData.relationship === 'other' && (!formData.relationshipDescription || formData.relationshipDescription.trim() === '')) {
       setError('Relationship description is required when relationship is "Other"');
+      setLoading(false);
+      return;
+    }
+
+    const beneficiaryIdError = getIdNumberValidationError(formData.idNumber, false);
+    if (beneficiaryIdError) {
+      setError(beneficiaryIdError);
       setLoading(false);
       return;
     }
@@ -319,6 +327,7 @@ export default function AddBeneficiaryDialog({
                 id="idNumber"
                 value={formData.idNumber}
                 onChange={(e) => setFormData({ ...formData, idNumber: e.target.value })}
+                maxLength={ID_NUMBER_MAX_LENGTH}
               />
             </div>
 

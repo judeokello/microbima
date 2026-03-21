@@ -16,6 +16,7 @@ import { Loader2 } from 'lucide-react';
 import { addDependants, SpouseData } from '@/lib/api';
 import { useParams } from 'next/navigation';
 import { formatPhoneNumber, getPhoneValidationError } from '@/lib/phone-validation';
+import { getIdNumberValidationError, ID_NUMBER_MAX_LENGTH } from '@/lib/id-number-validation';
 import * as Sentry from '@sentry/nextjs';
 
 interface AddSpouseDialogProps {
@@ -67,8 +68,8 @@ export default function AddSpouseDialog({
     setPhoneError(null);
 
     // Validate required fields
-    if (!formData.firstName || !formData.lastName || !formData.gender || !formData.idNumber) {
-      setError('First name, last name, gender, and ID number are required');
+    if (!formData.firstName || !formData.lastName || !formData.gender) {
+      setError('First name, last name, and gender are required');
       setLoading(false);
       return;
     }
@@ -83,7 +84,17 @@ export default function AddSpouseDialog({
       }
     }
 
+    const spouseIdError = getIdNumberValidationError(formData.idNumber, false);
+    if (spouseIdError) {
+      setError(spouseIdError);
+      setLoading(false);
+      return;
+    }
+
     try {
+      const trimmedIdNumber = formData.idNumber.trim();
+      const hasIdNumber = trimmedIdNumber.length > 0;
+
       const spouseData: SpouseData = {
         firstName: formData.firstName,
         lastName: formData.lastName,
@@ -92,8 +103,12 @@ export default function AddSpouseDialog({
         gender: formData.gender,
         email: formData.email || undefined,
         phoneNumber: formData.phoneNumber || undefined,
-        idType: mapIdTypeToBackend(formData.idType),
-        idNumber: formData.idNumber,
+        ...(hasIdNumber
+          ? {
+              idType: mapIdTypeToBackend(formData.idType),
+              idNumber: trimmedIdNumber,
+            }
+          : {}),
       };
 
       const result = await addDependants(actualCustomerId, {
@@ -259,12 +274,12 @@ export default function AddSpouseDialog({
             </div>
 
             <div>
-              <Label htmlFor="idNumber">ID Number *</Label>
+              <Label htmlFor="idNumber">ID Number</Label>
               <Input
                 id="idNumber"
                 value={formData.idNumber}
                 onChange={(e) => setFormData({ ...formData, idNumber: e.target.value })}
-                required
+                maxLength={ID_NUMBER_MAX_LENGTH}
               />
             </div>
           </div>

@@ -162,8 +162,11 @@ export class Beneficiary {
       errors.push('Last name must be less than 50 characters');
     }
 
-    if (this.idNumber && this.idNumber.length > 50) {
-      errors.push('ID number must be less than 50 characters');
+    if (this.idNumber) {
+      const trimmedIdNumber = this.idNumber.trim();
+      if (trimmedIdNumber.length < 5 || trimmedIdNumber.length > 9) {
+        errors.push('ID number must be between 5 and 9 characters');
+      }
     }
 
     if (this.relationship && this.relationship.length > 100) {
