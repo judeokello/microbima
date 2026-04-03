@@ -13,6 +13,7 @@ import {
   getCustomerPolicies,
   getCustomerPayments,
   getCustomerPolicyDetail,
+  getPremiumStatement,
   PolicyOption,
   Payment,
   PaymentFilter,
@@ -21,12 +22,14 @@ import {
 import * as Sentry from '@sentry/nextjs';
 import RequestPaymentDialog from './request-payment-dialog';
 
-/** Premium period in days per year; used to calculate number of installments. */
-const PREMIUM_DAYS_PER_YEAR = 276;
-
-function numberOfInstallments(paymentCadenceDays: number): number {
+function numberOfInstallments(paymentCadenceDays: number, productDurationDays: number | null): number {
   if (paymentCadenceDays <= 0) return 0;
-  return Math.round(PREMIUM_DAYS_PER_YEAR / paymentCadenceDays);
+  if (productDurationDays == null) return 0;
+  return Math.round(productDurationDays / paymentCadenceDays);
+}
+
+function isConfirmedPayment(p: Payment): boolean {
+  return p.paymentStatus === 'COMPLETED' || p.paymentStatus === 'COMPLETED_PENDING_RECEIPT';
 }
 
 interface PaymentsTabProps {
@@ -95,6 +98,7 @@ export default function PaymentsTab({ customerId, customerPhone = '' }: Payments
     try {
       setLoading(true);
       setError(null);
+      setGenerateError(null);
 
       const filters: PaymentFilter = {
         policyId: selectedPolicyId,
@@ -138,6 +142,38 @@ export default function PaymentsTab({ customerId, customerPhone = '' }: Payments
       setFilterRanForPolicyId(null);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleGenerateReport = async () => {
+    if (!selectedPolicyId || filterRanForPolicyId !== selectedPolicyId) {
+      setGenerateError('Select a policy and run Filter first.');
+      return;
+    }
+    setGenerateLoading(true);
+    setGenerateError(null);
+    try {
+      const { blob, filename } = await getPremiumStatement(customerId, selectedPolicyId, {
+        fromDate: fromDate || undefined,
+        toDate: toDate || undefined,
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename ?? 'premium-statement.pdf';
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Failed to generate report';
+      setGenerateError(msg);
+      if (err instanceof Error) {
+        Sentry.captureException(err, {
+          tags: { component: 'PaymentsTab', action: 'premium_statement' },
+          extra: { customerId, policyId: selectedPolicyId },
+        });
+      }
+    } finally {
+      setGenerateLoading(false);
     }
   };
 
@@ -191,6 +227,14 @@ export default function PaymentsTab({ customerId, customerPhone = '' }: Payments
     if (Number.isNaN(n)) return value;
     return formatCurrency(n);
   };
+
+  const confirmedCount = payments.filter(isConfirmedPayment).length;
+  const canGenerateReport =
+    filterRanForPolicyId === selectedPolicyId &&
+    !!selectedPolicyId &&
+    policyDetail?.schemeBillingMode === 'prepaid' &&
+    policyDetail?.product.productDurationDays != null &&
+    confirmedCount > 0;
 
   return (
     <Card>
@@ -274,6 +318,13 @@ export default function PaymentsTab({ customerId, customerPhone = '' }: Payments
         {filterRanForPolicyId === selectedPolicyId && policyDetail?.schemeBillingMode === 'postpaid' && (
           <div className="rounded-md border bg-muted px-4 py-3 text-sm text-muted-foreground">
             This policy is <strong>postpaid</strong>. On-demand STK is not available; use your postpaid collection process.
+            Premium statements are not available for postpaid policies in this release.
+          </div>
+        )}
+
+        {generateError && (
+          <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+            {generateError}
           </div>
         )}
 
@@ -284,6 +335,35 @@ export default function PaymentsTab({ customerId, customerPhone = '' }: Payments
               <Button type="button" variant="secondary" onClick={() => setRequestPaymentOpen(true)}>
                 Request payment
               </Button>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={!canGenerateReport || generateLoading}
+                onClick={() => void handleGenerateReport()}
+              >
+                {generateLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                Generate report
+              </Button>
+            </div>
+          )}
+
+        {filterRanForPolicyId === selectedPolicyId &&
+          policyDetail?.schemeBillingMode === 'prepaid' &&
+          policyDetail.product.productDurationDays == null && (
+            <div className="rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+              Installment period helper and premium statement need the package <strong>product duration (days)</strong> to be
+              configured. Contact support or ask an admin to set it on the package.
+            </div>
+          )}
+
+        {filterRanForPolicyId === selectedPolicyId &&
+          policyDetail?.schemeBillingMode === 'prepaid' &&
+          policyDetail.product.productDurationDays != null &&
+          confirmedCount === 0 &&
+          payments.length > 0 && (
+            <div className="rounded-md border bg-muted px-4 py-3 text-sm text-muted-foreground">
+              No confirmed payments match this filter. Generate report is available only when at least one payment is
+              confirmed received.
             </div>
           )}
 
@@ -329,7 +409,12 @@ export default function PaymentsTab({ customerId, customerPhone = '' }: Payments
                 <div>
                   <dt className="text-sm font-medium text-muted-foreground">No. of installments</dt>
                   <dd className="mt-1 text-sm">
-                    {numberOfInstallments(policyDetail.enrollment.paymentCadence)}
+                    {policyDetail.product.productDurationDays == null
+                      ? '— (product duration not configured)'
+                      : numberOfInstallments(
+                          policyDetail.enrollment.paymentCadence,
+                          policyDetail.product.productDurationDays
+                        )}
                   </dd>
                 </div>
                 <div>

@@ -977,6 +977,8 @@ export interface CustomerPolicyDetail {
     planName: string | null
     schemeName: string
     productName: string
+    /** Days in premium year for installment helper; null if not configured */
+    productDurationDays: number | null
   }
   enrollment: {
     startDate: string | null
@@ -1333,6 +1335,44 @@ export async function getCustomerPayments(
     return await response.json()
   } catch (error) {
     console.error('Error fetching customer payments:', error)
+    throw error
+  }
+}
+
+function parseFilenameFromContentDisposition(header: string | null): string | undefined {
+  if (!header) return undefined
+  const m = /filename="([^"]+)"/.exec(header)
+  return m?.[1]
+}
+
+export async function getPremiumStatement(
+  customerId: string,
+  policyId: string,
+  filters: { fromDate?: string; toDate?: string }
+): Promise<{ blob: Blob; filename?: string }> {
+  try {
+    const token = await getSupabaseToken()
+    const params = new URLSearchParams()
+    if (filters.fromDate) params.set('fromDate', filters.fromDate)
+    if (filters.toDate) params.set('toDate', filters.toDate)
+    const qs = params.toString()
+    const url = `${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/customers/${customerId}/policies/${policyId}/premium-statement${qs ? `?${qs}` : ''}`
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'x-correlation-id': `premium-statement-${Date.now()}`
+      }
+    })
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      throw new Error(errorData.error?.message ?? `HTTP ${response.status}: ${response.statusText}`)
+    }
+    const filename = parseFilenameFromContentDisposition(response.headers.get('Content-Disposition'))
+    const blob = await response.blob()
+    return { blob, filename }
+  } catch (error) {
+    console.error('Error downloading premium statement:', error)
     throw error
   }
 }
