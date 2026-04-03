@@ -17,7 +17,7 @@ import { CustomerMapper } from '../mappers/customer.mapper';
 import { CreatePrincipalMemberRequestDto } from '../dto/principal-member/create-principal-member-request.dto';
 import { CreatePrincipalMemberResponseDto } from '../dto/principal-member/create-principal-member-response.dto';
 import { BeneficiaryData } from '../entities/beneficiary.entity';
-import { Gender, IdType, DependantRelationship, PaymentFrequency } from '@prisma/client';
+import { Gender, IdType, DependantRelationship, PaymentFrequency, PaymentStatus } from '@prisma/client';
 import { PrincipalMemberDto } from '../dto/principal-member/principal-member.dto';
 import { AddDependantsRequestDto } from '../dto/dependants/add-dependants-request.dto';
 import { AddDependantsResponseDto } from '../dto/dependants/add-dependants-response.dto';
@@ -35,7 +35,13 @@ import {
   MemberCardsByPolicyItemDto,
   MemberCardDataDto,
 } from '../dto/customers/member-cards.dto';
-import { CustomerPoliciesResponseDto, CustomerPaymentsResponseDto, PolicyOptionDto, PaymentDto } from '../dto/customers/customer-payments-filter.dto';
+import {
+  CustomerPaymentsFilterDto,
+  CustomerPoliciesResponseDto,
+  CustomerPaymentsResponseDto,
+  PolicyOptionDto,
+  PaymentDto,
+} from '../dto/customers/customer-payments-filter.dto';
 import {
   CustomerPolicyListResponseDto,
   CustomerPolicyDetailResponseDto,
@@ -43,6 +49,7 @@ import {
 import { OndemandStkMode, OndemandStkPaymentDto } from '../dto/customers/ondemand-stk-payment.dto';
 import { InitiateStkPushDto, StkPushRequestResponseDto } from '../dto/mpesa-stk-push/mpesa-stk-push.dto';
 import { MpesaStkPushService } from './mpesa-stk-push.service';
+import { PremiumStatementService } from './premium-statement.service';
 import { ConfigurationService } from '../config/configuration.service';
 import { UpdateCustomerDto } from '../dto/customers/update-customer.dto';
 import { UpdateDependantDto } from '../dto/dependants/update-dependant.dto';
@@ -91,6 +98,7 @@ export class CustomerService {
     private readonly messagingService: MessagingService,
     private readonly mpesaStkPushService: MpesaStkPushService,
     private readonly configService: ConfigurationService,
+    private readonly premiumStatementService: PremiumStatementService,
   ) {}
 
   /**
@@ -2484,6 +2492,7 @@ export class CustomerService {
           select: {
             name: true,
             totalPremium: true,
+            productDurationDays: true,
             underwriter: { select: { name: true } },
           },
         },
@@ -2493,6 +2502,7 @@ export class CustomerService {
             expectedPaymentDate: true,
             actualPaymentDate: true,
             amount: true,
+            paymentStatus: true,
           },
         },
       },
@@ -2536,12 +2546,17 @@ export class CustomerService {
         }
       );
     }
-    const paidPayments = policy.policyPayments.filter((pm) => pm.actualPaymentDate != null);
+    const confirmedStatuses: PaymentStatus[] = [
+      PaymentStatus.COMPLETED,
+      PaymentStatus.COMPLETED_PENDING_RECEIPT,
+    ];
     const now = new Date();
     const missedPayments = policy.policyPayments.filter(
       (pm) => pm.expectedPaymentDate < now && pm.actualPaymentDate == null
     ).length;
-    const totalPaid = paidPayments.reduce((sum, pm) => sum + Number(pm.amount), 0);
+    const totalPaid = policy.policyPayments
+      .filter((pm) => confirmedStatuses.includes(pm.paymentStatus))
+      .reduce((sum, pm) => sum + Number(pm.amount), 0);
 
     return {
       status: 200,
@@ -2559,6 +2574,7 @@ export class CustomerService {
           planName: policy.packagePlan?.name ?? null,
           schemeName,
           productName: policy.productName,
+          productDurationDays: policy.package.productDurationDays ?? null,
         },
         enrollment: {
           startDate: policy.startDate?.toISOString() ?? null,
@@ -2569,7 +2585,8 @@ export class CustomerService {
         totalPremium: policy.package.totalPremium != null ? policy.package.totalPremium.toString() : '—',
         installmentAmount: policy.premium.toString(),
         totalPaidToDate: totalPaid.toFixed(2),
-        installmentsPaid: paidPayments.length,
+        installmentsPaid: policy.policyPayments.filter((pm) => confirmedStatuses.includes(pm.paymentStatus))
+          .length,
         missedPayments,
         schemeBillingMode,
       },
@@ -2786,62 +2803,64 @@ export class CustomerService {
   }
 
   /**
-   * Get customer payments with filters
-   * @param customerId - Customer ID
-   * @param userId - User ID
-   * @param userRoles - User roles array
-   * @param policyId - Optional policy ID filter
-   * @param fromDate - Optional from date filter
-   * @param toDate - Optional to date filter
-   * @param correlationId - Correlation ID for tracing
-   * @returns Filtered payments ordered by actualPaymentDate DESC
+   * Get customer payments with filters (optional status filter and pagination).
    */
   async getCustomerPayments(
     customerId: string,
     userId: string,
     userRoles: string[],
     correlationId: string,
-    policyId?: string,
-    fromDate?: string,
-    toDate?: string
+    filters: CustomerPaymentsFilterDto
   ): Promise<CustomerPaymentsResponseDto> {
     this.logger.log(`[${correlationId}] Getting customer payments for ${customerId}`);
 
     try {
-      // Check access permission
       const canAccess = await this.canUserAccessCustomer(customerId, userId, userRoles);
       if (!canAccess) {
         throw new NotFoundException('Customer not found or not accessible');
       }
 
-      // Build where clause
       const where: Prisma.PolicyPaymentWhereInput = {
         policy: {
           customerId,
         },
       };
 
-      if (policyId) {
-        where.policyId = policyId;
+      if (filters.policyId) {
+        where.policyId = filters.policyId;
       }
 
-      if (fromDate || toDate) {
-        where.expectedPaymentDate = {};
-        if (fromDate) {
-          where.expectedPaymentDate.gte = new Date(fromDate);
+      if (filters.fromDate || filters.toDate) {
+        const dateFilter: Prisma.DateTimeFilter = {};
+        if (filters.fromDate) {
+          const [y, m, d] = filters.fromDate.split('-').map(Number);
+          dateFilter.gte = new Date(Date.UTC(y, m - 1, d, 0, 0, 0, 0));
         }
-        if (toDate) {
-          where.expectedPaymentDate.lte = new Date(toDate);
+        if (filters.toDate) {
+          const [y, m, d] = filters.toDate.split('-').map(Number);
+          dateFilter.lte = new Date(Date.UTC(y, m - 1, d, 23, 59, 59, 999));
         }
+        where.expectedPaymentDate = dateFilter;
       }
 
-      // Get payments ordered by actualPaymentDate DESC (nulls last)
-      // Prisma handles nulls by putting them last in desc order
+      if (filters.paymentStatus?.length) {
+        where.paymentStatus = { in: filters.paymentStatus };
+      }
+
+      const paginate = filters.page != null && filters.pageSize != null;
+      const page = filters.page ?? 1;
+      const pageSize = filters.pageSize ?? 20;
+
+      const totalItems = paginate
+        ? await this.prismaService.policyPayment.count({ where })
+        : undefined;
+
       const payments = await this.prismaService.policyPayment.findMany({
         where,
         orderBy: {
           actualPaymentDate: 'desc',
         },
+        ...(paginate ? { skip: (page - 1) * pageSize, take: pageSize } : {}),
       });
 
       const paymentDtos: PaymentDto[] = payments.map((p) => ({
@@ -2855,16 +2874,54 @@ export class CustomerService {
         paymentStatus: p.paymentStatus,
       }));
 
+      const totalPages =
+        paginate && totalItems != null ? Math.max(1, Math.ceil(totalItems / pageSize)) : undefined;
+
       return {
         status: 200,
         correlationId,
         message: 'Payments retrieved successfully',
         data: paymentDtos,
+        ...(paginate && totalItems != null && totalPages != null
+          ? {
+              pagination: {
+                page,
+                pageSize,
+                totalItems,
+                totalPages,
+              },
+            }
+          : {}),
       };
     } catch (error) {
       this.logger.error(`[${correlationId}] Error getting customer payments: ${error instanceof Error ? error.message : 'Unknown error'}`, error instanceof Error ? error.stack : undefined);
       throw error;
     }
+  }
+
+  /**
+   * Premium statement PDF for a policy (access-checked).
+   */
+  async getPremiumStatementPdf(
+    customerId: string,
+    policyId: string,
+    userId: string,
+    userRoles: string[],
+    correlationId: string,
+    fromDate?: string,
+    toDate?: string
+  ): Promise<{ buffer: Buffer; filename: string }> {
+    const canAccess = await this.canUserAccessCustomer(customerId, userId, userRoles);
+    if (!canAccess) {
+      throw new NotFoundException('Customer not found or not accessible');
+    }
+    return this.premiumStatementService.generatePremiumStatementPdf({
+      customerId,
+      policyId,
+      fromDate,
+      toDate,
+      correlationId,
+    });
   }
 
   /**

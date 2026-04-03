@@ -597,6 +597,8 @@ model Package {
   logoPath           String?  @db.VarChar(200)
   cardTemplateName   String?  @db.VarChar(100)
   totalPremium       Decimal? @db.Decimal(10, 2) // Total premium for package (same type as Policy.premium)
+  /// Days in product “premium year” for installment helpers (1–365); nullable until backfill
+  productDurationDays Int?    @db.SmallInt
 
   // Relations
   underwriter          Underwriter?           @relation(fields: [underwriterId], references: [id])

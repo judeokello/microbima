@@ -80,6 +80,8 @@ export class CustomerPolicyDetailDto {
     planName: string | null;
     schemeName: string;
     productName: string;
+    /** Days in premium year for installment helpers; null until configured */
+    productDurationDays: number | null;
   };
 
   enrollment: {

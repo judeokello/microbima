@@ -1,6 +1,24 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsString, IsOptional, IsDateString, IsEnum } from 'class-validator';
+import {
+  IsString,
+  IsOptional,
+  IsDateString,
+  IsEnum,
+  IsInt,
+  Min,
+  Max,
+  IsArray,
+} from 'class-validator';
 import { PaymentStatus } from '@prisma/client';
+import { Type, Transform } from 'class-transformer';
+
+function parseCsvToPaymentStatuses(value: unknown): PaymentStatus[] | undefined {
+  if (value == null || value === '') return undefined;
+  const raw = Array.isArray(value) ? value : String(value).split(',');
+  const parts = raw.map((s) => String(s).trim()).filter(Boolean);
+  if (parts.length === 0) return undefined;
+  return parts as PaymentStatus[];
+}
 
 export class CustomerPaymentsFilterDto {
   @ApiProperty({
@@ -13,7 +31,7 @@ export class CustomerPaymentsFilterDto {
   policyId?: string;
 
   @ApiProperty({
-    description: 'From date for payment filtering (YYYY-MM-DD)',
+    description: 'From date for payment filtering (YYYY-MM-DD), UTC start of day',
     example: '2024-01-01',
     required: false,
   })
@@ -22,13 +40,40 @@ export class CustomerPaymentsFilterDto {
   fromDate?: string;
 
   @ApiProperty({
-    description: 'To date for payment filtering (YYYY-MM-DD)',
+    description: 'To date for payment filtering (YYYY-MM-DD), UTC end of day',
     example: '2024-12-31',
     required: false,
   })
   @IsOptional()
   @IsDateString()
   toDate?: string;
+
+  @ApiProperty({
+    description: 'Filter by payment status (comma-separated or repeated query params)',
+    enum: PaymentStatus,
+    isArray: true,
+    required: false,
+  })
+  @IsOptional()
+  @Transform(({ value }) => parseCsvToPaymentStatuses(value))
+  @IsArray()
+  @IsEnum(PaymentStatus, { each: true })
+  paymentStatus?: PaymentStatus[];
+
+  @ApiProperty({ description: 'Page number (1-based); use with pageSize', required: false, example: 1 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  page?: number;
+
+  @ApiProperty({ description: 'Page size; pagination applies when both page and pageSize are set', required: false, example: 20 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(500)
+  pageSize?: number;
 }
 
 export class PolicyOptionDto {
@@ -110,7 +155,7 @@ export class PaymentDto {
 
   @ApiProperty({
     description: 'Payment amount',
-    example: 5000.00,
+    example: 5000.0,
   })
   amount: number;
 
@@ -148,6 +193,17 @@ export class CustomerPaymentsResponseDto {
     type: [PaymentDto],
   })
   data: PaymentDto[];
+
+  @ApiProperty({
+    required: false,
+    description: 'Present when page and pageSize are provided',
+  })
+  pagination?: {
+    page: number;
+    pageSize: number;
+    totalItems: number;
+    totalPages: number;
+  };
 }
 
 export class CustomerPoliciesResponseDto {
@@ -175,4 +231,3 @@ export class CustomerPoliciesResponseDto {
   })
   data: PolicyOptionDto[];
 }
-
