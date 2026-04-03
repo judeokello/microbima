@@ -15,6 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Loader2 } from 'lucide-react';
 import { updateCustomer, UpdateCustomerData } from '@/lib/api';
 import { formatPhoneNumber, getPhoneValidationError } from '@/lib/phone-validation';
+import { getIdNumberValidationError, ID_NUMBER_MAX_LENGTH } from '@/lib/id-number-validation';
 import * as Sentry from '@sentry/nextjs';
 
 interface EditCustomerDialogProps {
@@ -126,6 +127,12 @@ export default function EditCustomerDialog({
       }
     }
 
+    const customerIdError = getIdNumberValidationError(formData.idNumber, true);
+    if (customerIdError) {
+      setError(customerIdError);
+      return;
+    }
+
     // Validate date of birth is not in the future
     if (formData.dateOfBirth) {
       const selectedDate = new Date(formData.dateOfBirth);
@@ -179,9 +186,11 @@ export default function EditCustomerDialog({
     setLoading(true);
 
     try {
+      const trimmedIdNumber = formData.idNumber?.trim();
       const updateData: UpdateCustomerData = {
         ...formData,
         idType: mapIdTypeToBackend(formData.idType ?? 'NATIONAL_ID'),
+        idNumber: trimmedIdNumber,
       };
 
       await updateCustomer(customer.id, updateData);
@@ -325,6 +334,7 @@ export default function EditCustomerDialog({
                 id="idNumber"
                 value={formData.idNumber ?? ''}
                 onChange={(e) => setFormData({ ...formData, idNumber: e.target.value || undefined })}
+                maxLength={ID_NUMBER_MAX_LENGTH}
               />
             </div>
           </div>

@@ -625,8 +625,9 @@ export interface SpouseData {
   gender: string
   email?: string
   phoneNumber?: string
-  idType: string
-  idNumber: string
+  // Identification details are optional (backend validates only when provided)
+  idType?: string
+  idNumber?: string
 }
 
 export interface ChildData {

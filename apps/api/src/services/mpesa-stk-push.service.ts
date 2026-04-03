@@ -123,7 +123,7 @@ export class MpesaStkPushService implements OnModuleInit {
       case MpesaStkPushStatus.COMPLETED:
         return 'Payment completed successfully!';
       case MpesaStkPushStatus.FAILED:
-        return resultDesc || 'Payment failed. Please try again.';
+        return resultDesc ?? 'Payment failed. Please try again.';
       case MpesaStkPushStatus.CANCELLED:
         return 'Payment was cancelled by customer.';
       case MpesaStkPushStatus.EXPIRED:
@@ -409,22 +409,47 @@ export class MpesaStkPushService implements OnModuleInit {
         return { ResultCode: 0, ResultDesc: 'Accepted' };
       }
 
-      // Idempotency check: If request is not PENDING, it's already been processed
+      // Idempotency check: Skip if already processed AND payment records exist
       if (stkPushRequest.status !== MpesaStkPushStatus.PENDING) {
+        // Check if payment records with real receipt exist
+        const metadata = stkCallback.CallbackMetadata?.Item ?? [];
+        const mpesaReceiptNumber = metadata.find((item) => item.Name === 'MpesaReceiptNumber')?.Value;
+
+        if (mpesaReceiptNumber) {
+          const existingPayment = await this.prismaService.policyPayment.findFirst({
+            where: {
+              transactionReference: mpesaReceiptNumber,
+            },
+          });
+
+          if (existingPayment) {
+            this.logger.log(
+              JSON.stringify({
+                event: 'STK_PUSH_CALLBACK_ALREADY_PROCESSED',
+                correlationId,
+                checkoutRequestId,
+                currentStatus: stkPushRequest.status,
+                transactionReference: mpesaReceiptNumber,
+                message: 'Callback already processed with real receipt - skipping',
+                timestamp: new Date().toISOString(),
+              })
+            );
+            return { ResultCode: 0, ResultDesc: 'Accepted' };
+          }
+        }
+
+        // Status is not PENDING but no real receipt exists
+        // This means query processed it - continue to update with real receipt
         this.logger.log(
           JSON.stringify({
-            event: 'STK_PUSH_CALLBACK_DUPLICATE',
+            event: 'STK_PUSH_CALLBACK_AFTER_QUERY',
             correlationId,
             checkoutRequestId,
             currentStatus: stkPushRequest.status,
-            callbackResultCode: stkCallback.ResultCode,
-            message: 'Callback received for non-pending request, skipping processing (likely duplicate or already processed by query)',
+            message: 'Callback received after query processing - will update with real receipt',
             timestamp: new Date().toISOString(),
           })
         );
-
-        // Return success to M-Pesa (idempotent - already processed)
-        return { ResultCode: 0, ResultDesc: 'Accepted' };
       }
 
       // Store callback response for audit (all responses: success, timeout, cancelled, etc.)
@@ -676,6 +701,80 @@ export class MpesaStkPushService implements OnModuleInit {
       return;
     }
 
+    // Check for query-pending payment to update
+    const queryPendingPayment = await this.prismaService.policyPayment.findFirst({
+      where: {
+        transactionReference: `QUERY-PENDING-${stkPushRequest.id}`,
+        paymentStatus: 'COMPLETED_PENDING_RECEIPT',
+      },
+    });
+
+    if (queryPendingPayment) {
+      // Parse transaction date for accurate timestamp
+      let transactionTime = new Date();
+      if (transactionDate && transactionDate.length === 14) {
+        const year = parseInt(transactionDate.substring(0, 4), 10);
+        const month = parseInt(transactionDate.substring(4, 6), 10) - 1;
+        const day = parseInt(transactionDate.substring(6, 8), 10);
+        const hours = parseInt(transactionDate.substring(8, 10), 10);
+        const minutes = parseInt(transactionDate.substring(10, 12), 10);
+        const seconds = parseInt(transactionDate.substring(12, 14), 10);
+        transactionTime = new Date(Date.UTC(year, month, day, hours, minutes, seconds));
+      }
+
+      // Update query-pending payment with real receipt
+      await this.prismaService.policyPayment.update({
+        where: { id: queryPendingPayment.id },
+        data: {
+          transactionReference: mpesaReceiptNumber,
+          accountNumber: phoneNumber ?? stkPushRequest.phoneNumber,
+          actualPaymentDate: transactionTime,
+          paymentStatus: 'COMPLETED',
+          paymentMessageBlob: JSON.stringify({
+            ...JSON.parse(queryPendingPayment.paymentMessageBlob ?? '{}'),
+            updatedFromCallback: true,
+            callbackReceivedAt: new Date().toISOString(),
+          }),
+        },
+      });
+
+      // Update IPN record
+      const queryIpnRecord = await this.prismaService.mpesaPaymentReportItem.findFirst({
+        where: {
+          transactionReference: `QUERY-PENDING-${stkPushRequest.id}`,
+          source: 'QUERY',
+        },
+      });
+
+      if (queryIpnRecord) {
+        await this.prismaService.mpesaPaymentReportItem.update({
+          where: { id: queryIpnRecord.id },
+          data: {
+            transactionReference: mpesaReceiptNumber,
+            source: 'IPN',
+            msisdn: phoneNumber ?? stkPushRequest.phoneNumber,
+            completionTime: transactionTime,
+            initiationTime: transactionTime,
+          },
+        });
+      }
+
+      this.logger.log(
+        JSON.stringify({
+          event: 'QUERY_PENDING_PAYMENT_UPDATED_WITH_RECEIPT',
+          correlationId,
+          stkPushRequestId: stkPushRequest.id,
+          policyPaymentId: queryPendingPayment.id,
+          originalReference: `QUERY-PENDING-${stkPushRequest.id}`,
+          newReference: mpesaReceiptNumber,
+          message: 'Query-pending payment updated with real M-Pesa receipt',
+          timestamp: new Date().toISOString(),
+        })
+      );
+
+      return;
+    }
+
     // Parse transaction date (format: YYYYMMDDHHmmss) - ensure UTC
     let transactionTime = new Date();
     if (transactionDate && transactionDate.length === 14) {
@@ -750,6 +849,7 @@ export class MpesaStkPushService implements OnModuleInit {
               details: stkPushRequest.transactionDesc ?? 'STK Push payment',
               expectedPaymentDate: transactionTime, // Already in UTC
               actualPaymentDate: transactionTime, // Mark as paid (already in UTC)
+              paymentStatus: 'COMPLETED',
               paymentMessageBlob: JSON.stringify({
                 source: 'STK_PUSH',
                 checkoutRequestId: stkPushRequest.id,
@@ -783,6 +883,7 @@ export class MpesaStkPushService implements OnModuleInit {
               details: stkPushRequest.transactionDesc ?? 'STK Push payment',
               expectedPaymentDate: transactionTime, // Already in UTC
               actualPaymentDate: transactionTime, // Already in UTC
+              paymentStatus: 'COMPLETED',
               paymentMessageBlob: JSON.stringify({
                 source: 'STK_PUSH',
                 checkoutRequestId: stkPushRequest.id,
@@ -854,6 +955,179 @@ export class MpesaStkPushService implements OnModuleInit {
         timestamp: new Date().toISOString(),
       })
     );
+  }
+
+  /**
+   * Create payment records from STK Push query result
+   *
+   * Used when query API confirms payment success but callback hasn't arrived yet.
+   * Creates records with QUERY-PENDING-* transaction reference that will be updated
+   * when the actual callback arrives with the real M-Pesa receipt number.
+   */
+  private async createPaymentRecordsFromQuery(
+    stkPushRequest: {
+      id: string;
+      phoneNumber: string;
+      amount: number;
+      accountReference: string;
+      transactionDesc: string | null;
+    },
+    correlationId: string
+  ): Promise<void> {
+    const transactionTime = new Date();
+    const queryPendingReference = `QUERY-PENDING-${stkPushRequest.id}`;
+
+    // Create MpesaPaymentReportItem record with QUERY source
+    await this.prismaService.mpesaPaymentReportItem.create({
+      data: {
+        mpesaPaymentReportUploadId: null,
+        transactionReference: queryPendingReference,
+        completionTime: transactionTime,
+        initiationTime: transactionTime,
+        paymentDetails: 'STK Push Payment (Query confirmed)',
+        transactionStatus: 'Completed',
+        paidIn: stkPushRequest.amount,
+        withdrawn: 0,
+        accountBalance: 0,
+        balanceConfirmed: null,
+        reasonType: 'PayBill_STK',
+        otherPartyInfo: null,
+        linkedTransactionId: null,
+        accountNumber: stkPushRequest.accountReference,
+        source: 'QUERY',
+        msisdn: stkPushRequest.phoneNumber,
+        mpesaStkPushRequestId: stkPushRequest.id,
+      },
+    });
+
+    // Find policy
+    const policy = await this.prismaService.policy.findFirst({
+      where: {
+        paymentAcNumber: stkPushRequest.accountReference,
+      },
+      select: {
+        id: true,
+        status: true,
+      },
+    });
+
+    if (policy) {
+      // Find placeholder payment
+      const placeholderPayment = await this.prismaService.policyPayment.findFirst({
+        where: {
+          policyId: policy.id,
+          transactionReference: {
+            startsWith: 'PENDING-STK-',
+          },
+          actualPaymentDate: null,
+        },
+      });
+
+      if (placeholderPayment) {
+        // Update placeholder with query-pending reference
+        await this.prismaService.policyPayment.update({
+          where: { id: placeholderPayment.id },
+          data: {
+            transactionReference: queryPendingReference,
+            amount: stkPushRequest.amount,
+            accountNumber: stkPushRequest.phoneNumber,
+            details: stkPushRequest.transactionDesc ?? 'STK Push payment (query confirmed)',
+            expectedPaymentDate: transactionTime,
+            actualPaymentDate: transactionTime,
+            paymentStatus: 'COMPLETED_PENDING_RECEIPT',
+            paymentMessageBlob: JSON.stringify({
+              source: 'QUERY',
+              stkPushRequestId: stkPushRequest.id,
+              originalPlaceholderRef: placeholderPayment.transactionReference,
+            }),
+          },
+        });
+
+        this.logger.log(
+          JSON.stringify({
+            event: 'QUERY_PLACEHOLDER_PAYMENT_UPDATED',
+            correlationId,
+            stkPushRequestId: stkPushRequest.id,
+            policyId: policy.id,
+            placeholderPaymentId: placeholderPayment.id,
+            originalPlaceholderRef: placeholderPayment.transactionReference,
+            transactionReference: queryPendingReference,
+            message: 'Placeholder payment updated with query-pending reference',
+            timestamp: new Date().toISOString(),
+          })
+        );
+      } else {
+        // No placeholder - create new payment
+        await this.prismaService.policyPayment.create({
+          data: {
+            policyId: policy.id,
+            paymentType: 'MPESA',
+            transactionReference: queryPendingReference,
+            amount: stkPushRequest.amount,
+            accountNumber: stkPushRequest.phoneNumber,
+            details: stkPushRequest.transactionDesc ?? 'STK Push payment (query confirmed)',
+            expectedPaymentDate: transactionTime,
+            actualPaymentDate: transactionTime,
+            paymentStatus: 'COMPLETED_PENDING_RECEIPT',
+            paymentMessageBlob: JSON.stringify({
+              source: 'QUERY',
+              stkPushRequestId: stkPushRequest.id,
+            }),
+          },
+        });
+
+        this.logger.log(
+          JSON.stringify({
+            event: 'QUERY_POLICY_PAYMENT_CREATED',
+            correlationId,
+            stkPushRequestId: stkPushRequest.id,
+            policyId: policy.id,
+            transactionReference: queryPendingReference,
+            message: 'New policy payment created from query (no placeholder found)',
+            timestamp: new Date().toISOString(),
+          })
+        );
+      }
+
+      // Activate policy if PENDING_ACTIVATION
+      if (policy.status === 'PENDING_ACTIVATION') {
+        try {
+          await this.policyService.activatePolicy(policy.id, correlationId);
+          this.logger.log(
+            JSON.stringify({
+              event: 'QUERY_POLICY_ACTIVATED',
+              correlationId,
+              stkPushRequestId: stkPushRequest.id,
+              policyId: policy.id,
+              transactionReference: queryPendingReference,
+              timestamp: new Date().toISOString(),
+            })
+          );
+        } catch (activationError) {
+          this.logger.error(
+            JSON.stringify({
+              event: 'QUERY_POLICY_ACTIVATION_FAILED',
+              correlationId,
+              stkPushRequestId: stkPushRequest.id,
+              policyId: policy.id,
+              error: activationError instanceof Error ? activationError.message : String(activationError),
+              timestamp: new Date().toISOString(),
+            })
+          );
+        }
+      }
+    } else {
+      this.logger.warn(
+        JSON.stringify({
+          event: 'QUERY_POLICY_NOT_FOUND',
+          correlationId,
+          stkPushRequestId: stkPushRequest.id,
+          accountReference: stkPushRequest.accountReference,
+          message: 'Policy not found for account reference',
+          timestamp: new Date().toISOString(),
+        })
+      );
+    }
   }
 
   /**
@@ -982,23 +1256,9 @@ export class MpesaStkPushService implements OnModuleInit {
             this.paymentStatusGateway.emitPaymentStatusUpdate(statusUpdate);
           }
 
-          // If completed, process payment (reuse callback logic)
+          // If completed, process payment with query-based placeholder
           if (newStatus === MpesaStkPushStatus.COMPLETED) {
-            // Create synthetic callback to reuse existing payment processing
-            const syntheticCallback = {
-              Body: {
-                stkCallback: {
-                  MerchantRequestID: queryResponse.MerchantRequestID,
-                  CheckoutRequestID: queryResponse.CheckoutRequestID,
-                  ResultCode: parseInt(queryResponse.ResultCode),
-                  ResultDesc: queryResponse.ResultDesc,
-                  // Note: Query API doesn't return CallbackMetadata
-                  // Payment processing will use stored amount/phone from request
-                },
-              },
-            };
-
-            await this.createPaymentRecordsFromStkPushCallback(
+            await this.createPaymentRecordsFromQuery(
               {
                 id: request.id,
                 phoneNumber: request.phoneNumber,
@@ -1006,7 +1266,6 @@ export class MpesaStkPushService implements OnModuleInit {
                 accountReference: request.accountReference,
                 transactionDesc: request.transactionDesc,
               },
-              syntheticCallback.Body.stkCallback,
               cid
             );
 

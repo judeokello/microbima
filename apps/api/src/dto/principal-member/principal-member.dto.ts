@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsString, IsEmail, IsIn, IsOptional } from 'class-validator';
+import { IsString, IsEmail, IsIn, IsOptional, Length } from 'class-validator';
 import { IsDateStringFriendly } from '../../decorators/validators/is-date-string-friendly.decorator';
 
 export class PrincipalMemberDto {
@@ -72,6 +72,7 @@ export class PrincipalMemberDto {
     example: '12345678'
   })
   @IsString()
+  @Length(5, 9)
   idNumber: string;
 
   @ApiProperty({

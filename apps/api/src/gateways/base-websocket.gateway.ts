@@ -127,7 +127,7 @@ export abstract class BaseWebSocketGateway {
    * @returns Number of subscribers
    */
   protected getSubscriberCount(key: string): number {
-    return this.subscriptions.get(key)?.size || 0;
+    return this.subscriptions.get(key)?.size ?? 0;
   }
 
   /**
@@ -137,7 +137,7 @@ export abstract class BaseWebSocketGateway {
    * @returns Set of client IDs
    */
   protected getSubscribers(key: string): Set<string> {
-    return this.subscriptions.get(key) || new Set();
+    return this.subscriptions.get(key) ?? new Set();
   }
 
   /**

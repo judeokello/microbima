@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsString, IsOptional, IsEmail, IsDateString, IsIn } from 'class-validator';
+import { IsString, IsOptional, IsEmail, IsDateString, IsIn, ValidateIf, Length } from 'class-validator';
 
 export class UpdateDependantDto {
   @ApiProperty({
@@ -72,6 +72,7 @@ export class UpdateDependantDto {
     enum: ['national', 'alien', 'passport', 'birth_certificate', 'military'],
     required: false,
   })
+  @ValidateIf((o) => o.idNumber !== undefined && o.idNumber !== null && o.idNumber !== '')
   @IsOptional()
   @IsIn(['national', 'alien', 'passport', 'birth_certificate', 'military'])
   idType?: string;
@@ -81,8 +82,10 @@ export class UpdateDependantDto {
     example: '87654321',
     required: false,
   })
+  @ValidateIf((o) => o.idType !== undefined && o.idType !== null && o.idType !== '')
   @IsOptional()
   @IsString()
+  @Length(5, 9)
   idNumber?: string;
 }
 
