@@ -43,6 +43,9 @@ import { CustomerDetailResponseDto } from '../../dto/customers/customer-detail.d
 import { MemberCardsResponseDto } from '../../dto/customers/member-cards.dto';
 import { CustomerPoliciesResponseDto, CustomerPaymentsResponseDto, CustomerPaymentsFilterDto } from '../../dto/customers/customer-payments-filter.dto';
 import { CustomerPolicyListResponseDto, CustomerPolicyDetailResponseDto, UpdateCustomerPolicySchemeDto } from '../../dto/customers/customer-products.dto';
+import { OndemandStkPaymentDto } from '../../dto/customers/ondemand-stk-payment.dto';
+import { StkPushRequestResponseDto } from '../../dto/mpesa-stk-push/mpesa-stk-push.dto';
+import { StandardErrorResponseDto } from '../../dto/common/standard-error-response.dto';
 import { UpdateCustomerDto } from '../../dto/customers/update-customer.dto';
 import { UpdateDependantDto } from '../../dto/dependants/update-dependant.dto';
 import { UpdateBeneficiaryDto } from '../../dto/beneficiaries/update-beneficiary.dto';
@@ -725,6 +728,41 @@ export class InternalCustomerController {
     const userId = req.user?.id ?? 'system';
     const userRoles = req.user?.roles ?? [];
     return this.customerService.getCustomerPolicyDetail(customerId, policyId, userId, userRoles, correlationId);
+  }
+
+  /**
+   * Initiate on-demand M-Pesa STK for a prepaid policy (internal)
+   */
+  @Post(':customerId/policies/:policyId/ondemand-stk')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({
+    summary: 'On-demand STK for customer policy (Internal)',
+    description:
+      'Creates a PENDING-STK placeholder policy payment, then initiates STK Push. Rejects postpaid policies. Requires Bearer auth.',
+  })
+  @ApiParam({ name: 'customerId', description: 'Customer ID' })
+  @ApiParam({ name: 'policyId', description: 'Policy ID' })
+  @ApiResponse({ status: 201, description: 'STK initiated', type: StkPushRequestResponseDto })
+  @ApiResponse({ status: 404, description: 'Customer or policy not found / no access', type: StandardErrorResponseDto })
+  @ApiResponse({ status: 422, description: 'Validation (mode, amounts, phone, postpaid, in-flight STK)', type: StandardErrorResponseDto })
+  @ApiResponse({ status: 503, description: 'STK push disabled', type: StandardErrorResponseDto })
+  async initiateCustomerOndemandStk(
+    @Param('customerId') customerId: string,
+    @Param('policyId') policyId: string,
+    @Body() body: OndemandStkPaymentDto,
+    @CorrelationId() correlationId: string,
+    @Req() req: Request,
+  ): Promise<StkPushRequestResponseDto> {
+    const userId = req.user?.id ?? 'system';
+    const userRoles = req.user?.roles ?? [];
+    return this.customerService.initiateCustomerOndemandStk(
+      customerId,
+      policyId,
+      body,
+      userId,
+      userRoles,
+      correlationId,
+    );
   }
 
   /**

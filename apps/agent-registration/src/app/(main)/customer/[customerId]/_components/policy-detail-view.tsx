@@ -106,11 +106,14 @@ export default function PolicyDetailView({
             {p.productName}
             <Badge variant={data.status === 'ACTIVE' ? 'default' : 'secondary'}>{data.status}</Badge>
           </CardTitle>
-          <CardDescription>
-            {p.packageName}
-            {p.planName ? ` · ${p.planName}` : ''}
-            {!canEditScheme && ` · ${p.schemeName}`}
-            {p.underwriterName ? ` · ${p.underwriterName}` : ''}
+          <CardDescription className="flex flex-wrap items-center gap-2">
+            <span>{p.packageName}</span>
+            {p.planName ? <span>· {p.planName}</span> : null}
+            <Badge variant="outline" className="text-xs font-normal shrink-0">
+              {data.schemeBillingMode === 'postpaid' ? 'Postpaid' : 'Prepaid'}
+            </Badge>
+            {!canEditScheme && <span className="text-muted-foreground">· {p.schemeName}</span>}
+            {p.underwriterName ? <span className="text-muted-foreground">· {p.underwriterName}</span> : null}
           </CardDescription>
           {canEditScheme && (
             <div className="space-y-2 pt-2">

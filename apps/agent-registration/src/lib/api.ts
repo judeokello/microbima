@@ -969,6 +969,8 @@ export interface CustomerPolicyDetail {
   status: string
   packageId: number
   packageSchemeId: number | null
+  /** From linked scheme (prepaid vs postpaid) */
+  schemeBillingMode: 'prepaid' | 'postpaid'
   product: {
     underwriterName: string | null
     packageName: string
@@ -1010,6 +1012,7 @@ export interface Payment {
   expectedPaymentDate: string
   actualPaymentDate?: string
   amount: number
+  paymentStatus?: string
 }
 
 export interface CustomerPaymentsResponse {
@@ -1555,6 +1558,48 @@ export async function getInternalConfig(): Promise<InternalConfigResponse> {
 /**
  * Initiate STK Push payment request
  */
+export type OndemandStkMode = 'INSTALLMENTS' | 'CUSTOM'
+
+export interface OndemandStkRequest {
+  mode: OndemandStkMode
+  installmentCount?: number
+  customAmountKes?: number
+  phoneNumber: string
+}
+
+/**
+ * On-demand STK for an existing customer policy (placeholder payment + STK).
+ */
+export async function initiateCustomerOndemandStk(
+  customerId: string,
+  policyId: string,
+  body: OndemandStkRequest
+): Promise<InitiateStkPushResponse> {
+  const token = await getSupabaseToken()
+  const response = await fetch(
+    `${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/customers/${customerId}/policies/${policyId}/ondemand-stk`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+        'x-correlation-id': `ondemand-stk-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+      },
+      body: JSON.stringify(body),
+    }
+  )
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}))
+    if (response.status === 503) {
+      throw new Error(
+        errorData.error?.message ?? 'M-Pesa STK push is currently unavailable. The customer can pay via Paybill if applicable.'
+      )
+    }
+    throw new Error(errorData.error?.message ?? `Failed to initiate payment: ${response.statusText}`)
+  }
+  return response.json()
+}
+
 export async function initiateStkPush(data: InitiateStkPushRequest): Promise<InitiateStkPushResponse> {
   try {
     const token = await getSupabaseToken()

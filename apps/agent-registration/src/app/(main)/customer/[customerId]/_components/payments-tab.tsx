@@ -1,12 +1,13 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Badge } from '@/components/ui/badge';
 import { Loader2 } from 'lucide-react';
 import {
   getCustomerPolicies,
@@ -18,6 +19,7 @@ import {
   type CustomerPolicyDetail,
 } from '@/lib/api';
 import * as Sentry from '@sentry/nextjs';
+import RequestPaymentDialog from './request-payment-dialog';
 
 /** Premium period in days per year; used to calculate number of installments. */
 const PREMIUM_DAYS_PER_YEAR = 276;
@@ -29,9 +31,10 @@ function numberOfInstallments(paymentCadenceDays: number): number {
 
 interface PaymentsTabProps {
   customerId: string;
+  customerPhone?: string;
 }
 
-export default function PaymentsTab({ customerId }: PaymentsTabProps) {
+export default function PaymentsTab({ customerId, customerPhone = '' }: PaymentsTabProps) {
   const [policies, setPolicies] = useState<PolicyOption[]>([]);
   const [selectedPolicyId, setSelectedPolicyId] = useState<string>('');
   const [fromDate, setFromDate] = useState<string>('');
@@ -41,6 +44,8 @@ export default function PaymentsTab({ customerId }: PaymentsTabProps) {
   const [loading, setLoading] = useState(false);
   const [policiesLoading, setPoliciesLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [filterRanForPolicyId, setFilterRanForPolicyId] = useState<string | null>(null);
+  const [requestPaymentOpen, setRequestPaymentOpen] = useState(false);
 
   useEffect(() => {
     if (customerId) {
@@ -51,6 +56,9 @@ export default function PaymentsTab({ customerId }: PaymentsTabProps) {
 
   useEffect(() => {
     setPolicyDetail(null);
+    setPayments([]);
+    setFilterRanForPolicyId(null);
+    setRequestPaymentOpen(false);
   }, [selectedPolicyId]);
 
   const loadPolicies = async () => {
@@ -104,6 +112,7 @@ export default function PaymentsTab({ customerId }: PaymentsTabProps) {
 
       setPayments(paymentsRes.data);
       setPolicyDetail(policyDetailRes?.data ?? null);
+      setFilterRanForPolicyId(selectedPolicyId);
     } catch (err) {
       console.error('Error loading payments:', err);
       // Report error to Sentry
@@ -126,10 +135,22 @@ export default function PaymentsTab({ customerId }: PaymentsTabProps) {
       setError(err instanceof Error ? err.message : 'Failed to load payments');
       setPayments([]);
       setPolicyDetail(null);
+      setFilterRanForPolicyId(null);
     } finally {
       setLoading(false);
     }
   };
+
+  const refetchPaymentsForFilter = useCallback(async () => {
+    if (!selectedPolicyId) return;
+    const filters: PaymentFilter = {
+      policyId: selectedPolicyId,
+      fromDate: fromDate || undefined,
+      toDate: toDate || undefined,
+    };
+    const paymentsRes = await getCustomerPayments(customerId, filters);
+    setPayments(paymentsRes.data);
+  }, [customerId, selectedPolicyId, fromDate, toDate]);
 
   const formatDate = (dateString: string) => {
     try {
@@ -178,6 +199,12 @@ export default function PaymentsTab({ customerId }: PaymentsTabProps) {
         <CardDescription>View payment records for this customer</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
+        {!policiesLoading && policies.length === 0 && (
+          <div className="rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+            No policies are linked to this customer. Contact an administrator if this is unexpected.
+          </div>
+        )}
+
         {/* Filters */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div>
@@ -234,6 +261,43 @@ export default function PaymentsTab({ customerId }: PaymentsTabProps) {
           </div>
         )}
 
+        {filterRanForPolicyId === selectedPolicyId &&
+          !!selectedPolicyId &&
+          !loading &&
+          !policyDetail && (
+            <div className="rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+              Policy details could not be loaded for this selection. Contact an administrator; in-app recovery is not
+              available.
+            </div>
+          )}
+
+        {filterRanForPolicyId === selectedPolicyId && policyDetail?.schemeBillingMode === 'postpaid' && (
+          <div className="rounded-md border bg-muted px-4 py-3 text-sm text-muted-foreground">
+            This policy is <strong>postpaid</strong>. On-demand STK is not available; use your postpaid collection process.
+          </div>
+        )}
+
+        {filterRanForPolicyId === selectedPolicyId &&
+          policyDetail?.schemeBillingMode === 'prepaid' &&
+          parseFloat(policyDetail.installmentAmount) > 0 && (
+            <div className="flex flex-wrap items-center gap-2">
+              <Button type="button" variant="secondary" onClick={() => setRequestPaymentOpen(true)}>
+                Request payment
+              </Button>
+            </div>
+          )}
+
+        <RequestPaymentDialog
+          open={requestPaymentOpen}
+          onOpenChange={setRequestPaymentOpen}
+          customerId={customerId}
+          policyId={selectedPolicyId}
+          policyFilterKey={selectedPolicyId}
+          policyDetail={policyDetail}
+          defaultPhone={customerPhone}
+          onPaymentsRefresh={refetchPaymentsForFilter}
+        />
+
         {/* Policy summary card – shown when a policy is selected and results are loaded */}
         {policyDetail && (
           <Card>
@@ -255,7 +319,12 @@ export default function PaymentsTab({ customerId }: PaymentsTabProps) {
                 </div>
                 <div>
                   <dt className="text-sm font-medium text-muted-foreground">Category / plan</dt>
-                  <dd className="mt-1 text-sm">{policyDetail.product.planName ?? '—'}</dd>
+                  <dd className="mt-1 text-sm flex flex-wrap items-center gap-2">
+                    <span>{policyDetail.product.planName ?? '—'}</span>
+                    <Badge variant="outline" className="text-xs font-normal shrink-0">
+                      {policyDetail.schemeBillingMode === 'postpaid' ? 'Postpaid' : 'Prepaid'}
+                    </Badge>
+                  </dd>
                 </div>
                 <div>
                   <dt className="text-sm font-medium text-muted-foreground">No. of installments</dt>
@@ -305,6 +374,7 @@ export default function PaymentsTab({ customerId }: PaymentsTabProps) {
                   <TableHead>Payment Type</TableHead>
                   <TableHead>Transaction Reference</TableHead>
                   <TableHead>Account Number</TableHead>
+                  <TableHead>Status</TableHead>
                   <TableHead>Expected Payment Date</TableHead>
                   <TableHead>Actual Payment Date</TableHead>
                   <TableHead className="text-right">Amount</TableHead>
@@ -316,6 +386,7 @@ export default function PaymentsTab({ customerId }: PaymentsTabProps) {
                     <TableCell>{payment.paymentType}</TableCell>
                     <TableCell>{payment.transactionReference}</TableCell>
                     <TableCell>{payment.accountNumber ?? 'N/A'}</TableCell>
+                    <TableCell>{payment.paymentStatus ?? '—'}</TableCell>
                     <TableCell>{formatDate(payment.expectedPaymentDate)}</TableCell>
                     <TableCell>
                       {payment.actualPaymentDate ? formatDate(payment.actualPaymentDate) : 'Pending'}

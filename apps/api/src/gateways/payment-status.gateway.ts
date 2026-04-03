@@ -43,13 +43,24 @@ export interface PaymentStatusUpdate {
   namespace: '/payment-status',
   cors: {
     origin: (origin, callback) => {
-      // Allow requests from agent registration URL
-      const allowedOrigin = process.env.AGENT_REGISTRATION_URL ?? 'http://localhost:3000';
+      const base = process.env.AGENT_REGISTRATION_URL ?? 'http://localhost:3000';
+      const extra = process.env.PAYMENT_STATUS_WS_ALLOWED_ORIGINS;
+      const allowedList = [base];
+      if (extra) {
+        for (const o of extra
+          .split(',')
+          .map((s) => s.trim())
+          .filter(Boolean)) {
+          if (!allowedList.includes(o)) {
+            allowedList.push(o);
+          }
+        }
+      }
 
       // In development, allow any origin for easier testing
       if (process.env.NODE_ENV === 'development' || !origin) {
         callback(null, true);
-      } else if (origin === allowedOrigin) {
+      } else if (allowedList.includes(origin)) {
         callback(null, true);
       } else {
         callback(new Error('Not allowed by CORS'));

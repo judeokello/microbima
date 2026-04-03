@@ -1,5 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsString, IsOptional, IsDateString, IsEnum } from 'class-validator';
+import { PaymentStatus } from '@prisma/client';
 
 export class CustomerPaymentsFilterDto {
   @ApiProperty({
@@ -112,6 +113,15 @@ export class PaymentDto {
     example: 5000.00,
   })
   amount: number;
+
+  @ApiProperty({
+    description: 'Payment row status (e.g. PENDING_STK_CALLBACK, COMPLETED)',
+    enum: PaymentStatus,
+    required: false,
+  })
+  @IsOptional()
+  @IsEnum(PaymentStatus)
+  paymentStatus?: PaymentStatus;
 }
 
 export class CustomerPaymentsResponseDto {

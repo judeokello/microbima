@@ -375,6 +375,19 @@ GET /api/v1/customers/non-existent-id
 }
 ```
 
+### On-demand STK — `POST /internal/customers/:customerId/policies/:policyId/ondemand-stk`
+
+Staff-initiated M-Pesa STK for an **existing** policy uses the same standardized error envelope as other internal routes: `error.code`, **`error.status`** (not `statusCode`), `error.details` for field-level validation, and **`x-correlation-id`** on the request for tracing.
+
+| Situation | Typical HTTP status | Code / notes |
+|-----------|---------------------|----------------|
+| Invalid body (mode, installment count, amounts, phone) | 422 | `VALIDATION_ERROR` with `details` (e.g. `phoneNumber`, `installmentCount`, `amount`) |
+| Postpaid policy, missing `paymentAcNumber`, no linked scheme, zero/missing premium, or in-flight `PENDING-STK-*` row | 422 | `VALIDATION_ERROR`, often `details.policy` |
+| Customer or policy not found / no access | 404 | Nest `NotFoundException` (mapped per global filter) |
+| STK disabled at runtime | 503 | `ServiceUnavailableException` — message explains STK is off |
+
+Downstream Daraja/STK errors after placeholder creation are surfaced through the same global filter; the service removes the placeholder `policy_payments` row if Daraja initiation fails.
+
 ## Testing
 
 ### Unit Testing Validation Errors
