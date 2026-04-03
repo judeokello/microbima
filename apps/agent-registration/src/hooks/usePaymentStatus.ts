@@ -1,6 +1,22 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { io, Socket } from 'socket.io-client';
 
+function getSocketApiOrigin(): string {
+  const explicit = process.env.NEXT_PUBLIC_SOCKET_API_ORIGIN?.replace(/\/$/, '');
+  if (explicit) {
+    return explicit;
+  }
+  const internal = process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL;
+  if (internal) {
+    try {
+      return new URL(internal).origin;
+    } catch {
+      /* fall through */
+    }
+  }
+  return 'http://localhost:3001';
+}
+
 /**
  * Payment Status Update Interface
  * Matches the backend PaymentStatusUpdate interface
@@ -104,7 +120,7 @@ export function usePaymentStatus({
     }
 
     // Internal API origin (no /api) — Socket.IO connects to ${origin}/payment-status
-    const apiUrl = process.env.NEXT_PUBLIC_SOCKET_API_ORIGIN ?? 'http://localhost:3001';
+    const apiUrl = getSocketApiOrigin();
 
     console.log('[usePaymentStatus] Connecting to WebSocket:', {
       url: `${apiUrl}/payment-status`,

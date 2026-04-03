@@ -96,6 +96,12 @@ export class CustomerPolicyDetailDto {
   totalPaidToDate: string;
   installmentsPaid: number;
   missedPayments: number;
+
+  @ApiProperty({
+    description: 'Billing mode from linked scheme',
+    enum: ['prepaid', 'postpaid'],
+  })
+  schemeBillingMode: 'prepaid' | 'postpaid';
 }
 
 export class CustomerPolicyDetailResponseDto {

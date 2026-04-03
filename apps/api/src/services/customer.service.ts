@@ -1,4 +1,12 @@
-import { Injectable, Logger, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  NotFoundException,
+  BadRequestException,
+  ForbiddenException,
+  ServiceUnavailableException,
+} from '@nestjs/common';
+import { randomUUID } from 'crypto';
 import { ValidationException } from '../exceptions/validation.exception';
 import { ErrorCodes } from '../enums/error-codes.enum';
 import { PrismaService } from '../prisma/prisma.service';
@@ -32,13 +40,18 @@ import {
   CustomerPolicyListResponseDto,
   CustomerPolicyDetailResponseDto,
 } from '../dto/customers/customer-products.dto';
+import { OndemandStkMode, OndemandStkPaymentDto } from '../dto/customers/ondemand-stk-payment.dto';
+import { InitiateStkPushDto, StkPushRequestResponseDto } from '../dto/mpesa-stk-push/mpesa-stk-push.dto';
+import { MpesaStkPushService } from './mpesa-stk-push.service';
+import { ConfigurationService } from '../config/configuration.service';
 import { UpdateCustomerDto } from '../dto/customers/update-customer.dto';
 import { UpdateDependantDto } from '../dto/dependants/update-dependant.dto';
 import { UpdateBeneficiaryDto } from '../dto/beneficiaries/update-beneficiary.dto';
 import { SupabaseService } from './supabase.service';
 import { PaymentAccountNumberService } from './payment-account-number.service';
-import { normalizePhoneNumber } from '../utils/phone-number.util';
+import { assertKenyanPhoneForOndemandStk, normalizePhoneNumber } from '../utils/phone-number.util';
 import { MessagingService } from '../modules/messaging/messaging.service';
+import * as Sentry from '@sentry/nestjs';
 
 /**
  * Customer Service
@@ -76,6 +89,8 @@ export class CustomerService {
     private readonly supabaseService: SupabaseService,
     private readonly paymentAccountNumberService: PaymentAccountNumberService,
     private readonly messagingService: MessagingService,
+    private readonly mpesaStkPushService: MpesaStkPushService,
+    private readonly configService: ConfigurationService,
   ) {}
 
   /**
@@ -2494,12 +2509,33 @@ export class CustomerService {
       },
       include: {
         packageScheme: {
-          include: { scheme: { select: { schemeName: true } } },
+          include: { scheme: { select: { schemeName: true, isPostpaid: true } } },
         },
       },
     });
     const schemeName = schemeCustomer?.packageScheme?.scheme?.schemeName ?? '—';
     const packageSchemeId = schemeCustomer?.packageSchemeId ?? null;
+    const isPostpaid = schemeCustomer?.packageScheme?.scheme?.isPostpaid === true;
+    const schemeBillingMode: 'prepaid' | 'postpaid' = isPostpaid ? 'postpaid' : 'prepaid';
+    const premiumNum = Number(policy.premium);
+    if (schemeCustomer != null && !isPostpaid && premiumNum === 0) {
+      Sentry.captureMessage(
+        'Policy premium is zero for prepaid customer when loading policy detail (data anomaly; on-demand installment path unavailable)',
+        {
+          level: 'warning',
+          tags: {
+            feature: 'ondemand_payment_request',
+            reason: 'zero_premium_prepaid_policy_detail_fetch',
+          },
+          extra: {
+            customerId,
+            policyId,
+            correlationId,
+            packageId: policy.packageId,
+          },
+        }
+      );
+    }
     const paidPayments = policy.policyPayments.filter((pm) => pm.actualPaymentDate != null);
     const now = new Date();
     const missedPayments = policy.policyPayments.filter(
@@ -2535,8 +2571,161 @@ export class CustomerService {
         totalPaidToDate: totalPaid.toFixed(2),
         installmentsPaid: paidPayments.length,
         missedPayments,
+        schemeBillingMode,
       },
     };
+  }
+
+  /**
+   * On-demand STK for an existing prepaid policy (placeholder policy_payment + Daraja STK).
+   */
+  async initiateCustomerOndemandStk(
+    customerId: string,
+    policyId: string,
+    dto: OndemandStkPaymentDto,
+    userId: string,
+    userRoles: string[],
+    correlationId: string
+  ): Promise<StkPushRequestResponseDto> {
+    this.logger.log(`[${correlationId}] On-demand STK: customer=${customerId} policy=${policyId} mode=${dto.mode}`);
+    if (!this.configService.mpesa.stkPushEnabled) {
+      throw new ServiceUnavailableException('M-Pesa STK push is currently disabled.');
+    }
+
+    const canAccess = await this.canUserAccessCustomer(customerId, userId, userRoles);
+    if (!canAccess) {
+      throw new NotFoundException('Customer not found or not accessible');
+    }
+
+    const validationErrors: Record<string, string> = {};
+    if (dto.mode === OndemandStkMode.INSTALLMENTS) {
+      if (dto.installmentCount == null || dto.installmentCount < 1 || dto.installmentCount > 5) {
+        validationErrors['installmentCount'] = 'Installment count must be between 1 and 5';
+      }
+    } else if (dto.mode === OndemandStkMode.CUSTOM) {
+      if (dto.customAmountKes == null || dto.customAmountKes < 1 || dto.customAmountKes > 70000) {
+        validationErrors['customAmountKes'] = 'Amount must be between 1 and 70,000 KES';
+      }
+    } else {
+      validationErrors['mode'] = 'Invalid payment mode';
+    }
+    if (Object.keys(validationErrors).length > 0) {
+      throw ValidationException.withMultipleErrors(validationErrors);
+    }
+
+    assertKenyanPhoneForOndemandStk(dto.phoneNumber);
+    const normalizedPhone = normalizePhoneNumber(dto.phoneNumber);
+
+    const policy = await this.prismaService.policy.findFirst({
+      where: { id: policyId, customerId },
+      include: { customer: { select: { idNumber: true } } },
+    });
+    if (!policy) {
+      throw new NotFoundException('Policy not found or does not belong to this customer');
+    }
+    if (!policy.paymentAcNumber?.trim()) {
+      throw ValidationException.forField(
+        'policy',
+        'Policy has no payment account number; contact an administrator.',
+        ErrorCodes.VALIDATION_ERROR
+      );
+    }
+
+    const schemeCustomer = await this.prismaService.packageSchemeCustomer.findFirst({
+      where: {
+        customerId,
+        packageScheme: { packageId: policy.packageId },
+      },
+      include: {
+        packageScheme: {
+          include: { scheme: { select: { isPostpaid: true } } },
+        },
+      },
+    });
+    if (!schemeCustomer) {
+      throw ValidationException.forField(
+        'policy',
+        'Policy has no linked scheme; contact an administrator.',
+        ErrorCodes.VALIDATION_ERROR
+      );
+    }
+    if (schemeCustomer.packageScheme.scheme.isPostpaid === true) {
+      throw ValidationException.forField(
+        'policy',
+        'On-demand STK is not available for postpaid policies.',
+        ErrorCodes.VALIDATION_ERROR
+      );
+    }
+
+    const premiumNum = Number(policy.premium);
+    if (!Number.isFinite(premiumNum) || premiumNum <= 0) {
+      throw ValidationException.forField(
+        'policy',
+        'Installment amount is missing or invalid for this policy.',
+        ErrorCodes.VALIDATION_ERROR
+      );
+    }
+
+    let amountKes: number;
+    if (dto.mode === OndemandStkMode.INSTALLMENTS) {
+      amountKes = Math.round(dto.installmentCount! * premiumNum * 100) / 100;
+    } else {
+      amountKes = Math.round(dto.customAmountKes! * 100) / 100;
+    }
+    if (amountKes < 1 || amountKes > 70000) {
+      throw ValidationException.forField('amount', 'Amount must be between 1 and 70,000 KES');
+    }
+
+    const inflight = await this.prismaService.policyPayment.findFirst({
+      where: {
+        policyId,
+        actualPaymentDate: null,
+        transactionReference: { startsWith: 'PENDING-STK-' },
+      },
+    });
+    if (inflight) {
+      throw ValidationException.forField(
+        'policy',
+        'A payment request is already in progress for this policy. Wait for it to complete or expire.'
+      );
+    }
+
+    const placeholderRef = `PENDING-STK-${randomUUID()}`;
+    const expectedPaymentDate = new Date();
+
+    const createdPayment = await this.prismaService.policyPayment.create({
+      data: {
+        policyId,
+        paymentType: 'MPESA',
+        transactionReference: placeholderRef,
+        amount: amountKes,
+        accountNumber: policy.customer.idNumber ?? null,
+        details: 'On-demand STK payment (pending)',
+        expectedPaymentDate,
+        actualPaymentDate: null,
+        paymentStatus: 'PENDING_STK_CALLBACK',
+      },
+    });
+
+    const stkDto: InitiateStkPushDto = {
+      phoneNumber: normalizedPhone,
+      amount: amountKes,
+      accountReference: policy.paymentAcNumber,
+      transactionDesc: `On-demand premium payment (${placeholderRef})`,
+    };
+
+    try {
+      return await this.mpesaStkPushService.initiateStkPush(stkDto, correlationId, userId);
+    } catch (err) {
+      try {
+        await this.prismaService.policyPayment.delete({ where: { id: createdPayment.id } });
+      } catch (delErr) {
+        this.logger.warn(
+          `[${correlationId}] Failed to remove placeholder payment ${createdPayment.id} after STK failure: ${delErr instanceof Error ? delErr.message : String(delErr)}`
+        );
+      }
+      throw err;
+    }
   }
 
   /**
@@ -2663,6 +2852,7 @@ export class CustomerService {
         expectedPaymentDate: p.expectedPaymentDate.toISOString(),
         actualPaymentDate: p.actualPaymentDate?.toISOString(),
         amount: Number(p.amount),
+        paymentStatus: p.paymentStatus,
       }));
 
       return {

@@ -14,6 +14,7 @@ import { createPolicy, CreatePolicyRequest, getPackagePlans, Plan, initiateStkPu
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
 import { usePaymentStatus, PaymentStatusUpdate } from '@/hooks/usePaymentStatus';
+import { mapStkGatewayStatusToSpecVocabulary } from '@/lib/payment-status-vocabulary';
 
 interface InsurancePricing {
   plans: {
@@ -927,7 +928,8 @@ export default function PaymentStep() {
 
                 {/* Elapsed time */}
                 <p className="text-xs text-gray-600">
-                  Elapsed: {elapsedTime}s • Status: {wsStatus?.status ?? 'PENDING'}
+                  Elapsed: {elapsedTime}s • Status:{' '}
+                  {mapStkGatewayStatusToSpecVocabulary(wsStatus?.status ?? 'PENDING')}
                 </p>
 
                 {/* Instructional text */}
