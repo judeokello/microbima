@@ -376,6 +376,7 @@ export class ProductManagementService {
         isActive: pkg.isActive,
         logoPath: pkg.logoPath,
         cardTemplateName: pkg.cardTemplateName ?? null,
+        productDurationDays: pkg.productDurationDays ?? null,
         createdBy: pkg.createdBy,
         createdByDisplayName,
         createdAt: pkg.createdAt.toISOString(),
@@ -405,6 +406,7 @@ export class ProductManagementService {
       underwriterId?: number;
       isActive?: boolean;
       logoPath?: string;
+      productDurationDays?: number | null;
     },
     correlationId: string
   ) {
@@ -428,6 +430,7 @@ export class ProductManagementService {
           ...(data.underwriterId !== undefined && { underwriterId: data.underwriterId }),
           ...(data.isActive !== undefined && { isActive: data.isActive }),
           ...(data.logoPath !== undefined && { logoPath: trimOrNull(data.logoPath) }),
+          ...(data.productDurationDays !== undefined && { productDurationDays: data.productDurationDays }),
         },
         include: {
           underwriter: {
@@ -449,6 +452,7 @@ export class ProductManagementService {
         underwriterName: pkg.underwriter?.name ?? null,
         isActive: pkg.isActive,
         logoPath: pkg.logoPath,
+        productDurationDays: pkg.productDurationDays ?? null,
         createdBy: pkg.createdBy,
         createdAt: pkg.createdAt.toISOString(),
         updatedAt: pkg.updatedAt.toISOString(),
@@ -784,6 +788,7 @@ export class ProductManagementService {
       description: string;
       underwriterId?: number;
       isActive?: boolean;
+      productDurationDays?: number;
     },
     userId: string,
     correlationId: string
@@ -821,6 +826,7 @@ export class ProductManagementService {
           underwriterId: data.underwriterId,
           isActive: data.isActive ?? false, // Default to false
           createdBy: userId,
+          productDurationDays: data.productDurationDays ?? 365,
         },
         include: {
           underwriter: {
@@ -850,6 +856,7 @@ export class ProductManagementService {
         underwriterName: pkg.underwriter?.name ?? null,
         isActive: pkg.isActive,
         logoPath: pkg.logoPath,
+        productDurationDays: pkg.productDurationDays ?? null,
         createdBy: pkg.createdBy,
         createdAt: pkg.createdAt.toISOString(),
         updatedAt: pkg.updatedAt.toISOString(),
