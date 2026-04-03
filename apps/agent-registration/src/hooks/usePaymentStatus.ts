@@ -104,7 +104,7 @@ export function usePaymentStatus({
     }
 
     // Internal API origin (no /api) — Socket.IO connects to ${origin}/payment-status
-    const apiUrl = process.env.NEXT_PUBLIC_SOCKET_API_ORIGIN || 'http://localhost:3001';
+    const apiUrl = process.env.NEXT_PUBLIC_SOCKET_API_ORIGIN ?? 'http://localhost:3001';
 
     console.log('[usePaymentStatus] Connecting to WebSocket:', {
       url: `${apiUrl}/payment-status`,

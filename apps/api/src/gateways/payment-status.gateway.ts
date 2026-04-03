@@ -44,7 +44,7 @@ export interface PaymentStatusUpdate {
   cors: {
     origin: (origin, callback) => {
       // Allow requests from agent registration URL
-      const allowedOrigin = process.env.AGENT_REGISTRATION_URL || 'http://localhost:3000';
+      const allowedOrigin = process.env.AGENT_REGISTRATION_URL ?? 'http://localhost:3000';
 
       // In development, allow any origin for easier testing
       if (process.env.NODE_ENV === 'development' || !origin) {
@@ -83,7 +83,7 @@ export class PaymentStatusGateway
     try {
       // Extract token from handshake auth or Authorization header
       const token =
-        client.handshake.auth.token ||
+        client.handshake.auth.token ??
         client.handshake.headers.authorization?.replace('Bearer ', '');
 
       if (!token) {

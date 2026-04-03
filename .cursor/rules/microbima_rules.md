@@ -1,6 +1,35 @@
 # Microbima – Project Rules for AI (Cursor)
 
 
+## Database Migration Rules
+
+**CRITICAL: Always create migration files manually, never use `prisma migrate dev`**
+
+The `npx prisma migrate dev` command has not been working due to shadow database issues. Instead, follow this process:
+
+1. **Create migration SQL file manually** in `apps/api/prisma/migrations/`
+   - Use timestamp format: `YYYYMMDDHHMMSS_description_of_change`
+   - Example: `20260402120000_add_payment_status_to_policy_payments`
+
+2. **Write the migration SQL** based on schema changes
+   - Include both UP (changes) and rollback logic if needed
+   - Test SQL syntax before committing
+
+3. **Apply migration** using:
+   ```bash
+   npx prisma migrate deploy
+   ```
+
+4. **Generate Prisma client** after migration:
+   ```bash
+   npx prisma generate
+   ```
+
+**Never use:**
+- `npx prisma migrate dev` (shadow database issues)
+- `npx prisma db push` (skips migration history tracking)
+
+
 ## Monorepo shape
 - Single-root monorepo.
 - Apps live in `apps/*` (e.g., `web-admin`, `mobile`, `api`).

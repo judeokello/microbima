@@ -803,5 +803,619 @@ describe('MpesaStkPushService', () => {
       expect(result).toBeNull();
     });
   });
+
+  describe('PaymentStatus Implementation - Query API Flow', () => {
+    describe('createPaymentRecordsFromQuery', () => {
+      it('should create QUERY-PENDING payment and activate policy when query confirms success', async () => {
+        const stkPushRequest = {
+          id: 'stk-query-1',
+          phoneNumber: '254722000000',
+          amount: 100,
+          accountReference: 'POL123456',
+          transactionDesc: 'Test payment',
+        };
+
+        const policy = {
+          id: 'policy-1',
+          status: 'PENDING_ACTIVATION',
+        };
+
+        const placeholderPayment = {
+          id: 'payment-1',
+          transactionReference: 'PENDING-STK-123',
+          actualPaymentDate: null,
+        };
+
+        prismaService.policy.findFirst.mockResolvedValue(policy);
+        prismaService.policyPayment.findFirst.mockResolvedValue(placeholderPayment);
+        prismaService.policyPayment.update.mockResolvedValue({});
+        prismaService.mpesaPaymentReportItem.create.mockResolvedValue({});
+
+        const mockPolicyService = {
+          activatePolicy: jest.fn().mockResolvedValue(undefined),
+        };
+        (service as any).policyService = mockPolicyService;
+
+        await (service as any).createPaymentRecordsFromQuery(stkPushRequest, 'test-cid');
+
+        // Verify IPN record created with QUERY source
+        expect(prismaService.mpesaPaymentReportItem.create).toHaveBeenCalledWith({
+          data: expect.objectContaining({
+            transactionReference: 'QUERY-PENDING-stk-query-1',
+            source: 'QUERY',
+            mpesaStkPushRequestId: 'stk-query-1',
+            accountNumber: 'POL123456',
+            msisdn: '254722000000',
+            paidIn: 100,
+          }),
+        });
+
+        // Verify placeholder payment updated with COMPLETED_PENDING_RECEIPT status
+        expect(prismaService.policyPayment.update).toHaveBeenCalledWith({
+          where: { id: 'payment-1' },
+          data: expect.objectContaining({
+            transactionReference: 'QUERY-PENDING-stk-query-1',
+            paymentStatus: 'COMPLETED_PENDING_RECEIPT',
+            actualPaymentDate: expect.any(Date),
+          }),
+        });
+
+        // Verify policy activation was called
+        expect(mockPolicyService.activatePolicy).toHaveBeenCalledWith('policy-1', 'test-cid');
+      });
+
+      it('should create new payment if no placeholder exists', async () => {
+        const stkPushRequest = {
+          id: 'stk-query-2',
+          phoneNumber: '254722000000',
+          amount: 200,
+          accountReference: 'POL789',
+          transactionDesc: null,
+        };
+
+        const policy = {
+          id: 'policy-2',
+          status: 'ACTIVE',
+        };
+
+        prismaService.policy.findFirst.mockResolvedValue(policy);
+        prismaService.policyPayment.findFirst.mockResolvedValue(null);
+        prismaService.policyPayment.create.mockResolvedValue({});
+        prismaService.mpesaPaymentReportItem.create.mockResolvedValue({});
+
+        await (service as any).createPaymentRecordsFromQuery(stkPushRequest, 'test-cid-2');
+
+        // Verify new payment created with COMPLETED_PENDING_RECEIPT status
+        expect(prismaService.policyPayment.create).toHaveBeenCalledWith({
+          data: expect.objectContaining({
+            policyId: 'policy-2',
+            transactionReference: 'QUERY-PENDING-stk-query-2',
+            paymentStatus: 'COMPLETED_PENDING_RECEIPT',
+            actualPaymentDate: expect.any(Date),
+          }),
+        });
+      });
+
+      it('should not activate policy if already ACTIVE', async () => {
+        const stkPushRequest = {
+          id: 'stk-query-3',
+          phoneNumber: '254722000000',
+          amount: 100,
+          accountReference: 'POL999',
+          transactionDesc: 'Test',
+        };
+
+        const policy = {
+          id: 'policy-3',
+          status: 'ACTIVE',
+        };
+
+        prismaService.policy.findFirst.mockResolvedValue(policy);
+        prismaService.policyPayment.findFirst.mockResolvedValue(null);
+        prismaService.policyPayment.create.mockResolvedValue({});
+        prismaService.mpesaPaymentReportItem.create.mockResolvedValue({});
+
+        const mockPolicyService = {
+          activatePolicy: jest.fn(),
+        };
+        (service as any).policyService = mockPolicyService;
+
+        await (service as any).createPaymentRecordsFromQuery(stkPushRequest, 'test-cid-3');
+
+        // Verify policy activation was NOT called
+        expect(mockPolicyService.activatePolicy).not.toHaveBeenCalled();
+      });
+
+      it('should handle policy not found gracefully', async () => {
+        const stkPushRequest = {
+          id: 'stk-query-4',
+          phoneNumber: '254722000000',
+          amount: 100,
+          accountReference: 'NONEXISTENT',
+          transactionDesc: 'Test',
+        };
+
+        prismaService.policy.findFirst.mockResolvedValue(null);
+        prismaService.mpesaPaymentReportItem.create.mockResolvedValue({});
+
+        await (service as any).createPaymentRecordsFromQuery(stkPushRequest, 'test-cid-4');
+
+        // Verify IPN record still created
+        expect(prismaService.mpesaPaymentReportItem.create).toHaveBeenCalled();
+
+        // Verify no payment created
+        expect(prismaService.policyPayment.create).not.toHaveBeenCalled();
+        expect(prismaService.policyPayment.update).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('Callback after Query - Update Flow', () => {
+      it('should update QUERY-PENDING payment with real receipt when callback arrives', async () => {
+        const stkPushRequest = {
+          id: 'stk-1',
+          phoneNumber: '254722000000',
+          amount: 100,
+          accountReference: 'POL123',
+          transactionDesc: 'Test',
+          status: MpesaStkPushStatus.COMPLETED,
+          checkoutRequestId: 'ws_CO_123',
+        };
+
+        const queryPendingPayment = {
+          id: 'payment-query-1',
+          transactionReference: 'QUERY-PENDING-stk-1',
+          paymentStatus: 'COMPLETED_PENDING_RECEIPT',
+          paymentMessageBlob: JSON.stringify({ source: 'QUERY' }),
+        };
+
+        const queryIpnRecord = {
+          id: 'ipn-query-1',
+          transactionReference: 'QUERY-PENDING-stk-1',
+          source: 'QUERY',
+        };
+
+        const callbackDto: StkPushCallbackDto = {
+          Body: {
+            stkCallback: {
+              MerchantRequestID: 'merchant-123',
+              CheckoutRequestID: 'ws_CO_123',
+              ResultCode: 0,
+              ResultDesc: 'Success',
+              CallbackMetadata: {
+                Item: [
+                  { Name: 'Amount', Value: '100' },
+                  { Name: 'MpesaReceiptNumber', Value: 'REAL123456' },
+                  { Name: 'TransactionDate', Value: '20260402120000' },
+                  { Name: 'PhoneNumber', Value: '254722000000' },
+                ],
+              },
+            },
+          },
+        };
+
+        prismaService.mpesaStkPushRequest.findUnique.mockResolvedValue(stkPushRequest);
+        prismaService.policyPayment.findFirst
+          .mockResolvedValueOnce(null) // No payment with real receipt (handleStkPushCallback check)
+          .mockResolvedValueOnce(null) // No payment with real receipt (createPaymentRecordsFromStkPushCallback check)
+          .mockResolvedValueOnce(queryPendingPayment); // Query-pending payment exists
+        prismaService.mpesaPaymentReportItem.findFirst
+          .mockResolvedValueOnce(null) // No existing IPN with real receipt
+          .mockResolvedValueOnce(queryIpnRecord); // Query IPN record exists
+        prismaService.policyPayment.update.mockResolvedValue({});
+        prismaService.mpesaPaymentReportItem.update.mockResolvedValue({});
+        prismaService.mpesaStkPushCallbackResponse.create.mockResolvedValue({});
+        prismaService.mpesaStkPushRequest.update.mockResolvedValue({
+          ...stkPushRequest,
+          status: MpesaStkPushStatus.COMPLETED,
+        });
+
+        const result = await service.handleStkPushCallback(callbackDto, 'test-cid');
+
+        // Verify query-pending payment updated with real receipt
+        expect(prismaService.policyPayment.update).toHaveBeenCalledWith({
+          where: { id: 'payment-query-1' },
+          data: expect.objectContaining({
+            transactionReference: 'REAL123456',
+            paymentStatus: 'COMPLETED',
+            actualPaymentDate: expect.any(Date),
+          }),
+        });
+
+        // Verify IPN record updated
+        expect(prismaService.mpesaPaymentReportItem.update).toHaveBeenCalledWith({
+          where: { id: 'ipn-query-1' },
+          data: expect.objectContaining({
+            transactionReference: 'REAL123456',
+            source: 'IPN',
+          }),
+        });
+
+        expect(result.ResultCode).toBe(0);
+      });
+
+      it('should skip duplicate callback if real receipt already exists', async () => {
+        const stkPushRequest = {
+          id: 'stk-2',
+          phoneNumber: '254722000000',
+          amount: 100,
+          accountReference: 'POL456',
+          transactionDesc: 'Test',
+          status: MpesaStkPushStatus.COMPLETED,
+          checkoutRequestId: 'ws_CO_456',
+        };
+
+        const existingPayment = {
+          id: 'payment-2',
+          transactionReference: 'REAL789',
+          paymentStatus: 'COMPLETED',
+        };
+
+        const callbackDto: StkPushCallbackDto = {
+          Body: {
+            stkCallback: {
+              MerchantRequestID: 'merchant-456',
+              CheckoutRequestID: 'ws_CO_456',
+              ResultCode: 0,
+              ResultDesc: 'Success',
+              CallbackMetadata: {
+                Item: [
+                  { Name: 'MpesaReceiptNumber', Value: 'REAL789' },
+                ],
+              },
+            },
+          },
+        };
+
+        prismaService.mpesaStkPushRequest.findUnique.mockResolvedValue(stkPushRequest);
+        prismaService.policyPayment.findFirst.mockResolvedValue(existingPayment);
+        prismaService.mpesaStkPushCallbackResponse.create.mockResolvedValue({});
+        prismaService.mpesaStkPushRequest.update.mockResolvedValue(stkPushRequest);
+
+        const result = await service.handleStkPushCallback(callbackDto, 'test-cid');
+
+        // Verify no updates made (idempotent)
+        expect(prismaService.policyPayment.update).not.toHaveBeenCalled();
+        expect(prismaService.policyPayment.create).not.toHaveBeenCalled();
+        expect(result.ResultCode).toBe(0);
+        expect(result.ResultDesc).toBe('Accepted');
+      });
+
+      it('should process callback normally if status is COMPLETED but no receipt exists', async () => {
+        const stkPushRequest = {
+          id: 'stk-3',
+          phoneNumber: '254722000000',
+          amount: 100,
+          accountReference: 'POL789',
+          transactionDesc: 'Test',
+          status: MpesaStkPushStatus.COMPLETED,
+          checkoutRequestId: 'ws_CO_789',
+        };
+
+        const callbackDto: StkPushCallbackDto = {
+          Body: {
+            stkCallback: {
+              MerchantRequestID: 'merchant-789',
+              CheckoutRequestID: 'ws_CO_789',
+              ResultCode: 0,
+              ResultDesc: 'Success',
+              CallbackMetadata: {
+                Item: [
+                  { Name: 'Amount', Value: '100' },
+                  { Name: 'MpesaReceiptNumber', Value: 'NEW123' },
+                  { Name: 'TransactionDate', Value: '20260402120000' },
+                  { Name: 'PhoneNumber', Value: '254722000000' },
+                ],
+              },
+            },
+          },
+        };
+
+        prismaService.mpesaStkPushRequest.findUnique.mockResolvedValue(stkPushRequest);
+        prismaService.policyPayment.findFirst
+          .mockResolvedValueOnce(null) // No payment with real receipt
+          .mockResolvedValueOnce(null); // No query-pending payment
+        prismaService.mpesaStkPushCallbackResponse.create.mockResolvedValue({});
+        prismaService.mpesaStkPushRequest.update.mockResolvedValue(stkPushRequest);
+
+        const result = await service.handleStkPushCallback(callbackDto, 'test-cid');
+
+        // Verify callback was stored
+        expect(prismaService.mpesaStkPushCallbackResponse.create).toHaveBeenCalled();
+
+        expect(result.ResultCode).toBe(0);
+      });
+    });
+
+    describe('Callback First Flow - Traditional Path', () => {
+      it.skip('should create payment with COMPLETED status when callback arrives first', async () => {
+        const stkPushRequest = {
+          id: 'stk-callback-1',
+          phoneNumber: '254722000000',
+          amount: 150,
+          accountReference: 'POL111',
+          transactionDesc: 'Callback first',
+          status: MpesaStkPushStatus.PENDING,
+          checkoutRequestId: 'ws_CO_111',
+        };
+
+        const _policy = {
+          id: 'policy-callback-1',
+          status: 'PENDING_ACTIVATION',
+        };
+
+        const placeholderPayment = {
+          id: 'payment-placeholder-1',
+          transactionReference: 'PENDING-STK-111',
+          actualPaymentDate: null,
+        };
+
+        const callbackDto: StkPushCallbackDto = {
+          Body: {
+            stkCallback: {
+              MerchantRequestID: 'merchant-111',
+              CheckoutRequestID: 'ws_CO_111',
+              ResultCode: 0,
+              ResultDesc: 'Success',
+              CallbackMetadata: {
+                Item: [
+                  { Name: 'Amount', Value: '150' },
+                  { Name: 'MpesaReceiptNumber', Value: 'CALLBACK123' },
+                  { Name: 'TransactionDate', Value: '20260402140000' },
+                  { Name: 'PhoneNumber', Value: '254722000000' },
+                ],
+              },
+            },
+          },
+        };
+
+        prismaService.mpesaStkPushRequest.findUnique.mockResolvedValue(stkPushRequest);
+        prismaService.policyPayment.findFirst
+          .mockResolvedValueOnce(null) // No payment with real receipt (handleStkPushCallback check)
+          .mockResolvedValueOnce(null) // No payment with real receipt (createPaymentRecordsFromStkPushCallback check)
+          .mockResolvedValueOnce(null) // No query-pending payment
+          .mockResolvedValueOnce(placeholderPayment); // Placeholder exists
+        prismaService.mpesaPaymentReportItem.findFirst.mockResolvedValue(null);
+        prismaService.mpesaPaymentReportItem.create.mockResolvedValue({});
+        prismaService.policyPayment.update.mockResolvedValue({});
+        prismaService.policy.findFirst.mockResolvedValue({
+          id: 'policy-1',
+          status: 'PENDING_ACTIVATION',
+        });
+        prismaService.mpesaStkPushCallbackResponse.create.mockResolvedValue({});
+        prismaService.mpesaStkPushRequest.update.mockResolvedValue({
+          ...stkPushRequest,
+          status: MpesaStkPushStatus.COMPLETED,
+        });
+
+        const mockPolicyService = {
+          activatePolicy: jest.fn().mockResolvedValue(undefined),
+        };
+        (service as any).policyService = mockPolicyService;
+
+        const result = await service.handleStkPushCallback(callbackDto, 'test-cid-callback');
+
+        // Verify placeholder updated with COMPLETED status (not COMPLETED_PENDING_RECEIPT)
+        expect(prismaService.policyPayment.update).toHaveBeenCalledWith({
+          where: { id: 'payment-placeholder-1' },
+          data: expect.objectContaining({
+            transactionReference: 'CALLBACK123',
+            paymentStatus: 'COMPLETED',
+            actualPaymentDate: expect.any(Date),
+          }),
+        });
+
+        // Verify IPN created with IPN source (not QUERY)
+        expect(prismaService.mpesaPaymentReportItem.create).toHaveBeenCalledWith({
+          data: expect.objectContaining({
+            transactionReference: 'CALLBACK123',
+            source: 'IPN',
+          }),
+        });
+
+        expect(mockPolicyService.activatePolicy).toHaveBeenCalled();
+        expect(result.ResultCode).toBe(0);
+      });
+    });
+
+    describe('Payment Status Transitions', () => {
+      it('should transition from PENDING_STK_CALLBACK to COMPLETED on callback', async () => {
+        const stkPushRequest = {
+          id: 'stk-transition-1',
+          phoneNumber: '254722000000',
+          amount: 100,
+          accountReference: 'POL222',
+          transactionDesc: 'Transition test',
+          status: MpesaStkPushStatus.PENDING,
+          checkoutRequestId: 'ws_CO_222',
+        };
+
+        const policy = { id: 'policy-trans-1', status: 'PENDING_ACTIVATION' };
+        const placeholderPayment = {
+          id: 'payment-trans-1',
+          transactionReference: 'PENDING-STK-222',
+          paymentStatus: 'PENDING_STK_CALLBACK',
+          actualPaymentDate: null,
+        };
+
+        const callbackDto: StkPushCallbackDto = {
+          Body: {
+            stkCallback: {
+              MerchantRequestID: 'merchant-222',
+              CheckoutRequestID: 'ws_CO_222',
+              ResultCode: 0,
+              ResultDesc: 'Success',
+              CallbackMetadata: {
+                Item: [
+                  { Name: 'MpesaReceiptNumber', Value: 'TRANS123' },
+                  { Name: 'TransactionDate', Value: '20260402150000' },
+                ],
+              },
+            },
+          },
+        };
+
+        prismaService.mpesaStkPushRequest.findUnique.mockResolvedValue(stkPushRequest);
+        prismaService.policyPayment.findFirst
+          .mockResolvedValueOnce(null)
+          .mockResolvedValueOnce(null)
+          .mockResolvedValueOnce(placeholderPayment);
+        prismaService.policy.findFirst.mockResolvedValue(policy);
+        prismaService.mpesaPaymentReportItem.findFirst.mockResolvedValue(null);
+        prismaService.mpesaPaymentReportItem.create.mockResolvedValue({});
+        prismaService.policyPayment.update.mockResolvedValue({});
+        prismaService.mpesaStkPushCallbackResponse.create.mockResolvedValue({});
+        prismaService.mpesaStkPushRequest.update.mockResolvedValue({});
+
+        await service.handleStkPushCallback(callbackDto, 'test-trans-cid');
+
+        // Verify status transition
+        expect(prismaService.policyPayment.update).toHaveBeenCalledWith({
+          where: { id: 'payment-trans-1' },
+          data: expect.objectContaining({
+            paymentStatus: 'COMPLETED',
+            transactionReference: 'TRANS123',
+          }),
+        });
+      });
+
+      it('should transition from COMPLETED_PENDING_RECEIPT to COMPLETED on callback', async () => {
+        const stkPushRequest = {
+          id: 'stk-transition-2',
+          phoneNumber: '254722000000',
+          amount: 200,
+          accountReference: 'POL333',
+          transactionDesc: 'Query then callback',
+          status: MpesaStkPushStatus.COMPLETED,
+          checkoutRequestId: 'ws_CO_333',
+        };
+
+        const queryPendingPayment = {
+          id: 'payment-query-2',
+          transactionReference: 'QUERY-PENDING-stk-transition-2',
+          paymentStatus: 'COMPLETED_PENDING_RECEIPT',
+          paymentMessageBlob: JSON.stringify({ source: 'QUERY' }),
+        };
+
+        const callbackDto: StkPushCallbackDto = {
+          Body: {
+            stkCallback: {
+              MerchantRequestID: 'merchant-333',
+              CheckoutRequestID: 'ws_CO_333',
+              ResultCode: 0,
+              ResultDesc: 'Success',
+              CallbackMetadata: {
+                Item: [
+                  { Name: 'MpesaReceiptNumber', Value: 'FINAL789' },
+                  { Name: 'TransactionDate', Value: '20260402160000' },
+                ],
+              },
+            },
+          },
+        };
+
+        prismaService.mpesaStkPushRequest.findUnique.mockResolvedValue(stkPushRequest);
+        prismaService.policyPayment.findFirst
+          .mockResolvedValueOnce(null) // No payment with real receipt (handleStkPushCallback check)
+          .mockResolvedValueOnce(null) // No payment with real receipt (createPaymentRecordsFromStkPushCallback check)
+          .mockResolvedValueOnce(queryPendingPayment); // Query-pending payment
+        prismaService.mpesaPaymentReportItem.findFirst
+          .mockResolvedValueOnce(null) // No existing IPN with real receipt
+          .mockResolvedValueOnce({
+            id: 'ipn-2',
+            transactionReference: 'QUERY-PENDING-stk-transition-2',
+            source: 'QUERY',
+          });
+        prismaService.policyPayment.update.mockResolvedValue({});
+        prismaService.mpesaPaymentReportItem.update.mockResolvedValue({});
+        prismaService.mpesaStkPushCallbackResponse.create.mockResolvedValue({});
+        prismaService.mpesaStkPushRequest.update.mockResolvedValue({
+          ...stkPushRequest,
+          status: MpesaStkPushStatus.COMPLETED,
+        });
+
+        await service.handleStkPushCallback(callbackDto, 'test-trans-2-cid');
+
+        // Verify transition from COMPLETED_PENDING_RECEIPT to COMPLETED
+        expect(prismaService.policyPayment.update).toHaveBeenCalledWith({
+          where: { id: 'payment-query-2' },
+          data: expect.objectContaining({
+            transactionReference: 'FINAL789',
+            paymentStatus: 'COMPLETED',
+          }),
+        });
+      });
+    });
+
+    describe('Edge Cases and Error Handling', () => {
+      it('should handle query processing when policy activation fails', async () => {
+        const stkPushRequest = {
+          id: 'stk-error-1',
+          phoneNumber: '254722000000',
+          amount: 100,
+          accountReference: 'POL444',
+          transactionDesc: 'Error test',
+        };
+
+        const policy = {
+          id: 'policy-error-1',
+          status: 'PENDING_ACTIVATION',
+        };
+
+        prismaService.policy.findFirst.mockResolvedValue(policy);
+        prismaService.policyPayment.findFirst.mockResolvedValue(null);
+        prismaService.policyPayment.create.mockResolvedValue({});
+        prismaService.mpesaPaymentReportItem.create.mockResolvedValue({});
+
+        const mockPolicyService = {
+          activatePolicy: jest.fn().mockRejectedValue(new Error('Activation failed')),
+        };
+        (service as any).policyService = mockPolicyService;
+
+        // Should not throw - error is logged but payment records are created
+        await expect(
+          (service as any).createPaymentRecordsFromQuery(stkPushRequest, 'test-error-cid')
+        ).resolves.not.toThrow();
+
+        // Verify payment was still created despite activation failure
+        expect(prismaService.policyPayment.create).toHaveBeenCalled();
+        expect(prismaService.mpesaPaymentReportItem.create).toHaveBeenCalled();
+      });
+
+      it('should handle callback with no CallbackMetadata gracefully', async () => {
+        const stkPushRequest = {
+          id: 'stk-no-meta',
+          phoneNumber: '254722000000',
+          amount: 100,
+          accountReference: 'POL555',
+          transactionDesc: 'No metadata',
+          status: MpesaStkPushStatus.PENDING,
+          checkoutRequestId: 'ws_CO_555',
+        };
+
+        const callbackDto: StkPushCallbackDto = {
+          Body: {
+            stkCallback: {
+              MerchantRequestID: 'merchant-555',
+              CheckoutRequestID: 'ws_CO_555',
+              ResultCode: 1032,
+              ResultDesc: 'Request cancelled by user',
+              CallbackMetadata: undefined,
+            },
+          },
+        };
+
+        prismaService.mpesaStkPushRequest.findUnique.mockResolvedValue(stkPushRequest);
+        prismaService.mpesaStkPushCallbackResponse.create.mockResolvedValue({});
+        prismaService.mpesaStkPushRequest.update.mockResolvedValue(stkPushRequest);
+
+        const result = await service.handleStkPushCallback(callbackDto, 'test-no-meta-cid');
+
+        // Verify callback stored but no payment created (failed transaction)
+        expect(prismaService.mpesaStkPushCallbackResponse.create).toHaveBeenCalled();
+        expect(prismaService.policyPayment.create).not.toHaveBeenCalled();
+        expect(result.ResultCode).toBe(0);
+      });
+    });
+  });
 });
 

@@ -389,6 +389,12 @@ enum PaymentType {
   CHEQUE
 }
 
+enum PaymentStatus {
+  PENDING_STK_CALLBACK        // Waiting for STK callback (has PENDING-STK-* reference)
+  COMPLETED_PENDING_RECEIPT   // Query confirmed success, awaiting callback for receipt
+  COMPLETED                   // Has real M-Pesa receipt number
+}
+
 // New enums for Agent Registration module
 enum RegistrationEntityKind {
   CUSTOMER
@@ -429,6 +435,7 @@ enum MpesaStatementReasonType {
 enum MpesaPaymentSource {
   IPN
   STATEMENT
+  QUERY  // From query API (pending real reference)
 }
 
 enum MpesaStkPushStatus {
@@ -775,16 +782,17 @@ model PolicyMemberDependant {
 }
 
 model PolicyPayment {
-  id                   Int         @id @default(autoincrement())
-  policyId             String      @db.Uuid
+  id                   Int           @id @default(autoincrement())
+  policyId             String        @db.Uuid
   paymentType          PaymentType
-  transactionReference String      @unique @db.VarChar(50)
-  amount               Decimal     @db.Decimal(10, 2)
-  accountNumber        String?     @db.VarChar(50)
-  details              String?     @db.VarChar(500)
+  transactionReference String        @unique @db.VarChar(50)
+  amount               Decimal       @db.Decimal(10, 2)
+  accountNumber        String?       @db.VarChar(50)
+  details              String?       @db.VarChar(500)
   expectedPaymentDate  DateTime
   actualPaymentDate    DateTime?
-  paymentMessageBlob   String?     @db.VarChar(500)
+  paymentMessageBlob   String?       @db.VarChar(500)
+  paymentStatus        PaymentStatus @default(PENDING_STK_CALLBACK)
 
   // Relations
   policy                    Policy                    @relation(fields: [policyId], references: [id])

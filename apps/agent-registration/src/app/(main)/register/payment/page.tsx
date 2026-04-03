@@ -909,7 +909,7 @@ export default function PaymentStep() {
               {/* Status message */}
               <div className="text-center space-y-2">
                 <p className="font-semibold text-blue-900">
-                  {wsStatus?.message || 'Processing payment...'}
+                  {wsStatus?.message ?? 'Processing payment...'}
                 </p>
 
                 {/* Connection indicator */}
@@ -927,7 +927,7 @@ export default function PaymentStep() {
 
                 {/* Elapsed time */}
                 <p className="text-xs text-gray-600">
-                  Elapsed: {elapsedTime}s • Status: {wsStatus?.status || 'PENDING'}
+                  Elapsed: {elapsedTime}s • Status: {wsStatus?.status ?? 'PENDING'}
                 </p>
 
                 {/* Instructional text */}
@@ -957,7 +957,7 @@ export default function PaymentStep() {
                 <h3 className="text-xl font-bold text-green-900">
                   Payment Completed Successfully!
                 </h3>
-                <p className="text-green-700">{wsStatus?.message || successMessage}</p>
+                <p className="text-green-700">{wsStatus?.message ?? successMessage}</p>
 
                 {/* Transaction details if available */}
                 {wsStatus?.resultDesc && (
@@ -994,7 +994,7 @@ export default function PaymentStep() {
                 <h3 className="text-xl font-bold text-red-900">
                   {paymentStatus === 'cancelled' ? 'Payment Cancelled' : 'Payment Failed'}
                 </h3>
-                <p className="text-red-700">{error || wsStatus?.message}</p>
+                <p className="text-red-700">{error ?? wsStatus?.message}</p>
               </div>
 
               {/* Action buttons */}
@@ -1026,7 +1026,7 @@ export default function PaymentStep() {
                 <h3 className="text-xl font-bold text-orange-900">
                   Payment Request Expired
                 </h3>
-                <p className="text-orange-700">{error || wsStatus?.message}</p>
+                <p className="text-orange-700">{error ?? wsStatus?.message}</p>
                 <p className="text-sm text-orange-600">
                   The customer did not respond within the allowed time.
                 </p>
