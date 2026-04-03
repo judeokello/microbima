@@ -731,6 +731,7 @@ export class PolicyService {
             details: data.paymentData.details ?? null,
             expectedPaymentDate: data.paymentData.expectedPaymentDate,
             actualPaymentDate: data.paymentData.actualPaymentDate ?? null,
+            paymentStatus: isPlaceholderStk ? 'PENDING_STK_CALLBACK' : 'COMPLETED',
             paymentMessageBlob: data.paymentData.paymentMessageBlob ?? null,
           },
         });

@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsString, IsEmail, IsIn, IsOptional, IsNumber, Min, Max, ValidateNested, ValidateIf } from 'class-validator';
+import { IsString, IsEmail, IsIn, IsOptional, IsNumber, Min, Max, ValidateNested, ValidateIf, Length } from 'class-validator';
 import { Type } from 'class-transformer';
 import { AddressDto } from '../common/address.dto';
 import { IsDateStringFriendly } from '../../decorators/validators/is-date-string-friendly.decorator';
@@ -96,6 +96,7 @@ export class BeneficiaryDto {
   })
   @ValidateIf((o) => o.idType !== undefined && o.idType !== null && o.idType !== '')
   @IsString()
+  @Length(5, 9)
   @IsOptional()
   idNumber?: string;
 

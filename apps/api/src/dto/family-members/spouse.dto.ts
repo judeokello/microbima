@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsString, IsEmail, IsIn, IsOptional, ValidateIf } from 'class-validator';
+import { IsString, IsEmail, IsIn, IsOptional, ValidateIf, Length } from 'class-validator';
 import { IsDateStringFriendly } from '../../decorators/validators/is-date-string-friendly.decorator';
 
 export class SpouseDto {
@@ -80,6 +80,7 @@ export class SpouseDto {
   @ValidateIf((o) => o.idType !== undefined && o.idType !== null && o.idType !== '')
   @IsOptional()
   @IsString()
+  @Length(5, 9)
   idNumber?: string;
 
   @ApiProperty({
