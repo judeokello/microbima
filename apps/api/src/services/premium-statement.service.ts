@@ -89,7 +89,8 @@ export class PremiumStatementService {
   constructor(private readonly prismaService: PrismaService) {}
 
   private resolveLogoPath(): string {
-    return path.join(__dirname, '..', '..', 'assets', 'maishapoalogo-nobg.png');
+    // Compiled output is dist/src/services; assets live next to dist/ under apps/api.
+    return path.join(__dirname, '..', '..', '..', 'assets', 'maishapoalogo-nobg.png');
   }
 
   private warnSentry(reason: string, extra: Record<string, unknown>): void {
