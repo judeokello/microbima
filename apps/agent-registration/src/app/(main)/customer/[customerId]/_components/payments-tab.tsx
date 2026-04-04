@@ -49,6 +49,8 @@ export default function PaymentsTab({ customerId, customerPhone = '' }: Payments
   const [error, setError] = useState<string | null>(null);
   const [filterRanForPolicyId, setFilterRanForPolicyId] = useState<string | null>(null);
   const [requestPaymentOpen, setRequestPaymentOpen] = useState(false);
+  const [generateLoading, setGenerateLoading] = useState(false);
+  const [generateError, setGenerateError] = useState<string | null>(null);
 
   useEffect(() => {
     if (customerId) {
