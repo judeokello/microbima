@@ -42,6 +42,9 @@ importers:
       '@hookform/resolvers':
         specifier: ^3.10.0
         version: 3.10.0(react-hook-form@7.71.2(react@19.2.4))
+      '@microbima/portal-pin':
+        specifier: workspace:^
+        version: link:../../packages/portal-pin
       '@radix-ui/react-dialog':
         specifier: ^1.1.15
         version: 1.1.15(@types/react-dom@18.3.7(@types/react@18.3.28))(@types/react@18.3.28)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
@@ -229,6 +232,9 @@ importers:
       '@microbima/common-config':
         specifier: workspace:^
         version: link:../../packages/common-config
+      '@microbima/portal-pin':
+        specifier: workspace:^
+        version: link:../../packages/portal-pin
       '@nestjs/common':
         specifier: ^11.1.6
         version: 11.1.17(class-transformer@0.5.1)(class-validator@0.14.4)(reflect-metadata@0.1.14)(rxjs@7.8.2)
@@ -449,6 +455,12 @@ importers:
     devDependencies:
       typescript:
         specifier: ^5.3.0
+        version: 5.9.3
+
+  packages/portal-pin:
+    devDependencies:
+      typescript:
+        specifier: ^5.3.3
         version: 5.9.3
 
 packages:

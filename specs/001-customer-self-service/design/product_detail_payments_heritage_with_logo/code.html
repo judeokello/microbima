@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "tertiary": "#1f263a",
+                        "on-secondary-fixed-variant": "#802a00",
+                        "inverse-surface": "#2e3034",
+                        "inverse-primary": "#faabff",
+                        "outline-variant": "#d2c2cf",
+                        "on-tertiary": "#ffffff",
+                        "on-error-container": "#93000a",
+                        "surface-container-low": "#f3f3f7",
+                        "on-tertiary-fixed-variant": "#3f465c",
+                        "on-tertiary-fixed": "#131b2e",
+                        "on-primary": "#ffffff",
+                        "surface-variant": "#e2e2e6",
+                        "surface-container-high": "#e8e8ec",
+                        "tertiary-container": "#343c51",
+                        "outline": "#81737f",
+                        "on-secondary": "#ffffff",
+                        "on-primary-fixed": "#35003f",
+                        "secondary": "#a73a00",
+                        "primary-container": "#631c6e",
+                        "on-primary-fixed-variant": "#6f2879",
+                        "error": "#ba1a1a",
+                        "on-secondary-container": "#5b1c00",
+                        "primary-fixed-dim": "#faabff",
+                        "secondary-fixed-dim": "#ffb59a",
+                        "tertiary-fixed": "#dae2fd",
+                        "on-tertiary-container": "#9fa7c0",
+                        "on-secondary-fixed": "#370e00",
+                        "surface-dim": "#d9dade",
+                        "on-background": "#1a1c1f",
+                        "surface-container-lowest": "#ffffff",
+                        "secondary-container": "#ff6a27",
+                        "primary": "#480054",
+                        "surface-container-highest": "#e2e2e6",
+                        "on-surface-variant": "#4f434e",
+                        "on-surface": "#1a1c1f",
+                        "surface-container": "#ededf1",
+                        "surface": "#f9f9fd",
+                        "on-error": "#ffffff",
+                        "primary-fixed": "#ffd6fd",
+                        "tertiary-fixed-dim": "#bec6e0",
+                        "inverse-on-surface": "#f0f0f4",
+                        "error-container": "#ffdad6",
+                        "surface-tint": "#8a4193",
+                        "secondary-fixed": "#ffdbce",
+                        "background": "#f9f9fd",
+                        "on-primary-container": "#db8ae2",
+                        "surface-bright": "#f9f9fd"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "fontFamily": {
+                        "headline": ["Plus Jakarta Sans"],
+                        "body": ["Inter"],
+                        "label": ["Inter"]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .glass-header {
+            backdrop-filter: blur(12px);
+        }
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+    </style>
+</head>
+<body class="bg-surface font-body text-on-surface">
+<!-- TopNavBar -->
+<nav class="fixed top-0 w-full z-50 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md shadow-sm dark:shadow-none">
+<div class="flex justify-between items-center h-16 px-6 lg:px-12 max-w-full mx-auto">
+<div class="flex items-center gap-8">
+<span class="text-xl font-extrabold tracking-tight text-purple-900 dark:text-purple-200 font-headline flex items-center"><img alt="MaishaPoa Heritage Logo" class="h-10 w-auto object-contain" src="https://lh3.googleusercontent.com/aida/ADBb0uiQS8UJM9jnRxhjIF5JYFEN9riYwwMqxEq6bwreXlUgiCiYFk5hUMxCMvdUWgR-gYFDMfwWGImpl7lipkmPdYbuSlaXbGVe_-ED6Z1WQlmLoYSdK7mTddxWrawJ0ON8dq6k1zX28czjtcQAmb9BJJNDDK7LxvJm29wlgW6JiVsi2ufpMW1ZndDz31fQs4viKnT6aJK0RLOsG3IandsWqXRJVkFWAhUL4sqmvj-rzW7y3QCajHejmCmZE-76J78IWn0yrBH226hSyg"/></span>
+<div class="hidden md:flex gap-6 items-center">
+<a class="text-purple-700 dark:text-purple-400 font-bold border-b-2 border-purple-700 py-5 text-sm font-body" href="#">Products</a>
+<a class="text-slate-600 dark:text-slate-400 hover:text-purple-600 transition-colors text-sm font-body" href="#">Claims</a>
+<a class="text-slate-600 dark:text-slate-400 hover:text-purple-600 transition-colors text-sm font-body" href="#">Support</a>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<button class="material-symbols-outlined p-2 text-on-surface-variant hover:bg-purple-50 rounded-full transition-colors" data-icon="search">search</button>
+<div class="h-8 w-8 rounded-full overflow-hidden border-2 border-primary/20">
+<img alt="User Profile" class="w-full h-full object-cover" data-alt="professional headshot of a smiling customer wearing a business casual outfit in a bright modern office" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDVQBU_zfVNw0iWOP15jgu30ODij5RT0pqVnxIukdyLzFlhg5tdrOZTYm8Ro6sNOdGdQT75SqPnRDIGdtzHSnOWxunIkmj1MNYqNTOxbzGLaAV61gDvDDa7g6KTFMl4-bCPh2fH-MSTxcAtnj_RSbH6fdunOSgcBCuMqvcnhlR1uTZxfzDfgLN7GlIvL9nP-EgGhZda44FyUu0g57WhtBcnYwAcMv0SiGLjvcVM1JWMTR6vGaeDqjDjh-N9iEAzcPvgdLQveDRFjRA"/>
+</div>
+<button class="hidden md:block text-sm font-medium text-purple-900 hover:bg-purple-50 px-4 py-2 rounded-lg transition-colors">Logout</button>
+</div>
+</div>
+</nav>
+<main class="pt-24 pb-16 px-6 lg:px-12 max-w-7xl mx-auto">
+<!-- Breadcrumb & Header Section -->
+<header class="mb-10">
+<div class="flex items-center gap-2 text-on-surface-variant text-sm mb-4">
+<span>My Policies</span>
+<span class="material-symbols-outlined text-xs">chevron_right</span>
+<span class="text-primary font-semibold">Vitality Platinum</span>
+</div>
+<div class="flex flex-col md:flex-row md:items-end justify-between gap-6">
+<div>
+<h1 class="text-4xl md:text-5xl font-extrabold text-primary font-headline tracking-tight mb-2">Heritage Payments</h1>
+<p class="text-on-surface-variant max-w-2xl text-lg">Manage your premium history and track your policy's financial health with real-time transaction updates.</p>
+</div>
+<div class="flex flex-col gap-2">
+<label class="text-xs font-bold uppercase tracking-widest text-on-surface-variant ml-1 font-label">Active Package Plan</label>
+<div class="relative min-w-[280px]">
+<select class="w-full appearance-none bg-surface-container-highest border-none rounded-xl py-4 pl-5 pr-12 text-primary font-semibold focus:ring-2 focus:ring-primary/20 transition-all cursor-pointer">
+<option selected="">Vitality Platinum - Individual</option>
+<option disabled="">Legacy Gold (Inactive)</option>
+<option disabled="">Family Shield (Inactive)</option>
+</select>
+<span class="material-symbols-outlined absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-primary">expand_more</span>
+</div>
+</div>
+</div>
+</header>
+<!-- Product Tab Navigation -->
+<div class="flex gap-8 mb-8 border-b border-outline-variant/30 overflow-x-auto no-scrollbar">
+<button class="pb-4 text-on-surface-variant hover:text-primary transition-colors whitespace-nowrap font-medium">Overview</button>
+<button class="pb-4 text-on-surface-variant hover:text-primary transition-colors whitespace-nowrap font-medium">Benefits</button>
+<button class="pb-4 border-b-2 border-primary text-primary font-bold whitespace-nowrap">Payments</button>
+<button class="pb-4 text-on-surface-variant hover:text-primary transition-colors whitespace-nowrap font-medium">Documents</button>
+<button class="pb-4 text-on-surface-variant hover:text-primary transition-colors whitespace-nowrap font-medium">Nominees</button>
+</div>
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+<!-- Payment Analytics Bento -->
+<div class="lg:col-span-12 grid grid-cols-1 md:grid-cols-3 gap-6 mb-4">
+<div class="bg-primary p-6 rounded-xl text-on-primary shadow-xl shadow-primary/10 relative overflow-hidden">
+<div class="relative z-10">
+<p class="text-primary-fixed/80 text-sm font-medium mb-1">Total Premiums Paid</p>
+<h3 class="text-3xl font-extrabold font-headline">KES 245,000</h3>
+<div class="mt-4 flex items-center gap-2 text-xs bg-white/10 w-fit px-2 py-1 rounded-full">
+<span class="material-symbols-outlined text-sm">trending_up</span>
+<span>On track for anniversary</span>
+</div>
+</div>
+<div class="absolute -right-4 -bottom-4 opacity-10">
+<span class="material-symbols-outlined text-9xl">account_balance_wallet</span>
+</div>
+</div>
+<div class="bg-surface-container-low p-6 rounded-xl border border-outline-variant/10">
+<p class="text-on-surface-variant text-sm font-medium mb-1">Next Payment Due</p>
+<h3 class="text-3xl font-extrabold font-headline text-on-surface">Oct 12, 2024</h3>
+<div class="mt-4 flex items-center gap-2">
+<span class="inline-block w-2 h-2 rounded-full bg-secondary"></span>
+<span class="text-secondary font-bold text-sm">Action Required: KES 12,500</span>
+</div>
+</div>
+<div class="bg-surface-container-low p-6 rounded-xl border border-outline-variant/10">
+<p class="text-on-surface-variant text-sm font-medium mb-1">Policy Status</p>
+<div class="flex items-center gap-3 mt-1">
+<h3 class="text-3xl font-extrabold font-headline text-on-surface">Active</h3>
+<span class="material-symbols-outlined text-green-600 bg-green-50 rounded-full p-1" style="font-variation-settings: 'FILL' 1;">verified</span>
+</div>
+<p class="mt-4 text-sm text-on-surface-variant">Last payment: Sep 12, 2024</p>
+</div>
+</div>
+<!-- Transaction Table -->
+<div class="lg:col-span-12 bg-surface-container-lowest rounded-xl shadow-sm border border-outline-variant/10 overflow-hidden">
+<div class="px-8 py-6 flex justify-between items-center bg-surface-container-low/50 border-b border-outline-variant/10">
+<h2 class="text-xl font-bold font-headline text-primary">Recent Transactions</h2>
+<button class="flex items-center gap-2 text-primary font-semibold hover:bg-primary-container/10 px-4 py-2 rounded-lg transition-colors">
+<span class="material-symbols-outlined text-xl">download</span>
+<span>Export CSV</span>
+</button>
+</div>
+<div class="overflow-x-auto">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="bg-surface-container-low/30">
+<th class="px-8 py-4 text-xs font-bold uppercase text-on-surface-variant tracking-wider font-label">Date</th>
+<th class="px-8 py-4 text-xs font-bold uppercase text-on-surface-variant tracking-wider font-label">Reference ID</th>
+<th class="px-8 py-4 text-xs font-bold uppercase text-on-surface-variant tracking-wider font-label text-right">Amount</th>
+<th class="px-8 py-4 text-xs font-bold uppercase text-on-surface-variant tracking-wider font-label text-center">Status</th>
+<th class="px-8 py-4"></th>
+</tr>
+</thead>
+<tbody class="divide-y divide-outline-variant/10">
+<!-- Entry 1 -->
+<tr class="hover:bg-surface-container-low/50 transition-colors group">
+<td class="px-8 py-5">
+<div class="font-semibold text-on-surface">Sep 12, 2024</div>
+<div class="text-xs text-on-surface-variant">09:42 AM</div>
+</td>
+<td class="px-8 py-5">
+<span class="font-mono text-sm text-on-surface-variant">MP-8829-XL01</span>
+</td>
+<td class="px-8 py-5 text-right">
+<span class="font-bold text-primary font-headline">KES 12,500</span>
+</td>
+<td class="px-8 py-5">
+<div class="flex justify-center">
+<span class="bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1">
+<span class="material-symbols-outlined text-sm" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+                                            Success
+                                        </span>
+</div>
+</td>
+<td class="px-8 py-5 text-right">
+<button class="material-symbols-outlined text-on-surface-variant group-hover:text-primary transition-colors">receipt_long</button>
+</td>
+</tr>
+<!-- Entry 2 -->
+<tr class="hover:bg-surface-container-low/50 transition-colors group">
+<td class="px-8 py-5">
+<div class="font-semibold text-on-surface">Aug 12, 2024</div>
+<div class="text-xs text-on-surface-variant">11:15 AM</div>
+</td>
+<td class="px-8 py-5">
+<span class="font-mono text-sm text-on-surface-variant">MP-7193-ZZ22</span>
+</td>
+<td class="px-8 py-5 text-right">
+<span class="font-bold text-primary font-headline">KES 12,500</span>
+</td>
+<td class="px-8 py-5">
+<div class="flex justify-center">
+<span class="bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1">
+<span class="material-symbols-outlined text-sm" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+                                            Success
+                                        </span>
+</div>
+</td>
+<td class="px-8 py-5 text-right">
+<button class="material-symbols-outlined text-on-surface-variant group-hover:text-primary transition-colors">receipt_long</button>
+</td>
+</tr>
+<!-- Entry 3 -->
+<tr class="hover:bg-surface-container-low/50 transition-colors group">
+<td class="px-8 py-5">
+<div class="font-semibold text-on-surface">Jul 12, 2024</div>
+<div class="text-xs text-on-surface-variant">02:30 PM</div>
+</td>
+<td class="px-8 py-5">
+<span class="font-mono text-sm text-on-surface-variant">MP-6621-AB15</span>
+</td>
+<td class="px-8 py-5 text-right">
+<span class="font-bold text-primary font-headline">KES 12,500</span>
+</td>
+<td class="px-8 py-5">
+<div class="flex justify-center">
+<span class="bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1">
+<span class="material-symbols-outlined text-sm" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+                                            Success
+                                        </span>
+</div>
+</td>
+<td class="px-8 py-5 text-right">
+<button class="material-symbols-outlined text-on-surface-variant group-hover:text-primary transition-colors">receipt_long</button>
+</td>
+</tr>
+<!-- Entry 4 -->
+<tr class="hover:bg-surface-container-low/50 transition-colors group">
+<td class="px-8 py-5">
+<div class="font-semibold text-on-surface">Jun 12, 2024</div>
+<div class="text-xs text-on-surface-variant">10:05 AM</div>
+</td>
+<td class="px-8 py-5">
+<span class="font-mono text-sm text-on-surface-variant">MP-5510-CD99</span>
+</td>
+<td class="px-8 py-5 text-right">
+<span class="font-bold text-primary font-headline">KES 12,500</span>
+</td>
+<td class="px-8 py-5">
+<div class="flex justify-center">
+<span class="bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1">
+<span class="material-symbols-outlined text-sm" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+                                            Success
+                                        </span>
+</div>
+</td>
+<td class="px-8 py-5 text-right">
+<button class="material-symbols-outlined text-on-surface-variant group-hover:text-primary transition-colors">receipt_long</button>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="p-8 border-t border-outline-variant/10 flex justify-between items-center">
+<p class="text-on-surface-variant text-sm">Showing 1 to 4 of 24 transactions</p>
+<div class="flex gap-2">
+<button class="p-2 rounded-lg border border-outline-variant/30 text-on-surface-variant hover:bg-surface-container-low transition-all">
+<span class="material-symbols-outlined">chevron_left</span>
+</button>
+<button class="px-4 py-2 rounded-lg bg-primary text-on-primary font-bold text-sm">1</button>
+<button class="px-4 py-2 rounded-lg border border-outline-variant/30 text-on-surface-variant hover:bg-surface-container-low transition-all text-sm font-bold">2</button>
+<button class="px-4 py-2 rounded-lg border border-outline-variant/30 text-on-surface-variant hover:bg-surface-container-low transition-all text-sm font-bold">3</button>
+<button class="p-2 rounded-lg border border-outline-variant/30 text-on-surface-variant hover:bg-surface-container-low transition-all">
+<span class="material-symbols-outlined">chevron_right</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Promotion / Help Card -->
+<div class="lg:col-span-12 flex flex-col md:flex-row gap-8 mt-4">
+<div class="flex-1 bg-secondary-container/10 p-8 rounded-xl border-l-4 border-secondary flex items-start gap-6">
+<div class="bg-secondary p-3 rounded-xl text-on-secondary shadow-lg shadow-secondary/20">
+<span class="material-symbols-outlined text-3xl">autopay</span>
+</div>
+<div>
+<h4 class="text-xl font-bold font-headline text-on-secondary-container mb-2">Automate Your Premiums</h4>
+<p class="text-on-surface-variant mb-4">Never miss a payment again. Enable auto-debit for your Vitality Platinum plan and get a 2.5% discount on your next renewal.</p>
+<button class="bg-secondary text-on-secondary px-6 py-2 rounded-lg font-bold hover:scale-105 transition-transform">Enable Autopay</button>
+</div>
+</div>
+<div class="md:w-80 bg-tertiary-container/10 p-8 rounded-xl border border-tertiary/10">
+<h4 class="text-lg font-bold font-headline text-on-tertiary-fixed mb-4">Payment Support</h4>
+<ul class="space-y-4">
+<li class="flex items-center gap-3 text-sm font-medium text-on-surface">
+<span class="material-symbols-outlined text-primary text-lg">description</span>
+                            Request Tax Receipt
+                        </li>
+<li class="flex items-center gap-3 text-sm font-medium text-on-surface">
+<span class="material-symbols-outlined text-primary text-lg">credit_card_heart</span>
+                            Change Payment Method
+                        </li>
+<li class="flex items-center gap-3 text-sm font-medium text-on-surface">
+<span class="material-symbols-outlined text-primary text-lg">headset_mic</span>
+                            Billing Dispute
+                        </li>
+</ul>
+</div>
+</div>
+</div>
+</main>
+<!-- Footer -->
+<footer class="bg-slate-50 dark:bg-slate-950 border-t border-slate-200 dark:border-slate-800">
+<div class="flex flex-col md:flex-row justify-between items-center py-8 px-6 lg:px-12 w-full gap-4 max-w-full mx-auto">
+<div class="flex flex-col gap-1">
+<span class="text-lg font-bold text-slate-800 dark:text-slate-200 font-headline">MaishaPoa Heritage</span>
+<p class="text-xs font-normal text-slate-500 dark:text-slate-400 font-inter">© 2024 MaishaPoa Heritage. All rights reserved. Medical Support: 0113569606 | General: 0746907934</p>
+</div>
+<div class="flex gap-6">
+<a class="text-slate-500 hover:text-orange-500 text-xs font-inter transition-all opacity-80 hover:opacity-100" href="#">Privacy Policy</a>
+<a class="text-slate-500 hover:text-orange-500 text-xs font-inter transition-all opacity-80 hover:opacity-100" href="#">Terms of Service</a>
+<a class="text-slate-500 hover:text-orange-500 text-xs font-inter transition-all opacity-80 hover:opacity-100" href="#">Legal Disclaimer</a>
+</div>
+</div>
+</footer>
+</body></html>

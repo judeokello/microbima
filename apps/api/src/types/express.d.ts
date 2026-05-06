@@ -17,6 +17,8 @@ declare global {
       correlationId: string; // Mandatory for all external requests
       userId?: string; // Will be set by auth middleware
       user?: AuthenticatedUser; // Set by Supabase auth middleware for internal API routes
+      /** Supabase JWT `sub` for customer-portal routes (SupabaseCustomerGuard). */
+      customerPortalUserId?: string;
     }
 
     interface Response {
