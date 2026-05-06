@@ -116,6 +116,12 @@ export class MessagingWorker {
           placeholderValues['last_name'] = delivery.customer.lastName ?? '';
           placeholderValues['email'] = delivery.customer.email ?? '';
         }
+        const extra = delivery.enqueuePlaceholderContext as Record<string, unknown> | null | undefined;
+        if (extra && typeof extra === 'object') {
+          for (const [k, v] of Object.entries(extra)) {
+            placeholderValues[k] = v === undefined || v === null ? '' : String(v);
+          }
+        }
 
         const { rendered: renderedBody } = this.placeholderRenderer.render(template.body, placeholderValues);
         let renderedSubject: string | null = null;
