@@ -465,12 +465,10 @@ export async function createCustomer(data: CustomerRegistrationRequest): Promise
     if (!response.ok) {
       const errorData = await response.json()
 
-      // Handle detailed validation errors (each on new line)
+      // Detailed validation errors: show messages only (no "Validation failed" / field keys — page title is "Registration Failed")
       if (errorData.error?.details && typeof errorData.error.details === 'object') {
-        const fieldErrors = Object.entries(errorData.error.details)
-          .map(([field, message]) => `${field}: ${message}`)
-          .join('\n')
-        throw new Error(`Validation failed:\n${fieldErrors}`)
+        const messages = Object.values(errorData.error.details as Record<string, string>).map(String)
+        throw new Error(messages.join('\n'))
       }
 
       throw new Error(errorData.error?.message ?? `HTTP ${response.status}: ${response.statusText}`)

@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Set Your PIN - MaishaPoa Heritage</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&amp;family=Inter:wght@400;500;600&amp;family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+              "primary": "#631C6E",
+              "on-primary": "#ffffff",
+              "primary-container": "#ffd6fe",
+              "on-primary-container": "#2c0034",
+              "secondary": "#705770",
+              "on-secondary": "#ffffff",
+              "secondary-container": "#fbd7f8",
+              "on-secondary-container": "#29152a",
+              "tertiary": "#7e523a",
+              "on-tertiary": "#ffffff",
+              "surface": "#fff7fa",
+              "on-surface": "#201a1f",
+              "surface-variant": "#eddfe9",
+              "on-surface-variant": "#4e444c",
+              "outline": "#80747d",
+              "background": "#fff7fa",
+              "error": "#ba1a1a"
+            },
+            "borderRadius": {
+              "DEFAULT": "0.5rem",
+              "lg": "1rem",
+              "xl": "1.5rem",
+              "full": "9999px"
+            },
+            "fontFamily": {
+              "headline": ["Plus Jakarta Sans"],
+              "body": ["Inter"],
+              "label": ["Inter"]
+            }
+          },
+        }
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .pin-mask {
+            -webkit-text-security: disc;
+        }
+        /* Style adjustments for Heritage theme */
+        .heritage-card {
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(99, 28, 110, 0.1);
+        }
+    </style>
+</head>
+<body class="bg-surface font-body text-on-surface flex flex-col min-h-screen">
+<!-- TopNavBar Component -->
+<header class="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl fixed top-0 w-full z-50 shadow-sm dark:shadow-none">
+<div class="flex justify-between items-center px-6 md:px-12 py-4 max-w-full mx-auto">
+<div class="flex items-center">
+<img alt="MaishaPoa Logo" class="h-10 w-auto object-contain" src="https://lh3.googleusercontent.com/aida/ADBb0uiQS8UJM9jnRxhjIF5JYFEN9riYwwMqxEq6bwreXlUgiCiYFk5hUMxCMvdUWgR-gYFDMfwWGImpl7lipkmPdYbuSlaXbGVe_-ED6Z1WQlmLoYSdK7mTddxWrawJ0ON8dq6k1zX28czjtcQAmb9BJJNDDK7LxvJm29wlgW6JiVsi2ufpMW1ZndDz31fQs4viKnT6aJK0RLOsG3IandsWqXRJVkFWAhUL4sqmvj-rzW7y3QCajHejmCmZE-76J78IWn0yrBH226hSyg"/>
+</div>
+<div class="hidden md:flex items-center space-x-8">
+<a class="text-slate-600 dark:text-slate-400 hover:text-primary transition-colors text-sm font-semibold tracking-tight" href="#">Products</a>
+<a class="text-slate-600 dark:text-slate-400 hover:text-primary transition-colors text-sm font-semibold tracking-tight" href="#">Claims</a>
+<a class="text-slate-600 dark:text-slate-400 hover:text-primary transition-colors text-sm font-semibold tracking-tight" href="#">Support</a>
+</div>
+<div class="flex items-center space-x-4">
+<button class="text-on-surface-variant hover:text-primary transition-all duration-150 flex items-center gap-2">
+<span class="text-sm font-semibold tracking-tight">Logout</span>
+<span class="material-symbols-outlined" data-icon="logout">logout</span>
+</button>
+</div>
+</div>
+</header>
+<!-- Main Content -->
+<main class="flex-grow pt-32 pb-24 px-6 flex flex-col items-center justify-center">
+<!-- Brand Centered Above Card -->
+<div class="flex flex-col items-center mb-10">
+<div class="w-20 h-20 rounded-full bg-primary-container flex items-center justify-center mb-6 shadow-sm">
+<span class="material-symbols-outlined text-primary text-5xl" style="font-variation-settings: 'FILL' 1;">shield_person</span>
+</div>
+<h1 class="font-headline text-4xl font-extrabold tracking-tight text-primary text-center mb-2">Secure Your Heritage</h1>
+<p class="font-body text-on-surface-variant text-center max-w-xs">Protect your medical legacy with a 4-digit security PIN.</p>
+</div>
+<!-- Focus Card -->
+<div class="w-full max-w-md heritage-card p-10 rounded-xl shadow-lg space-y-10">
+<!-- PIN Setup Form -->
+<div class="space-y-8">
+<!-- New PIN Field -->
+<div class="space-y-3 relative">
+<div class="flex justify-between items-center">
+<label class="font-label text-sm font-bold text-on-surface-variant uppercase tracking-wider px-1">New Security PIN</label>
+<span class="text-[10px] uppercase tracking-widest text-primary font-bold flex items-center gap-1">
+<span class="material-symbols-outlined text-sm" style="font-variation-settings: 'FILL' 1;">verified</span>
+                        Match
+                    </span>
+</div>
+<div class="group transition-all">
+<input class="pin-mask w-full bg-white border-2 border-outline/20 rounded-xl py-5 text-center text-3xl tracking-[1.5em] font-bold text-primary focus:ring-4 focus:ring-primary/10 focus:border-primary transition-all placeholder:text-outline/30" maxlength="4" pattern="\d*" placeholder="0000" type="text"/>
+</div>
+<p class="text-[11px] text-on-surface-variant/70 italic px-1">Must be exactly 4 digits</p>
+</div>
+<!-- Confirm PIN Field -->
+<div class="space-y-3 relative">
+<label class="font-label text-sm font-bold text-on-surface-variant uppercase tracking-wider px-1">Confirm Security PIN</label>
+<div class="group transition-all">
+<input class="pin-mask w-full bg-white border-2 border-outline/20 rounded-xl py-5 text-center text-3xl tracking-[1.5em] font-bold text-primary focus:ring-4 focus:ring-primary/10 focus:border-primary transition-all placeholder:text-outline/30" maxlength="4" pattern="\d*" placeholder="0000" type="text"/>
+</div>
+</div>
+</div>
+<!-- Primary Action -->
+<button class="w-full bg-primary text-on-primary font-headline font-bold py-5 rounded-xl shadow-xl hover:bg-primary/90 active:scale-[0.98] transition-all duration-150 text-lg">
+            Complete PIN Setup
+        </button>
+</div>
+<!-- Contextual Security Tip -->
+<div class="mt-10 flex items-start gap-4 p-5 rounded-xl heritage-card border-none max-w-md">
+<span class="material-symbols-outlined text-primary" data-icon="auto_awesome">auto_awesome</span>
+<p class="text-sm text-on-surface-variant leading-relaxed">
+<strong class="text-primary">Heritage Tip:</strong> Choose a PIN that is unique but easy for you to remember. Avoid sequences like 1111 or 1234.
+        </p>
+</div>
+</main>
+<!-- Footer Component -->
+<footer class="bg-slate-50 dark:bg-slate-950 w-full border-t border-slate-200 dark:border-slate-800">
+<div class="flex flex-col md:flex-row justify-between items-center gap-6 w-full py-12 px-6 md:px-12 max-w-7xl mx-auto">
+<div class="flex flex-col items-center md:items-start">
+<span class="font-headline font-bold text-primary text-sm uppercase tracking-widest mb-1">MaishaPoa</span>
+<p class="font-body text-[10px] uppercase tracking-[0.2em] font-medium text-slate-500">
+                © 2024 MaishaPoa. Medical: 0113569606 | General: 0746907934
+            </p>
+</div>
+<div class="flex flex-wrap justify-center gap-8">
+<a class="text-slate-500 dark:text-slate-500 hover:text-orange-600 dark:hover:text-orange-400 transition-colors text-xs uppercase tracking-widest font-medium" href="#">Privacy Policy</a>
+<a class="text-slate-500 dark:text-slate-500 hover:text-orange-600 dark:hover:text-orange-400 transition-colors text-xs uppercase tracking-widest font-medium" href="#">Terms of Service</a>
+<a class="text-slate-500 dark:text-slate-500 hover:text-orange-600 dark:hover:text-orange-400 transition-colors text-xs uppercase tracking-widest font-medium" href="#">Help Center</a>
+<a class="text-slate-500 dark:text-slate-500 hover:text-orange-600 dark:hover:text-orange-400 transition-colors text-xs uppercase tracking-widest font-medium" href="#">Contact Us</a>
+</div>
+</div>
+</footer>
+<!-- Decorative Background Elements for Heritage Theme -->
+<div class="fixed top-0 right-0 -z-10 w-[500px] h-[500px] bg-primary/5 rounded-full blur-[120px]"></div>
+<div class="fixed bottom-0 left-0 -z-10 w-[300px] h-[300px] bg-tertiary/10 rounded-full blur-[100px]"></div>
+</body></html>

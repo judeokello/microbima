@@ -77,6 +77,59 @@ export class SupabaseService {
   /**
    * Create a user using Supabase admin client
    */
+  /**
+   * Provision Supabase Auth for a registered customer: id equals Customer.id, password = registration OTP.
+   * Idempotent if the user already exists with the same id.
+   */
+  async ensureCustomerPortalUser(params: {
+    customerId: string;
+    syntheticEmail: string;
+    otpPassword: string;
+    correlationId: string;
+  }): Promise<{ ok: true } | { ok: false; error: string }> {
+    const { customerId, syntheticEmail, otpPassword, correlationId } = params;
+
+    const { data: existing, error: getErr } = await this.supabase.auth.admin.getUserById(customerId);
+    if (!getErr && existing.user) {
+      this.logger.log(`[${correlationId}] Customer portal user already exists: ${customerId}`);
+      return { ok: true };
+    }
+
+    const { error: createErr } = await this.supabase.auth.admin.createUser({
+      id: customerId,
+      email: syntheticEmail,
+      password: otpPassword,
+      email_confirm: true,
+      user_metadata: { roles: ['customer'] },
+    });
+
+    if (!createErr) {
+      this.logger.log(`[${correlationId}] Customer portal user created: ${customerId}`);
+      return { ok: true };
+    }
+
+    const msg = createErr.message ?? String(createErr);
+    const { data: again } = await this.supabase.auth.admin.getUserById(customerId);
+    if (again.user) {
+      this.logger.log(`[${correlationId}] Customer portal user exists after create race: ${customerId}`);
+      return { ok: true };
+    }
+
+    this.logger.error(`[${correlationId}] ensureCustomerPortalUser failed: ${msg}`);
+    return { ok: false, error: msg };
+  }
+
+  async updateCustomerPortalPassword(
+    customerId: string,
+    newPassword: string,
+  ): Promise<{ ok: true } | { ok: false; error: string }> {
+    const { error } = await this.supabase.auth.admin.updateUserById(customerId, { password: newPassword });
+    if (error) {
+      return { ok: false, error: error.message ?? String(error) };
+    }
+    return { ok: true };
+  }
+
   async createUser(userData: {
     email: string;
     password: string;

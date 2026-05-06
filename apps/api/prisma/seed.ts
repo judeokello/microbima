@@ -200,6 +200,7 @@ async function main() {
 
     // Step 6: Seed messaging routes and templates (customer_created, etc.)
     await executeSqlSeedFile('seed-messaging.sql')
+    await executeSqlSeedFile('seed-customer-portal.sql')
 
     // Step 7: Seed agent registration data (deferred requirements)
     console.log('📝 Seeding agent registration data...')

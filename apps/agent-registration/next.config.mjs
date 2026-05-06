@@ -2,6 +2,7 @@ import { withSentryConfig } from '@sentry/nextjs';
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  transpilePackages: ['@microbima/portal-pin'],
   // Only use standalone output in production builds (not in development)
   // This allows hot reload to work properly in development mode
   ...(process.env.NODE_ENV === 'production' && { output: 'standalone' }),

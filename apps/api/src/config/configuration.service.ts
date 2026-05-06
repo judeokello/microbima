@@ -56,6 +56,9 @@ export interface AppConfig {
     serviceRoleKey: string;
     anonKey: string;
   };
+  customerPortal: {
+    publicBaseUrl: string;
+  };
   messaging: {
     // Email (SMTP - Generic)
     smtpHost: string;
@@ -116,6 +119,12 @@ export class ConfigurationService extends BaseConfigurationService implements On
         url: process.env.SUPABASE_URL ?? '',
         serviceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY ?? '',
         anonKey: process.env.SUPABASE_ANON_KEY ?? '',
+      },
+      customerPortal: {
+        publicBaseUrl: (process.env.PORTAL_PUBLIC_URL ?? process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000').replace(
+          /\/$/,
+          '',
+        ),
       },
       mpesa: {
         consumerKey: process.env.MPESA_CONSUMER_KEY ?? '',
@@ -347,6 +356,10 @@ export class ConfigurationService extends BaseConfigurationService implements On
       stkPushExpirationCheckIntervalMinutes: 2,
       stkPushEnabled: false,
     };
+  }
+
+  get customerPortal() {
+    return this.config?.customerPortal ?? { publicBaseUrl: 'http://localhost:3000' };
   }
 
   get messaging() {

@@ -1,0 +1,167 @@
+<!DOCTYPE html><html class="light" lang="en"><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<title>Login | MaishaPoa Customer Portal</title>
+<link href="https://fonts.googleapis.com" rel="preconnect">
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=Plus+Jakarta+Sans:wght@600;700;800&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "surface-container-high": "#e7e8e9",
+                        "on-primary": "#ffffff",
+                        "on-surface-variant": "#424750",
+                        "primary-fixed": "#f3e8ff",
+                        "tertiary": "#631C6E",
+                        "outline-variant": "#c2c6d1",
+                        "on-secondary": "#ffffff",
+                        "surface-container-highest": "#e1e3e4",
+                        "secondary": "#9333ea",
+                        "on-background": "#191c1d",
+                        "on-error-container": "#93000a",
+                        "secondary-fixed-dim": "#d8b4fe",
+                        "surface-container-low": "#f3f4f5",
+                        "error": "#ba1a1a",
+                        "surface-dim": "#d9dadb",
+                        "inverse-surface": "#2e3132",
+                        "on-primary-container": "#ffffff",
+                        "tertiary-fixed-dim": "#d8b4fe",
+                        "inverse-on-surface": "#f0f1f2",
+                        "surface-container": "#edeeef",
+                        "surface-tint": "#631C6E",
+                        "on-secondary-fixed-variant": "#581c87",
+                        "on-secondary-container": "#3b0764",
+                        "surface": "#f8f9fa",
+                        "on-error": "#ffffff",
+                        "surface-bright": "#f8f9fa",
+                        "error-container": "#ffdad6",
+                        "primary": "#631C6E",
+                        "surface-container-lowest": "#ffffff",
+                        "background": "#f8f9fa",
+                        "on-primary-fixed-variant": "#4c1d95",
+                        "inverse-primary": "#d8b4fe",
+                        "on-surface": "#191c1d",
+                        "secondary-container": "#f3e8ff",
+                        "on-tertiary-fixed": "#2e1065",
+                        "on-tertiary-fixed-variant": "#4c1d95",
+                        "on-tertiary-container": "#2e1065",
+                        "on-primary-fixed": "#2e1065",
+                        "on-secondary-fixed": "#2e1065",
+                        "tertiary-fixed": "#f3e8ff",
+                        "tertiary-container": "#faf5ff",
+                        "primary-fixed-dim": "#d8b4fe",
+                        "secondary-fixed": "#f3e8ff",
+                        "on-tertiary": "#ffffff",
+                        "surface-variant": "#e1e3e4",
+                        "outline": "#727781",
+                        "primary-container": "#631C6E"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.5rem",
+                        "lg": "0.5rem",
+                        "xl": "1rem",
+                        "full": "9999px"
+                    },
+                    "fontFamily": {
+                        "headline": ["Plus Jakarta Sans"],
+                        "body": ["Inter"],
+                        "label": ["Inter"]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .glass-nav {
+            backdrop-filter: blur(24px);
+            -webkit-backdrop-filter: blur(24px);
+        }
+    </style>
+</head>
+<body class="bg-surface font-body text-on-surface min-h-screen flex flex-col">
+<!-- TopNavBar Component -->
+<nav class="fixed top-0 w-full z-50 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl shadow-sm dark:shadow-none">
+<div class="flex justify-between items-center px-6 md:px-12 py-4 max-w-full mx-auto">
+<div class="flex items-center gap-2">
+<img alt="MaishaPoa" class="w-auto object-contain h-12" src="https://lh3.googleusercontent.com/aida/ADBb0uiQS8UJM9jnRxhjIF5JYFEN9riYwwMqxEq6bwreXlUgiCiYFk5hUMxCMvdUWgR-gYFDMfwWGImpl7lipkmPdYbuSlaXbGVe_-ED6Z1WQlmLoYSdK7mTddxWrawJ0ON8dq6k1zX28czjtcQAmb9BJJNDDK7LxvJm29wlgW6JiVsi2ufpMW1ZndDz31fQs4viKnT6aJK0RLOsG3IandsWqXRJVkFWAhUL4sqmvj-rzW7y3QCajHejmCmZE-76J78IWn0yrBH226hSyg" style="">
+</div>
+<div class="hidden md:flex items-center space-x-8">
+<a class="text-purple-700 dark:text-purple-400 border-b-2 border-purple-700 pb-1 font-semibold text-sm tracking-tight" href="#" style="">Products</a>
+<a class="text-slate-600 dark:text-slate-400 hover:text-purple-600 dark:hover:text-purple-300 transition-colors font-semibold text-sm tracking-tight" href="#" style="">Claims</a>
+<a class="text-slate-600 dark:text-slate-400 hover:text-purple-600 dark:hover:text-purple-300 transition-colors font-semibold text-sm tracking-tight" href="#" style="">Support</a>
+</div>
+<div class="flex items-center gap-4">
+<button class="material-symbols-outlined p-2 text-purple-900 dark:text-purple-300 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-all duration-200 active:scale-95 ease-in-out" data-icon="logout" style="">logout</button>
+</div>
+</div>
+</nav>
+<!-- Main Content: Login Screen -->
+<main class="flex-grow flex items-center justify-center pt-24 pb-12 px-6">
+<div class="w-full max-w-md">
+<div class="bg-surface-container-lowest p-8 md:p-10 rounded-xl shadow-[0_32px_64px_-12px_rgba(99,28,110,0.08)] border border-outline-variant/15">
+<header class="mb-10 text-center">
+<div class="inline-flex items-center justify-center w-16 h-16 bg-primary-fixed rounded-full mb-6">
+<span class="material-symbols-outlined text-primary text-3xl" data-icon="lock_person" style="">lock_person</span>
+</div>
+<h1 class="text-3xl font-extrabold font-headline text-primary tracking-tight mb-2" style="">Login to MaishaPoa</h1>
+<p class="text-on-surface-variant text-sm" style="">Access your health and insurance portal</p>
+</header>
+<form class="space-y-6">
+<!-- Phone Number Field -->
+<div class="space-y-1.5">
+<label class="block text-sm font-semibold tracking-tight text-on-surface ml-1" for="phone" style="">Phone number</label>
+<div class="relative group">
+<span class="absolute inset-y-0 left-4 flex items-center text-on-surface-variant group-focus-within:text-primary transition-colors">
+<span class="material-symbols-outlined text-[20px]" data-icon="phone" style="">phone</span>
+</span>
+<input class="w-full pl-12 pr-4 py-3.5 bg-surface-container-low border border-outline-variant/20 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary focus:bg-surface-container-lowest transition-all duration-200 placeholder:text-outline/60" id="phone" name="phone" placeholder="07XX XXX XXX" required="" type="tel">
+</div>
+</div>
+<!-- PIN Field -->
+<div class="space-y-1.5">
+<label class="block text-sm font-semibold tracking-tight text-on-surface ml-1" for="pin" style="">PIN</label>
+<div class="relative group">
+<span class="absolute inset-y-0 left-4 flex items-center text-on-surface-variant group-focus-within:text-primary transition-colors">
+<span class="material-symbols-outlined text-[20px]" data-icon="key" style="">key</span>
+</span>
+<input class="w-full pl-12 pr-4 py-3.5 bg-surface-container-low border border-outline-variant/20 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary focus:bg-surface-container-lowest transition-all duration-200 placeholder:text-outline/60" id="pin" maxlength="4" name="pin" pattern="\d{4}" placeholder="••••" required="" type="password">
+</div>
+</div>
+<!-- Primary Action -->
+<button class="w-full bg-primary text-on-primary font-headline font-bold py-4 rounded-lg shadow-lg shadow-primary/20 hover:brightness-110 active:scale-[0.98] transition-all duration-150 text-lg" type="submit" style="">
+                        Sign In
+                    </button>
+</form>
+<div class="mt-8 pt-8 border-t border-outline-variant/15 text-center">
+<a class="text-sm font-medium text-secondary hover:text-primary transition-colors group" href="#" style=""></a>
+</div>
+</div>
+<!-- Support illustration -->
+<div class="mt-12 opacity-30 flex justify-center">
+<img alt="security-shield" class="h-20 w-auto object-contain grayscale" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAm92oUkgzZWrRe6_ZY0lSAxNsknLo4FiwzM54q5U5n5Fh5qVFRDI_2fXM-3CypoX_bO4iVhkgFdzGKTeDpmXsXbx8wBNtDKadrLf2lYLZG9p1LluW_YQNwBsbFaA4QS7H6LdZBy1CwXQucltyLy-Ss9gdQ13ivR3GCTJQqSBiiL37UXEwgovgj-PVSWFAOsjEE8nGvv4VD66zd3nt32HQ4xGi4HiU6RcIouWJ7WqzObdE5K6jMtalEZRRQO3FVutJGCx28XzoUphQ" style="">
+</div>
+</div>
+</main>
+<!-- Footer Component -->
+<footer class="w-full border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 py-12 px-6 md:px-12">
+<div class="flex flex-col md:flex-row justify-between items-center gap-6 w-full max-w-full mx-auto">
+<div class="flex flex-col space-y-1">
+<p class="font-inter text-xs uppercase tracking-widest font-medium text-slate-500" style="">© 2024 MaishaPoa. Medical: 0113569606 | General: 0746907934</p>
+</div>
+<div class="flex flex-wrap justify-center gap-6 md:gap-12">
+<a class="text-slate-500 dark:text-slate-500 font-inter text-xs uppercase tracking-widest font-medium hover:text-orange-600 dark:hover:text-orange-400 transition-colors opacity-80 hover:opacity-100" href="#" style="">Privacy Policy</a>
+<a class="text-slate-500 dark:text-slate-500 font-inter text-xs uppercase tracking-widest font-medium hover:text-orange-600 dark:hover:text-orange-400 transition-colors opacity-80 hover:opacity-100" href="#" style="">Terms of Service</a>
+<a class="text-slate-500 dark:text-slate-500 font-inter text-xs uppercase tracking-widest font-medium hover:text-orange-600 dark:hover:text-orange-400 transition-colors opacity-80 hover:opacity-100" href="#" style="">Help Center</a>
+<a class="text-slate-500 dark:text-slate-500 font-inter text-xs uppercase tracking-widest font-medium hover:text-orange-600 dark:hover:text-orange-400 transition-colors opacity-80 hover:opacity-100" href="#" style="">Contact Us</a>
+</div>
+</div>
+</footer>
+</body></html>

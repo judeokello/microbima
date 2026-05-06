@@ -57,6 +57,10 @@ import { UpdateBeneficiaryDto } from '../dto/beneficiaries/update-beneficiary.dt
 import { SupabaseService } from './supabase.service';
 import { PaymentAccountNumberService } from './payment-account-number.service';
 import { assertKenyanPhoneForOndemandStk, normalizePhoneNumber } from '../utils/phone-number.util';
+import {
+  buildSyntheticCustomerEmail,
+  generatePortalRegistrationOtp,
+} from '../utils/customer-portal-auth.util';
 import { MessagingService } from '../modules/messaging/messaging.service';
 import * as Sentry from '@sentry/nestjs';
 
@@ -463,12 +467,13 @@ export class CustomerService {
 
       this.logger.log(`[${correlationId}] Customer created successfully: ${customer.id}`);
 
-      // Enqueue welcome/notification message (SMS + Email per route config). Fire-and-forget.
-      this.enqueueCustomerCreatedMessage(createdCustomer, correlationId).catch((err) => {
+      try {
+        await this.provisionPortalAndEnqueueWelcome(createdCustomer, correlationId);
+      } catch (err) {
         this.logger.error(
-          `[${correlationId}] Failed to enqueue customer-created message: ${err instanceof Error ? err.message : String(err)}`
+          `[${correlationId}] Portal provisioning or welcome enqueue failed (customer exists): ${err instanceof Error ? err.message : String(err)}`,
         );
-      });
+      }
 
       // Return response using mapper with dependants and beneficiaries
       return CustomerMapper.toCreatePrincipalMemberResponseDto(
@@ -486,14 +491,52 @@ export class CustomerService {
     }
   }
 
+  private coerceSystemSettingPhone(raw: unknown): string {
+    if (typeof raw === 'string') return raw;
+    if (raw && typeof raw === 'object' && 'raw' in raw && typeof (raw as { raw: unknown }).raw === 'string') {
+      return (raw as { raw: string }).raw;
+    }
+    return '';
+  }
+
+  private async getPortalSupportNumbers(): Promise<{ general: string; medical: string }> {
+    const [genRow, medRow] = await Promise.all([
+      this.prismaService.systemSetting.findUnique({ where: { key: 'general_support_number' } }),
+      this.prismaService.systemSetting.findUnique({ where: { key: 'medical_support_number' } }),
+    ]);
+    return {
+      general: this.coerceSystemSettingPhone(genRow?.value ?? null),
+      medical: this.coerceSystemSettingPhone(medRow?.value ?? null),
+    };
+  }
+
   /**
-   * Enqueue customer-created notification (SMS + Email per route config).
-   * Template key: customer_created. Placeholders: first_name, last_name, email.
+   * Supabase customer portal user + bundled welcome SMS (FR-005a). Skips enqueue if provisioning fails (FR-005).
    */
-  private async enqueueCustomerCreatedMessage(
-    customer: { id: string; firstName: string; lastName: string; email: string | null },
-    correlationId: string
+  private async provisionPortalAndEnqueueWelcome(
+    customer: { id: string; firstName: string; lastName: string; email: string | null; phoneNumber: string },
+    correlationId: string,
   ): Promise<void> {
+    const { email: syntheticEmail } = buildSyntheticCustomerEmail(customer.phoneNumber);
+    const otp = generatePortalRegistrationOtp();
+    const provisioned = await this.supabaseService.ensureCustomerPortalUser({
+      customerId: customer.id,
+      syntheticEmail,
+      otpPassword: otp,
+      correlationId,
+    });
+
+    if (!provisioned.ok) {
+      this.logger.error(
+        `[${correlationId}] Customer portal Auth not provisioned; welcome SMS not enqueued: ${provisioned.error}`,
+      );
+      return;
+    }
+
+    const { general, medical } = await this.getPortalSupportNumbers();
+    const portalBase = this.configService.customerPortal.publicBaseUrl.replace(/\/$/, '');
+    const personalLink = `${portalBase}/self/customer/${customer.id}`;
+
     this.logger.log(`[${correlationId}] Enqueueing customer-created message for customerId=${customer.id}`);
     await this.messagingService.enqueue({
       templateKey: 'customer_created',
@@ -502,6 +545,10 @@ export class CustomerService {
         first_name: customer.firstName,
         last_name: customer.lastName,
         email: customer.email ?? '',
+        otp,
+        customer_specific_weblogin: personalLink,
+        general_support_number: general,
+        medical_support_number: medical,
       },
       correlationId,
     });
