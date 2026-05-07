@@ -109,32 +109,6 @@ export class SupabaseService {
     }
 
     const msg = createErr.message ?? String(createErr);
-
-    // A previous customer with this phone was deleted from Postgres but their Supabase auth
-    // user was never cleaned up (orphaned). The new customer has the same synthetic email but
-    // a different UUID, so createUser fails with "email already registered". Detect this case,
-    // delete the orphaned stale Supabase user, and retry creation with the current UUID.
-    const isEmailTaken = msg.toLowerCase().includes('already been registered') || msg.toLowerCase().includes('already registered');
-    if (isEmailTaken) {
-      const deleted = await this.deleteOrphanedSupabaseUserByEmail(syntheticEmail, correlationId);
-      if (deleted) {
-        const { error: retryErr } = await this.supabase.auth.admin.createUser({
-          id: customerId,
-          email: syntheticEmail,
-          password: otpPassword,
-          email_confirm: true,
-          user_metadata: { roles: ['customer'] },
-        });
-        if (!retryErr) {
-          this.logger.log(`[${correlationId}] Customer portal user created after orphan cleanup: ${customerId}`);
-          return { ok: true };
-        }
-        const retryMsg = retryErr.message ?? String(retryErr);
-        this.logger.error(`[${correlationId}] ensureCustomerPortalUser failed after orphan cleanup: ${retryMsg}`);
-        return { ok: false, error: retryMsg };
-      }
-    }
-
     const { data: again } = await this.supabase.auth.admin.getUserById(customerId);
     if (again.user) {
       this.logger.log(`[${correlationId}] Customer portal user exists after create race: ${customerId}`);
@@ -154,43 +128,6 @@ export class SupabaseService {
       return { ok: false, error: error.message ?? String(error) };
     }
     return { ok: true };
-  }
-
-  /**
-   * Find a Supabase auth user by synthetic email and delete them.
-   * Used to clean up orphaned Supabase users whose Postgres customer record was deleted
-   * but whose auth entry was never removed, causing email conflicts on re-registration.
-   */
-  private async deleteOrphanedSupabaseUserByEmail(email: string, correlationId: string): Promise<boolean> {
-    try {
-      const supabaseUrl = process.env.SUPABASE_URL!;
-      const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-      // The Supabase admin REST API supports email filtering directly.
-      const resp = await fetch(
-        `${supabaseUrl}/auth/v1/admin/users?email=${encodeURIComponent(email)}&page=1&per_page=1`,
-        { headers: { Authorization: `Bearer ${serviceKey}`, apikey: serviceKey } },
-      );
-      if (!resp.ok) {
-        this.logger.warn(`[${correlationId}] Failed to query Supabase users by email (${resp.status})`);
-        return false;
-      }
-      const body = await resp.json() as { users?: Array<{ id: string }> };
-      const orphan = body?.users?.[0];
-      if (!orphan?.id) {
-        this.logger.warn(`[${correlationId}] No orphaned Supabase user found for email: ${email}`);
-        return false;
-      }
-      const { error: delErr } = await this.supabase.auth.admin.deleteUser(orphan.id);
-      if (delErr) {
-        this.logger.error(`[${correlationId}] Failed to delete orphaned Supabase user ${orphan.id}: ${delErr.message}`);
-        return false;
-      }
-      this.logger.warn(`[${correlationId}] Deleted orphaned Supabase user ${orphan.id} (email: ${email})`);
-      return true;
-    } catch (err) {
-      this.logger.error(`[${correlationId}] deleteOrphanedSupabaseUserByEmail threw: ${err instanceof Error ? err.message : String(err)}`);
-      return false;
-    }
   }
 
   async createUser(userData: {
