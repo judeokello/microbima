@@ -45,6 +45,30 @@ export class MessagingOutboxRepository {
   }
 
   /**
+   * Reset deliveries stuck in PROCESSING back to PENDING.
+   *
+   * This guards against pod restarts or crashes mid-tick: if a delivery was
+   * claimed (set to PROCESSING) but the process died before the send completed,
+   * no code path would ever move it out of PROCESSING without this recovery step.
+   * Any delivery that has been in PROCESSING for longer than staleAfterMinutes is
+   * assumed to be orphaned and is returned to the PENDING queue.
+   */
+  async resetStaleProcessingDeliveries(staleAfterMinutes = 10): Promise<number> {
+    const staleThreshold = new Date(Date.now() - staleAfterMinutes * 60 * 1_000);
+    const result = await this.prisma.messagingDelivery.updateMany({
+      where: {
+        status: 'PROCESSING',
+        lastAttemptAt: { lt: staleThreshold },
+      },
+      data: { status: 'PENDING' },
+    });
+    if (result.count > 0) {
+      this.logger.warn(`Recovered ${result.count} stale PROCESSING deliveries → PENDING`);
+    }
+    return result.count;
+  }
+
+  /**
    * Update delivery status and attempt counters.
    */
   async updateDeliveryStatus(deliveryId: string, update: Prisma.MessagingDeliveryUpdateInput) {
