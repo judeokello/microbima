@@ -473,6 +473,14 @@ export class CustomerService {
         this.logger.error(
           `[${correlationId}] Portal provisioning or welcome enqueue failed (customer exists): ${err instanceof Error ? err.message : String(err)}`,
         );
+        Sentry.captureException(err, {
+          tags: {
+            service: 'CustomerService',
+            operation: 'provisionPortalAndEnqueueWelcome',
+            correlationId,
+          },
+          extra: { customerId: createdCustomer.id },
+        });
       }
 
       // Return response using mapper with dependants and beneficiaries
@@ -530,6 +538,15 @@ export class CustomerService {
       this.logger.error(
         `[${correlationId}] Customer portal Auth not provisioned; welcome SMS not enqueued: ${provisioned.error}`,
       );
+      Sentry.captureMessage(`Customer portal provisioning failed: ${provisioned.error}`, {
+        level: 'error',
+        tags: {
+          service: 'CustomerService',
+          operation: 'ensureCustomerPortalUser',
+          correlationId,
+        },
+        extra: { customerId: customer.id },
+      });
       return;
     }
 
