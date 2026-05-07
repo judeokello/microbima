@@ -110,10 +110,6 @@ export default function PortalAuthenticatedLayout({ children }: { children: Reac
       </nav>
 
       <main className="mx-auto max-w-4xl px-4 py-8">{children}</main>
-
-      <footer className="mx-auto max-w-4xl px-4 pb-8 text-center text-sm text-[#4f434e]">
-        <p>Need help? Contact support using the numbers in your welcome message.</p>
-      </footer>
     </div>
   );
 }

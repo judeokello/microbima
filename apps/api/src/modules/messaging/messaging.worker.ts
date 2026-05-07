@@ -49,6 +49,9 @@ export class MessagingWorker {
 
     this.isProcessing = true;
     try {
+      // Recover any deliveries orphaned in PROCESSING by a previous pod restart/crash.
+      await this.outbox.resetStaleProcessingDeliveries();
+
       const settings = await this.systemSettings.getSnapshot();
       const deliveries = await this.outbox.claimEligibleDeliveries(settings.workerBatchSize);
 

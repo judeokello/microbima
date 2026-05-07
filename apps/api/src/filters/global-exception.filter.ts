@@ -7,7 +7,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { Request, Response } from 'express';
-import { SentryExceptionCaptured } from '@sentry/nestjs';
+import * as Sentry from '@sentry/nestjs';
 import { ExternalIntegrationsService } from '../services/external-integrations.service';
 import { ErrorCodes } from '../enums/error-codes.enum';
 import { ValidationException } from '../exceptions/validation.exception';
@@ -30,7 +30,6 @@ export class GlobalExceptionFilter implements ExceptionFilter {
 
   constructor(private readonly externalIntegrationsService: ExternalIntegrationsService) {}
 
-  @SentryExceptionCaptured()
   catch(exception: unknown, host: ArgumentsHost) {
     const ctx = host.switchToHttp();
     const request = ctx.getRequest<Request>();
@@ -83,19 +82,20 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       }
     }
 
-    // Report error to Sentry asynchronously (non-blocking)
-    if (exception instanceof Error) {
+    // Report unexpected server errors (5xx) to Sentry.
+    // 4xx errors are expected client/validation errors and should NOT go to Sentry.
+    if (status >= HttpStatus.INTERNAL_SERVER_ERROR && exception instanceof Error) {
       const sentryContext: Record<string, unknown> = {
         correlationId,
         requestUrl: request.url,
         requestMethod: request.method,
-        userId: request['userId'], // Will be set by auth middleware
+        userId: request['userId'],
         sourcePage: request.headers['x-source-page'] ?? undefined,
       };
-      // Include request body for policy creation errors to aid debugging
       if (request.method === 'POST' && request.url?.includes('/internal/policies')) {
         sentryContext.requestBody = request.body;
       }
+      Sentry.captureException(exception, { extra: sentryContext });
       this.externalIntegrationsService.reportErrorToSentry(exception, sentryContext);
     }
 
