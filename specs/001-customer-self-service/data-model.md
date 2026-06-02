@@ -27,7 +27,7 @@ Confirm encoding with `SystemSettingsService` consumer code before seeding.
 |-----------|--------|
 | `id` | UUID = `Customer.id` |
 | `email` | `{normalizedNationalPhone}@maishapoa.customer` |
-| `encrypted_password` | Initially = hash(OTP); after setup = hash(4-digit PIN) |
+| `encrypted_password` | Initially = hash(OTP); after setup = hash(6-digit PIN) |
 | `user_metadata.roles` | `['customer']` |
 | `user_metadata` (optional) | `InitialPasswordReset` or equivalent boolean mirror |
 

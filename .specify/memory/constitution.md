@@ -54,7 +54,7 @@ Node.js >= 18.0.0, pnpm >= 8.0.0, PostgreSQL database, NestJS 11.x for backend, 
 
 ### VII. Security
 
-OIDC/OAuth2 authentication via **Authentik** for staff and partner-facing contexts. **Customer self-service** at `/self/customer` in the Agent Registration app **MAY** use **Supabase Auth** (JWT to the internal API), including product configuration that allows **four-digit chosen PINs** after first-time setup, without replacing Authentik for those primary flows. API key authentication for partner APIs. Role-based access control. Encrypted data at rest and in transit. These security measures protect sensitive customer and business data.
+OIDC/OAuth2 authentication via **Authentik** for staff and partner-facing contexts. **Customer self-service** at `/self/customer` in the Agent Registration app **MAY** use **Supabase Auth** (JWT to the internal API), including **six-digit chosen PINs** after first-time setup (Supabase minimum password length), without replacing Authentik for those primary flows. API key authentication for partner APIs. Role-based access control. Encrypted data at rest and in transit. These security measures protect sensitive customer and business data.
 
 ### VIII. Monitoring & Observability
 
@@ -71,7 +71,7 @@ Sentry for error tracking. Correlation IDs for request tracing. External instrum
 
 ## Security Requirements
 
-- **Authentication**: OIDC/OAuth2 via Authentik for staff/partner contexts; Supabase Auth for the customer self-service portal (`specs/001-customer-self-service`), with PIN policy set in Supabase for the chosen four-digit member PIN
+- **Authentication**: OIDC/OAuth2 via Authentik for staff/partner contexts; Supabase Auth for the customer self-service portal (`specs/001-customer-self-service`), with PIN policy set in Supabase for the chosen **six-digit** member PIN (minimum password length)
 - **API Security**: API key authentication for partner APIs
 - **Authorization**: Role-based access control (RBAC)
 - **Data Protection**: Encrypted at rest and in transit

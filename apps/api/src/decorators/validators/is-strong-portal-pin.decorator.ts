@@ -6,7 +6,7 @@ import {
 import { WEAK_PORTAL_PIN_MESSAGE, isEasilyGuessablePortalPin } from '@microbima/portal-pin';
 
 /**
- * Chosen customer-portal PIN must be four digits and not an easily guessable pattern (spec FR-019).
+ * Chosen customer-portal PIN must be six digits and not an easily guessable pattern (spec FR-019).
  * Non-matching length/format is left to @Matches on the same field so only one format error is shown.
  */
 export function IsStrongPortalPin(validationOptions?: ValidationOptions) {

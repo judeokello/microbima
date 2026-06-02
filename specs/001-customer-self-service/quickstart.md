@@ -7,7 +7,7 @@
 
 - Monorepo deps installed (`pnpm install`)
 - PostgreSQL + migrations applied (`apps/api` — **no** `db push` on tracked DBs; use Prisma migrate per constitution)
-- Supabase project with **Admin** API key for the API app; configure the project so **four-digit chosen PINs** are allowed after first-time setup (constitution v1.1.0 — customer portal uses **Supabase Auth**)
+- Supabase project with **Admin** API key for the API app; Supabase **minimum password length is 6 characters** — chosen member PIN and registration OTP are both **six digits** (constitution v1.1.0 — customer portal uses **Supabase Auth**)
 - Env vars: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, public anon key for `apps/agent-registration`, and a **portal base URL** for message links (e.g. `NEXT_PUBLIC_PORTAL_ORIGIN` on Next and/or `PORTAL_PUBLIC_URL` on the API — see **T001** env templates when added)
 
 ## Implement + run locally
@@ -25,7 +25,7 @@ Use this as a **fast path** after local bring-up; for evidence against **SC-002�
 1. Create a test customer via the existing API/partner flow.  
 2. Confirm **one** primary welcome (SMS or dev log/outbox) includes **OTP** + personal `/self/customer/:customerId` link + **both** support numbers (**FR-005a**).  
 3. Open **`/self/customer`**, sign in with **`07…`** phone + **OTP** in the **PIN** field.  
-4. Complete **4-digit PIN** setup (with confirmation); then **`refreshSession`** (or equivalent) so status reflects completion.  
+4. Complete **6-digit PIN** setup (with confirmation); then **`refreshSession`** (or equivalent) so status reflects completion.  
 5. Confirm **follow-up** notification (personal link, **no** OTP in copy) and that **OTP** no longer signs in; **chosen PIN** works.  
 6. Open **`/self/customer/:customerId/products/...`** (after list/redirect behaviour exists) and verify tabs; tamper **`customerId` / `productId`** → session rules and generic `/self/customer` without a bad return URL (**FR-011** / **FR-012**).
 
