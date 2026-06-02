@@ -50,7 +50,8 @@ export interface UserMetadata {
 // Role checking utilities
 export const ROLES = {
   BRAND_AMBASSADOR: 'brand_ambassador',
-  REGISTRATION_ADMIN: 'registration_admin'
+  REGISTRATION_ADMIN: 'registration_admin',
+  CUSTOMER: 'customer',
 } as const
 
 export type UserRole = typeof ROLES[keyof typeof ROLES]
@@ -68,6 +69,11 @@ export function hasAnyRole(userMetadata: UserMetadata | null, roles: UserRole[])
 export function hasAllRoles(userMetadata: UserMetadata | null, roles: UserRole[]): boolean {
   if (!userMetadata?.roles) return false
   return roles.every(role => userMetadata.roles.includes(role))
+}
+
+/** Customer self-service portal (Supabase user_metadata.roles includes `customer`). */
+export function isCustomerRole(userMetadata: UserMetadata | null): boolean {
+  return hasRole(userMetadata, ROLES.CUSTOMER as UserRole)
 }
 
 export interface BrandAmbassador {

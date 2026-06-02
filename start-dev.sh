@@ -59,6 +59,15 @@ trap cleanup SIGINT SIGTERM
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$SCRIPT_DIR"
 
+# Workspace libraries (Consumed via dist/ — same as turbo lint's ^build)
+if [ "$API_RUNNING" = false ] || [ "$AGENT_RUNNING" = false ]; then
+    echo "📦 Building workspace libraries (common-config, portal-pin)..."
+    cd "$PROJECT_ROOT"
+    pnpm --filter @microbima/common-config build
+    pnpm --filter @microbima/portal-pin build
+    echo ""
+fi
+
 # Start API server if not already running
 if [ "$API_RUNNING" = false ]; then
     echo "🔧 Starting API server (watch mode enabled)..."

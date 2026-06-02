@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server'
 
 export async function middleware() {
-  // Middleware disabled to prevent redirect loops
-  // Authentication and authorization will be handled in components
+  // Middleware disabled to prevent redirect loops; staff/auth live in route/layout components.
+  // Customer self-service: `/self/customer/**` may add role checks later (spec FR-002) without breaking
+  // existing matcher-driven behaviour.
   return NextResponse.next()
 }
 

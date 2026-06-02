@@ -54,6 +54,8 @@ export class MessagingService {
     const smsRecipient = req.overrideRecipientPhone ?? customer.phoneNumber;
     const emailRecipient = req.overrideRecipientEmail ?? customer.email;
 
+    const enqueuePlaceholderContext = this.serializePlaceholderContext(req.placeholderValues);
+
     if (route.smsEnabled) {
       const smsDelivery = await this.createDelivery({
         channel: 'SMS',
@@ -66,6 +68,7 @@ export class MessagingService {
         missingRecipientReason: smsRecipient ? null : 'Phone number not set for customer',
         maxAttempts: settings.smsMaxAttempts,
         createdAt: now,
+        enqueuePlaceholderContext,
       });
       createdDeliveryIds.push(smsDelivery.id);
     }
@@ -83,6 +86,7 @@ export class MessagingService {
         maxAttempts: settings.emailMaxAttempts,
         createdAt: now,
         dynamicAttachmentSpecs: req.dynamicAttachmentSpecs ?? undefined,
+        enqueuePlaceholderContext,
       });
       createdDeliveryIds.push(emailDelivery.id);
     }
@@ -90,6 +94,17 @@ export class MessagingService {
     this.logger.log(`Enqueued ${createdDeliveryIds.length} deliveries for templateKey=${req.templateKey}, correlationId=${correlationId}`);
 
     return { createdDeliveryIds, correlationId };
+  }
+
+  private serializePlaceholderContext(
+    values: Record<string, string | number | boolean | Date>,
+  ): Record<string, string> {
+    const out: Record<string, string> = {};
+    for (const [k, v] of Object.entries(values)) {
+      if (v instanceof Date) out[k] = v.toISOString();
+      else out[k] = v === undefined || v === null ? '' : String(v);
+    }
+    return out;
   }
 
   /**
@@ -108,6 +123,7 @@ export class MessagingService {
     maxAttempts: number;
     createdAt: Date;
     dynamicAttachmentSpecs?: Array<{ attachmentTemplateId: string; params: Record<string, string> }>;
+    enqueuePlaceholderContext?: Record<string, string> | null;
   }) {
     if (!params.recipient) {
       // T019: Missing recipient → FAILED delivery with failureReason
@@ -125,6 +141,7 @@ export class MessagingService {
           lastError: params.missingRecipientReason!,
           renderedBody: '', // Empty since it never got rendered
           createdAt: params.createdAt,
+          enqueuePlaceholderContext: params.enqueuePlaceholderContext ?? undefined,
         },
       });
     }
@@ -146,6 +163,7 @@ export class MessagingService {
         renderedBody: '', // Will be rendered by worker
         createdAt: params.createdAt,
         dynamicAttachmentSpecs: params.dynamicAttachmentSpecs ?? undefined,
+        enqueuePlaceholderContext: params.enqueuePlaceholderContext ?? undefined,
       },
     });
   }

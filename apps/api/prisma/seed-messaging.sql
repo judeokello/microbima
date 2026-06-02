@@ -22,6 +22,9 @@ SET "smsEnabled"   = EXCLUDED."smsEnabled",
     "updatedAt"    = NOW();
 
 -- ---------- Template: customer_created, SMS, en ----------
+-- FR-005a: single bundled welcome — OTP + personal portal link + both support numbers.
+-- Placeholders: {first_name}, {last_name}, {otp}, {customer_specific_weblogin},
+--               {general_support_number}, {medical_support_number}
 INSERT INTO messaging_templates (
   id,
   "templateKey",
@@ -41,9 +44,53 @@ VALUES (
   'SMS',
   'en',
   NULL,
-  'Hi {first_name} {last_name}, welcome. Your MaishaPoa insurance policy has been activated. We will contact you at {email} if needed.',
+  'Welcome to MaishaPoa, {first_name}! Your one-time PIN is {otp}. Sign in at {customer_specific_weblogin}. General support: {general_support_number}. Medical support: {medical_support_number}.',
   NULL,
-  ARRAY['first_name', 'last_name', 'email'],
+  ARRAY['first_name', 'last_name', 'otp', 'customer_specific_weblogin', 'general_support_number', 'medical_support_number'],
+  true,
+  NOW(),
+  NOW()
+)
+ON CONFLICT ("templateKey", "channel", "language") DO UPDATE
+SET "body"         = EXCLUDED."body",
+    "placeholders" = EXCLUDED."placeholders",
+    "isActive"     = EXCLUDED."isActive",
+    "updatedAt"    = NOW();
+
+-- ---------- Route: portal_pin_setup_complete (SMS only) ----------
+INSERT INTO messaging_routes ("templateKey", "smsEnabled", "emailEnabled", "isActive", "createdAt", "updatedAt")
+VALUES ('portal_pin_setup_complete', true, false, true, NOW(), NOW())
+ON CONFLICT ("templateKey") DO UPDATE
+SET "smsEnabled"   = EXCLUDED."smsEnabled",
+    "emailEnabled" = EXCLUDED."emailEnabled",
+    "isActive"     = EXCLUDED."isActive",
+    "updatedAt"    = NOW();
+
+-- ---------- Template: portal_pin_setup_complete, SMS, en ----------
+-- FR-018 / US3-AC5: follow-up after PIN setup — personal link only, no OTP.
+-- Placeholders: {first_name}, {customer_specific_weblogin}
+INSERT INTO messaging_templates (
+  id,
+  "templateKey",
+  "channel",
+  "language",
+  "subject",
+  "body",
+  "textBody",
+  "placeholders",
+  "isActive",
+  "createdAt",
+  "updatedAt"
+)
+VALUES (
+  gen_random_uuid(),
+  'portal_pin_setup_complete',
+  'SMS',
+  'en',
+  NULL,
+  'Hi {first_name}, your MaishaPoa portal PIN has been set. Sign in anytime at {customer_specific_weblogin}.',
+  NULL,
+  ARRAY['first_name', 'customer_specific_weblogin'],
   true,
   NOW(),
   NOW()
@@ -55,3 +102,48 @@ SET "body"         = EXCLUDED."body",
     "updatedAt"    = NOW();
 
 -- ---------- Add more routes and templates below (same pattern) ----------
+
+-- ---------- Route: portal_legacy_announcement (SMS only) ----------
+-- Pre-notification for legacy cohort before OTP welcome (T042 step 1).
+INSERT INTO messaging_routes ("templateKey", "smsEnabled", "emailEnabled", "isActive", "createdAt", "updatedAt")
+VALUES ('portal_legacy_announcement', true, false, true, NOW(), NOW())
+ON CONFLICT ("templateKey") DO UPDATE
+SET "smsEnabled"   = EXCLUDED."smsEnabled",
+    "emailEnabled" = EXCLUDED."emailEnabled",
+    "isActive"     = EXCLUDED."isActive",
+    "updatedAt"    = NOW();
+
+-- ---------- Template: portal_legacy_announcement, SMS, en ----------
+-- Legacy migration step 1: alert members about the new portal before OTP/login SMS.
+-- Placeholders: {first_name}, {last_name}
+INSERT INTO messaging_templates (
+  id,
+  "templateKey",
+  "channel",
+  "language",
+  "subject",
+  "body",
+  "textBody",
+  "placeholders",
+  "isActive",
+  "createdAt",
+  "updatedAt"
+)
+VALUES (
+  gen_random_uuid(),
+  'portal_legacy_announcement',
+  'SMS',
+  'en',
+  NULL,
+  'Dear {first_name} {last_name}, MaishaPoa now has a website that you can use to view your account details like payments made, pending payments and your hospital access cards. You will receive a message shortly with login details. We appreciate working with you.',
+  NULL,
+  ARRAY['first_name', 'last_name'],
+  true,
+  NOW(),
+  NOW()
+)
+ON CONFLICT ("templateKey", "channel", "language") DO UPDATE
+SET "body"         = EXCLUDED."body",
+    "placeholders" = EXCLUDED."placeholders",
+    "isActive"     = EXCLUDED."isActive",
+    "updatedAt"    = NOW();

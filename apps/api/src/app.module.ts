@@ -55,6 +55,7 @@ import { BootstrapUserService } from './services/bootstrap-user.service';
 import { IpWhitelistGuard } from './guards/ip-whitelist.guard';
 import { RootOnlyGuard } from './guards/root-only.guard';
 import { MessagingModule } from './modules/messaging/messaging.module';
+import { CustomerPortalModule } from './modules/customer-portal/customer-portal.module';
 import { PaymentStatusGateway } from './gateways/payment-status.gateway';
 
 @Module({
@@ -73,6 +74,7 @@ import { PaymentStatusGateway } from './gateways/payment-status.gateway';
     }),
     PrismaModule,
     MessagingModule,
+    CustomerPortalModule,
   ],
   controllers: [AppController, CustomerController, InternalCustomerController, InternalPartnerManagementController, PublicPartnerManagementController, SupabaseTestController, ConnectionMonitorController, SosController, AgentRegistrationController, BootstrapController, ProductManagementController, PolicyController, UnderwriterController, UserController, MpesaPaymentsController, MpesaIpnController, MpesaStkPushController, MpesaStkPushPublicController, RecoveryController, TestCustomersController],
   providers: [AppService, ExternalIntegrationsService, CustomerService, PartnerManagementService, SupabaseService, SosService, AgentRegistrationService, MissingRequirementService, ProductManagementService, PolicyService, UnderwriterService, MpesaPaymentsService, PaymentAccountNumberService, SchemeContactService, PostpaidSchemePaymentService, MpesaIpnService, MpesaStkPushService, MpesaDarajaApiService, MpesaErrorMapperService, TestCustomersService, BootstrapUserService, IpWhitelistGuard, RootOnlyGuard, PaymentStatusGateway, PremiumStatementService],

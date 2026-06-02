@@ -49,6 +49,9 @@ export class MessagingWorker {
 
     this.isProcessing = true;
     try {
+      // Recover any deliveries orphaned in PROCESSING by a previous pod restart/crash.
+      await this.outbox.resetStaleProcessingDeliveries();
+
       const settings = await this.systemSettings.getSnapshot();
       const deliveries = await this.outbox.claimEligibleDeliveries(settings.workerBatchSize);
 
@@ -115,6 +118,12 @@ export class MessagingWorker {
           placeholderValues['first_name'] = delivery.customer.firstName ?? '';
           placeholderValues['last_name'] = delivery.customer.lastName ?? '';
           placeholderValues['email'] = delivery.customer.email ?? '';
+        }
+        const extra = delivery.enqueuePlaceholderContext as Record<string, unknown> | null | undefined;
+        if (extra && typeof extra === 'object') {
+          for (const [k, v] of Object.entries(extra)) {
+            placeholderValues[k] = v === undefined || v === null ? '' : String(v);
+          }
         }
 
         const { rendered: renderedBody } = this.placeholderRenderer.render(template.body, placeholderValues);

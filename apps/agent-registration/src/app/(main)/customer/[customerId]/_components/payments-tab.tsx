@@ -71,6 +71,10 @@ export default function PaymentsTab({ customerId, customerPhone = '' }: Payments
       setPoliciesLoading(true);
       const response = await getCustomerPolicies(customerId);
       setPolicies(response.data);
+      // T038: auto-select when exactly one selectable plan
+      if (response.data.length === 1) {
+        setSelectedPolicyId(response.data[0].id);
+      }
     } catch (err) {
       console.error('Error loading policies:', err);
       // Report error to Sentry
@@ -258,7 +262,7 @@ export default function PaymentsTab({ customerId, customerPhone = '' }: Payments
             <Select
               value={selectedPolicyId}
               onValueChange={setSelectedPolicyId}
-              disabled={policiesLoading}
+              disabled={policiesLoading || policies.length === 1}
             >
               <SelectTrigger id="policy">
                 <SelectValue placeholder="Select policy" />

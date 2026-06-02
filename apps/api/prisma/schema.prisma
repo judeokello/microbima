@@ -142,6 +142,9 @@ model Customer {
   // Messaging relations
   messagingDeliveries MessagingDelivery[]
 
+  /// Set when the member completes first-time 4-digit PIN setup (Supabase password updated). Null = must complete PIN flow.
+  portalPinSetupCompletedAt DateTime?
+
   // Audit fields
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1190,6 +1193,9 @@ model MessagingDelivery {
 
   // Dynamic attachment generation: [{ attachmentTemplateId, params }]. Cleared after PDFs are generated.
   dynamicAttachmentSpecs Json?
+
+  /// Placeholder key/value map from enqueue(); merged at render time with customer defaults (worker).
+  enqueuePlaceholderContext Json?
 
   attachments   MessagingAttachment[]
   providerEvents MessagingProviderEvent[]
