@@ -6,7 +6,7 @@
 
 ## R1 — Initial secret: OTP vs national ID
 
-**Decision**: **Registration OTP** is the **initial Supabase password** for the new Auth user. Member enters it in the field labeled **PIN** until they set a 4-digit PIN; **no ID number** on the portal (FR-009).
+**Decision**: **Registration OTP** is the **initial Supabase password** for the new Auth user. Member enters it in the field labeled **PIN** until they set a **6-digit chosen PIN**; **no ID number** on the portal (FR-009). **Six digits** for both OTP and chosen PIN (Supabase minimum password length, confirmed 2026-04-09).
 
 **Rationale**: Matches clarified spec and SMS-first onboarding; `signInWithPassword` continues to work with synthetic email + OTP; **replacing password** with chosen PIN automatically invalidates OTP for sign-in (FR-008, Session 2026-04-06).
 
@@ -28,11 +28,11 @@
 
 ## R4 — OTP generation and policy (defaults for implementation)
 
-**Decision**: **Numeric OTP** (length **6** unless product prefers 4—**confirm with stakeholders**); **single use** implied by password rotation to the chosen PIN. **OTP expiry**, wrong-attempt **rate limits**, and **resend** flows are **explicitly out of scope** for this iteration per [spec.md](./spec.md) clarifications (Session 2026-04-04); do not implement TTL enforcement, lockout, or self-serve resend unless the spec is updated.
+**Decision**: **Numeric OTP**, length **6** (confirmed with stakeholders 2026-04-09); **single use** implied by password rotation to the chosen PIN. **OTP expiry**, wrong-attempt **rate limits**, and **resend** flows are **explicitly out of scope** for this iteration per [spec.md](./spec.md) clarifications (Session 2026-04-04); do not implement TTL enforcement, lockout, or self-serve resend unless the spec is updated.
 
-**Rationale**: Chosen PIN replaces OTP server-side; optional Supabase project settings may still apply globally but are not a feature deliverable here.
+**Rationale**: Chosen PIN replaces OTP server-side; Supabase minimum password length requires **6 digits** for the chosen PIN as well (2026-04-09).
 
-**Alternatives considered**: 4-digit OTP — possible but smaller search space; prefer **6 for SMS OTP** and **4 for chosen PIN** to distinguish UX.
+**Alternatives considered**: 4-digit OTP or 4-digit chosen PIN — rejected after Supabase password policy constraint; **6 for SMS OTP** and **6 for chosen PIN**.
 
 ## R5 — `system_settings` value shape
 

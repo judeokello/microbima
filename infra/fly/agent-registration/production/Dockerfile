@@ -48,10 +48,13 @@ ENV NEXT_PUBLIC_SENTRY_DSN=${NEXT_PUBLIC_SENTRY_DSN}
 ENV NEXT_PUBLIC_SENTRY_ENVIRONMENT=${NEXT_PUBLIC_SENTRY_ENVIRONMENT}
 ENV NEXT_PUBLIC_SOCKET_API_ORIGIN=${NEXT_PUBLIC_SOCKET_API_ORIGIN}
 
+ENV CI=true
+ENV NEXT_OUTPUT_STANDALONE=true
+
 RUN echo "Build-time environment check:" && \
     echo "NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}" && \
     echo "NEXT_PUBLIC_APP_NAME=${NEXT_PUBLIC_APP_NAME}" && \
-    pnpm build
+    pnpm run build:ci
 
 # Production image, copy all the files and run the app
 FROM base AS runner

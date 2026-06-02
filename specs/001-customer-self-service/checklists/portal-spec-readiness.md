@@ -78,5 +78,5 @@
 ## Stakeholder / ops — resolved *(was optional follow-ups)*
 
 - ~~6-digit registration OTP~~ → **Confirmed** stays **six** decimals.
-- ~~T042 backfill ordering~~ → **Not needed** absent legacy cohort; **deferred** pending real need.
+- ~~T042 backfill ordering~~ → **Legacy cohort applies**; run `apps/api/scripts/backfill-customer-portal-users.ts` manually on staging/production (`LIST_ONLY`, `DRY_RUN`, `LIMIT`, `DELAY_MS`).
 - ~~Support-only forgot PIN / runbooks~~ → **Forgot PIN** remains **support-only for this iteration**; **self-serve recovery** slated for **later feature** — runbooks SHOULD still cite **support path** until that ships.

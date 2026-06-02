@@ -66,7 +66,7 @@ import { PoliciesService, type Policy } from "@microbima/sdk";
 
 * `pnpm sdk:gen` – generate SDK from OpenAPI.
 * `pnpm sdk:build` – build SDK types.
-* `pnpm dev` – run all apps via Turborepo.
+* `pnpm dev:all` – start API + agent registration (see root `package.json`).
 
 ```
 

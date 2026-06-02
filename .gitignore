@@ -29,6 +29,10 @@ lerna-debug.log*
 .api.log
 .agent-registration.log
 
+# Cursor debug instrumentation (local only)
+.cursor/debug.log
+.cursor/debug-*.log
+
 # Runtime data
 pids
 *.pid
