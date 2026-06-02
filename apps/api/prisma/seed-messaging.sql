@@ -102,3 +102,48 @@ SET "body"         = EXCLUDED."body",
     "updatedAt"    = NOW();
 
 -- ---------- Add more routes and templates below (same pattern) ----------
+
+-- ---------- Route: portal_legacy_announcement (SMS only) ----------
+-- Pre-notification for legacy cohort before OTP welcome (T042 step 1).
+INSERT INTO messaging_routes ("templateKey", "smsEnabled", "emailEnabled", "isActive", "createdAt", "updatedAt")
+VALUES ('portal_legacy_announcement', true, false, true, NOW(), NOW())
+ON CONFLICT ("templateKey") DO UPDATE
+SET "smsEnabled"   = EXCLUDED."smsEnabled",
+    "emailEnabled" = EXCLUDED."emailEnabled",
+    "isActive"     = EXCLUDED."isActive",
+    "updatedAt"    = NOW();
+
+-- ---------- Template: portal_legacy_announcement, SMS, en ----------
+-- Legacy migration step 1: alert members about the new portal before OTP/login SMS.
+-- Placeholders: {first_name}, {last_name}
+INSERT INTO messaging_templates (
+  id,
+  "templateKey",
+  "channel",
+  "language",
+  "subject",
+  "body",
+  "textBody",
+  "placeholders",
+  "isActive",
+  "createdAt",
+  "updatedAt"
+)
+VALUES (
+  gen_random_uuid(),
+  'portal_legacy_announcement',
+  'SMS',
+  'en',
+  NULL,
+  'Dear {first_name} {last_name}, MaishaPoa now has a website that you can use to view your account details like payments made, pending payments and your hospital access cards. You will receive a message shortly with login details. We appreciate working with you.',
+  NULL,
+  ARRAY['first_name', 'last_name'],
+  true,
+  NOW(),
+  NOW()
+)
+ON CONFLICT ("templateKey", "channel", "language") DO UPDATE
+SET "body"         = EXCLUDED."body",
+    "placeholders" = EXCLUDED."placeholders",
+    "isActive"     = EXCLUDED."isActive",
+    "updatedAt"    = NOW();

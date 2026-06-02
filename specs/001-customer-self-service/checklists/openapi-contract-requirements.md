@@ -50,4 +50,4 @@
 ## Notes
 
 - Closed after `openapi.yaml` v0.2.0: global `/api` narrative, implemented vs planned tags, Bearer exempt for `me/context`, normative MUST alignment with Nest.
-- **v0.2.1 (2026-04-09):** `pin-complete` documents **FR-019** rejection patterns beside `^[0-9]{4}$` pattern (semantic rules in description + 422 wording).
+- **v0.2.1 (2026-04-09):** `pin-complete` documents **FR-019** rejection patterns beside `^[0-9]{6}$` pattern (semantic rules in description + 422 wording). **Six digits** required by Supabase minimum password length.

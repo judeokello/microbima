@@ -35,7 +35,7 @@
 - [x] T012 [P] Extend `apps/api/src/modules/messaging/messaging.service.ts` (or placeholder resolver) to inject `medical_support_number` / `general_support_number` from `SystemSetting` when building `customer_created` / follow-up payloads
 - [x] T013 Create `apps/api/src/modules/customer-portal/customer-portal.module.ts` with service + controller + guard wiring (path chosen to match eventual OpenAPI)
 - [x] T014 Implement Supabase JWT guard (validate JWT, `sub` UUID, ensure `customer` role in `user_metadata.roles`) in `apps/api/src/modules/customer-portal/guards/supabase-customer.guard.ts`
-- [x] T015 Implement `apps/api/src/modules/customer-portal/customer-portal.service.ts`: `completePinSetup(customerId, pin, pinConfirm)` → validate 4-digit + match → Supabase admin update password → set `portalPinSetupCompletedAt` → enqueue `portal_pin_setup_complete`
+- [x] T015 Implement `apps/api/src/modules/customer-portal/customer-portal.service.ts`: `completePinSetup(customerId, pin, pinConfirm)` → validate 6-digit + match + FR-019 strength → Supabase admin update password → set `portalPinSetupCompletedAt` → enqueue `portal_pin_setup_complete`
 - [x] T016 Implement `POST` pin-complete handler in `apps/api/src/modules/customer-portal/customer-portal.controller.ts` following standardized errors (`status`, `ValidationException`, correlation ID)
 - [x] T017 [P] Implement `GET` login display context (masked national phone per DESIGN.md `07•••••` + last 4, firstName, lastName; **uniform 200 body** for unknown `customerId` per spec/OpenAPI) in `customer-portal.controller.ts` for deep-link screen per FR-001a
 - [x] T018 [P] Implement `GET` portal status (`portalPinSetupCompletedAt` or boolean) for signed-in customer in `customer-portal.controller.ts` to drive PIN gating on Next side
@@ -66,18 +66,18 @@
 
 - [x] T026 [US2] Implement `apps/agent-registration/src/app/self/customer/[customerId]/page.tsx` (pre-auth) fetching display context from T017 endpoint and rendering per `design/deep_link_login_heritage_with_logo/`
 - [x] T027 [US2] Add client sign-in for deep-link flow using same synthetic email mapping + PIN field in `apps/agent-registration/src/app/self/customer/_components/deep-link-login-form.tsx`
-- [x] T028 [US2] Implement post-login mismatch handling: if session user id ≠ route `customerId`, `signOut` and `redirect('/self/customer')` without query return URL in `apps/agent-registration/src/app/self/customer/[customerId]/layout.tsx` or dedicated guard component
+- [x] T028 [US2] Implement post-login mismatch handling: if session user id ≠ route `customerId`, `signOut` and `redirect('/self/customer')` without query return URL in `apps/agent-registration/src/app/self/customer/_components/session-mismatch-guard.tsx` and `(portal)/layout.tsx`
 
 ---
 
 ## Phase 5: User Story 3 — First-time forced PIN (Priority: P1)
 
-**Goal**: After OTP sign-in, block main app until 4-digit PIN + confirm; API updates password + DB flag + follow-up SMS; `refreshSession`.
+**Goal**: After OTP sign-in, block main app until 6-digit PIN + confirm; API updates password + DB flag + follow-up SMS; `refreshSession`.
 
 **Independent Test**: New customer completes PIN; OTP no longer works; follow-up message queued; session shows complete.
 
 - [x] T029 [US3] Implement `apps/agent-registration/src/app/self/customer/[customerId]/setup-pin/page.tsx` (or equivalent route) shown when T018 reports incomplete, referencing `design/pin_setup_heritage_with_logo/`
-- [x] T030 [P] [US3] Build `apps/agent-registration/src/app/self/customer/_components/pin-setup-form.tsx` with two 4-digit inputs, security tip copy, **Complete Setup** CTA, validation UX
+- [x] T030 [P] [US3] Build `apps/agent-registration/src/app/self/customer/_components/pin-setup-form.tsx` with two 6-digit inputs, security tip copy, **Complete Setup** CTA, validation UX (FR-019)
 - [x] T031 [US3] Wire PIN form to T016 API with Bearer from Supabase session; on success call `supabase.auth.refreshSession()` and redirect to `apps/agent-registration/src/app/self/customer/[customerId]/page.tsx` (authed home) in `pin-setup-form.tsx`
 
 ---
@@ -130,7 +130,10 @@
 
 ## Phase 10: Polish & Cross-Cutting
 
-- [ ] T042 [DEFERRED 2026-04-09] Legacy backfill script — **no legacy cohort** today (all customers on national `07…` + portal path). Reopen only if a real migration need appears; then add `apps/api/scripts/backfill-customer-portal-users.ts` (Auth users + `portalPinSetupCompletedAt` + OTP rules per research, documented in script header)
+- [ ] T042 [US7] Legacy backfill — two manual scripts for controlled rollout:
+  - **Step 1** `apps/api/scripts/backfill-customer-portal-announcement.ts` — `portal_legacy_announcement` SMS (context before OTP)
+  - **Step 2** `apps/api/scripts/backfill-customer-portal-users.ts` — Supabase Auth + `customer_created` OTP SMS
+  - Seed template in `apps/api/prisma/seed-messaging.sql`; use `DRY_RUN`, `LIST_ONLY`, `CUSTOMER_IDS`, `LIMIT`, `DELAY_MS` on staging/production
 - [ ] T043 [P] Align `specs/001-customer-self-service/contracts/openapi.yaml` with final Nest paths and schemas after T016–T018 / T033
 - [x] T044 Run `pnpm lint` from repo root `/home/judeokello/Projects/microbima` after TypeScript/JavaScript edits per constitution
 - [ ] T045 Walk through `specs/001-customer-self-service/quickstart.md` smoke flow and update that doc with any prerequisite gaps

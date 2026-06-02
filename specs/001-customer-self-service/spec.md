@@ -35,7 +35,7 @@
 ### Session 2026-04-09 (stakeholder decisions — OTP, legacy cohort, PIN strength, roadmap)
 
 - Q: Confirm **six-digit registration OTP** remains the production rule vs change control → A: **Yes** — OTP length remains **six (6)** decimal digits.
-- Q: **Legacy customer backfill** ([tasks.md](./tasks.md) T042): when relative to rollout? → A: **No legacy cohort applies** — all customers already use **full national `07xxxxxxxx`** onboarding; **T042 deferred** unless a real backfill need appears.
+- Q: **Legacy customer backfill** ([tasks.md](./tasks.md) T042): when relative to rollout? → A: *(Updated 2026-05-30)* **Legacy cohort applies** — customers registered before portal provisioning need manual backfill via `backfill-customer-portal-users.ts` on staging/production.
 - Q: Self-serve **forgot PIN** and support runbooks — → A: **Forgot PIN** remains **out of scope for this iteration**; stakeholder will **design and ship** a portal recovery journey in a **future iteration** ([FR-017] updated). Until then recovery stays **support / ops** only.
 - Q: MUST the product block **guessable** chosen PIN patterns (e.g. `111111`, ascending runs)? → A: **Yes**. Server MUST reject (**[FR-019]**) a chosen PIN if:
 
@@ -153,7 +153,7 @@ When a new customer is registered, the **same** primary **customer-created** not
 ### Edge Cases
 
 - Customer record exists but portal account or OTP issuance fails: operations must be able to detect and retry or reconcile so customers are not permanently without access without manual intervention.
-- **Legacy migration**: As of stakeholder sign-off (**Session 2026-04-09**), **no cohort** exists that predates normalized national phone + portal onboarding; **bulk backfill** ([tasks.md](./tasks.md) T042) stays **closed until** such a cohort is identified.
+- **Legacy migration**: A **legacy cohort** exists (customers registered before portal provisioning). **Step 1:** run `backfill-customer-portal-announcement.ts` to send context SMS. **Step 2:** after a suitable delay, run `backfill-customer-portal-users.ts` for Auth + OTP welcome SMS. Use small batches with `LIMIT` / `DELAY_MS` while monitoring deliveries.
 - **OTP misuse**: dedicated **expiry**, **attempt limits**, and **resend** flows are **out of scope** this iteration (Clarifications, Session 2026-04-04).
 - After first-time PIN replacement completes, the **registration OTP** MUST **no longer** authenticate the member; only the **chosen PIN** works going forward.
 - After first-time PIN replacement completes, the customer’s client must refresh session/state so the forced PIN step does not reappear incorrectly.
@@ -270,7 +270,10 @@ When a new customer is registered, the **same** primary **customer-created** not
 
 ## Legacy / backfill *(CHK020)*
 
-- **Stakeholder posture (Session 2026-04-09):** **No current legacy cohort**; **[tasks.md](./tasks.md) T042** (**backfill script**) is **deferred**. If migration is ever needed, the script MUST still obey **portal-first onboarding** (**no national ID on portal**) and OTP issuance rules documented in script header/runbook — reopen T042 then.
+- **Legacy cohort applies.** Two-step manual migration on staging then production:
+  1. **`backfill-customer-portal-announcement.ts`** — `portal_legacy_announcement` SMS explaining the new website (no OTP).
+  2. **`backfill-customer-portal-users.ts`** — Supabase Auth + `customer_created` welcome SMS with OTP.
+  Use `LIST_ONLY`, `DRY_RUN`, `CUSTOMER_IDS`, `LIMIT`, and `DELAY_MS` to monitor deliveries. Step 2 may set `REQUIRE_ANNOUNCEMENT=1` to enforce step 1 first.
 
 ---
 

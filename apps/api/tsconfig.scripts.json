@@ -4,6 +4,10 @@
     "outDir": "./dist/scripts",
     "rootDir": "scripts"
   },
-  "include": ["scripts/trim-onboarding-text-fields.ts"],
+  "include": [
+    "scripts/trim-onboarding-text-fields.ts",
+    "scripts/backfill-customer-portal-users.ts",
+    "scripts/backfill-customer-portal-announcement.ts"
+  ],
   "exclude": ["node_modules", "dist"]
 }

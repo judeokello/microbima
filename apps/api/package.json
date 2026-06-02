@@ -6,6 +6,7 @@
   "scripts": {
     "postinstall": "prisma generate || (echo 'Warning: Prisma generate failed, will retry in build step' && exit 0)",
     "build": "nest build && pnpm run build:scripts",
+    "build:ci": "nest build && pnpm run build:scripts",
     "build:scripts": "tsc -p tsconfig.scripts.json",
     "build:sentry": "nest build && sentry-cli sourcemaps upload --dist dist --include-sourcemaps dist",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
@@ -32,7 +33,9 @@
     "db:seed:direct": "node -r ts-node/register prisma/seed.ts",
     "db:seed:ts": "ts-node prisma/seed.ts",
     "db:seed:agent": "ts-node prisma/seed-agent-registration.ts",
-    "seed:stk-job-test": "ts-node -r dotenv/config scripts/seed-stk-job-test-data.ts"
+    "seed:stk-job-test": "ts-node -r dotenv/config scripts/seed-stk-job-test-data.ts",
+    "backfill:customer-portal": "ts-node -r dotenv/config scripts/backfill-customer-portal-users.ts",
+    "backfill:customer-portal-announcement": "ts-node -r dotenv/config scripts/backfill-customer-portal-announcement.ts"
   },
   "dependencies": {
     "@microbima/common-config": "workspace:^",

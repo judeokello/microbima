@@ -5,7 +5,7 @@
 
 ## Summary
 
-Deliver a **customer-only** area in `apps/agent-registration` under `/self/customer/**`, styled per **[design/maishapoa_heritage/DESIGN.md](./design/maishapoa_heritage/DESIGN.md)** and Stitch exports (`screen.png` + `code.html` per screen). **Auth**: Supabase; **`auth.users.id` = `customers.id`** (Admin `createUser` with explicit `id`); sign-in uses **`{07…nationalPhone}@maishapoa.customer`** + secret. **First access**: registration **OTP** is the initial Supabase password (member types it in the field labeled **PIN**); after sign-in, **force 4-digit PIN** (see **Secure Your Account** / `pin_setup_*` design) via trusted API; **invalidate OTP** by password update. **Persist** “PIN setup complete” in **application DB** (Prisma) for authoritative server logic; optional **mirror** in `user_metadata` for client UX. **Welcome SMS**: single bundled message—OTP + personal `/self/customer/:customerId` + support numbers from **`system_settings`**. **Follow-up SMS** after PIN setup: personal link only (no OTP). **Reuse** staff customer-detail tab content for self-service product routes; **narrow customer-scoped API** where partner/API-key auth is unsafe; **payments** dropdown auto-select when one plan (agent + self-service). **Security**: URL `customerId`/`productId` must match session; tampering → sign out + `/self/customer` without return URL.
+Deliver a **customer-only** area in `apps/agent-registration` under `/self/customer/**`, styled per **[design/maishapoa_heritage/DESIGN.md](./design/maishapoa_heritage/DESIGN.md)** and Stitch exports (`screen.png` + `code.html` per screen). **Auth**: Supabase; **`auth.users.id` = `customers.id`** (Admin `createUser` with explicit `id`); sign-in uses **`{07…nationalPhone}@maishapoa.customer`** + secret. **First access**: registration **OTP** is the initial Supabase password (member types it in the field labeled **PIN**); after sign-in, **force 6-digit PIN** (see **Secure Your Account** / `pin_setup_*` design) via trusted API; **invalidate OTP** by password update. **Six digits** required by Supabase minimum password length (2026-04-09). **Persist** “PIN setup complete” in **application DB** (Prisma) for authoritative server logic; optional **mirror** in `user_metadata` for client UX. **Welcome SMS**: single bundled message—OTP + personal `/self/customer/:customerId` + support numbers from **`system_settings`**. **Follow-up SMS** after PIN setup: personal link only (no OTP). **Reuse** staff customer-detail tab content for self-service product routes; **narrow customer-scoped API** where partner/API-key auth is unsafe; **payments** dropdown auto-select when one plan (agent + self-service). **Security**: URL `customerId`/`productId` must match session; tampering → sign out + `/self/customer` without return URL.
 
 ## Technical Context
 
@@ -29,7 +29,7 @@ Deliver a **customer-only** area in `apps/agent-registration` under `/self/custo
 | Products list | `design/products_list_heritage_with_logo/` |
 | Product detail (tabs) | `design/product_detail_screen_heritage_style/`, `design/product_detail_details_heritage_with_logo/`, `design/product_detail_payments_heritage_with_logo/` |
 
-**Guidelines**: [design/maishapoa_heritage/DESIGN.md](./design/maishapoa_heritage/DESIGN.md) — palette (primary purple, orange accents), typography (Plus Jakarta Sans + Inter), “no-line” surfaces, gradient CTAs, 4-digit PIN inputs. **Components**: Implement in React per spec (tabs, fields), not by shipping raw Stitch HTML unmodified; use HTML as visual reference only.
+**Guidelines**: [design/maishapoa_heritage/DESIGN.md](./design/maishapoa_heritage/DESIGN.md) — palette (primary purple, orange accents), typography (Plus Jakarta Sans + Inter), “no-line” surfaces, gradient CTAs, 6-digit PIN inputs. **Components**: Implement in React per spec (tabs, fields), not by shipping raw Stitch HTML unmodified; use HTML as visual reference only.
 
 ## Constitution Check
 
@@ -41,7 +41,7 @@ Deliver a **customer-only** area in `apps/agent-registration` under `/self/custo
 | **IV. Code quality** | PASS — Strict TS, `??`, lint after changes. |
 | **V. Workflow** | PASS — Feature branch workflow; PR review. |
 | **VI. Technology** | PASS — Nest 11 / Prisma 6 / TS 5.3 per plan. |
-| **VII. Security** | PASS — **Supabase Auth** for this portal is explicitly allowed under constitution v1.1.0+ for customer self-service; Authentik remains for staff/partner. Configure Supabase password policy for **four-digit chosen PIN** after OTP replacement. |
+| **VII. Security** | PASS — **Supabase Auth** for this portal is explicitly allowed under constitution v1.1.0+ for customer self-service; Authentik remains for staff/partner. Configure Supabase password policy for **six-digit chosen PIN** after OTP replacement (minimum password length). |
 | **VIII. Monitoring** | PASS — Correlation IDs; messaging async where applicable. |
 
 **FR-010 (staff ID updates)**: Implementation MUST **not** introduce hooks that reset portal password when national ID changes after PIN setup. **PR reviewer sign-off** confirms no such code path (or cites a follow-up change).
@@ -143,7 +143,7 @@ See [research.md](./research.md) — resolves OTP/password model, first-time fla
 
 - [ ] `/self/customer` layout: Heritage design tokens; logo asset; footer legal + support lines.  
 - [ ] Generic + deep-link login (Stitch reference).  
-- [ ] PIN setup screen (4+4 digits, security tip, Complete Setup).  
+- [x] PIN setup screen (6+6 digits, security tip, Complete Setup).  
 - [ ] Session + role gate; forced PIN route before main app.  
 - [ ] Products list + redirect; product detail tabs (compose existing components with customer API client).  
 - [ ] `PaymentsTab`: auto-select single package-plan (shared with staff).  
