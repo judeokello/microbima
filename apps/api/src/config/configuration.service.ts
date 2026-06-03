@@ -1,6 +1,7 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { BaseConfigurationService } from '@microbima/common-config';
 import { getDatabaseConfig, validateDatabaseConfig, DatabaseConfig } from './database.config';
+import type { StringValue } from 'ms';
 
 export interface AppConfig {
   environment: string;
@@ -9,7 +10,7 @@ export interface AppConfig {
   database: DatabaseConfig;
   jwt: {
     secret: string;
-    expiresIn: string;
+    expiresIn: StringValue | number;
   };
   cors: {
     origin: string[];
@@ -54,6 +55,9 @@ export interface AppConfig {
     url: string;
     serviceRoleKey: string;
     anonKey: string;
+  };
+  customerPortal: {
+    publicBaseUrl: string;
   };
   messaging: {
     // Email (SMTP - Generic)
@@ -102,7 +106,7 @@ export class ConfigurationService extends BaseConfigurationService implements On
       database: getDatabaseConfig(),
       jwt: {
         secret: process.env.JWT_SECRET ?? this.getDefaultJwtSecret(baseConfig.environment),
-        expiresIn: process.env.JWT_EXPIRES_IN ?? this.getDefaultJwtExpiry(baseConfig.environment),
+        expiresIn: this.resolveJwtExpiry(process.env.JWT_EXPIRES_IN, baseConfig.environment),
       },
       sentry: {
         dsn: process.env.SENTRY_DSN ?? '',
@@ -115,6 +119,12 @@ export class ConfigurationService extends BaseConfigurationService implements On
         url: process.env.SUPABASE_URL ?? '',
         serviceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY ?? '',
         anonKey: process.env.SUPABASE_ANON_KEY ?? '',
+      },
+      customerPortal: {
+        publicBaseUrl: (process.env.PORTAL_PUBLIC_URL ?? process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000').replace(
+          /\/$/,
+          '',
+        ),
       },
       mpesa: {
         consumerKey: process.env.MPESA_CONSUMER_KEY ?? '',
@@ -165,7 +175,7 @@ export class ConfigurationService extends BaseConfigurationService implements On
     return 'dev-secret-key-change-in-production';
   }
 
-  private getDefaultJwtExpiry(env: string): string {
+  private getDefaultJwtExpiry(env: string): StringValue {
     switch (env) {
       case 'production':
         return '15m'; // Short expiry for production security
@@ -174,6 +184,17 @@ export class ConfigurationService extends BaseConfigurationService implements On
       default:
         return '24h'; // Long expiry for development
     }
+  }
+
+  private resolveJwtExpiry(raw: string | undefined, env: string): StringValue | number {
+    const trimmed = raw?.trim();
+    if (!trimmed) {
+      return this.getDefaultJwtExpiry(env);
+    }
+    if (/^\d+$/.test(trimmed)) {
+      return Number(trimmed);
+    }
+    return trimmed as StringValue;
   }
 
   private validateConfiguration(): void {
@@ -335,6 +356,10 @@ export class ConfigurationService extends BaseConfigurationService implements On
       stkPushExpirationCheckIntervalMinutes: 2,
       stkPushEnabled: false,
     };
+  }
+
+  get customerPortal() {
+    return this.config?.customerPortal ?? { publicBaseUrl: 'http://localhost:3000' };
   }
 
   get messaging() {

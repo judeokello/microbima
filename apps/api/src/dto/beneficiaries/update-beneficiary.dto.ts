@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsString, IsOptional, IsEmail, IsDateString, IsIn, IsNumber, Min, Max, ValidateIf } from 'class-validator';
+import { IsString, IsOptional, IsEmail, IsDateString, IsIn, IsNumber, Min, Max, ValidateIf, Length } from 'class-validator';
 
 export class UpdateBeneficiaryDto {
   @ApiProperty({
@@ -85,6 +85,7 @@ export class UpdateBeneficiaryDto {
   @ValidateIf((o) => o.idType !== undefined && o.idType !== null && o.idType !== '')
   @IsOptional()
   @IsString()
+  @Length(5, 9)
   idNumber?: string;
 
   @ApiProperty({

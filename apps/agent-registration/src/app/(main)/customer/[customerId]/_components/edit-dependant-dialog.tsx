@@ -15,6 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Loader2 } from 'lucide-react';
 import { updateDependant, UpdateDependantData } from '@/lib/api';
 import { formatPhoneNumber, getPhoneValidationError } from '@/lib/phone-validation';
+import { getIdNumberValidationError, ID_NUMBER_MAX_LENGTH } from '@/lib/id-number-validation';
 import * as Sentry from '@sentry/nextjs';
 
 interface EditDependantDialogProps {
@@ -140,6 +141,12 @@ export default function EditDependantDialog({
       }
     }
 
+    const dependantIdError = getIdNumberValidationError(formData.idNumber, false);
+    if (dependantIdError) {
+      setError(dependantIdError);
+      return;
+    }
+
     // Determine if this is a spouse or child
     const isSpouse = dependant.relationship === 'SPOUSE' || dependant.relationship === 'spouse';
     const isChild = dependant.relationship === 'CHILD' || dependant.relationship === 'child';
@@ -254,9 +261,13 @@ export default function EditDependantDialog({
     setLoading(true);
 
     try {
+      const trimmedIdNumber = formData.idNumber?.trim() ?? '';
+      const hasIdNumber = trimmedIdNumber.length > 0;
+
       const updateData: UpdateDependantData = {
         ...formData,
-        idType: mapIdTypeToBackend(formData.idType),
+        idType: hasIdNumber ? mapIdTypeToBackend(formData.idType) : undefined,
+        idNumber: hasIdNumber ? trimmedIdNumber : undefined,
       };
 
       await updateDependant(dependant.id, updateData);
@@ -399,6 +410,7 @@ export default function EditDependantDialog({
                 id="idNumber"
                 value={formData.idNumber ?? ''}
                 onChange={(e) => setFormData({ ...formData, idNumber: e.target.value || undefined })}
+                maxLength={ID_NUMBER_MAX_LENGTH}
               />
             </div>
           </div>

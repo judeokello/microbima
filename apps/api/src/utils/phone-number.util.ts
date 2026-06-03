@@ -1,4 +1,5 @@
 import { ValidationException } from '../exceptions/validation.exception';
+import { ErrorCodes } from '../enums/error-codes.enum';
 
 /**
  * Normalizes a phone number to international format (254XXXXXXXXX)
@@ -65,6 +66,28 @@ export function normalizePhoneNumber(phone: string): string {
   throw ValidationException.forField(
     'phoneNumber',
     `Invalid phone number format. Expected 9 digits (XXXXXXXXX) or 12 digits (254XXXXXXXXX), got ${normalized.length} digits`
+  );
+}
+
+/**
+ * Agent-registration mirror: 10 digits starting with 01 or 07, or 12-digit 254[17]… MSISDN.
+ * Call before {@link normalizePhoneNumber} for on-demand STK payloads.
+ */
+export function assertKenyanPhoneForOndemandStk(phone: string): void {
+  if (!phone || typeof phone !== 'string') {
+    throw ValidationException.forField('phoneNumber', 'Phone number is required', ErrorCodes.INVALID_PHONE_NUMBER);
+  }
+  const digits = phone.replace(/\D/g, '');
+  if (/^(01|07)\d{8}$/.test(digits)) {
+    return;
+  }
+  if (/^254[17]\d{8}$/.test(digits)) {
+    return;
+  }
+  throw ValidationException.forField(
+    'phoneNumber',
+    'Phone number must be 10 digits starting with 01 or 07, or a valid 254… MSISDN',
+    ErrorCodes.INVALID_PHONE_NUMBER
   );
 }
 

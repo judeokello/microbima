@@ -1,0 +1,108 @@
+openapi: 3.0.3
+info:
+  title: On-demand STK payment (internal) — draft contract
+  version: 0.1.0
+  description: >
+    Proposed REST additions for FR on-demand payment. Paths and names are subject
+    to alignment with existing `internal/customers` routing. Auth: Bearer (Supabase).
+
+paths:
+  /internal/customers/{customerId}/policies/{policyId}/ondemand-stk:
+    post:
+      summary: Initiate on-demand STK for an existing policy
+      operationId: initiateOndemandStkForPolicy
+      tags: [Customers, M-Pesa]
+      parameters:
+        - name: customerId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: policyId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: x-correlation-id
+          in: header
+          required: false
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OndemandStkRequest'
+      responses:
+        '201':
+          description: STK initiated; same shape as existing initiate response + wsToken
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OndemandStkResponse'
+        '401':
+          description: Unauthorized
+        '404':
+          description: Customer or policy not found / no access
+        '422':
+          description: Validation (postpaid, phone, amount, mode)
+        '503':
+          description: STK disabled
+
+components:
+  schemas:
+    OndemandStkMode:
+      type: string
+      enum: [INSTALLMENTS, CUSTOM]
+
+    OndemandStkRequest:
+      type: object
+      required: [mode, phoneNumber]
+      properties:
+        mode:
+          $ref: '#/components/schemas/OndemandStkMode'
+        installmentCount:
+          type: integer
+          minimum: 1
+          maximum: 5
+          description: Required when mode=INSTALLMENTS
+        customAmountKes:
+          type: number
+          minimum: 1
+          maximum: 70000
+          description: Required when mode=CUSTOM
+        phoneNumber:
+          type: string
+          description: Customer/staff-entered MSISDN; 254… or 01/07 10-digit local rules per FR-008
+
+    OndemandStkResponse:
+      type: object
+      description: Align with StkPushRequestResponseDto
+      properties:
+        id:
+          type: string
+          format: uuid
+        checkoutRequestID:
+          type: string
+        merchantRequestID:
+          type: string
+        status:
+          type: string
+          enum: [PENDING, COMPLETED, FAILED, CANCELLED, EXPIRED]
+        phoneNumber:
+          type: string
+        amount:
+          type: number
+        accountReference:
+          type: string
+        initiatedAt:
+          type: string
+          format: date-time
+        wsToken:
+          type: string
+
+  # GET customer policy detail — response extension (document only; existing path in codebase)
+  # PATCH not used; extend CustomerPolicyDetail JSON with schemeBillingMode: prepaid | postpaid

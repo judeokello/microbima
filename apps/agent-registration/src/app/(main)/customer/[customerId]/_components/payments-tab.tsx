@@ -1,37 +1,43 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Badge } from '@/components/ui/badge';
 import { Loader2 } from 'lucide-react';
 import {
   getCustomerPolicies,
   getCustomerPayments,
   getCustomerPolicyDetail,
+  getPremiumStatement,
   PolicyOption,
   Payment,
   PaymentFilter,
   type CustomerPolicyDetail,
 } from '@/lib/api';
 import * as Sentry from '@sentry/nextjs';
+import RequestPaymentDialog from './request-payment-dialog';
 
-/** Premium period in days per year; used to calculate number of installments. */
-const PREMIUM_DAYS_PER_YEAR = 276;
-
-function numberOfInstallments(paymentCadenceDays: number): number {
+function numberOfInstallments(paymentCadenceDays: number, productDurationDays: number | null): number {
   if (paymentCadenceDays <= 0) return 0;
-  return Math.round(PREMIUM_DAYS_PER_YEAR / paymentCadenceDays);
+  if (productDurationDays == null) return 0;
+  return Math.round(productDurationDays / paymentCadenceDays);
+}
+
+function isConfirmedPayment(p: Payment): boolean {
+  return p.paymentStatus === 'COMPLETED' || p.paymentStatus === 'COMPLETED_PENDING_RECEIPT';
 }
 
 interface PaymentsTabProps {
   customerId: string;
+  customerPhone?: string;
 }
 
-export default function PaymentsTab({ customerId }: PaymentsTabProps) {
+export default function PaymentsTab({ customerId, customerPhone = '' }: PaymentsTabProps) {
   const [policies, setPolicies] = useState<PolicyOption[]>([]);
   const [selectedPolicyId, setSelectedPolicyId] = useState<string>('');
   const [fromDate, setFromDate] = useState<string>('');
@@ -41,6 +47,10 @@ export default function PaymentsTab({ customerId }: PaymentsTabProps) {
   const [loading, setLoading] = useState(false);
   const [policiesLoading, setPoliciesLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [filterRanForPolicyId, setFilterRanForPolicyId] = useState<string | null>(null);
+  const [requestPaymentOpen, setRequestPaymentOpen] = useState(false);
+  const [generateLoading, setGenerateLoading] = useState(false);
+  const [generateError, setGenerateError] = useState<string | null>(null);
 
   useEffect(() => {
     if (customerId) {
@@ -51,6 +61,9 @@ export default function PaymentsTab({ customerId }: PaymentsTabProps) {
 
   useEffect(() => {
     setPolicyDetail(null);
+    setPayments([]);
+    setFilterRanForPolicyId(null);
+    setRequestPaymentOpen(false);
   }, [selectedPolicyId]);
 
   const loadPolicies = async () => {
@@ -58,6 +71,10 @@ export default function PaymentsTab({ customerId }: PaymentsTabProps) {
       setPoliciesLoading(true);
       const response = await getCustomerPolicies(customerId);
       setPolicies(response.data);
+      // T038: auto-select when exactly one selectable plan
+      if (response.data.length === 1) {
+        setSelectedPolicyId(response.data[0].id);
+      }
     } catch (err) {
       console.error('Error loading policies:', err);
       // Report error to Sentry
@@ -87,6 +104,7 @@ export default function PaymentsTab({ customerId }: PaymentsTabProps) {
     try {
       setLoading(true);
       setError(null);
+      setGenerateError(null);
 
       const filters: PaymentFilter = {
         policyId: selectedPolicyId,
@@ -104,6 +122,7 @@ export default function PaymentsTab({ customerId }: PaymentsTabProps) {
 
       setPayments(paymentsRes.data);
       setPolicyDetail(policyDetailRes?.data ?? null);
+      setFilterRanForPolicyId(selectedPolicyId);
     } catch (err) {
       console.error('Error loading payments:', err);
       // Report error to Sentry
@@ -126,10 +145,54 @@ export default function PaymentsTab({ customerId }: PaymentsTabProps) {
       setError(err instanceof Error ? err.message : 'Failed to load payments');
       setPayments([]);
       setPolicyDetail(null);
+      setFilterRanForPolicyId(null);
     } finally {
       setLoading(false);
     }
   };
+
+  const handleGenerateReport = async () => {
+    if (!selectedPolicyId || filterRanForPolicyId !== selectedPolicyId) {
+      setGenerateError('Select a policy and run Filter first.');
+      return;
+    }
+    setGenerateLoading(true);
+    setGenerateError(null);
+    try {
+      const { blob, filename } = await getPremiumStatement(customerId, selectedPolicyId, {
+        fromDate: fromDate || undefined,
+        toDate: toDate || undefined,
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename ?? 'premium-statement.pdf';
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Failed to generate report';
+      setGenerateError(msg);
+      if (err instanceof Error) {
+        Sentry.captureException(err, {
+          tags: { component: 'PaymentsTab', action: 'premium_statement' },
+          extra: { customerId, policyId: selectedPolicyId },
+        });
+      }
+    } finally {
+      setGenerateLoading(false);
+    }
+  };
+
+  const refetchPaymentsForFilter = useCallback(async () => {
+    if (!selectedPolicyId) return;
+    const filters: PaymentFilter = {
+      policyId: selectedPolicyId,
+      fromDate: fromDate || undefined,
+      toDate: toDate || undefined,
+    };
+    const paymentsRes = await getCustomerPayments(customerId, filters);
+    setPayments(paymentsRes.data);
+  }, [customerId, selectedPolicyId, fromDate, toDate]);
 
   const formatDate = (dateString: string) => {
     try {
@@ -171,6 +234,14 @@ export default function PaymentsTab({ customerId }: PaymentsTabProps) {
     return formatCurrency(n);
   };
 
+  const confirmedCount = payments.filter(isConfirmedPayment).length;
+  const canGenerateReport =
+    filterRanForPolicyId === selectedPolicyId &&
+    !!selectedPolicyId &&
+    policyDetail?.schemeBillingMode === 'prepaid' &&
+    policyDetail?.product.productDurationDays != null &&
+    confirmedCount > 0;
+
   return (
     <Card>
       <CardHeader>
@@ -178,6 +249,12 @@ export default function PaymentsTab({ customerId }: PaymentsTabProps) {
         <CardDescription>View payment records for this customer</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
+        {!policiesLoading && policies.length === 0 && (
+          <div className="rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+            No policies are linked to this customer. Contact an administrator if this is unexpected.
+          </div>
+        )}
+
         {/* Filters */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div>
@@ -185,7 +262,7 @@ export default function PaymentsTab({ customerId }: PaymentsTabProps) {
             <Select
               value={selectedPolicyId}
               onValueChange={setSelectedPolicyId}
-              disabled={policiesLoading}
+              disabled={policiesLoading || policies.length === 1}
             >
               <SelectTrigger id="policy">
                 <SelectValue placeholder="Select policy" />
@@ -234,6 +311,79 @@ export default function PaymentsTab({ customerId }: PaymentsTabProps) {
           </div>
         )}
 
+        {filterRanForPolicyId === selectedPolicyId &&
+          !!selectedPolicyId &&
+          !loading &&
+          !policyDetail && (
+            <div className="rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+              Policy details could not be loaded for this selection. Contact an administrator; in-app recovery is not
+              available.
+            </div>
+          )}
+
+        {filterRanForPolicyId === selectedPolicyId && policyDetail?.schemeBillingMode === 'postpaid' && (
+          <div className="rounded-md border bg-muted px-4 py-3 text-sm text-muted-foreground">
+            This policy is <strong>postpaid</strong>. On-demand STK is not available; use your postpaid collection process.
+            Premium statements are not available for postpaid policies in this release.
+          </div>
+        )}
+
+        {generateError && (
+          <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+            {generateError}
+          </div>
+        )}
+
+        {filterRanForPolicyId === selectedPolicyId &&
+          policyDetail?.schemeBillingMode === 'prepaid' &&
+          parseFloat(policyDetail.installmentAmount) > 0 && (
+            <div className="flex flex-wrap items-center gap-2">
+              <Button type="button" variant="secondary" onClick={() => setRequestPaymentOpen(true)}>
+                Request payment
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={!canGenerateReport || generateLoading}
+                onClick={() => void handleGenerateReport()}
+              >
+                {generateLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                Generate report
+              </Button>
+            </div>
+          )}
+
+        {filterRanForPolicyId === selectedPolicyId &&
+          policyDetail?.schemeBillingMode === 'prepaid' &&
+          policyDetail.product.productDurationDays == null && (
+            <div className="rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+              Installment period helper and premium statement need the package <strong>product duration (days)</strong> to be
+              configured. Contact support or ask an admin to set it on the package.
+            </div>
+          )}
+
+        {filterRanForPolicyId === selectedPolicyId &&
+          policyDetail?.schemeBillingMode === 'prepaid' &&
+          policyDetail.product.productDurationDays != null &&
+          confirmedCount === 0 &&
+          payments.length > 0 && (
+            <div className="rounded-md border bg-muted px-4 py-3 text-sm text-muted-foreground">
+              No confirmed payments match this filter. Generate report is available only when at least one payment is
+              confirmed received.
+            </div>
+          )}
+
+        <RequestPaymentDialog
+          open={requestPaymentOpen}
+          onOpenChange={setRequestPaymentOpen}
+          customerId={customerId}
+          policyId={selectedPolicyId}
+          policyFilterKey={selectedPolicyId}
+          policyDetail={policyDetail}
+          defaultPhone={customerPhone}
+          onPaymentsRefresh={refetchPaymentsForFilter}
+        />
+
         {/* Policy summary card – shown when a policy is selected and results are loaded */}
         {policyDetail && (
           <Card>
@@ -255,12 +405,22 @@ export default function PaymentsTab({ customerId }: PaymentsTabProps) {
                 </div>
                 <div>
                   <dt className="text-sm font-medium text-muted-foreground">Category / plan</dt>
-                  <dd className="mt-1 text-sm">{policyDetail.product.planName ?? '—'}</dd>
+                  <dd className="mt-1 text-sm flex flex-wrap items-center gap-2">
+                    <span>{policyDetail.product.planName ?? '—'}</span>
+                    <Badge variant="outline" className="text-xs font-normal shrink-0">
+                      {policyDetail.schemeBillingMode === 'postpaid' ? 'Postpaid' : 'Prepaid'}
+                    </Badge>
+                  </dd>
                 </div>
                 <div>
                   <dt className="text-sm font-medium text-muted-foreground">No. of installments</dt>
                   <dd className="mt-1 text-sm">
-                    {numberOfInstallments(policyDetail.enrollment.paymentCadence)}
+                    {policyDetail.product.productDurationDays == null
+                      ? '— (product duration not configured)'
+                      : numberOfInstallments(
+                          policyDetail.enrollment.paymentCadence,
+                          policyDetail.product.productDurationDays
+                        )}
                   </dd>
                 </div>
                 <div>
@@ -305,6 +465,7 @@ export default function PaymentsTab({ customerId }: PaymentsTabProps) {
                   <TableHead>Payment Type</TableHead>
                   <TableHead>Transaction Reference</TableHead>
                   <TableHead>Account Number</TableHead>
+                  <TableHead>Status</TableHead>
                   <TableHead>Expected Payment Date</TableHead>
                   <TableHead>Actual Payment Date</TableHead>
                   <TableHead className="text-right">Amount</TableHead>
@@ -316,6 +477,7 @@ export default function PaymentsTab({ customerId }: PaymentsTabProps) {
                     <TableCell>{payment.paymentType}</TableCell>
                     <TableCell>{payment.transactionReference}</TableCell>
                     <TableCell>{payment.accountNumber ?? 'N/A'}</TableCell>
+                    <TableCell>{payment.paymentStatus ?? '—'}</TableCell>
                     <TableCell>{formatDate(payment.expectedPaymentDate)}</TableCell>
                     <TableCell>
                       {payment.actualPaymentDate ? formatDate(payment.actualPaymentDate) : 'Pending'}

@@ -62,6 +62,7 @@ interface CustomerFormData {
 // };
 
 import { validatePhoneNumber, formatPhoneNumber } from '@/lib/phone-validation';
+import { getIdNumberValidationError, ID_NUMBER_MAX_LENGTH } from '@/lib/id-number-validation';
 
 // Helper functions
 const toTitleCase = (str: string): string => {
@@ -497,6 +498,12 @@ export default function CustomerStep() {
       return;
     }
 
+    const principalIdError = getIdNumberValidationError(formData.idNumber, true);
+    if (principalIdError) {
+      setError(principalIdError);
+      return;
+    }
+
     // Validate spouse required fields
     for (let i = 0; i < formData.spouses.length; i++) {
       const spouse = formData.spouses[i];
@@ -514,6 +521,12 @@ export default function CustomerStep() {
       }
       if (spouse.phoneNumber && !validatePhoneNumber(spouse.phoneNumber)) {
         setError(`Spouse ${i + 1} phone number must be 10 digits starting with 01 or 07`);
+        return;
+      }
+
+      const spouseIdError = getIdNumberValidationError(spouse.idNumber, false);
+      if (spouseIdError) {
+        setError(`Spouse ${i + 1}: ${spouseIdError}`);
         return;
       }
 
@@ -605,7 +618,7 @@ export default function CustomerStep() {
           email: formData.email ?? undefined,
           phoneNumber: formData.phoneNumber ? formatPhoneNumber(formData.phoneNumber) : undefined,
           idType: mapIdTypeToBackend(formData.idType),
-          idNumber: formData.idNumber,
+          idNumber: formData.idNumber.trim(),
           partnerCustomerId: `BA-${Date.now()}-${Math.random().toString(36).substr(2, 9)}-${Math.floor(Math.random() * 10000)}`,
         },
         product: {
@@ -628,7 +641,7 @@ export default function CustomerStep() {
             return {
               ...baseSpouse,
               idType: mapIdTypeToBackend(spouse.idType),
-              idNumber: spouse.idNumber,
+              idNumber: spouse.idNumber.trim(),
             };
           }
 
@@ -881,7 +894,7 @@ export default function CustomerStep() {
               value={formData.idNumber}
               onChange={(e) => handleInputChange('idNumber', e.target.value)}
               placeholder="Enter ID number"
-              maxLength={10}
+              maxLength={ID_NUMBER_MAX_LENGTH}
             />
           </div>
         </CardContent>
@@ -1053,7 +1066,7 @@ export default function CustomerStep() {
                         value={spouse.idNumber}
                         onChange={(e) => handleSpouseChange(spouseIndex, 'idNumber', e.target.value)}
                         placeholder="Enter spouse ID number"
-                        maxLength={10}
+                        maxLength={ID_NUMBER_MAX_LENGTH}
                       />
                     </div>
                     <Button

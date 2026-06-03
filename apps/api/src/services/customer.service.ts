@@ -1,4 +1,12 @@
-import { Injectable, Logger, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  NotFoundException,
+  BadRequestException,
+  ForbiddenException,
+  ServiceUnavailableException,
+} from '@nestjs/common';
+import { randomUUID } from 'crypto';
 import { ValidationException } from '../exceptions/validation.exception';
 import { ErrorCodes } from '../enums/error-codes.enum';
 import { PrismaService } from '../prisma/prisma.service';
@@ -9,7 +17,7 @@ import { CustomerMapper } from '../mappers/customer.mapper';
 import { CreatePrincipalMemberRequestDto } from '../dto/principal-member/create-principal-member-request.dto';
 import { CreatePrincipalMemberResponseDto } from '../dto/principal-member/create-principal-member-response.dto';
 import { BeneficiaryData } from '../entities/beneficiary.entity';
-import { Gender, IdType, DependantRelationship, PaymentFrequency } from '@prisma/client';
+import { Gender, IdType, DependantRelationship, PaymentFrequency, PaymentStatus } from '@prisma/client';
 import { PrincipalMemberDto } from '../dto/principal-member/principal-member.dto';
 import { AddDependantsRequestDto } from '../dto/dependants/add-dependants-request.dto';
 import { AddDependantsResponseDto } from '../dto/dependants/add-dependants-response.dto';
@@ -27,18 +35,34 @@ import {
   MemberCardsByPolicyItemDto,
   MemberCardDataDto,
 } from '../dto/customers/member-cards.dto';
-import { CustomerPoliciesResponseDto, CustomerPaymentsResponseDto, PolicyOptionDto, PaymentDto } from '../dto/customers/customer-payments-filter.dto';
+import {
+  CustomerPaymentsFilterDto,
+  CustomerPoliciesResponseDto,
+  CustomerPaymentsResponseDto,
+  PolicyOptionDto,
+  PaymentDto,
+} from '../dto/customers/customer-payments-filter.dto';
 import {
   CustomerPolicyListResponseDto,
   CustomerPolicyDetailResponseDto,
 } from '../dto/customers/customer-products.dto';
+import { OndemandStkMode, OndemandStkPaymentDto } from '../dto/customers/ondemand-stk-payment.dto';
+import { InitiateStkPushDto, StkPushRequestResponseDto } from '../dto/mpesa-stk-push/mpesa-stk-push.dto';
+import { MpesaStkPushService } from './mpesa-stk-push.service';
+import { PremiumStatementService } from './premium-statement.service';
+import { ConfigurationService } from '../config/configuration.service';
 import { UpdateCustomerDto } from '../dto/customers/update-customer.dto';
 import { UpdateDependantDto } from '../dto/dependants/update-dependant.dto';
 import { UpdateBeneficiaryDto } from '../dto/beneficiaries/update-beneficiary.dto';
 import { SupabaseService } from './supabase.service';
 import { PaymentAccountNumberService } from './payment-account-number.service';
-import { normalizePhoneNumber } from '../utils/phone-number.util';
+import { assertKenyanPhoneForOndemandStk, normalizePhoneNumber } from '../utils/phone-number.util';
+import {
+  buildSyntheticCustomerEmail,
+  generatePortalRegistrationOtp,
+} from '../utils/customer-portal-auth.util';
 import { MessagingService } from '../modules/messaging/messaging.service';
+import * as Sentry from '@sentry/nestjs';
 
 /**
  * Customer Service
@@ -76,6 +100,9 @@ export class CustomerService {
     private readonly supabaseService: SupabaseService,
     private readonly paymentAccountNumberService: PaymentAccountNumberService,
     private readonly messagingService: MessagingService,
+    private readonly mpesaStkPushService: MpesaStkPushService,
+    private readonly configService: ConfigurationService,
+    private readonly premiumStatementService: PremiumStatementService,
   ) {}
 
   /**
@@ -440,12 +467,21 @@ export class CustomerService {
 
       this.logger.log(`[${correlationId}] Customer created successfully: ${customer.id}`);
 
-      // Enqueue welcome/notification message (SMS + Email per route config). Fire-and-forget.
-      this.enqueueCustomerCreatedMessage(createdCustomer, correlationId).catch((err) => {
+      try {
+        await this.provisionPortalAndEnqueueWelcome(createdCustomer, correlationId);
+      } catch (err) {
         this.logger.error(
-          `[${correlationId}] Failed to enqueue customer-created message: ${err instanceof Error ? err.message : String(err)}`
+          `[${correlationId}] Portal provisioning or welcome enqueue failed (customer exists): ${err instanceof Error ? err.message : String(err)}`,
         );
-      });
+        Sentry.captureException(err, {
+          tags: {
+            service: 'CustomerService',
+            operation: 'provisionPortalAndEnqueueWelcome',
+            correlationId,
+          },
+          extra: { customerId: createdCustomer.id },
+        });
+      }
 
       // Return response using mapper with dependants and beneficiaries
       return CustomerMapper.toCreatePrincipalMemberResponseDto(
@@ -463,14 +499,61 @@ export class CustomerService {
     }
   }
 
+  private coerceSystemSettingPhone(raw: unknown): string {
+    if (typeof raw === 'string') return raw;
+    if (raw && typeof raw === 'object' && 'raw' in raw && typeof (raw as { raw: unknown }).raw === 'string') {
+      return (raw as { raw: string }).raw;
+    }
+    return '';
+  }
+
+  private async getPortalSupportNumbers(): Promise<{ general: string; medical: string }> {
+    const [genRow, medRow] = await Promise.all([
+      this.prismaService.systemSetting.findUnique({ where: { key: 'general_support_number' } }),
+      this.prismaService.systemSetting.findUnique({ where: { key: 'medical_support_number' } }),
+    ]);
+    return {
+      general: this.coerceSystemSettingPhone(genRow?.value ?? null),
+      medical: this.coerceSystemSettingPhone(medRow?.value ?? null),
+    };
+  }
+
   /**
-   * Enqueue customer-created notification (SMS + Email per route config).
-   * Template key: customer_created. Placeholders: first_name, last_name, email.
+   * Supabase customer portal user + bundled welcome SMS (FR-005a). Skips enqueue if provisioning fails (FR-005).
    */
-  private async enqueueCustomerCreatedMessage(
-    customer: { id: string; firstName: string; lastName: string; email: string | null },
-    correlationId: string
+  private async provisionPortalAndEnqueueWelcome(
+    customer: { id: string; firstName: string; lastName: string; email: string | null; phoneNumber: string },
+    correlationId: string,
   ): Promise<void> {
+    const { email: syntheticEmail } = buildSyntheticCustomerEmail(customer.phoneNumber);
+    const otp = generatePortalRegistrationOtp();
+    const provisioned = await this.supabaseService.ensureCustomerPortalUser({
+      customerId: customer.id,
+      syntheticEmail,
+      otpPassword: otp,
+      correlationId,
+    });
+
+    if (!provisioned.ok) {
+      this.logger.error(
+        `[${correlationId}] Customer portal Auth not provisioned; welcome SMS not enqueued: ${provisioned.error}`,
+      );
+      Sentry.captureMessage(`Customer portal provisioning failed: ${provisioned.error}`, {
+        level: 'error',
+        tags: {
+          service: 'CustomerService',
+          operation: 'ensureCustomerPortalUser',
+          correlationId,
+        },
+        extra: { customerId: customer.id },
+      });
+      return;
+    }
+
+    const { general, medical } = await this.getPortalSupportNumbers();
+    const portalBase = this.configService.customerPortal.publicBaseUrl.replace(/\/$/, '');
+    const personalLink = `${portalBase}/self/customer/${customer.id}`;
+
     this.logger.log(`[${correlationId}] Enqueueing customer-created message for customerId=${customer.id}`);
     await this.messagingService.enqueue({
       templateKey: 'customer_created',
@@ -479,6 +562,10 @@ export class CustomerService {
         first_name: customer.firstName,
         last_name: customer.lastName,
         email: customer.email ?? '',
+        otp,
+        customer_specific_weblogin: personalLink,
+        general_support_number: general,
+        medical_support_number: medical,
       },
       correlationId,
     });
@@ -2469,6 +2556,7 @@ export class CustomerService {
           select: {
             name: true,
             totalPremium: true,
+            productDurationDays: true,
             underwriter: { select: { name: true } },
           },
         },
@@ -2478,6 +2566,7 @@ export class CustomerService {
             expectedPaymentDate: true,
             actualPaymentDate: true,
             amount: true,
+            paymentStatus: true,
           },
         },
       },
@@ -2494,18 +2583,44 @@ export class CustomerService {
       },
       include: {
         packageScheme: {
-          include: { scheme: { select: { schemeName: true } } },
+          include: { scheme: { select: { schemeName: true, isPostpaid: true } } },
         },
       },
     });
     const schemeName = schemeCustomer?.packageScheme?.scheme?.schemeName ?? '—';
     const packageSchemeId = schemeCustomer?.packageSchemeId ?? null;
-    const paidPayments = policy.policyPayments.filter((pm) => pm.actualPaymentDate != null);
+    const isPostpaid = schemeCustomer?.packageScheme?.scheme?.isPostpaid === true;
+    const schemeBillingMode: 'prepaid' | 'postpaid' = isPostpaid ? 'postpaid' : 'prepaid';
+    const premiumNum = Number(policy.premium);
+    if (schemeCustomer != null && !isPostpaid && premiumNum === 0) {
+      Sentry.captureMessage(
+        'Policy premium is zero for prepaid customer when loading policy detail (data anomaly; on-demand installment path unavailable)',
+        {
+          level: 'warning',
+          tags: {
+            feature: 'ondemand_payment_request',
+            reason: 'zero_premium_prepaid_policy_detail_fetch',
+          },
+          extra: {
+            customerId,
+            policyId,
+            correlationId,
+            packageId: policy.packageId,
+          },
+        }
+      );
+    }
+    const confirmedStatuses: PaymentStatus[] = [
+      PaymentStatus.COMPLETED,
+      PaymentStatus.COMPLETED_PENDING_RECEIPT,
+    ];
     const now = new Date();
     const missedPayments = policy.policyPayments.filter(
       (pm) => pm.expectedPaymentDate < now && pm.actualPaymentDate == null
     ).length;
-    const totalPaid = paidPayments.reduce((sum, pm) => sum + Number(pm.amount), 0);
+    const totalPaid = policy.policyPayments
+      .filter((pm) => confirmedStatuses.includes(pm.paymentStatus))
+      .reduce((sum, pm) => sum + Number(pm.amount), 0);
 
     return {
       status: 200,
@@ -2523,6 +2638,7 @@ export class CustomerService {
           planName: policy.packagePlan?.name ?? null,
           schemeName,
           productName: policy.productName,
+          productDurationDays: policy.package.productDurationDays ?? null,
         },
         enrollment: {
           startDate: policy.startDate?.toISOString() ?? null,
@@ -2533,10 +2649,164 @@ export class CustomerService {
         totalPremium: policy.package.totalPremium != null ? policy.package.totalPremium.toString() : '—',
         installmentAmount: policy.premium.toString(),
         totalPaidToDate: totalPaid.toFixed(2),
-        installmentsPaid: paidPayments.length,
+        installmentsPaid: policy.policyPayments.filter((pm) => confirmedStatuses.includes(pm.paymentStatus))
+          .length,
         missedPayments,
+        schemeBillingMode,
       },
     };
+  }
+
+  /**
+   * On-demand STK for an existing prepaid policy (placeholder policy_payment + Daraja STK).
+   */
+  async initiateCustomerOndemandStk(
+    customerId: string,
+    policyId: string,
+    dto: OndemandStkPaymentDto,
+    userId: string,
+    userRoles: string[],
+    correlationId: string
+  ): Promise<StkPushRequestResponseDto> {
+    this.logger.log(`[${correlationId}] On-demand STK: customer=${customerId} policy=${policyId} mode=${dto.mode}`);
+    if (!this.configService.mpesa.stkPushEnabled) {
+      throw new ServiceUnavailableException('M-Pesa STK push is currently disabled.');
+    }
+
+    const canAccess = await this.canUserAccessCustomer(customerId, userId, userRoles);
+    if (!canAccess) {
+      throw new NotFoundException('Customer not found or not accessible');
+    }
+
+    const validationErrors: Record<string, string> = {};
+    if (dto.mode === OndemandStkMode.INSTALLMENTS) {
+      if (dto.installmentCount == null || dto.installmentCount < 1 || dto.installmentCount > 5) {
+        validationErrors['installmentCount'] = 'Installment count must be between 1 and 5';
+      }
+    } else if (dto.mode === OndemandStkMode.CUSTOM) {
+      if (dto.customAmountKes == null || dto.customAmountKes < 1 || dto.customAmountKes > 70000) {
+        validationErrors['customAmountKes'] = 'Amount must be between 1 and 70,000 KES';
+      }
+    } else {
+      validationErrors['mode'] = 'Invalid payment mode';
+    }
+    if (Object.keys(validationErrors).length > 0) {
+      throw ValidationException.withMultipleErrors(validationErrors);
+    }
+
+    assertKenyanPhoneForOndemandStk(dto.phoneNumber);
+    const normalizedPhone = normalizePhoneNumber(dto.phoneNumber);
+
+    const policy = await this.prismaService.policy.findFirst({
+      where: { id: policyId, customerId },
+      include: { customer: { select: { idNumber: true } } },
+    });
+    if (!policy) {
+      throw new NotFoundException('Policy not found or does not belong to this customer');
+    }
+    if (!policy.paymentAcNumber?.trim()) {
+      throw ValidationException.forField(
+        'policy',
+        'Policy has no payment account number; contact an administrator.',
+        ErrorCodes.VALIDATION_ERROR
+      );
+    }
+
+    const schemeCustomer = await this.prismaService.packageSchemeCustomer.findFirst({
+      where: {
+        customerId,
+        packageScheme: { packageId: policy.packageId },
+      },
+      include: {
+        packageScheme: {
+          include: { scheme: { select: { isPostpaid: true } } },
+        },
+      },
+    });
+    if (!schemeCustomer) {
+      throw ValidationException.forField(
+        'policy',
+        'Policy has no linked scheme; contact an administrator.',
+        ErrorCodes.VALIDATION_ERROR
+      );
+    }
+    if (schemeCustomer.packageScheme.scheme.isPostpaid === true) {
+      throw ValidationException.forField(
+        'policy',
+        'On-demand STK is not available for postpaid policies.',
+        ErrorCodes.VALIDATION_ERROR
+      );
+    }
+
+    const premiumNum = Number(policy.premium);
+    if (!Number.isFinite(premiumNum) || premiumNum <= 0) {
+      throw ValidationException.forField(
+        'policy',
+        'Installment amount is missing or invalid for this policy.',
+        ErrorCodes.VALIDATION_ERROR
+      );
+    }
+
+    let amountKes: number;
+    if (dto.mode === OndemandStkMode.INSTALLMENTS) {
+      amountKes = Math.round(dto.installmentCount! * premiumNum * 100) / 100;
+    } else {
+      amountKes = Math.round(dto.customAmountKes! * 100) / 100;
+    }
+    if (amountKes < 1 || amountKes > 70000) {
+      throw ValidationException.forField('amount', 'Amount must be between 1 and 70,000 KES');
+    }
+
+    const inflight = await this.prismaService.policyPayment.findFirst({
+      where: {
+        policyId,
+        actualPaymentDate: null,
+        transactionReference: { startsWith: 'PENDING-STK-' },
+      },
+    });
+    if (inflight) {
+      throw ValidationException.forField(
+        'policy',
+        'A payment request is already in progress for this policy. Wait for it to complete or expire.'
+      );
+    }
+
+    const placeholderRef = `PENDING-STK-${randomUUID()}`;
+    const expectedPaymentDate = new Date();
+
+    const createdPayment = await this.prismaService.policyPayment.create({
+      data: {
+        policyId,
+        paymentType: 'MPESA',
+        transactionReference: placeholderRef,
+        amount: amountKes,
+        accountNumber: policy.customer.idNumber ?? null,
+        details: 'On-demand STK payment (pending)',
+        expectedPaymentDate,
+        actualPaymentDate: null,
+        paymentStatus: 'PENDING_STK_CALLBACK',
+      },
+    });
+
+    const stkDto: InitiateStkPushDto = {
+      phoneNumber: normalizedPhone,
+      amount: amountKes,
+      accountReference: policy.paymentAcNumber,
+      transactionDesc: `On-demand premium payment (${placeholderRef})`,
+    };
+
+    try {
+      return await this.mpesaStkPushService.initiateStkPush(stkDto, correlationId, userId);
+    } catch (err) {
+      try {
+        await this.prismaService.policyPayment.delete({ where: { id: createdPayment.id } });
+      } catch (delErr) {
+        this.logger.warn(
+          `[${correlationId}] Failed to remove placeholder payment ${createdPayment.id} after STK failure: ${delErr instanceof Error ? delErr.message : String(delErr)}`
+        );
+      }
+      throw err;
+    }
   }
 
   /**
@@ -2597,62 +2867,64 @@ export class CustomerService {
   }
 
   /**
-   * Get customer payments with filters
-   * @param customerId - Customer ID
-   * @param userId - User ID
-   * @param userRoles - User roles array
-   * @param policyId - Optional policy ID filter
-   * @param fromDate - Optional from date filter
-   * @param toDate - Optional to date filter
-   * @param correlationId - Correlation ID for tracing
-   * @returns Filtered payments ordered by actualPaymentDate DESC
+   * Get customer payments with filters (optional status filter and pagination).
    */
   async getCustomerPayments(
     customerId: string,
     userId: string,
     userRoles: string[],
     correlationId: string,
-    policyId?: string,
-    fromDate?: string,
-    toDate?: string
+    filters: CustomerPaymentsFilterDto
   ): Promise<CustomerPaymentsResponseDto> {
     this.logger.log(`[${correlationId}] Getting customer payments for ${customerId}`);
 
     try {
-      // Check access permission
       const canAccess = await this.canUserAccessCustomer(customerId, userId, userRoles);
       if (!canAccess) {
         throw new NotFoundException('Customer not found or not accessible');
       }
 
-      // Build where clause
       const where: Prisma.PolicyPaymentWhereInput = {
         policy: {
           customerId,
         },
       };
 
-      if (policyId) {
-        where.policyId = policyId;
+      if (filters.policyId) {
+        where.policyId = filters.policyId;
       }
 
-      if (fromDate || toDate) {
-        where.expectedPaymentDate = {};
-        if (fromDate) {
-          where.expectedPaymentDate.gte = new Date(fromDate);
+      if (filters.fromDate || filters.toDate) {
+        const dateFilter: Prisma.DateTimeFilter = {};
+        if (filters.fromDate) {
+          const [y, m, d] = filters.fromDate.split('-').map(Number);
+          dateFilter.gte = new Date(Date.UTC(y, m - 1, d, 0, 0, 0, 0));
         }
-        if (toDate) {
-          where.expectedPaymentDate.lte = new Date(toDate);
+        if (filters.toDate) {
+          const [y, m, d] = filters.toDate.split('-').map(Number);
+          dateFilter.lte = new Date(Date.UTC(y, m - 1, d, 23, 59, 59, 999));
         }
+        where.expectedPaymentDate = dateFilter;
       }
 
-      // Get payments ordered by actualPaymentDate DESC (nulls last)
-      // Prisma handles nulls by putting them last in desc order
+      if (filters.paymentStatus?.length) {
+        where.paymentStatus = { in: filters.paymentStatus };
+      }
+
+      const paginate = filters.page != null && filters.pageSize != null;
+      const page = filters.page ?? 1;
+      const pageSize = filters.pageSize ?? 20;
+
+      const totalItems = paginate
+        ? await this.prismaService.policyPayment.count({ where })
+        : undefined;
+
       const payments = await this.prismaService.policyPayment.findMany({
         where,
         orderBy: {
           actualPaymentDate: 'desc',
         },
+        ...(paginate ? { skip: (page - 1) * pageSize, take: pageSize } : {}),
       });
 
       const paymentDtos: PaymentDto[] = payments.map((p) => ({
@@ -2663,18 +2935,57 @@ export class CustomerService {
         expectedPaymentDate: p.expectedPaymentDate.toISOString(),
         actualPaymentDate: p.actualPaymentDate?.toISOString(),
         amount: Number(p.amount),
+        paymentStatus: p.paymentStatus,
       }));
+
+      const totalPages =
+        paginate && totalItems != null ? Math.max(1, Math.ceil(totalItems / pageSize)) : undefined;
 
       return {
         status: 200,
         correlationId,
         message: 'Payments retrieved successfully',
         data: paymentDtos,
+        ...(paginate && totalItems != null && totalPages != null
+          ? {
+              pagination: {
+                page,
+                pageSize,
+                totalItems,
+                totalPages,
+              },
+            }
+          : {}),
       };
     } catch (error) {
       this.logger.error(`[${correlationId}] Error getting customer payments: ${error instanceof Error ? error.message : 'Unknown error'}`, error instanceof Error ? error.stack : undefined);
       throw error;
     }
+  }
+
+  /**
+   * Premium statement PDF for a policy (access-checked).
+   */
+  async getPremiumStatementPdf(
+    customerId: string,
+    policyId: string,
+    userId: string,
+    userRoles: string[],
+    correlationId: string,
+    fromDate?: string,
+    toDate?: string
+  ): Promise<{ buffer: Buffer; filename: string }> {
+    const canAccess = await this.canUserAccessCustomer(customerId, userId, userRoles);
+    if (!canAccess) {
+      throw new NotFoundException('Customer not found or not accessible');
+    }
+    return this.premiumStatementService.generatePremiumStatementPdf({
+      customerId,
+      policyId,
+      fromDate,
+      toDate,
+      correlationId,
+    });
   }
 
   /**

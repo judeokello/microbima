@@ -176,6 +176,19 @@ export class Dependant {
       errors.push('Last name must be less than 50 characters');
     }
 
+    const hasIdNumber = !!(this.idNumber && this.idNumber.trim().length > 0);
+    const hasIdType = !!this.idType;
+    if (hasIdNumber !== hasIdType) {
+      errors.push('ID number and ID type must both be provided together');
+    }
+
+    if (hasIdNumber) {
+      const trimmedIdNumber = this.idNumber!.trim();
+      if (trimmedIdNumber.length < 5 || trimmedIdNumber.length > 9) {
+        errors.push('ID number must be between 5 and 9 characters');
+      }
+    }
+
     if (this.dateOfBirth && this.dateOfBirth > new Date()) {
       errors.push('Date of birth cannot be in the future');
     }

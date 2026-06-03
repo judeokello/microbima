@@ -465,12 +465,10 @@ export async function createCustomer(data: CustomerRegistrationRequest): Promise
     if (!response.ok) {
       const errorData = await response.json()
 
-      // Handle detailed validation errors (each on new line)
+      // Detailed validation errors: show messages only (no "Validation failed" / field keys — page title is "Registration Failed")
       if (errorData.error?.details && typeof errorData.error.details === 'object') {
-        const fieldErrors = Object.entries(errorData.error.details)
-          .map(([field, message]) => `${field}: ${message}`)
-          .join('\n')
-        throw new Error(`Validation failed:\n${fieldErrors}`)
+        const messages = Object.values(errorData.error.details as Record<string, string>).map(String)
+        throw new Error(messages.join('\n'))
       }
 
       throw new Error(errorData.error?.message ?? `HTTP ${response.status}: ${response.statusText}`)
@@ -625,8 +623,9 @@ export interface SpouseData {
   gender: string
   email?: string
   phoneNumber?: string
-  idType: string
-  idNumber: string
+  // Identification details are optional (backend validates only when provided)
+  idType?: string
+  idNumber?: string
 }
 
 export interface ChildData {
@@ -968,12 +967,16 @@ export interface CustomerPolicyDetail {
   status: string
   packageId: number
   packageSchemeId: number | null
+  /** From linked scheme (prepaid vs postpaid) */
+  schemeBillingMode: 'prepaid' | 'postpaid'
   product: {
     underwriterName: string | null
     packageName: string
     planName: string | null
     schemeName: string
     productName: string
+    /** Days in premium year for installment helper; null if not configured */
+    productDurationDays: number | null
   }
   enrollment: {
     startDate: string | null
@@ -1009,6 +1012,7 @@ export interface Payment {
   expectedPaymentDate: string
   actualPaymentDate?: string
   amount: number
+  paymentStatus?: string
 }
 
 export interface CustomerPaymentsResponse {
@@ -1333,6 +1337,44 @@ export async function getCustomerPayments(
   }
 }
 
+function parseFilenameFromContentDisposition(header: string | null): string | undefined {
+  if (!header) return undefined
+  const m = /filename="([^"]+)"/.exec(header)
+  return m?.[1]
+}
+
+export async function getPremiumStatement(
+  customerId: string,
+  policyId: string,
+  filters: { fromDate?: string; toDate?: string }
+): Promise<{ blob: Blob; filename?: string }> {
+  try {
+    const token = await getSupabaseToken()
+    const params = new URLSearchParams()
+    if (filters.fromDate) params.set('fromDate', filters.fromDate)
+    if (filters.toDate) params.set('toDate', filters.toDate)
+    const qs = params.toString()
+    const url = `${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/customers/${customerId}/policies/${policyId}/premium-statement${qs ? `?${qs}` : ''}`
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'x-correlation-id': `premium-statement-${Date.now()}`
+      }
+    })
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      throw new Error(errorData.error?.message ?? `HTTP ${response.status}: ${response.statusText}`)
+    }
+    const filename = parseFilenameFromContentDisposition(response.headers.get('Content-Disposition'))
+    const blob = await response.blob()
+    return { blob, filename }
+  } catch (error) {
+    console.error('Error downloading premium statement:', error)
+    throw error
+  }
+}
+
 export async function updateCustomer(
   customerId: string,
   data: UpdateCustomerData
@@ -1522,6 +1564,7 @@ export interface InitiateStkPushResponse {
   amount: number
   accountReference: string
   initiatedAt: string
+  wsToken: string
 }
 
 export interface InternalConfigResponse {
@@ -1553,6 +1596,48 @@ export async function getInternalConfig(): Promise<InternalConfigResponse> {
 /**
  * Initiate STK Push payment request
  */
+export type OndemandStkMode = 'INSTALLMENTS' | 'CUSTOM'
+
+export interface OndemandStkRequest {
+  mode: OndemandStkMode
+  installmentCount?: number
+  customAmountKes?: number
+  phoneNumber: string
+}
+
+/**
+ * On-demand STK for an existing customer policy (placeholder payment + STK).
+ */
+export async function initiateCustomerOndemandStk(
+  customerId: string,
+  policyId: string,
+  body: OndemandStkRequest
+): Promise<InitiateStkPushResponse> {
+  const token = await getSupabaseToken()
+  const response = await fetch(
+    `${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/customers/${customerId}/policies/${policyId}/ondemand-stk`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+        'x-correlation-id': `ondemand-stk-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+      },
+      body: JSON.stringify(body),
+    }
+  )
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}))
+    if (response.status === 503) {
+      throw new Error(
+        errorData.error?.message ?? 'M-Pesa STK push is currently unavailable. The customer can pay via Paybill if applicable.'
+      )
+    }
+    throw new Error(errorData.error?.message ?? `Failed to initiate payment: ${response.statusText}`)
+  }
+  return response.json()
+}
+
 export async function initiateStkPush(data: InitiateStkPushRequest): Promise<InitiateStkPushResponse> {
   try {
     const token = await getSupabaseToken()

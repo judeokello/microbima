@@ -11,7 +11,7 @@ on:
       - master
 
 env:
-  FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }} 
+  FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
 
 jobs:
   deploy-staging:
@@ -25,12 +25,14 @@ jobs:
       RUN_TESTS: true
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: '22'
+          # v5 auto-enables package-manager cache when package.json has packageManager; that runs pnpm before we install it
+          package-manager-cache: false
 
       - name: Install pnpm
         run: npm install -g pnpm
@@ -70,6 +72,71 @@ jobs:
               fi
             fi
           done
+
+      # flyctl ssh console requires at least one *started* machine. Do not call `machine start` while state is
+      # `replacing` — Fly returns failed_precondition and the UI shows the same during rolling deploy.
+      - name: Ensure Fly machine running (staging Internal API)
+        if: env.DEPLOY_INTERNAL_API != 'false' && env.AUTO_DEPLOY_DB == 'true'
+        run: |
+          set -e
+          APP="maishapoa-staging-internal-api"
+          echo "🛫 Ensuring $APP has a started VM for SSH migrations..."
+          flyctl status -a "$APP" || true
+
+          echo "⏳ Waiting until no machine is in 'replacing' state (deploy may be in progress)..."
+          for w in $(seq 1 48); do
+            LIST="$(flyctl machine list -a "$APP" --json)"
+            COUNT="$(echo "$LIST" | jq 'length')"
+            if [ "$COUNT" -eq 0 ]; then
+              echo "::error::No Fly Machines for $APP. Deploy Internal API first."
+              exit 1
+            fi
+            REPLACING="$(echo "$LIST" | jq '[.[] | select(.state == "replacing")] | length')"
+            if [ "$REPLACING" -eq 0 ]; then
+              echo "✅ No machines in 'replacing' state"
+              break
+            fi
+            echo "  ($w/48) $REPLACING machine(s) still replacing — waiting 15s..."
+            sleep 15
+          done
+          LIST="$(flyctl machine list -a "$APP" --json)"
+          REPLACING="$(echo "$LIST" | jq '[.[] | select(.state == "replacing")] | length')"
+          if [ "$REPLACING" -gt 0 ]; then
+            echo "::error::Machines still 'replacing' after timeout. Check: flyctl machine list -a $APP"
+            exit 1
+          fi
+
+          STARTED="$(echo "$LIST" | jq '[.[] | select(.state == "started")] | length')"
+          if [ "$STARTED" -lt 1 ]; then
+            echo "▶️ No started machines; starting machines that are explicitly stopped (not replacing)..."
+            echo "$LIST" | jq -r '.[] | select(.state == "stopped") | .id' | while read -r mid; do
+              [ -z "$mid" ] && continue
+              echo "Starting stopped machine $mid..."
+              for attempt in 1 2 3 4 5; do
+                if flyctl machine start "$mid" -a "$APP" 2>&1; then
+                  break
+                fi
+                echo "  machine start failed (attempt $attempt/5), retry in 20s..."
+                sleep 20
+              done
+            done
+          fi
+
+          echo "⏳ Waiting for flyctl ssh (up to ~3m)..."
+          ok=0
+          for i in $(seq 1 36); do
+            if flyctl ssh console -a "$APP" -C "echo ssh_ok" >/dev/null 2>&1; then
+              ok=1
+              break
+            fi
+            echo "  ssh attempt $i/36 ..."
+            sleep 5
+          done
+          if [ "$ok" -ne 1 ]; then
+            echo "::error::Cannot SSH to $APP (app may be crash-looping). Check: flyctl logs -a $APP"
+            exit 1
+          fi
+          echo "✅ SSH ready for $APP"
 
       - name: Run Database Migrations on Staging
         if: env.DEPLOY_INTERNAL_API != 'false' && env.AUTO_DEPLOY_DB == 'true'
@@ -231,12 +298,13 @@ jobs:
      
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: '22'
+          package-manager-cache: false
 
       - name: Install pnpm
         run: npm install -g pnpm
@@ -276,6 +344,69 @@ jobs:
               fi
             fi
           done
+
+      - name: Ensure Fly machine running (production Internal API)
+        if: env.DEPLOY_INTERNAL_API != 'false' && env.AUTO_DEPLOY_DB == 'true'
+        run: |
+          set -e
+          APP="maishapoa-production-internal-api"
+          echo "🛫 Ensuring $APP has a started VM for SSH migrations..."
+          flyctl status -a "$APP" || true
+
+          echo "⏳ Waiting until no machine is in 'replacing' state..."
+          for w in $(seq 1 48); do
+            LIST="$(flyctl machine list -a "$APP" --json)"
+            COUNT="$(echo "$LIST" | jq 'length')"
+            if [ "$COUNT" -eq 0 ]; then
+              echo "::error::No Fly Machines for $APP."
+              exit 1
+            fi
+            REPLACING="$(echo "$LIST" | jq '[.[] | select(.state == "replacing")] | length')"
+            if [ "$REPLACING" -eq 0 ]; then
+              echo "✅ No machines in 'replacing' state"
+              break
+            fi
+            echo "  ($w/48) $REPLACING machine(s) still replacing — waiting 15s..."
+            sleep 15
+          done
+          LIST="$(flyctl machine list -a "$APP" --json)"
+          REPLACING="$(echo "$LIST" | jq '[.[] | select(.state == "replacing")] | length')"
+          if [ "$REPLACING" -gt 0 ]; then
+            echo "::error::Machines still 'replacing' after timeout."
+            exit 1
+          fi
+
+          STARTED="$(echo "$LIST" | jq '[.[] | select(.state == "started")] | length')"
+          if [ "$STARTED" -lt 1 ]; then
+            echo "▶️ Starting machines in stopped state only..."
+            echo "$LIST" | jq -r '.[] | select(.state == "stopped") | .id' | while read -r mid; do
+              [ -z "$mid" ] && continue
+              echo "Starting stopped machine $mid..."
+              for attempt in 1 2 3 4 5; do
+                if flyctl machine start "$mid" -a "$APP" 2>&1; then
+                  break
+                fi
+                echo "  machine start failed (attempt $attempt/5), retry in 20s..."
+                sleep 20
+              done
+            done
+          fi
+
+          echo "⏳ Waiting for flyctl ssh (up to ~3m)..."
+          ok=0
+          for i in $(seq 1 36); do
+            if flyctl ssh console -a "$APP" -C "echo ssh_ok" >/dev/null 2>&1; then
+              ok=1
+              break
+            fi
+            echo "  ssh attempt $i/36 ..."
+            sleep 5
+          done
+          if [ "$ok" -ne 1 ]; then
+            echo "::error::Cannot SSH to $APP. Check: flyctl logs -a $APP"
+            exit 1
+          fi
+          echo "✅ SSH ready for $APP"
 
       - name: Run Database Migrations on Production
         if: env.DEPLOY_INTERNAL_API != 'false' && env.AUTO_DEPLOY_DB == 'true'

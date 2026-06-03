@@ -27,6 +27,8 @@ export default function CreatePackageDialog({
     description: '',
     isActive: false,
     logo: null as File | null,
+    /** Whole days 1–365; default 365 matches API default on create */
+    productDurationDays: '365',
   });
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -57,6 +59,11 @@ export default function CreatePackageDialog({
         throw new Error('All fields are required');
       }
 
+      const pd = parseInt(formData.productDurationDays, 10);
+      if (!Number.isFinite(pd) || pd < 1 || pd > 365) {
+        throw new Error('Product duration must be a whole number between 1 and 365');
+      }
+
       const token = await getSupabaseToken();
       let logoPath: string | undefined;
 
@@ -73,6 +80,7 @@ export default function CreatePackageDialog({
           description,
           underwriterId: underwriterId,
           isActive: formData.isActive,
+          productDurationDays: pd,
         }),
       });
 
@@ -156,6 +164,7 @@ export default function CreatePackageDialog({
         description: '',
         isActive: false,
         logo: null,
+        productDurationDays: '365',
       });
 
       onSuccess();
@@ -233,6 +242,20 @@ export default function CreatePackageDialog({
                   Active (packages are created as inactive by default)
                 </Label>
               </div>
+            </div>
+
+            <div>
+              <Label htmlFor="productDurationDays">Product duration (days) *</Label>
+              <Input
+                id="productDurationDays"
+                inputMode="numeric"
+                maxLength={3}
+                value={formData.productDurationDays}
+                onChange={(e) => setFormData({ ...formData, productDurationDays: e.target.value.replace(/\D/g, '').slice(0, 3) })}
+                required
+                placeholder="365"
+              />
+              <p className="text-xs text-muted-foreground mt-1">Whole number 1–365 (premium year length for installment helpers).</p>
             </div>
 
             <div>

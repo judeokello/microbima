@@ -16,6 +16,7 @@ import { Loader2 } from 'lucide-react';
 import { updateBeneficiary, UpdateBeneficiaryData } from '@/lib/api';
 import { useParams } from 'next/navigation';
 import { formatPhoneNumber, getPhoneValidationError } from '@/lib/phone-validation';
+import { getIdNumberValidationError, ID_NUMBER_MAX_LENGTH } from '@/lib/id-number-validation';
 import * as Sentry from '@sentry/nextjs';
 
 interface EditBeneficiaryDialogProps {
@@ -112,6 +113,13 @@ export default function EditBeneficiaryDialog({
         setLoading(false);
         return;
       }
+    }
+
+    const beneficiaryIdError = getIdNumberValidationError(formData.idNumber, false);
+    if (beneficiaryIdError) {
+      setError(beneficiaryIdError);
+      setLoading(false);
+      return;
     }
 
     try {
@@ -254,6 +262,7 @@ export default function EditBeneficiaryDialog({
                 id="idNumber"
                 value={formData.idNumber ?? ''}
                 onChange={(e) => setFormData({ ...formData, idNumber: e.target.value || undefined })}
+                maxLength={ID_NUMBER_MAX_LENGTH}
               />
             </div>
           </div>

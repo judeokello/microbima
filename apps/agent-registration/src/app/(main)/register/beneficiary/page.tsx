@@ -26,6 +26,7 @@ import * as Sentry from '@sentry/nextjs';
 // };
 
 import { validatePhoneNumber, formatPhoneNumber } from '@/lib/phone-validation';
+import { getIdNumberValidationError, ID_NUMBER_MAX_LENGTH } from '@/lib/id-number-validation';
 
 // Helper functions
 const toTitleCase = (str: string): string => {
@@ -287,6 +288,12 @@ export default function BeneficiaryStep() {
       return;
     }
 
+    const beneficiaryIdError = getIdNumberValidationError(formData.idNumber, false);
+    if (beneficiaryIdError) {
+      setError(beneficiaryIdError);
+      return;
+    }
+
     // All validation passed, now set submitting and proceed
     setIsSubmitting(true);
 
@@ -323,7 +330,7 @@ export default function BeneficiaryStep() {
         ? {
             ...baseBeneficiary,
             idType: mapIdTypeToBackend(formData.idType),
-            idNumber: formData.idNumber,
+            idNumber: formData.idNumber.trim(),
           }
         : baseBeneficiary; // If idNumber is empty, omit both idType and idNumber (will be null in API)
 
@@ -502,6 +509,7 @@ export default function BeneficiaryStep() {
                     placeholder="Enter ID number (optional)"
                     inputMode="numeric"
                     pattern="[0-9]*"
+                    maxLength={ID_NUMBER_MAX_LENGTH}
                   />
                 </div>
               </div>

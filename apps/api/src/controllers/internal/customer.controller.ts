@@ -42,7 +42,15 @@ import { BrandAmbassadorDashboardStatsDto } from '../../dto/customers/brand-amba
 import { CustomerDetailResponseDto } from '../../dto/customers/customer-detail.dto';
 import { MemberCardsResponseDto } from '../../dto/customers/member-cards.dto';
 import { CustomerPoliciesResponseDto, CustomerPaymentsResponseDto, CustomerPaymentsFilterDto } from '../../dto/customers/customer-payments-filter.dto';
-import { CustomerPolicyListResponseDto, CustomerPolicyDetailResponseDto, UpdateCustomerPolicySchemeDto } from '../../dto/customers/customer-products.dto';
+import {
+  CustomerPolicyListResponseDto,
+  CustomerPolicyDetailResponseDto,
+  UpdateCustomerPolicySchemeDto,
+} from '../../dto/customers/customer-products.dto';
+import { PremiumStatementQueryDto } from '../../dto/customers/premium-statement-query.dto';
+import { OndemandStkPaymentDto } from '../../dto/customers/ondemand-stk-payment.dto';
+import { StkPushRequestResponseDto } from '../../dto/mpesa-stk-push/mpesa-stk-push.dto';
+import { StandardErrorResponseDto } from '../../dto/common/standard-error-response.dto';
 import { UpdateCustomerDto } from '../../dto/customers/update-customer.dto';
 import { UpdateDependantDto } from '../../dto/dependants/update-dependant.dto';
 import { UpdateBeneficiaryDto } from '../../dto/beneficiaries/update-beneficiary.dto';
@@ -728,6 +736,80 @@ export class InternalCustomerController {
   }
 
   /**
+   * Download premium statement PDF for a policy (same access as policy detail / payments).
+   */
+  @Get(':customerId/policies/:policyId/premium-statement')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Download premium statement PDF (Internal)',
+    description:
+      'Returns a PDF for the policy; confirmed payments only in the table; optional from/to filter on expected payment date (UTC).',
+  })
+  @ApiParam({ name: 'customerId', description: 'Customer ID' })
+  @ApiParam({ name: 'policyId', description: 'Policy ID' })
+  @ApiResponse({ status: 200, description: 'PDF stream' })
+  @ApiResponse({ status: 404, description: 'Customer or policy not found' })
+  @ApiResponse({ status: 422, description: 'Validation (postpaid, missing data)' })
+  async getPremiumStatementPdf(
+    @Param('customerId') customerId: string,
+    @Param('policyId') policyId: string,
+    @Query() query: PremiumStatementQueryDto,
+    @CorrelationId() correlationId: string,
+    @Req() req: Request,
+    @Res() res: Response,
+  ): Promise<void> {
+    const userId = req.user?.id ?? 'system';
+    const userRoles = req.user?.roles ?? [];
+    const { buffer, filename } = await this.customerService.getPremiumStatementPdf(
+      customerId,
+      policyId,
+      userId,
+      userRoles,
+      correlationId,
+      query.fromDate,
+      query.toDate,
+    );
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(buffer);
+  }
+
+  /**
+   * Initiate on-demand M-Pesa STK for a prepaid policy (internal)
+   */
+  @Post(':customerId/policies/:policyId/ondemand-stk')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({
+    summary: 'On-demand STK for customer policy (Internal)',
+    description:
+      'Creates a PENDING-STK placeholder policy payment, then initiates STK Push. Rejects postpaid policies. Requires Bearer auth.',
+  })
+  @ApiParam({ name: 'customerId', description: 'Customer ID' })
+  @ApiParam({ name: 'policyId', description: 'Policy ID' })
+  @ApiResponse({ status: 201, description: 'STK initiated', type: StkPushRequestResponseDto })
+  @ApiResponse({ status: 404, description: 'Customer or policy not found / no access', type: StandardErrorResponseDto })
+  @ApiResponse({ status: 422, description: 'Validation (mode, amounts, phone, postpaid, in-flight STK)', type: StandardErrorResponseDto })
+  @ApiResponse({ status: 503, description: 'STK push disabled', type: StandardErrorResponseDto })
+  async initiateCustomerOndemandStk(
+    @Param('customerId') customerId: string,
+    @Param('policyId') policyId: string,
+    @Body() body: OndemandStkPaymentDto,
+    @CorrelationId() correlationId: string,
+    @Req() req: Request,
+  ): Promise<StkPushRequestResponseDto> {
+    const userId = req.user?.id ?? 'system';
+    const userRoles = req.user?.roles ?? [];
+    return this.customerService.initiateCustomerOndemandStk(
+      customerId,
+      policyId,
+      body,
+      userId,
+      userRoles,
+      correlationId,
+    );
+  }
+
+  /**
    * Update customer's scheme for a policy (registration_admin only)
    */
   @Patch(':customerId/policies/:policyId/scheme')
@@ -907,6 +989,13 @@ export class InternalCustomerController {
     description: 'Optional to date filter (YYYY-MM-DD)',
     required: false,
   })
+  @ApiQuery({
+    name: 'paymentStatus',
+    description: 'Optional payment status filter (comma-separated or repeated)',
+    required: false,
+  })
+  @ApiQuery({ name: 'page', required: false, description: 'Page (use with pageSize)' })
+  @ApiQuery({ name: 'pageSize', required: false, description: 'Page size' })
   @ApiResponse({
     status: 200,
     description: 'Payments retrieved successfully',
@@ -920,15 +1009,7 @@ export class InternalCustomerController {
   ): Promise<CustomerPaymentsResponseDto> {
     const userId = req.user?.id ?? 'system';
     const userRoles = req.user?.roles ?? [];
-    return this.customerService.getCustomerPayments(
-      customerId,
-      userId,
-      userRoles,
-      correlationId,
-      filters.policyId,
-      filters.fromDate,
-      filters.toDate
-    );
+    return this.customerService.getCustomerPayments(customerId, userId, userRoles, correlationId, filters);
   }
 
   /**

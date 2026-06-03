@@ -537,6 +537,7 @@ export class MpesaIpnService {
           details: `IPN payment - ${payload.TransactionType}`,
           expectedPaymentDate: transactionTime,
           actualPaymentDate: transactionTime,
+          paymentStatus: 'COMPLETED',
           paymentMessageBlob: JSON.stringify({
             firstName: payload.FirstName,
             middleName: payload.MiddleName,
@@ -571,6 +572,7 @@ export class MpesaIpnService {
           details: `IPN payment - ${payload.TransactionType}`,
           expectedPaymentDate: transactionTime,
           actualPaymentDate: transactionTime,
+          paymentStatus: 'COMPLETED',
           paymentMessageBlob: JSON.stringify({
             firstName: payload.FirstName,
             middleName: payload.MiddleName,

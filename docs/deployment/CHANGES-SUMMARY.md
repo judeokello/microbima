@@ -50,7 +50,7 @@ Updated all production deployment configurations to:
 - **Changed**: 
   - Build arg `NEXT_PUBLIC_API_BASE_URL`: microbima → maishapoa
   - Build arg `NEXT_PUBLIC_INTERNAL_API_BASE_URL`: microbima → maishapoa
-  - Env var `NEXT_PUBLIC_API_URL`: microbima → maishapoa
+  - Env var `NEXT_PUBLIC_SOCKET_API_ORIGIN` (agent-registration): internal API origin for Socket.IO; maishapoa hosts
 - **Note**: App name was already correct (`maishapoa-production-agent-registration`)
 
 ### 2. GitHub Actions Workflow

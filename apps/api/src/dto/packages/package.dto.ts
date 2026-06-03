@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsString, IsBoolean, IsOptional, IsInt, MaxLength } from 'class-validator';
+import { IsString, IsBoolean, IsOptional, IsInt, MaxLength, Min, Max, ValidateIf } from 'class-validator';
 
 export class PackageDetailDto {
   @ApiProperty({
@@ -78,6 +78,14 @@ export class PackageDetailDto {
     example: '2025-01-15T10:30:00Z',
   })
   updatedAt: string;
+
+  @ApiProperty({
+    description: 'Days in product premium year (1–365); null if not set',
+    required: false,
+    nullable: true,
+    example: 365,
+  })
+  productDurationDays?: number | null;
 }
 
 export class CreatePackageRequestDto {
@@ -115,6 +123,18 @@ export class CreatePackageRequestDto {
   @IsOptional()
   @IsBoolean()
   isActive?: boolean;
+
+  @ApiProperty({
+    description: 'Days in product premium year (1–365). Defaults to 365 when omitted on create.',
+    required: false,
+    minimum: 1,
+    maximum: 365,
+  })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(365)
+  productDurationDays?: number;
 }
 
 export class UpdatePackageRequestDto {
@@ -165,6 +185,20 @@ export class UpdatePackageRequestDto {
   @IsString()
   @MaxLength(200)
   logoPath?: string;
+
+  @ApiProperty({
+    description: 'Days in product premium year (1–365). Set null to clear.',
+    required: false,
+    nullable: true,
+    minimum: 1,
+    maximum: 365,
+  })
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null && v !== undefined)
+  @IsInt()
+  @Min(1)
+  @Max(365)
+  productDurationDays?: number | null;
 }
 
 export class PackageSchemeDto {

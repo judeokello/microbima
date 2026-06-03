@@ -31,6 +31,16 @@ export class SupabaseAuthMiddleware implements NestMiddleware {
       return next();
     }
 
+    // Deep-link SMS: member has no session yet; context is uniform (non-enumerating) per FR-001a.
+    if (
+      req.method === 'GET' &&
+      (req.path === '/api/internal/customer-portal/me/context' ||
+        req.path.endsWith('/internal/customer-portal/me/context'))
+    ) {
+      console.log('Skipping Supabase auth for customer-portal login context:', req.path);
+      return next();
+    }
+
     console.log('Supabase Auth Middleware - Processing:', req.path);
 
     try {

@@ -16,7 +16,8 @@
     "paths": {
       "@microbima/sdk": ["packages/sdk/src"],
       "@microbima/ui": ["packages/ui/src"],
-      "@microbima/core": ["packages/core/src"]
+      "@microbima/core": ["packages/core/src"],
+      "@microbima/portal-pin": ["packages/portal-pin/src"]
     },
     "types": ["node"]
   },

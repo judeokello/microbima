@@ -26,7 +26,16 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
     PrismaService.instance = this;
   }
 
-  async onModuleInit() {
+  onModuleInit() {
+    // Do not await: Nest only calls app.listen() after all onModuleInit hooks finish.
+    // A slow or hanging DB would keep port 3001 closed and Fly health checks fail. Prisma
+    // will still connect eagerly in the background; the first query also connects lazily.
+    void this.connectWithRetries().catch((err) => {
+      this.logger.error('Database connection task failed unexpectedly', err);
+    });
+  }
+
+  private async connectWithRetries(): Promise<void> {
     const maxRetries = 5;
     const retryDelay = 2000; // 2 seconds
 
@@ -35,7 +44,7 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
         this.logger.log(`Attempting to connect to database (attempt ${attempt}/${maxRetries})...`);
         await this.$connect();
         this.logger.log('✅ Database connected successfully');
-        return; // Success, exit retry loop
+        return;
       } catch (error) {
         this.logger.error(
           `❌ Failed to connect to database (attempt ${attempt}/${maxRetries})`,
@@ -46,17 +55,13 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
           this.logger.error('Stack trace:', error.stack);
         }
 
-        // If this is the last attempt, log and rethrow
         if (attempt === maxRetries) {
-          this.logger.error('❌ CRITICAL: All database connection attempts failed. Application will exit.');
-          // Don't throw - let NestJS handle it, but log extensively
-          // The error will be caught by NestJS lifecycle hooks
-          throw new Error(
-            `Failed to connect to database after ${maxRetries} attempts: ${error instanceof Error ? error.message : String(error)}`
+          this.logger.error(
+            '❌ CRITICAL: All database connection attempts failed. Server is up; requests that need the database will fail until connectivity is restored.'
           );
+          return;
         }
 
-        // Wait before retrying
         this.logger.log(`Waiting ${retryDelay}ms before retry...`);
         await new Promise(resolve => setTimeout(resolve, retryDelay));
       }

@@ -26,6 +26,7 @@ interface Package {
   isActive: boolean;
   logoPath?: string | null;
   cardTemplateName?: string | null;
+  productDurationDays?: number | null;
   createdBy: string;
   createdByDisplayName?: string;
   createdAt: string;
@@ -71,6 +72,7 @@ export default function PackageDetailPage() {
     name: '',
     description: '',
     isActive: true,
+    productDurationDays: '',
   });
 
   const getSupabaseToken = async () => {
@@ -101,6 +103,8 @@ export default function PackageDetailPage() {
         name: data.data.name,
         description: data.data.description,
         isActive: data.data.isActive,
+        productDurationDays:
+          data.data.productDurationDays != null ? String(data.data.productDurationDays) : '',
       });
     } catch (err) {
       console.error('Error fetching package:', err);
@@ -264,10 +268,20 @@ export default function PackageDetailPage() {
       setError(null);
 
       const token = await getSupabaseToken();
+      const pdTrim = formData.productDurationDays.trim();
+      if (pdTrim) {
+        const pd = parseInt(pdTrim, 10);
+        if (!Number.isFinite(pd) || pd < 1 || pd > 365) {
+          throw new Error('Product duration must be a whole number between 1 and 365');
+        }
+      }
       const payload = {
         name: formData.name.trim(),
         description: formData.description.trim(),
         isActive: formData.isActive,
+        ...(pdTrim
+          ? { productDurationDays: parseInt(pdTrim, 10) }
+          : { productDurationDays: null }),
       };
       const response = await fetch(`${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/product-management/packages/${packageId}`, {
         method: 'PUT',
@@ -313,6 +327,7 @@ export default function PackageDetailPage() {
         name: pkg.name,
         description: pkg.description,
         isActive: pkg.isActive,
+        productDurationDays: pkg.productDurationDays != null ? String(pkg.productDurationDays) : '',
       });
     }
     setEditing(false);
@@ -448,6 +463,29 @@ export default function PackageDetailPage() {
                   {pkg.isActive ? 'Active' : 'Inactive'}
                 </Badge>
               )}
+            </div>
+
+            <div>
+              <Label htmlFor="product-duration">Product duration (days)</Label>
+              {editing ? (
+                <Input
+                  id="product-duration"
+                  inputMode="numeric"
+                  maxLength={3}
+                  value={formData.productDurationDays}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      productDurationDays: e.target.value.replace(/\D/g, '').slice(0, 3),
+                    })
+                  }
+                  placeholder="1–365"
+                  aria-label="Product duration in days"
+                />
+              ) : (
+                <p className="text-sm font-medium">{pkg.productDurationDays ?? '—'}</p>
+              )}
+              <p className="text-xs text-muted-foreground mt-1">1–365; leave empty when editing to clear (not recommended).</p>
             </div>
 
             <div>

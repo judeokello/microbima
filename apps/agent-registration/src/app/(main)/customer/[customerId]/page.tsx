@@ -147,7 +147,7 @@ export default function CustomerDetailPage() {
         </TabsContent>
 
         <TabsContent value="payments">
-          <PaymentsTab customerId={customerId} />
+          <PaymentsTab customerId={customerId} customerPhone={customerData.customer.phoneNumber ?? ''} />
         </TabsContent>
 
         <TabsContent value="member-cards">

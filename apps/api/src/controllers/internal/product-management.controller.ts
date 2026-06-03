@@ -467,6 +467,7 @@ export class ProductManagementController {
         underwriterId: updateRequest.underwriterId,
         isActive: updateRequest.isActive,
         logoPath: updateRequest.logoPath,
+        productDurationDays: updateRequest.productDurationDays,
       },
       correlationId ?? 'unknown'
     );

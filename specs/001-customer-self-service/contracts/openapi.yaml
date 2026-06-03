@@ -1,0 +1,181 @@
+openapi: 3.0.3
+info:
+  title: MicroBima Customer Self-Service (internal API)
+  version: 0.2.1
+  description: |
+    **Normative HTTP contract** for the member portal as consumed from `apps/agent-registration`
+    via `NEXT_PUBLIC_INTERNAL_API_BASE_URL` (includes global Nest prefix **`/api`**).
+
+    **Full URL pattern:** `{INTERNAL_BASE}/internal/customer-portal/...` where typical
+    `INTERNAL_BASE` is `https://{api-host}/api` (no trailing slash).
+
+    **Auth:** Supabase access token (`Authorization: Bearer`).
+    `sub` MUST equal `Customer.id` and `user_metadata.roles` MUST include `customer` for
+    protected operations—enforced in Nest (`SupabaseCustomerGuard` / middleware exemptions per path).
+
+    **Error responses:** Unless `204 No Content`, failures use the platform JSON envelope
+    documented for internal APIs: **`status`** (numeric HTTP status), **`error.code`**,
+    **`error.message`**, optional **`error.details`**, **`correlationId`**
+    (not legacy `statusCode`).
+
+    **Implementation status (2026-04-08):**
+    - **Implemented:** `POST .../me/pin-complete`, `GET .../me/context`, `GET .../me/portal-status`
+    - **Planned ([tasks.md](../tasks.md) T032–T033):** `GET .../customers/{customerId}/details`,
+      `GET .../customers/{customerId}/payments` (paths indicative until controllers land)
+
+servers:
+  - url: /api
+    description: Nest global prefix (append path keys below)
+
+paths:
+  /internal/customer-portal/me/pin-complete:
+    post:
+      tags: [customer-portal-implemented]
+      summary: Complete first-time PIN setup after OTP sign-in
+      operationId: customerPortalCompletePin
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [pin, pinConfirm]
+              properties:
+                pin:
+                  type: string
+                  pattern: '^[0-9]{6}$'
+                  description: |
+                    Six-digit chosen PIN — **FR-019** rejects identical digits (`111111`),
+                    strict ascending runs (`012345` … `456789`), and strict descending (`987654` … `543210`).
+                    Six digits required by Supabase minimum password length.
+                pinConfirm:
+                  type: string
+                  pattern: '^[0-9]{6}$'
+                  description: Must match `pin`
+      responses:
+        '204':
+          description: PIN set; Supabase password updated; portalPinSetupCompletedAt set; follow-up message enqueued
+        '401':
+          description: Missing or invalid JWT (standard error envelope)
+        '422':
+          description: Validation (mismatch, not 6 digits, FR-019 weak-pattern rejection, already completed) — ValidationException-style body
+
+  /internal/customer-portal/me/context:
+    get:
+      tags: [customer-portal-implemented]
+      summary: Minimal PII for deep-link login screen (masked phone, names)
+      operationId: customerPortalLoginContext
+      description: |
+        **Authentication:** intentionally **omit** Bearer for v1 deep-link prefetch (member has no session yet).
+        Nest excludes this route from mandatory Supabase middleware auth.
+
+        Always returns **200** with `LoginContextResponse`. Unknown UUID MUST return the **same schema**
+        with empty / non-identifying field values ([Spec FR-001a](../spec.md#functional-requirements)) —
+        never 404 solely for “missing customer”.
+      parameters:
+        - name: customerId
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Masked display context; uniform shape (no enumeration)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginContextResponse'
+
+  /internal/customer-portal/me/portal-status:
+    get:
+      tags: [customer-portal-implemented]
+      summary: First-time PIN setup completion status for the signed-in customer
+      operationId: customerPortalPortalStatus
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Status derived from Customer.portalPinSetupCompletedAt
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PortalStatusResponse'
+        '401':
+          description: Missing or invalid JWT (standard error envelope)
+
+  /internal/customer-portal/customers/{customerId}/details:
+    get:
+      tags: [customer-portal-planned]
+      summary: Customer details for self-service (mirror staff DTO subset) — planned
+      description: Planned T032–T035; RBAC MUST enforce path `customerId` === JWT `sub`.
+      operationId: customerPortalGetCustomerDetails
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CustomerId'
+      responses:
+        '200':
+          description: Customer detail payload
+        '401': { description: Unauthorized — standard envelope }
+        '403': { description: Role or customer mismatch }
+        '404': { description: Resource not found (customer-scoped) }
+
+  /internal/customer-portal/customers/{customerId}/payments:
+    get:
+      tags: [customer-portal-planned]
+      summary: Payments list for customer — planned
+      description: Planned T032–T033; RBAC MUST enforce path `customerId` === JWT `sub`.
+      operationId: customerPortalListPayments
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CustomerId'
+      responses:
+        '200':
+          description: Payments list payload
+        '401': { description: Unauthorized — standard envelope }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Supabase `access_token` for the portal member
+
+  parameters:
+    CustomerId:
+      name: customerId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+
+  schemas:
+    LoginContextResponse:
+      type: object
+      description: |
+        Known customer: masked national phone (`07•••••` + last 4) plus names where available.
+        Unknown UUID: empty strings preserving keys (uniform 200 — [Spec §FR-001a](../spec.md)).
+      properties:
+        maskedPhoneNational:
+          type: string
+          example: '07•••••5678'
+        firstName:
+          type: string
+        lastName:
+          type: string
+
+    PortalStatusResponse:
+      type: object
+      properties:
+        portalPinSetupCompleted:
+          type: boolean
+        portalPinSetupCompletedAt:
+          type: string
+          format: date-time
+          nullable: true

@@ -80,6 +80,8 @@ export class CustomerPolicyDetailDto {
     planName: string | null;
     schemeName: string;
     productName: string;
+    /** Days in premium year for installment helpers; null until configured */
+    productDurationDays: number | null;
   };
 
   enrollment: {
@@ -96,6 +98,12 @@ export class CustomerPolicyDetailDto {
   totalPaidToDate: string;
   installmentsPaid: number;
   missedPayments: number;
+
+  @ApiProperty({
+    description: 'Billing mode from linked scheme',
+    enum: ['prepaid', 'postpaid'],
+  })
+  schemeBillingMode: 'prepaid' | 'postpaid';
 }
 
 export class CustomerPolicyDetailResponseDto {

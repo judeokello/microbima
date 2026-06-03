@@ -208,6 +208,13 @@ export class Customer {
       errors.push('Phone number must be a valid phone number');
     }
 
+    if (this.idNumber) {
+      const trimmedIdNumber = this.idNumber.trim();
+      if (trimmedIdNumber.length < 5 || trimmedIdNumber.length > 9) {
+        errors.push('ID number must be between 5 and 9 characters');
+      }
+    }
+
     if (this.dateOfBirth && this.dateOfBirth > new Date()) {
       errors.push('Date of birth cannot be in the future');
     }

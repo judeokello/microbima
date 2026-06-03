@@ -5,6 +5,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { SupabaseService } from './supabase.service';
 import { CreateTestCustomerDto } from '../dto/test-customers';
 import { normalizePhoneNumber } from '../utils/phone-number.util';
 import { ValidationException } from '../exceptions/validation.exception';
@@ -30,7 +31,10 @@ export interface DeletePreviewResult {
 export class TestCustomersService {
   private readonly logger = new Logger(TestCustomersService.name);
 
-  constructor(private readonly prismaService: PrismaService) {}
+  constructor(
+    private readonly prismaService: PrismaService,
+    private readonly supabaseService: SupabaseService,
+  ) {}
 
   /**
    * List test customers with pagination
@@ -352,6 +356,18 @@ export class TestCustomersService {
       // 18. customers
       await tx.customer.delete({ where: { id: customerId } });
     });
+
+    // Remove the Supabase auth user so their synthetic email can be reused on re-registration.
+    // The customer UUID is their Supabase user ID (set explicitly on createUser).
+    const { error: supabaseErr } = await this.supabaseService.getClient().auth.admin.deleteUser(customerId);
+    if (supabaseErr) {
+      // Non-fatal: the Postgres records are already gone. Log and continue.
+      this.logger.warn(
+        `[${correlationId}] Could not delete Supabase auth user ${customerId}: ${supabaseErr.message}`,
+      );
+    } else {
+      this.logger.log(`[${correlationId}] Supabase auth user deleted: ${customerId}`);
+    }
   }
 
   /**
