@@ -868,6 +868,7 @@ export class MpesaPaymentsService {
                 expectedPaymentDate: compTime,
                 actualPaymentDate: compTime,
                 details: 'M-Pesa statement import',
+                paymentStatus: 'COMPLETED',
               },
             });
 
