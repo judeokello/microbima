@@ -3,7 +3,15 @@ import { PrismaService } from '../prisma/prisma.service';
 import { PolicyService } from './policy.service';
 import { MpesaIpnPayloadDto, MpesaIpnResponseDto } from '../dto/mpesa-ipn/mpesa-ipn.dto';
 import { normalizeMsisdnOrReturnRaw } from '../utils/phone-number.util';
-import { MpesaStatementReasonType, MpesaPaymentSource, MpesaStkPushStatus, MpesaStkPushRequest, MpesaPaymentReportItem, PolicyPayment } from '@prisma/client';
+import {
+  MpesaStatementReasonType,
+  MpesaPaymentSource,
+  MpesaStkPushStatus,
+  MpesaStkPushRequest,
+  MpesaPaymentReportItem,
+  PolicyPayment,
+  PaymentStatus,
+} from '@prisma/client';
 import { ValidationException } from '../exceptions/validation.exception';
 import * as Sentry from '@sentry/nestjs';
 
@@ -388,14 +396,24 @@ export class MpesaIpnService {
           });
         }
       } else {
+        if (existingPolicyPayment) {
+          await this.confirmPolicyPaymentFromIpn(existingPolicyPayment.id, correlationId);
+          await this.prismaService.mpesaPaymentReportItem.update({
+            where: { id: ipnRecord.id },
+            data: { isMapped: true },
+          });
+        }
+
         this.logger.log(
           JSON.stringify({
             event: 'IPN_SKIP_POLICY_PAYMENT',
             correlationId,
             transactionId: payload.TransID,
-            reason: stkPushRequest
-              ? 'STK Push already created policy payment (COMPLETED)'
-              : 'No account reference',
+            reason: existingPolicyPayment
+              ? 'Policy payment already exists - status confirmed'
+              : stkPushRequest
+                ? 'STK Push already created policy payment (COMPLETED)'
+                : 'No account reference',
             timestamp: new Date().toISOString(),
           })
         );
@@ -504,6 +522,7 @@ export class MpesaIpnService {
     });
 
     if (existingPayment) {
+      await this.confirmPolicyPaymentFromIpn(existingPayment.id, correlationId);
       this.logger.log(
         JSON.stringify({
           event: 'IPN_POLICY_PAYMENT_EXISTS',
@@ -851,8 +870,58 @@ export class MpesaIpnService {
         amount,
         actualPaymentDate: transactionTime,
         accountNumber: customerIdNumber,
+        paymentStatus: PaymentStatus.COMPLETED,
       },
     });
+  }
+
+  /**
+   * Mark an existing policy payment as confirmed when IPN proves receipt (e.g. statement import created row first).
+   */
+  private async confirmPolicyPaymentFromIpn(
+    policyPaymentId: number,
+    correlationId: string
+  ): Promise<void> {
+    const payment = await this.prismaService.policyPayment.findUnique({
+      where: { id: policyPaymentId },
+      select: {
+        paymentStatus: true,
+        actualPaymentDate: true,
+        transactionReference: true,
+      },
+    });
+
+    if (!payment) {
+      return;
+    }
+
+    if (payment.paymentStatus === PaymentStatus.COMPLETED) {
+      return;
+    }
+
+    // In-flight STK placeholders must be updated via callback/query/IPN placeholder path
+    if (
+      payment.transactionReference.startsWith('PENDING-STK-') &&
+      payment.actualPaymentDate == null
+    ) {
+      return;
+    }
+
+    await this.prismaService.policyPayment.update({
+      where: { id: policyPaymentId },
+      data: { paymentStatus: PaymentStatus.COMPLETED },
+    });
+
+    this.logger.log(
+      JSON.stringify({
+        event: 'IPN_POLICY_PAYMENT_STATUS_CONFIRMED',
+        correlationId,
+        policyPaymentId,
+        previousStatus: payment.paymentStatus,
+        transactionReference: payment.transactionReference,
+        timestamp: new Date().toISOString(),
+      })
+    );
   }
 
   /**

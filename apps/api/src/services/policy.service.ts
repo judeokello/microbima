@@ -1621,6 +1621,7 @@ export class PolicyService {
             accountNumber: p.accountNumber ?? null,
             expectedPaymentDate: p.completionTime,
             actualPaymentDate: p.completionTime,
+            paymentStatus: 'COMPLETED',
           },
         });
       }
