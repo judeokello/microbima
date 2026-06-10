@@ -239,11 +239,11 @@ MpesaStkPushCallbackResponse
 2. **Policy Activation (First Payment)**:
    - When IPN or STK Push callback indicates payment completion for a policy with `status = 'PENDING_ACTIVATION'`:
      - Update `status = 'ACTIVE'`
-     - Set `startDate = payment date` (UTC, start of day: 00:00:00)
-     - Set `endDate = startDate + 1 year` (UTC, end of day: 23:59:59.999)
+     - Set `startDate` from first completed payment (prepaid) or first bulk-upload CSV row for the member (postpaid — see `policy-dates.util.ts` / `docs/development/policy-date-rules.md`)
+     - Set `endDate` to `startDate + 1 calendar year − 1 day` (same time of day, UTC)
      - Create policy member records (principal and dependants)
    - If policy status is already `ACTIVE` or any other status (e.g., `SUSPENDED`, `TERMINATED`), do NOT change status
-   - Activation is idempotent: If policy is already `ACTIVE`, skip activation
+   - Activation is idempotent: If policy is already `ACTIVE`, skip status change; backfill missing dates if needed
 
 3. **Subsequent Payments**:
    - IPN notifications for policies that are already `ACTIVE` or in other statuses:

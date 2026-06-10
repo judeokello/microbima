@@ -40,8 +40,8 @@ Use **`COMPLETED`** and **`COMPLETED_PENDING_RECEIPT`**.
 | Policy number (PDF body) | `Policy.policyNumber` — **slashes allowed**. |
 | Policy number (filename) | Replace `/` with `-`. |
 | Total premium paid (filtered) | Sum of `amount` for rows in PDF (confirmed + date filter). |
-| All-time captured payments | Sum of `amount` for `paymentStatus IN (COMPLETED, COMPLETED_PENDING_RECEIPT)` for this **policyId**, **ignoring** UI from/to. **Date predicate**: recommend `expectedPaymentDate >= policy.startDate` (start at start-of-day UTC) — **confirm in implementation review** if business prefers `actualPaymentDate` instead. |
-| Policy start / end | `Policy.startDate`, `Policy.endDate` — long US date format. **`endDate` null** → display **"-"**. |
+| All-time captured payments | Sum of `amount` for `paymentStatus IN (COMPLETED, COMPLETED_PENDING_RECEIPT)` for this **policyId**, **ignoring** UI from/to. **Date predicate**: `expectedPaymentDate >= policy.startDate` (see `docs/development/policy-date-rules.md`). |
+| Policy start / end | `Policy.startDate`, `Policy.endDate` — long US date format (full UTC timestamps stored; display may show date only). **`endDate` null** → display **"-"**. |
 | Status | `Policy.status` (enum string / label). |
 | Premium due | See §5. |
 

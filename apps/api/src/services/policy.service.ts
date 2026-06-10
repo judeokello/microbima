@@ -6,6 +6,7 @@ import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
 import * as Sentry from '@sentry/nestjs';
 import { PaymentAccountNumberService } from './payment-account-number.service';
 import { MessagingService } from '../modules/messaging/messaging.service';
+import { policyDatesFromPayment, policyEndDateFromStart } from '../utils/policy-dates.util';
 
 /**
  * Policy Service
@@ -736,15 +737,18 @@ export class PolicyService {
           },
         });
 
-        // For prepaid schemes, activate the policy only if payment has already been completed
-        // (indicated by actualPaymentDate being set)
-        // If actualPaymentDate is null, policy remains in PENDING_ACTIVATION until payment completes
-        // Payment completion will trigger activation via IPN or STK push callback
-        if (!isPostpaidScheme && data.paymentData.actualPaymentDate) {
-          await this.activatePolicy(policy.id, correlationId, tx);
-          this.logger.log(`[${correlationId}] Activated prepaid policy ${policy.id} immediately (payment already completed)`);
-        } else if (!isPostpaidScheme) {
-          this.logger.log(`[${correlationId}] Policy ${policy.id} created with PENDING_ACTIVATION status (will be activated when payment completes)`);
+        // Dates stay NULL at insert; activatePolicy() sets them from the first completed payment
+        // via policy-dates.util.ts (also creates member records and assigns policy number when needed).
+        if (data.paymentData.actualPaymentDate) {
+          const activatedPolicy = await this.activatePolicy(policy.id, correlationId, tx);
+          policy = activatedPolicy;
+          this.logger.log(
+            `[${correlationId}] Activated policy ${policy.id} immediately (payment already completed)`
+          );
+        } else {
+          this.logger.log(
+            `[${correlationId}] Policy ${policy.id} created with PENDING_ACTIVATION status (will be activated when payment completes)`
+          );
         }
 
         return {
@@ -1025,6 +1029,47 @@ export class PolicyService {
   }
 
   /**
+   * Resolve policy start/end dates.
+   * Prepaid: earliest completed payment on the policy.
+   * Postpaid: earliest completed bulk-upload payment (postpaid_scheme_payment_item)
+   *           — the first CSV upload this member contributed to, not scheme-wide payments
+   *           they were absent from.
+   */
+  private async resolvePolicyDates(
+    policy: { id: string; createdAt: Date },
+    isPostpaidScheme: boolean,
+    tx: Prisma.TransactionClient,
+    correlationId: string
+  ): Promise<{ startDate: Date; endDate: Date }> {
+    const firstPayment = await tx.policyPayment.findFirst({
+      where: {
+        policyId: policy.id,
+        actualPaymentDate: { not: null },
+        ...(isPostpaidScheme
+          ? { postpaidSchemePaymentItem: { isNot: null } }
+          : {}),
+      },
+      orderBy: { actualPaymentDate: 'asc' },
+      select: { actualPaymentDate: true, transactionReference: true },
+    });
+
+    if (!firstPayment?.actualPaymentDate) {
+      this.logger.warn(
+        `[${correlationId}] No ${isPostpaidScheme ? 'bulk-upload ' : ''}completed payment found for policy ${policy.id}; using policy createdAt for activation dates`
+      );
+      return policyDatesFromPayment(policy.createdAt);
+    }
+
+    if (isPostpaidScheme) {
+      this.logger.log(
+        `[${correlationId}] Postpaid policy ${policy.id}: start date from first bulk-upload payment ${firstPayment.transactionReference} at ${firstPayment.actualPaymentDate.toISOString()}`
+      );
+    }
+
+    return policyDatesFromPayment(firstPayment.actualPaymentDate);
+  }
+
+  /**
    * Activate a policy
    * - Generates policy number if not already set
    * - Sets start and end dates
@@ -1096,17 +1141,33 @@ export class PolicyService {
         if (existingPrincipalMember) {
           this.logger.log(
             `[${correlationId}] Policy ${policyId} already has member records in policy_member_principals table. ` +
-            'Policy was previously activated. Only updating status to ACTIVE. ' +
+            'Policy was previously activated. Updating status to ACTIVE and backfilling missing dates. ' +
             `Policy number: ${policy.policyNumber ?? 'NULL (postpaid)'}, ` +
             `Member record ID: ${existingPrincipalMember.id}`
           );
 
-          // Only update status to ACTIVE - don't touch policy number, dates, or member records
+          const updateData: Prisma.PolicyUpdateInput = { status: 'ACTIVE' };
+
+          if (!policy.startDate || !policy.endDate) {
+            const resolvedDates = await this.resolvePolicyDates(
+              policy,
+              isPostpaidScheme,
+              txClient,
+              correlationId
+            );
+            if (!policy.startDate) {
+              updateData.startDate = resolvedDates.startDate;
+            }
+            if (!policy.endDate) {
+              updateData.endDate = policy.startDate
+                ? policyEndDateFromStart(policy.startDate)
+                : resolvedDates.endDate;
+            }
+          }
+
           const updatedPolicy = await txClient.policy.update({
             where: { id: policyId },
-            data: {
-              status: 'ACTIVE',
-            },
+            data: updateData,
           });
 
           return updatedPolicy;
@@ -1134,17 +1195,22 @@ export class PolicyService {
           );
         }
 
-        // Set start and end dates if they don't exist
+        // Set start and end dates from first completed payment when missing
         let startDate = policy.startDate;
         let endDate = policy.endDate;
 
         if (!startDate || !endDate) {
-          startDate = new Date();
-          startDate.setUTCHours(0, 0, 0, 0);
+          const resolvedDates = await this.resolvePolicyDates(
+            policy,
+            isPostpaidScheme,
+            txClient,
+            correlationId
+          );
 
-          endDate = new Date(startDate);
-          endDate.setFullYear(endDate.getFullYear() + 1);
-          endDate.setUTCHours(23, 59, 59, 999);
+          startDate ??= resolvedDates.startDate;
+          endDate ??= startDate
+            ? policyEndDateFromStart(startDate)
+            : resolvedDates.endDate;
 
           this.logger.log(
             `[${correlationId}] Set policy dates - start: ${startDate.toISOString()}, end: ${endDate.toISOString()}`
@@ -1580,19 +1646,23 @@ export class PolicyService {
       return true;
     });
 
-    const earliestPayment = uniquePayments[0];
-    const startDate = new Date(earliestPayment.completionTime);
-    startDate.setUTCHours(0, 0, 0, 0);
-    const endDate = new Date(startDate);
-    endDate.setFullYear(endDate.getFullYear() + 1);
-    endDate.setUTCHours(23, 59, 59, 999);
+    const customerScheme = await this.prismaService.packageSchemeCustomer.findFirst({
+      where: {
+        customerId: data.customerId,
+        packageScheme: { packageId: data.packageId },
+      },
+      include: {
+        packageScheme: {
+          include: { scheme: { select: { isPostpaid: true } } },
+        },
+      },
+    });
+    const isPostpaidScheme = customerScheme?.packageScheme?.scheme?.isPostpaid ?? false;
 
     return this.prismaService.$transaction(async (tx) => {
-      const policyNumber = await this.generatePolicyNumberInTransaction(
-        data.packageId,
-        tx,
-        correlationId
-      );
+      const policyNumber = isPostpaidScheme
+        ? null
+        : await this.generatePolicyNumberInTransaction(data.packageId, tx, correlationId);
 
       const policy = await tx.policy.create({
         data: {
@@ -1606,8 +1676,8 @@ export class PolicyService {
           frequency: data.frequency,
           paymentCadence,
           paymentAcNumber,
-          startDate,
-          endDate,
+          startDate: null,
+          endDate: null,
         },
       });
 
@@ -1626,9 +1696,9 @@ export class PolicyService {
         });
       }
 
-      await this.activatePolicy(policy.id, correlationId, tx);
+      const activatedPolicy = await this.activatePolicy(policy.id, correlationId, tx);
 
-      return policy;
+      return activatedPolicy;
     });
   }
 

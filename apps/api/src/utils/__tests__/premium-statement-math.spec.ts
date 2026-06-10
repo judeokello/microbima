@@ -1,11 +1,20 @@
 /// <reference types="jest" />
+import { PaymentStatus } from '@prisma/client';
 import {
   computeExpectedPremiumThroughAsOf,
+  computeMissedOrExcess,
   computePremiumDueAndExcess,
+  formatMissedPaymentsAmountSide,
+  isUtcCalendarDayBefore,
   parseYmdToUtcEnd,
   parseYmdToUtcStart,
+  sumConfirmedPaidThroughAsOf,
+  utcDayEnd,
+  utcDayStart,
   utcInclusiveCalendarDays,
 } from '../premium-statement-math';
+
+const CONFIRMED = [PaymentStatus.COMPLETED, PaymentStatus.COMPLETED_PENDING_RECEIPT];
 
 describe('premium-statement-math', () => {
   describe('utcInclusiveCalendarDays', () => {
@@ -91,6 +100,103 @@ describe('premium-statement-math', () => {
 
     it('returns excess when paid exceeds expected (both magnitudes positive)', () => {
       expect(computePremiumDueAndExcess(1000, 1500)).toEqual({ premiumDue: 0, excessAmount: 500 });
+    });
+  });
+
+  describe('isUtcCalendarDayBefore', () => {
+    it('returns true when day is before reference calendar day', () => {
+      const day = new Date(Date.UTC(2025, 0, 10));
+      const ref = new Date(Date.UTC(2025, 0, 15));
+      expect(isUtcCalendarDayBefore(day, ref)).toBe(true);
+    });
+
+    it('returns false for same or later calendar day', () => {
+      const day = new Date(Date.UTC(2025, 0, 15));
+      const ref = new Date(Date.UTC(2025, 0, 10));
+      expect(isUtcCalendarDayBefore(day, ref)).toBe(false);
+    });
+  });
+
+  describe('sumConfirmedPaidThroughAsOf', () => {
+    const policyStart = utcDayStart(2025, 0, 1);
+    const asOfEnd = utcDayEnd(2025, 0, 31);
+
+    it('sums only confirmed payments within expectedPaymentDate window', () => {
+      const payments = [
+        {
+          amount: 100,
+          paymentStatus: PaymentStatus.COMPLETED,
+          expectedPaymentDate: utcDayStart(2025, 0, 5),
+        },
+        {
+          amount: 50,
+          paymentStatus: PaymentStatus.PENDING_STK_CALLBACK,
+          expectedPaymentDate: utcDayStart(2025, 0, 10),
+        },
+        {
+          amount: 200,
+          paymentStatus: PaymentStatus.COMPLETED,
+          expectedPaymentDate: utcDayStart(2025, 1, 5),
+        },
+      ];
+      expect(sumConfirmedPaidThroughAsOf(payments, policyStart, asOfEnd, CONFIRMED)).toBe(100);
+    });
+  });
+
+  describe('computeMissedOrExcess', () => {
+    const policyStart = new Date(Date.UTC(2025, 0, 1, 0, 0, 0));
+
+    it('returns lower missed amount when as-of is earlier (fewer expected periods)', () => {
+      const asOfJan15 = new Date(Date.UTC(2025, 0, 15, 12, 0, 0));
+      const asOfFeb1 = new Date(Date.UTC(2025, 1, 1, 12, 0, 0));
+      const earlier = computeMissedOrExcess({
+        policyStart,
+        asOfUtc: asOfJan15,
+        paymentCadenceDays: 30,
+        installmentAmount: 100,
+        payments: [],
+        confirmedStatuses: CONFIRMED,
+      });
+      const later = computeMissedOrExcess({
+        policyStart,
+        asOfUtc: asOfFeb1,
+        paymentCadenceDays: 30,
+        installmentAmount: 100,
+        payments: [],
+        confirmedStatuses: CONFIRMED,
+      });
+      expect(earlier).toEqual({ premiumDue: 0, excessAmount: 0 });
+      expect(later).toEqual({ premiumDue: 100, excessAmount: 0 });
+    });
+
+    it('returns null for invalid cadence or installment', () => {
+      expect(
+        computeMissedOrExcess({
+          policyStart,
+          asOfUtc: new Date(),
+          paymentCadenceDays: 0,
+          installmentAmount: 100,
+          payments: [],
+          confirmedStatuses: CONFIRMED,
+        })
+      ).toBeNull();
+    });
+  });
+
+  describe('formatMissedPaymentsAmountSide', () => {
+    it('formats missed and excess sides', () => {
+      expect(formatMissedPaymentsAmountSide({ premiumDue: 600, excessAmount: 0 })).toEqual({
+        amountMissed: '600.00',
+        excessAmount: null,
+      });
+      expect(formatMissedPaymentsAmountSide({ premiumDue: 0, excessAmount: 500 })).toEqual({
+        amountMissed: '0.00',
+        excessAmount: '500.00',
+      });
+      expect(formatMissedPaymentsAmountSide(null)).toEqual({
+        amountMissed: '—',
+        excessAmount: null,
+      });
     });
   });
 });

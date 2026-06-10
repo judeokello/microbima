@@ -194,7 +194,7 @@ Each increment is independently testable and delivers value.
   - Store customer data (firstName, middleName, lastName, msisdn) from IPN payload
   - Set `paidIn` field appropriately (all IPN transactions are incoming payments)
   - **Placeholder payment handling**: Before creating a new `policyPayment` record, check for an existing placeholder payment (`transactionReference` starts with `PENDING-STK-` and `actualPaymentDate = null`) for the same policy. If found, update the placeholder with the real `TransID` and `actualPaymentDate` instead of creating a new record
-  - **Policy activation**: After creating/updating policy payment record, if policy status is `PENDING_ACTIVATION`, activate policy (set status to `ACTIVE`, set `startDate` to payment date, set `endDate` to one year from `startDate`). Do NOT activate if policy status is already `ACTIVE` or any other status (e.g., `SUSPENDED`, `TERMINATED`)
+  - **Policy activation**: After creating/updating policy payment record, if policy status is `PENDING_ACTIVATION`, activate policy (set status to `ACTIVE`, set dates via `policy-dates.util.ts` from first completed payment). Do NOT activate if policy status is already `ACTIVE` or any other status (e.g., `SUSPENDED`, `TERMINATED`)
   - Attempt to link to STK Push request (matching logic: accountReference, normalized phone, exact amount, 24-hour window)
   - Return success response (`ResultCode: 0, ResultDesc: "Accepted"`) even on errors
   - Log errors internally for investigation (use correlationId for tracing, structured JSON format)
@@ -317,7 +317,7 @@ Each increment is independently testable and delivers value.
     - Otherwise → `FAILED` or `CANCELLED` (based on ResultDesc)
   - **Payment record creation**: If status is COMPLETED, create records in both `MpesaPaymentReportItem` and `policy_payments`
   - **Handle idempotency**: Check if payment records already exist (IPN may have arrived first) - handle idempotently
-  - **Policy activation**: After creating policy payment record, if policy status is `PENDING_ACTIVATION`, activate policy (set status to `ACTIVE`, set `startDate` to payment date, set `endDate` to one year from `startDate`). Do NOT activate if policy status is already `ACTIVE` or any other status (e.g., `SUSPENDED`, `TERMINATED`)
+  - **Policy activation**: After creating policy payment record, if policy status is `PENDING_ACTIVATION`, activate policy (set status to `ACTIVE`, set dates via `policy-dates.util.ts` from first completed payment). Do NOT activate if policy status is already `ACTIVE` or any other status (e.g., `SUSPENDED`, `TERMINATED`)
   - **TODO**: Handle status mismatch scenario (if IPN already processed and created payment records, but callback arrives with FAILED/CANCELLED - see deferred decision)
   - Store `resultCode` and `resultDesc` fields
   - Set `completedAt` timestamp
@@ -614,8 +614,9 @@ All 49 tasks for this feature are implemented. T037–T041 were completed: e2e t
 - **Policy Creation**: When creating policies in the registration flow, policies MUST be created with `status = 'PENDING_ACTIVATION'` and `startDate = NULL`, `endDate = NULL` (for both prepaid and postpaid schemes). Dates are only set when policy is activated on first payment.
 - **Policy Activation**: Policy activation (changing status from `PENDING_ACTIVATION` to `ACTIVE`) MUST only happen on the first payment completion. When activating:
   - Set `status = 'ACTIVE'`
-  - Set `startDate = payment date` (UTC, start of day: 00:00:00)
-  - Set `endDate = startDate + 1 year` (UTC, end of day: 23:59:59.999)
+  - Set `startDate` to first completed payment timestamp (UTC, time preserved)
+  - Set `endDate` to `startDate + 1 calendar year − 1 day` (same time of day, UTC)
+  - See `apps/api/src/utils/policy-dates.util.ts` and `docs/development/policy-date-rules.md`
   - Create policy member records (principal and dependants)
 - **Activation Safety**: System MUST NOT change policy status if policy is already `ACTIVE` or in any other status (e.g., `SUSPENDED`, `TERMINATED`). Activation is idempotent - if policy is already `ACTIVE`, skip activation.
 - **Subsequent Payments**: IPN notifications for policies that are already `ACTIVE` or in other statuses create payment records normally but do NOT change policy status or dates.

@@ -960,6 +960,16 @@ export interface CustomerPolicyListResponse {
   data: CustomerPolicyListItem[]
 }
 
+export interface MissedPaymentsAmountSide {
+  amountMissed: string
+  excessAmount: string | null
+}
+
+export interface MissedPaymentsAmount {
+  allTime: MissedPaymentsAmountSide
+  filtered: MissedPaymentsAmountSide | null
+}
+
 /** Policy detail for product detail page */
 export interface CustomerPolicyDetail {
   id: string
@@ -989,6 +999,7 @@ export interface CustomerPolicyDetail {
   totalPaidToDate: string
   installmentsPaid: number
   missedPayments: number
+  missedPaymentsAmount: MissedPaymentsAmount
 }
 
 export interface CustomerPolicyDetailResponse {
@@ -1198,12 +1209,19 @@ export async function getCustomerPoliciesList(customerId: string): Promise<Custo
   }
 }
 
-export async function getCustomerPolicyDetail(customerId: string, policyId: string): Promise<CustomerPolicyDetailResponse> {
+export async function getCustomerPolicyDetail(
+  customerId: string,
+  policyId: string,
+  filter?: Pick<PaymentFilter, 'fromDate' | 'toDate'>
+): Promise<CustomerPolicyDetailResponse> {
   try {
     const token = await getSupabaseToken()
-    const response = await fetch(
-      `${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/customers/${customerId}/policies/${policyId}`,
-      {
+    const params = new URLSearchParams()
+    if (filter?.fromDate) params.set('fromDate', filter.fromDate)
+    if (filter?.toDate) params.set('toDate', filter.toDate)
+    const query = params.toString()
+    const url = `${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/customers/${customerId}/policies/${policyId}${query ? `?${query}` : ''}`
+    const response = await fetch(url, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`,

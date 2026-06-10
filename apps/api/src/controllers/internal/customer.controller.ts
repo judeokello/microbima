@@ -722,6 +722,18 @@ export class InternalCustomerController {
   })
   @ApiParam({ name: 'customerId', description: 'Customer ID' })
   @ApiParam({ name: 'policyId', description: 'Policy ID' })
+  @ApiQuery({
+    name: 'fromDate',
+    description: 'Payments filter from date (YYYY-MM-DD); passed from Payments tab',
+    required: false,
+    example: '2024-01-01',
+  })
+  @ApiQuery({
+    name: 'toDate',
+    description: 'Payments filter to date (YYYY-MM-DD); when before today, drives bracketed missed amount',
+    required: false,
+    example: '2024-12-31',
+  })
   @ApiResponse({ status: 200, description: 'Policy detail', type: CustomerPolicyDetailResponseDto })
   @ApiResponse({ status: 404, description: 'Customer or policy not found' })
   async getCustomerPolicyDetail(
@@ -729,10 +741,19 @@ export class InternalCustomerController {
     @Param('policyId') policyId: string,
     @CorrelationId() correlationId: string,
     @Req() req: Request,
+    @Query('fromDate') fromDate?: string,
+    @Query('toDate') toDate?: string,
   ): Promise<CustomerPolicyDetailResponseDto> {
     const userId = req.user?.id ?? 'system';
     const userRoles = req.user?.roles ?? [];
-    return this.customerService.getCustomerPolicyDetail(customerId, policyId, userId, userRoles, correlationId);
+    return this.customerService.getCustomerPolicyDetail(
+      customerId,
+      policyId,
+      userId,
+      userRoles,
+      correlationId,
+      { fromDate, toDate }
+    );
   }
 
   /**

@@ -63,3 +63,74 @@ export function computePremiumDueAndExcess(
     excessAmount: Math.max(0, paidThroughAsOf - expectedPremium),
   };
 }
+
+/** True when `day` is a strictly earlier UTC calendar day than `referenceDay`. */
+export function isUtcCalendarDayBefore(day: Date, referenceDay: Date): boolean {
+  const d = Date.UTC(day.getUTCFullYear(), day.getUTCMonth(), day.getUTCDate());
+  const r = Date.UTC(referenceDay.getUTCFullYear(), referenceDay.getUTCMonth(), referenceDay.getUTCDate());
+  return d < r;
+}
+
+export function sumConfirmedPaidThroughAsOf(
+  payments: Array<{ amount: unknown; paymentStatus: string; expectedPaymentDate: Date }>,
+  policyStartDay: Date,
+  asOfEnd: Date,
+  confirmedStatuses: readonly string[]
+): number {
+  return payments
+    .filter(
+      (pm) =>
+        confirmedStatuses.includes(pm.paymentStatus) &&
+        pm.expectedPaymentDate >= policyStartDay &&
+        pm.expectedPaymentDate <= asOfEnd
+    )
+    .reduce((sum, pm) => sum + Number(pm.amount), 0);
+}
+
+export function computeMissedOrExcess(params: {
+  policyStart: Date;
+  asOfUtc: Date;
+  paymentCadenceDays: number;
+  installmentAmount: number;
+  payments: Array<{ amount: unknown; paymentStatus: string; expectedPaymentDate: Date }>;
+  confirmedStatuses: readonly string[];
+}): { premiumDue: number; excessAmount: number } | null {
+  if (params.paymentCadenceDays <= 0 || params.installmentAmount <= 0) {
+    return null;
+  }
+  const policyStartDay = utcDayStart(
+    params.policyStart.getUTCFullYear(),
+    params.policyStart.getUTCMonth(),
+    params.policyStart.getUTCDate()
+  );
+  const asOfEnd = utcDayEnd(
+    params.asOfUtc.getUTCFullYear(),
+    params.asOfUtc.getUTCMonth(),
+    params.asOfUtc.getUTCDate()
+  );
+  const { expectedPremium } = computeExpectedPremiumThroughAsOf({
+    policyStart: params.policyStart,
+    statementGenerationUtc: params.asOfUtc,
+    paymentCadenceDays: params.paymentCadenceDays,
+    installmentAmount: params.installmentAmount,
+  });
+  const paidThroughAsOf = sumConfirmedPaidThroughAsOf(
+    params.payments,
+    policyStartDay,
+    asOfEnd,
+    params.confirmedStatuses
+  );
+  return computePremiumDueAndExcess(expectedPremium, paidThroughAsOf);
+}
+
+export function formatMissedPaymentsAmountSide(
+  result: { premiumDue: number; excessAmount: number } | null
+): { amountMissed: string; excessAmount: string | null } {
+  if (!result) {
+    return { amountMissed: '—', excessAmount: null };
+  }
+  return {
+    amountMissed: result.premiumDue.toFixed(2),
+    excessAmount: result.excessAmount > 0 ? result.excessAmount.toFixed(2) : null,
+  };
+}
