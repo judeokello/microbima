@@ -321,6 +321,7 @@ export class PostpaidSchemePaymentService {
             amount: row.amount,
             expectedPaymentDate: postpaid.transactionDate,
             actualPaymentDate: actualDate,
+            paymentStatus: 'COMPLETED',
           },
         });
 
