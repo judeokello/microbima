@@ -223,10 +223,9 @@ As the System, I want to create policies differently based on whether the scheme
 **Acceptance Criteria:**
 
 #### For Prepaid Schemes (`scheme.isPostpaid = false`):
-- [ ] Policy status set to `ACTIVE`
-- [ ] Policy number generated immediately
-- [ ] `startDate` set to current date
-- [ ] `endDate` set to one year after start date
+- [ ] Policy created with `PENDING_ACTIVATION` and NULL dates when payment is pending
+- [ ] On first completed payment: status `ACTIVE`, dates from `policy-dates.util.ts`
+- [ ] Policy number generated at creation (prepaid) or on activation (if not yet assigned)
 - [ ] `paymentAcNumber` set to customer ID (first policy) or generated unique number (subsequent)
 - [ ] Policy member principals and dependants created immediately
 - [ ] Payment frequency and cadence from user selection on payment page
@@ -252,9 +251,8 @@ As the System, I want to create policies differently based on whether the scheme
 - Input: `policyId`, `correlationId`
 - Actions:
   1. If policy number not set: generate policy number
-  2. Set `startDate` to current date
-  3. Set `endDate` to one year after start date
-  4. Update `status` to `ACTIVE`
+  2. If dates not set: prepaid — earliest completed payment; postpaid — earliest bulk-upload CSV payment for member (`postpaid_scheme_payment_item`). See `docs/development/policy-date-rules.md`
+  3. Update `status` to `ACTIVE`
   5. Create `policy_member_principals` entries with unique member numbers
   6. Create `policy_member_dependants` entries with unique member numbers
   7. If policy number already set: only update status to `ACTIVE`
@@ -878,10 +876,11 @@ async function activatePolicy(policyId: string) {
     policy.policyNumber = await generatePolicyNumber();
   }
   
-  // Set dates if not already set
-  if (!policy.startDate) {
-    policy.startDate = new Date();
-    policy.endDate = addYears(policy.startDate, 1);
+  // Set dates if not already set (from first completed payment)
+  if (!policy.startDate || !policy.endDate) {
+    const { startDate, endDate } = policyDatesFromFirstPayment(firstCompletedPaymentDate);
+    policy.startDate = startDate;
+    policy.endDate = endDate;
   }
   
   // Update status

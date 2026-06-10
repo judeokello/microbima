@@ -58,6 +58,30 @@ export class CustomerPolicyListResponseDto {
   data: CustomerPolicyListItemDto[];
 }
 
+/** One side of missed-payments amount (premium due or excess). */
+export class MissedPaymentsAmountSideDto {
+  @ApiProperty({ description: 'Premium due (missed amount); 0.00 when in excess' })
+  amountMissed: string;
+
+  @ApiProperty({
+    description: 'Excess payment amount when paid exceeds expected; null when not in excess',
+    nullable: true,
+  })
+  excessAmount: string | null;
+}
+
+export class MissedPaymentsAmountDto {
+  @ApiProperty({ type: MissedPaymentsAmountSideDto })
+  allTime: MissedPaymentsAmountSideDto;
+
+  @ApiProperty({
+    type: MissedPaymentsAmountSideDto,
+    nullable: true,
+    description: 'Filtered as-of to date when to date is before today; null when bracket not shown',
+  })
+  filtered: MissedPaymentsAmountSideDto | null;
+}
+
 /**
  * Policy detail for product detail page (GET .../policies/:policyId)
  */
@@ -98,6 +122,9 @@ export class CustomerPolicyDetailDto {
   totalPaidToDate: string;
   installmentsPaid: number;
   missedPayments: number;
+
+  @ApiProperty({ type: MissedPaymentsAmountDto })
+  missedPaymentsAmount: MissedPaymentsAmountDto;
 
   @ApiProperty({
     description: 'Billing mode from linked scheme',

@@ -45,7 +45,14 @@ import {
 import {
   CustomerPolicyListResponseDto,
   CustomerPolicyDetailResponseDto,
+  MissedPaymentsAmountDto,
 } from '../dto/customers/customer-products.dto';
+import {
+  computeMissedOrExcess,
+  formatMissedPaymentsAmountSide,
+  isUtcCalendarDayBefore,
+  parseYmdToUtcStart,
+} from '../utils/premium-statement-math';
 import { OndemandStkMode, OndemandStkPaymentDto } from '../dto/customers/ondemand-stk-payment.dto';
 import { InitiateStkPushDto, StkPushRequestResponseDto } from '../dto/mpesa-stk-push/mpesa-stk-push.dto';
 import { MpesaStkPushService } from './mpesa-stk-push.service';
@@ -2541,7 +2548,8 @@ export class CustomerService {
     policyId: string,
     userId: string,
     userRoles: string[],
-    correlationId: string
+    correlationId: string,
+    filterDates?: { fromDate?: string; toDate?: string }
   ): Promise<CustomerPolicyDetailResponseDto> {
     this.logger.log(`[${correlationId}] Getting policy detail ${policyId} for customer ${customerId}`);
     const canAccess = await this.canUserAccessCustomer(customerId, userId, userRoles);
@@ -2622,6 +2630,12 @@ export class CustomerService {
       .filter((pm) => confirmedStatuses.includes(pm.paymentStatus))
       .reduce((sum, pm) => sum + Number(pm.amount), 0);
 
+    const missedPaymentsAmount = this.buildMissedPaymentsAmount(
+      policy,
+      confirmedStatuses,
+      filterDates?.toDate
+    );
+
     return {
       status: 200,
       correlationId,
@@ -2652,9 +2666,72 @@ export class CustomerService {
         installmentsPaid: policy.policyPayments.filter((pm) => confirmedStatuses.includes(pm.paymentStatus))
           .length,
         missedPayments,
+        missedPaymentsAmount,
         schemeBillingMode,
       },
     };
+  }
+
+  private buildMissedPaymentsAmount(
+    policy: {
+      startDate: Date | null;
+      premium: Prisma.Decimal;
+      paymentCadence: number;
+      policyPayments: Array<{
+        expectedPaymentDate: Date;
+        amount: Prisma.Decimal;
+        paymentStatus: PaymentStatus;
+      }>;
+    },
+    confirmedStatuses: PaymentStatus[],
+    toDate?: string
+  ): MissedPaymentsAmountDto {
+    const premiumNum = Number(policy.premium);
+    const cadence = policy.paymentCadence;
+    const canCompute =
+      policy.startDate != null &&
+      cadence > 0 &&
+      Number.isFinite(premiumNum) &&
+      premiumNum > 0;
+
+    if (!canCompute) {
+      return {
+        allTime: { amountMissed: '—', excessAmount: null },
+        filtered: null,
+      };
+    }
+
+    const now = new Date();
+    const policyStart = policy.startDate!;
+    const payments = policy.policyPayments;
+
+    const allTimeResult = computeMissedOrExcess({
+      policyStart,
+      asOfUtc: now,
+      paymentCadenceDays: cadence,
+      installmentAmount: premiumNum,
+      payments,
+      confirmedStatuses,
+    });
+    const allTime = formatMissedPaymentsAmountSide(allTimeResult);
+
+    let filtered: MissedPaymentsAmountDto['filtered'] = null;
+    if (toDate) {
+      const toDateStart = parseYmdToUtcStart(toDate);
+      if (isUtcCalendarDayBefore(toDateStart, now)) {
+        const filteredResult = computeMissedOrExcess({
+          policyStart,
+          asOfUtc: toDateStart,
+          paymentCadenceDays: cadence,
+          installmentAmount: premiumNum,
+          payments,
+          confirmedStatuses,
+        });
+        filtered = formatMissedPaymentsAmountSide(filteredResult);
+      }
+    }
+
+    return { allTime, filtered };
   }
 
   /**

@@ -12,6 +12,7 @@ import {
   computePremiumDueAndExcess,
   parseYmdToUtcEnd,
   parseYmdToUtcStart,
+  sumConfirmedPaidThroughAsOf,
   utcDayEnd,
   utcDayStart,
 } from '../utils/premium-statement-math';
@@ -204,19 +205,23 @@ export class PremiumStatementService {
       generatedAt.getUTCDate()
     );
 
-    const paidThroughAsOfWhere = {
-      policyId,
-      paymentStatus: { in: CONFIRMED },
-      expectedPaymentDate: {
-        gte: policyStartDay,
-        lte: asOfEnd,
-      },
-    };
     const paidThroughAsOfRows = await this.prismaService.policyPayment.findMany({
-      where: paidThroughAsOfWhere,
-      select: { amount: true },
+      where: {
+        policyId,
+        paymentStatus: { in: CONFIRMED },
+        expectedPaymentDate: {
+          gte: policyStartDay,
+          lte: asOfEnd,
+        },
+      },
+      select: { amount: true, paymentStatus: true, expectedPaymentDate: true },
     });
-    const paidThroughAsOf = paidThroughAsOfRows.reduce((s, r) => s + Number(r.amount), 0);
+    const paidThroughAsOf = sumConfirmedPaidThroughAsOf(
+      paidThroughAsOfRows,
+      policyStartDay,
+      asOfEnd,
+      CONFIRMED
+    );
 
     const { premiumDue, excessAmount } = computePremiumDueAndExcess(expectedPremium, paidThroughAsOf);
 

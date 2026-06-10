@@ -18,6 +18,7 @@ import {
   Payment,
   PaymentFilter,
   type CustomerPolicyDetail,
+  type MissedPaymentsAmountSide,
 } from '@/lib/api';
 import * as Sentry from '@sentry/nextjs';
 import RequestPaymentDialog from './request-payment-dialog';
@@ -30,6 +31,56 @@ function numberOfInstallments(paymentCadenceDays: number, productDurationDays: n
 
 function isConfirmedPayment(p: Payment): boolean {
   return p.paymentStatus === 'COMPLETED' || p.paymentStatus === 'COMPLETED_PENDING_RECEIPT';
+}
+
+function MissedPaymentsAmountSideDisplay({
+  side,
+  formatAmount,
+}: {
+  side: MissedPaymentsAmountSide;
+  formatAmount: (value: string) => string;
+}) {
+  if (side.amountMissed === '—') {
+    return <span>—</span>;
+  }
+  if (side.excessAmount != null) {
+    return (
+      <span className="inline-flex flex-wrap items-center gap-2">
+        <span>{formatAmount(side.excessAmount)}</span>
+        <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 text-xs font-normal">
+          Excess payment
+        </Badge>
+      </span>
+    );
+  }
+  const missed = parseFloat(side.amountMissed);
+  const isMissed = !Number.isNaN(missed) && missed > 0;
+  return (
+    <span className={isMissed ? 'text-red-600 font-medium' : undefined}>
+      {formatAmount(side.amountMissed)}
+    </span>
+  );
+}
+
+function MissedPaymentsAmountDisplay({
+  missedPaymentsAmount,
+  formatAmount,
+}: {
+  missedPaymentsAmount: CustomerPolicyDetail['missedPaymentsAmount'];
+  formatAmount: (value: string) => string;
+}) {
+  return (
+    <span className="inline-flex flex-wrap items-center gap-1">
+      <MissedPaymentsAmountSideDisplay side={missedPaymentsAmount.allTime} formatAmount={formatAmount} />
+      {missedPaymentsAmount.filtered != null && (
+        <>
+          <span> (</span>
+          <MissedPaymentsAmountSideDisplay side={missedPaymentsAmount.filtered} formatAmount={formatAmount} />
+          <span>)</span>
+        </>
+      )}
+    </span>
+  );
 }
 
 interface PaymentsTabProps {
@@ -114,7 +165,10 @@ export default function PaymentsTab({ customerId, customerPhone = '' }: Payments
 
       const [paymentsRes, policyDetailRes] = await Promise.all([
         getCustomerPayments(customerId, filters),
-        getCustomerPolicyDetail(customerId, selectedPolicyId).catch((e) => {
+        getCustomerPolicyDetail(customerId, selectedPolicyId, {
+          fromDate: fromDate || undefined,
+          toDate: toDate || undefined,
+        }).catch((e) => {
           console.error('Error loading policy detail:', e);
           return null;
         }),
@@ -437,7 +491,16 @@ export default function PaymentsTab({ customerId, customerPhone = '' }: Payments
                 </div>
                 <div>
                   <dt className="text-sm font-medium text-muted-foreground">Missed payments (total amount missed)</dt>
-                  <dd className="mt-1 text-sm">N/A</dd>
+                  <dd className="mt-1 text-sm">
+                    {policyDetail.missedPaymentsAmount ? (
+                      <MissedPaymentsAmountDisplay
+                        missedPaymentsAmount={policyDetail.missedPaymentsAmount}
+                        formatAmount={formatCurrencyFromString}
+                      />
+                    ) : (
+                      '—'
+                    )}
+                  </dd>
                 </div>
                 <div>
                   <dt className="text-sm font-medium text-muted-foreground">Policy start date</dt>

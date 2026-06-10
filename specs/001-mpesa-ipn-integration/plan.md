@@ -34,7 +34,7 @@ Integrate M-Pesa Daraja API Instant Payment Notification (IPN) as the primary tr
 - 24-hour matching window includes 5-minute buffer for clock skew
 - Policies created with `PENDING_ACTIVATION` status must have `startDate = NULL` and `endDate = NULL`
 - Policy activation (status change to `ACTIVE`) only happens on first payment when status is `PENDING_ACTIVATION`
-- Policy activation sets `startDate` to payment date and `endDate` to one year from `startDate`
+- Policy activation sets `startDate` to the first completed payment timestamp and `endDate` to one calendar year minus one day from `startDate` (see `docs/development/policy-date-rules.md`)
 - Subsequent payments do NOT change policy status or dates
 **Scale/Scope**: 
 - Real-time payment processing for insurance premium collections
