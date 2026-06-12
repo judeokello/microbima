@@ -25,6 +25,7 @@ interface Scheme {
   frequency?: string | null;
   paymentCadence?: number | null;
   paymentAcNumber?: string | null;
+  generalSchemeWaitingPeriod?: number | null;
   createdBy: string;
   createdByDisplayName?: string;
   createdAt: string;
@@ -108,6 +109,7 @@ interface PostpaidSchemePaymentsResponse {
 
 export default function SchemeDetailPage() {
   const params = useParams();
+  const packageId = parseInt(params.packageId as string);
   const schemeId = parseInt(params.schemeId as string);
 
   const [scheme, setScheme] = useState<Scheme | null>(null);
@@ -122,6 +124,7 @@ export default function SchemeDetailPage() {
     schemeName: '',
     description: '',
     isActive: true,
+    generalSchemeWaitingPeriod: '',
   });
 
   // Scheme contacts state
@@ -166,7 +169,7 @@ export default function SchemeDetailPage() {
       setError(null);
 
       const token = await getSupabaseToken();
-      const response = await fetch(`${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/product-management/schemes/${schemeId}`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/product-management/schemes/${schemeId}?packageId=${packageId}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'x-correlation-id': `req-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
@@ -183,6 +186,10 @@ export default function SchemeDetailPage() {
         schemeName: data.data.schemeName,
         description: data.data.description,
         isActive: data.data.isActive,
+        generalSchemeWaitingPeriod:
+          data.data.generalSchemeWaitingPeriod != null
+            ? String(data.data.generalSchemeWaitingPeriod)
+            : '',
       });
     } catch (err) {
       console.error('Error fetching scheme:', err);
@@ -202,7 +209,7 @@ export default function SchemeDetailPage() {
     } finally {
       setLoading(false);
     }
-  }, [schemeId]);
+  }, [schemeId, packageId]);
 
   const fetchCustomers = useCallback(async () => {
     try {
@@ -313,6 +320,30 @@ export default function SchemeDetailPage() {
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.error?.message ?? `HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const waitingPeriodRaw = formData.generalSchemeWaitingPeriod.trim();
+      if (waitingPeriodRaw) {
+        const generalSchemeWaitingPeriod = parseInt(waitingPeriodRaw, 10);
+        if (Number.isNaN(generalSchemeWaitingPeriod) || generalSchemeWaitingPeriod < 0 || generalSchemeWaitingPeriod > 9999) {
+          throw new Error('Waiting period must be a number between 0 and 9999');
+        }
+        const patchResponse = await fetch(
+          `${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/product-management/packages/${packageId}/schemes/${schemeId}`,
+          {
+            method: 'PATCH',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`,
+              'x-correlation-id': `req-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            },
+            body: JSON.stringify({ generalSchemeWaitingPeriod }),
+          },
+        );
+        if (!patchResponse.ok) {
+          const errorData = await patchResponse.json();
+          throw new Error(errorData.error?.message ?? `HTTP ${patchResponse.status}: ${patchResponse.statusText}`);
+        }
       }
 
       setEditing(false);
@@ -764,6 +795,31 @@ export default function SchemeDetailPage() {
                     </Badge>
                   )}
                 </div>
+              )}
+            </div>
+
+            <div>
+              <Label htmlFor="generalSchemeWaitingPeriod">Waiting period (days)</Label>
+              {editing ? (
+                <Input
+                  id="generalSchemeWaitingPeriod"
+                  type="number"
+                  inputMode="numeric"
+                  value={formData.generalSchemeWaitingPeriod}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      generalSchemeWaitingPeriod: e.target.value.replace(/\D/g, '').slice(0, 4),
+                    })
+                  }
+                  min={0}
+                  max={9999}
+                  required
+                />
+              ) : (
+                <p className="text-sm font-medium">
+                  {scheme.generalSchemeWaitingPeriod != null ? scheme.generalSchemeWaitingPeriod : '—'}
+                </p>
               )}
             </div>
 

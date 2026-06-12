@@ -3,6 +3,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { MpesaIpnService } from '../../src/services/mpesa-ipn.service';
 import { PrismaService } from '../../src/prisma/prisma.service';
 import { PolicyService } from '../../src/services/policy.service';
+import { PaymentMessagingService } from '../../src/modules/messaging/payment-messaging.service';
 import { MpesaIpnPayloadDto, MpesaIpnResponseDto } from '../../src/dto/mpesa-ipn/mpesa-ipn.dto';
 import { MpesaPaymentSource, MpesaStkPushStatus, MpesaStatementReasonType } from '@prisma/client';
 import { ValidationException } from '../../src/exceptions/validation.exception';
@@ -42,9 +43,17 @@ describe('MpesaIpnService', () => {
     activatePolicy: jest.fn(),
   });
 
+  const createPaymentMessagingServiceMock = () => ({
+    notifyMatchedPaymentSmsAsync: jest.fn(),
+    notifyUnmatchedPaymentSmsAsync: jest.fn(),
+    tryEnqueueMatchedPaymentSms: jest.fn(),
+    tryEnqueueUnmatchedPaymentSms: jest.fn(),
+  });
+
   beforeEach(async () => {
     const prismaMock = createPrismaMock();
     const policyServiceMock = createPolicyServiceMock();
+    const paymentMessagingServiceMock = createPaymentMessagingServiceMock();
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -56,6 +65,10 @@ describe('MpesaIpnService', () => {
         {
           provide: PolicyService,
           useValue: policyServiceMock,
+        },
+        {
+          provide: PaymentMessagingService,
+          useValue: paymentMessagingServiceMock,
         },
       ],
     })

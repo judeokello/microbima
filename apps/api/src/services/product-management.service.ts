@@ -516,10 +516,12 @@ export class ProductManagementService {
 
       const schemes = packageSchemes.map((ps) => ({
         id: ps.scheme.id,
+        packageSchemeId: ps.id,
         schemeName: ps.scheme.schemeName,
         description: ps.scheme.description,
         isActive: ps.scheme.isActive,
         isPostpaid: ps.scheme.isPostpaid,
+        generalSchemeWaitingPeriod: ps.generalSchemeWaitingPeriod,
         customersCount: ps.packageSchemeCustomers.length,
       }));
 
@@ -540,7 +542,7 @@ export class ProductManagementService {
    * @param correlationId - Correlation ID for tracing
    * @returns Scheme details
    */
-  async getSchemeById(schemeId: number, correlationId: string) {
+  async getSchemeById(schemeId: number, correlationId: string, packageId?: number) {
     this.logger.log(`[${correlationId}] Getting scheme ${schemeId}`);
 
     try {
@@ -557,8 +559,30 @@ export class ProductManagementService {
         createdByDisplayName = await this.getCreatedByDisplayName(scheme.createdBy);
       }
 
+      let packageSchemeId: number | undefined;
+      let generalSchemeWaitingPeriod: number | null | undefined;
+      if (packageId != null) {
+        const link = await this.prismaService.packageScheme.findUnique({
+          where: {
+            packageId_schemeId: {
+              packageId,
+              schemeId,
+            },
+          },
+          select: {
+            id: true,
+            generalSchemeWaitingPeriod: true,
+          },
+        });
+        if (link) {
+          packageSchemeId = link.id;
+          generalSchemeWaitingPeriod = link.generalSchemeWaitingPeriod;
+        }
+      }
+
       return {
         id: scheme.id,
+        packageSchemeId,
         schemeName: scheme.schemeName,
         description: scheme.description,
         isActive: scheme.isActive,
@@ -566,6 +590,8 @@ export class ProductManagementService {
         frequency: scheme.frequency,
         paymentCadence: scheme.paymentCadence,
         paymentAcNumber: scheme.paymentAcNumber,
+        packageId,
+        generalSchemeWaitingPeriod: generalSchemeWaitingPeriod ?? null,
         createdBy: scheme.createdBy,
         createdByDisplayName,
         createdAt: scheme.createdAt.toISOString(),
@@ -578,6 +604,49 @@ export class ProductManagementService {
       );
       throw error;
     }
+  }
+
+  /**
+   * Update waiting period on a package-scheme junction row.
+   */
+  async updatePackageSchemeWaitingPeriod(
+    packageId: number,
+    schemeId: number,
+    generalSchemeWaitingPeriod: number,
+    correlationId: string,
+  ) {
+    this.logger.log(
+      `[${correlationId}] Updating package scheme waiting period packageId=${packageId} schemeId=${schemeId}`,
+    );
+
+    const validationErrors: Record<string, string> = {};
+    if (generalSchemeWaitingPeriod < 0 || generalSchemeWaitingPeriod > 9999) {
+      validationErrors['generalSchemeWaitingPeriod'] = 'Waiting period must be between 0 and 9999';
+    }
+    if (Object.keys(validationErrors).length > 0) {
+      throw ValidationException.withMultipleErrors(validationErrors);
+    }
+
+    const existing = await this.prismaService.packageScheme.findUnique({
+      where: { packageId_schemeId: { packageId, schemeId } },
+    });
+    if (!existing) {
+      throw new NotFoundException(
+        `Package scheme link not found for package ${packageId} and scheme ${schemeId}`,
+      );
+    }
+
+    const updated = await this.prismaService.packageScheme.update({
+      where: { id: existing.id },
+      data: { generalSchemeWaitingPeriod },
+    });
+
+    return {
+      packageSchemeId: updated.id,
+      packageId: updated.packageId,
+      schemeId: updated.schemeId,
+      generalSchemeWaitingPeriod: updated.generalSchemeWaitingPeriod,
+    };
   }
 
   /**
@@ -897,6 +966,7 @@ export class ProductManagementService {
       frequency?: PaymentFrequency;
       paymentCadence?: number;
       packageId?: number;
+      generalSchemeWaitingPeriod?: number;
     },
     userId: string,
     correlationId: string
@@ -948,7 +1018,15 @@ export class ProductManagementService {
         }
       }
 
-      // Throw all validation errors at once
+      if (data.packageId) {
+        if (data.generalSchemeWaitingPeriod === undefined || data.generalSchemeWaitingPeriod === null) {
+          validationErrors['generalSchemeWaitingPeriod'] =
+            'Waiting period is required when linking a scheme to a package';
+        } else if (data.generalSchemeWaitingPeriod < 0 || data.generalSchemeWaitingPeriod > 9999) {
+          validationErrors['generalSchemeWaitingPeriod'] = 'Waiting period must be between 0 and 9999';
+        }
+      }
+
       if (Object.keys(validationErrors).length > 0) {
         throw ValidationException.withMultipleErrors(validationErrors);
       }
@@ -986,6 +1064,7 @@ export class ProductManagementService {
               data: {
                 packageId: data.packageId,
                 schemeId: scheme.id,
+                generalSchemeWaitingPeriod: data.generalSchemeWaitingPeriod ?? null,
               },
             });
             this.logger.log(`[${correlationId}] Linked scheme ${scheme.id} to package ${data.packageId}`);
@@ -1032,6 +1111,7 @@ export class ProductManagementService {
             data: {
               packageId: data.packageId,
               schemeId: scheme.id,
+              generalSchemeWaitingPeriod: data.generalSchemeWaitingPeriod ?? null,
             },
           });
           this.logger.log(`[${correlationId}] Linked scheme ${scheme.id} to package ${data.packageId}`);

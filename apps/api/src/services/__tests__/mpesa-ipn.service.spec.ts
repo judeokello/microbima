@@ -3,6 +3,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { MpesaIpnService } from '../mpesa-ipn.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { PolicyService } from '../policy.service';
+import { PaymentMessagingService } from '../../modules/messaging/payment-messaging.service';
 import { MpesaIpnPayloadDto } from '../../dto/mpesa-ipn/mpesa-ipn.dto';
 import { MpesaPaymentSource, MpesaStkPushStatus, MpesaStatementReasonType } from '@prisma/client';
 import { Logger } from '@nestjs/common';
@@ -45,9 +46,17 @@ describe('MpesaIpnService', () => {
     activatePolicy: jest.fn(),
   });
 
+  const createPaymentMessagingServiceMock = () => ({
+    notifyMatchedPaymentSmsAsync: jest.fn(),
+    notifyUnmatchedPaymentSmsAsync: jest.fn(),
+    tryEnqueueMatchedPaymentSms: jest.fn(),
+    tryEnqueueUnmatchedPaymentSms: jest.fn(),
+  });
+
   beforeEach(async () => {
     const prismaMock = createPrismaMock();
     const policyServiceMock = createPolicyServiceMock();
+    const paymentMessagingServiceMock = createPaymentMessagingServiceMock();
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -59,6 +68,10 @@ describe('MpesaIpnService', () => {
         {
           provide: PolicyService,
           useValue: policyServiceMock,
+        },
+        {
+          provide: PaymentMessagingService,
+          useValue: paymentMessagingServiceMock,
         },
       ],
     })

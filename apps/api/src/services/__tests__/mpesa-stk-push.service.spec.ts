@@ -17,6 +17,7 @@ import { ValidationException } from '../../exceptions/validation.exception';
 import { ErrorCodes } from '../../enums/error-codes.enum';
 import { Logger } from '@nestjs/common';
 import { PaymentStatusGateway } from '../../gateways/payment-status.gateway';
+import { PaymentMessagingService } from '../../modules/messaging/payment-messaging.service';
 
 describe('MpesaStkPushService', () => {
   let service: MpesaStkPushService;
@@ -103,6 +104,11 @@ describe('MpesaStkPushService', () => {
     verifyAsync: jest.fn(),
   });
 
+  const createPaymentMessagingServiceMock = () => ({
+    notifyMatchedPaymentSmsAsync: jest.fn(),
+    tryEnqueueMatchedPaymentSms: jest.fn(),
+  });
+
   beforeEach(async () => {
     const prismaMock = createPrismaMock();
     const mpesaDarajaApiMock = createMpesaDarajaApiMock();
@@ -111,6 +117,7 @@ describe('MpesaStkPushService', () => {
     const policyServiceMock = createPolicyServiceMock();
     const paymentStatusGatewayMock = createPaymentStatusGatewayMock();
     const jwtServiceMock = createJwtServiceMock();
+    const paymentMessagingServiceMock = createPaymentMessagingServiceMock();
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -142,6 +149,10 @@ describe('MpesaStkPushService', () => {
         {
           provide: PolicyService,
           useValue: policyServiceMock,
+        },
+        {
+          provide: PaymentMessagingService,
+          useValue: paymentMessagingServiceMock,
         },
         {
           provide: SchedulerRegistry,

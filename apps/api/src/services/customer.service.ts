@@ -69,6 +69,7 @@ import {
   generatePortalRegistrationOtp,
 } from '../utils/customer-portal-auth.util';
 import { MessagingService } from '../modules/messaging/messaging.service';
+import { SystemSettingsService } from '../modules/messaging/settings/system-settings.service';
 import * as Sentry from '@sentry/nestjs';
 
 /**
@@ -107,6 +108,7 @@ export class CustomerService {
     private readonly supabaseService: SupabaseService,
     private readonly paymentAccountNumberService: PaymentAccountNumberService,
     private readonly messagingService: MessagingService,
+    private readonly systemSettingsService: SystemSettingsService,
     private readonly mpesaStkPushService: MpesaStkPushService,
     private readonly configService: ConfigurationService,
     private readonly premiumStatementService: PremiumStatementService,
@@ -515,13 +517,10 @@ export class CustomerService {
   }
 
   private async getPortalSupportNumbers(): Promise<{ general: string; medical: string }> {
-    const [genRow, medRow] = await Promise.all([
-      this.prismaService.systemSetting.findUnique({ where: { key: 'general_support_number' } }),
-      this.prismaService.systemSetting.findUnique({ where: { key: 'medical_support_number' } }),
-    ]);
+    const snapshot = await this.systemSettingsService.getSnapshot();
     return {
-      general: this.coerceSystemSettingPhone(genRow?.value ?? null),
-      medical: this.coerceSystemSettingPhone(medRow?.value ?? null),
+      general: this.coerceSystemSettingPhone(snapshot.general_support_number),
+      medical: this.coerceSystemSettingPhone(snapshot.medical_support_number),
     };
   }
 

@@ -31,35 +31,48 @@ export class MessagingService {
       throw ValidationException.forField('templateKey', `No route found for template key: ${req.templateKey}`);
     }
 
-    // 2. Fetch customer for recipient details + language
-    const customer = await this.prisma.customer.findUnique({
-      where: { id: req.customerId },
-      select: { id: true, phoneNumber: true, email: true, defaultMessagingLanguage: true },
-    });
+    const isPhoneOnly = !req.customerId && !!req.overrideRecipientPhone?.trim();
+    if (!req.customerId && !isPhoneOnly) {
+      throw ValidationException.forField(
+        'customerId',
+        'customerId is required unless overrideRecipientPhone is provided for phone-only delivery',
+      );
+    }
 
-    if (!customer) {
+    // 2. Fetch customer when linked to a customer record
+    const customer = req.customerId
+      ? await this.prisma.customer.findUnique({
+          where: { id: req.customerId },
+          select: { id: true, phoneNumber: true, email: true, defaultMessagingLanguage: true },
+        })
+      : null;
+
+    if (req.customerId && !customer) {
       throw ValidationException.forField('customerId', `Customer not found: ${req.customerId}`);
     }
 
     // 3. Get settings snapshot
     const settings = await this.systemSettings.getSnapshot();
 
-    // 4. Determine final requested language (explicit or customer default or system default)
-    const requestedLanguage = req.requestedLanguage ?? customer.defaultMessagingLanguage ?? settings.defaultMessagingLanguage;
+    // 4. Determine final requested language
+    const requestedLanguage =
+      req.requestedLanguage ??
+      customer?.defaultMessagingLanguage ??
+      settings.defaultMessagingLanguage;
 
     // 5. Create delivery records for each enabled channel
     const createdDeliveryIds: string[] = [];
     const now = new Date();
 
-    const smsRecipient = req.overrideRecipientPhone ?? customer.phoneNumber;
-    const emailRecipient = req.overrideRecipientEmail ?? customer.email;
+    const smsRecipient = req.overrideRecipientPhone?.trim() || customer?.phoneNumber || null;
+    const emailRecipient = req.overrideRecipientEmail?.trim() || customer?.email || null;
 
     const enqueuePlaceholderContext = this.serializePlaceholderContext(req.placeholderValues);
 
     if (route.smsEnabled) {
       const smsDelivery = await this.createDelivery({
         channel: 'SMS',
-        customerId: customer.id,
+        customerId: customer?.id ?? null,
         policyId: req.policyId,
         templateKey: req.templateKey,
         requestedLanguage,
@@ -74,21 +87,27 @@ export class MessagingService {
     }
 
     if (route.emailEnabled) {
-      const emailDelivery = await this.createDelivery({
-        channel: 'EMAIL',
-        customerId: customer.id,
-        policyId: req.policyId,
-        templateKey: req.templateKey,
-        requestedLanguage,
-        correlationId,
-        recipient: emailRecipient,
-        missingRecipientReason: emailRecipient ? null : 'Email not set for customer',
-        maxAttempts: settings.emailMaxAttempts,
-        createdAt: now,
-        dynamicAttachmentSpecs: req.dynamicAttachmentSpecs ?? undefined,
-        enqueuePlaceholderContext,
-      });
-      createdDeliveryIds.push(emailDelivery.id);
+      if (isPhoneOnly) {
+        this.logger.debug(
+          `Skipping email for phone-only enqueue templateKey=${req.templateKey}, correlationId=${correlationId}`,
+        );
+      } else {
+        const emailDelivery = await this.createDelivery({
+          channel: 'EMAIL',
+          customerId: customer!.id,
+          policyId: req.policyId,
+          templateKey: req.templateKey,
+          requestedLanguage,
+          correlationId,
+          recipient: emailRecipient,
+          missingRecipientReason: emailRecipient ? null : 'Email not set for customer',
+          maxAttempts: settings.emailMaxAttempts,
+          createdAt: now,
+          dynamicAttachmentSpecs: req.dynamicAttachmentSpecs ?? undefined,
+          enqueuePlaceholderContext,
+        });
+        createdDeliveryIds.push(emailDelivery.id);
+      }
     }
 
     this.logger.log(`Enqueued ${createdDeliveryIds.length} deliveries for templateKey=${req.templateKey}, correlationId=${correlationId}`);
@@ -113,7 +132,7 @@ export class MessagingService {
    */
   private async createDelivery(params: {
     channel: 'SMS' | 'EMAIL';
-    customerId: string;
+    customerId: string | null;
     policyId?: string | null;
     templateKey: string;
     requestedLanguage: string;

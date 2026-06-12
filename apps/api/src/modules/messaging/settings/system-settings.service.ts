@@ -17,6 +17,9 @@ const DEFAULT_SETTINGS: MessagingSettingsSnapshot = {
   systemSettingsCacheRefreshSeconds: 30,
   messagingAttachmentRetentionMonths: 3,
   messagingContentRetentionMonths: 84,
+  defaultSystemCurrency: 'Kes',
+  general_support_number: '0746907934',
+  medical_support_number: '0113569606',
 };
 
 @Injectable()
@@ -206,7 +209,25 @@ export class SystemSettingsService {
       case 'messagingContentRetentionMonths':
         target.messagingContentRetentionMonths = this.coerceInt(val, DEFAULT_SETTINGS.messagingContentRetentionMonths);
         return;
+      case 'defaultSystemCurrency':
+        if (typeof val === 'string' && val.trim() !== '') target.defaultSystemCurrency = val.trim();
+        return;
+      case 'general_support_number':
+        if (typeof val === 'string' && val.trim() !== '') target.general_support_number = val.trim();
+        else if (val != null) target.general_support_number = String(val).trim();
+        return;
+      case 'medical_support_number':
+        if (typeof val === 'string' && val.trim() !== '') target.medical_support_number = val.trim();
+        else if (val != null) target.medical_support_number = String(val).trim();
+        return;
     }
+  }
+
+  /** Coerce JSON scalar (string or quoted JSON) from system_settings.value. */
+  coerceStringSetting(val: unknown, fallback: string): string {
+    if (typeof val === 'string' && val.trim() !== '') return val.trim();
+    if (val != null && typeof val !== 'object') return String(val).trim();
+    return fallback;
   }
 }
 

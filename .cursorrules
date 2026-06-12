@@ -231,3 +231,4 @@ Before submitting code, verify:
 - `src/filters/global-exception.filter.ts` - Global error handling
 - `docs/development/error-handling-guide.md` - Complete developer guide
 - `docs/architecture/decisions/004-standardized-error-handling.md` - Architecture decision
+- `.cursor/rules/system-settings-snapshot.mdc` - system_settings must sync with MessagingSettingsSnapshot
