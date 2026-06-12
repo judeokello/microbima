@@ -375,6 +375,10 @@ export default function SchemeDetailPage() {
         schemeName: scheme.schemeName,
         description: scheme.description,
         isActive: scheme.isActive,
+        generalSchemeWaitingPeriod:
+          scheme.generalSchemeWaitingPeriod != null
+            ? String(scheme.generalSchemeWaitingPeriod)
+            : '',
       });
     }
     setEditing(false);
