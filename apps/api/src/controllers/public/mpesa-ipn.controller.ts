@@ -105,5 +105,64 @@ export class MpesaIpnController {
 
     return this.mpesaIpnService.processIpnNotification(payload, correlationId);
   }
+
+  /**
+   * C2B Validation Callback
+   *
+   * Called by Safaricom **before** a paybill payment completes when external validation
+   * is enabled on the shortcode (required for sandbox shortcode 174379).
+   *
+   * MicroBima uses passthrough acceptance: always accept so other paybill uses on the
+   * same shortcode are not blocked. Unmatched BillRefNumber handling happens on
+   * {@link processIpn} (confirmation), including payment_received_unmatched SMS.
+   */
+  @Post('validation')
+  @UseGuards(IpWhitelistGuard)
+  @ApiOperation({
+    summary: 'C2B Validation Callback (System Endpoint)',
+    description: `
+      **⚠️ System Endpoint - Called by M-Pesa Infrastructure**
+
+      Receives C2B validation requests before a paybill transaction is completed.
+      This deployment always responds with \`ResultCode: 0\` (accept) so shared paybills
+      are not blocked; account matching is handled on the confirmation endpoint.
+
+      Register with Daraja RegisterURL API as \`ValidationURL\`.
+    `,
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Accept response for Safaricom C2B validation',
+    type: MpesaIpnResponseDto,
+    schema: {
+      example: {
+        ResultCode: 0,
+        ResultDesc: 'Accepted',
+      },
+    },
+  })
+  processC2bValidation(
+    @Body() payload: Record<string, unknown>,
+    @Headers('x-correlation-id') correlationIdHeader?: string
+  ): MpesaIpnResponseDto {
+    const correlationId =
+      correlationIdHeader ?? `c2b-val-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+
+    const billRef =
+      typeof payload.BillRefNumber === 'string' ? payload.BillRefNumber : undefined;
+    const transId = typeof payload.TransID === 'string' ? payload.TransID : undefined;
+
+    this.logger.log(
+      JSON.stringify({
+        event: 'C2B_VALIDATION_RECEIVED',
+        correlationId,
+        transactionId: transId,
+        billRefNumber: billRef,
+        timestamp: new Date().toISOString(),
+      })
+    );
+
+    return { ResultCode: 0, ResultDesc: 'Accepted' };
+  }
 }
 

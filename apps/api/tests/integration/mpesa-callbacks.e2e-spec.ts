@@ -1,6 +1,7 @@
 /**
  * E2E tests for M-Pesa callback endpoints (T037).
  * - IPN confirmation: POST /api/public/mpayesa/confirmation
+ * - C2B validation: POST /api/public/mpayesa/validation
  * - STK Push callback: POST /api/public/mpayesa/stk-push/callback
  * - Path uses mpayesa to satisfy Safaricom URL constraint (no "mpesa" in callback URL).
  * - IP whitelist guard allows localhost in non-production (development/test).
@@ -82,6 +83,40 @@ describe('M-Pesa Callbacks (e2e)', () => {
           BusinessShortCode: '174379',
           MSISDN: '254733000000',
         })
+        .expect([200, 201])
+        .expect((res: { body: { ResultCode: number; ResultDesc: string } }) => {
+          expect(res.body.ResultCode).toBe(0);
+          expect(res.body.ResultDesc).toBe('Accepted');
+        });
+    });
+  });
+
+  describe('POST /api/public/mpayesa/validation (C2B)', () => {
+    it('returns 200 and ResultCode 0 (Accepted) for passthrough validation', () => {
+      return request(app.getHttpServer())
+        .post('/api/public/mpayesa/validation')
+        .set('Content-Type', 'application/json')
+        .send({
+          TransactionType: 'Pay Bill',
+          TransID: 'E2E-VAL-' + Date.now(),
+          TransTime: '20250127143045',
+          TransAmount: '100.00',
+          BusinessShortCode: '174379',
+          BillRefNumber: 'UNKNOWN-REF',
+          MSISDN: '254722000000',
+        })
+        .expect([200, 201])
+        .expect((res: { body: { ResultCode: number; ResultDesc: string } }) => {
+          expect(res.body).toHaveProperty('ResultCode', 0);
+          expect(res.body).toHaveProperty('ResultDesc', 'Accepted');
+        });
+    });
+
+    it('returns 200 and accepts empty body (passthrough)', () => {
+      return request(app.getHttpServer())
+        .post('/api/public/mpayesa/validation')
+        .set('Content-Type', 'application/json')
+        .send({})
         .expect([200, 201])
         .expect((res: { body: { ResultCode: number; ResultDesc: string } }) => {
           expect(res.body.ResultCode).toBe(0);
