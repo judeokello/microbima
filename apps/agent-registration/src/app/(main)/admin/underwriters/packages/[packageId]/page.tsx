@@ -39,6 +39,7 @@ interface Scheme {
   description: string;
   isActive: boolean;
   isPostpaid: boolean;
+  generalSchemeWaitingPeriod?: number | null;
   customersCount: number;
 }
 
@@ -576,6 +577,7 @@ export default function PackageDetailPage() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Scheme Name</TableHead>
+                    <TableHead>Waiting period (days)</TableHead>
                     <TableHead>Customers</TableHead>
                     <TableHead>Status</TableHead>
                   </TableRow>
@@ -599,6 +601,7 @@ export default function PackageDetailPage() {
                           )}
                         </div>
                       </TableCell>
+                      <TableCell>{scheme.generalSchemeWaitingPeriod ?? '—'}</TableCell>
                       <TableCell>{scheme.customersCount}</TableCell>
                       <TableCell>
                         <Badge variant={scheme.isActive ? 'default' : 'secondary'}>

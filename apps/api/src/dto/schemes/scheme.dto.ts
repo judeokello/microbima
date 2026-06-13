@@ -64,6 +64,13 @@ export class SchemeDetailDto {
   paymentAcNumber?: string | null;
 
   @ApiProperty({
+    description: 'Waiting period in days before treatment access (package-scheme link)',
+    example: 30,
+    required: false,
+  })
+  generalSchemeWaitingPeriod?: number | null;
+
+  @ApiProperty({
     description: 'Package ID associated with this scheme',
     example: 1,
     required: false,
@@ -163,6 +170,17 @@ export class CreateSchemeRequestDto {
   @IsInt()
   @Min(1)
   packageId?: number;
+
+  @ApiProperty({
+    description: 'Waiting period in days (0-9999) for the package-scheme link',
+    example: 30,
+    required: false,
+  })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(9999)
+  generalSchemeWaitingPeriod?: number;
 }
 
 export class UpdateSchemeRequestDto {

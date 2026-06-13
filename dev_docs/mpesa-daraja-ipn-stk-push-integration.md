@@ -139,7 +139,7 @@ Integrate M-Pesa Daraja API Instant Payment Notification (IPN) as the primary tr
   - Call `MpesaStkPushService.initiateStkPush()`
   - Return STK Push request details with checkoutRequestID
 - STK Push callback endpoint (public, no auth):
-  - `POST /api/public/mpesa/stk-push/callback`
+  - `POST /api/public/mpayesa/stk-push/callback`
   - Accept callback payload from Daraja API
   - Call `MpesaStkPushService.handleStkPushCallback()`
   - Return M-Pesa expected response format: `{ ResultCode: 0, ResultDesc: "Accepted" }`
@@ -151,8 +151,8 @@ Integrate M-Pesa Daraja API Instant Payment Notification (IPN) as the primary tr
 **File**: `apps/api/src/middleware/api-key-auth.middleware.ts` (around line 34)
 
 - Add STK Push callback endpoint to skip list:
-  - `/api/public/mpesa/stk-push/callback`
-  - `/public/mpesa/stk-push/callback`
+  - `/api/public/mpayesa/stk-push/callback`
+  - `/public/mpayesa/stk-push/callback`
 - This allows M-Pesa to call the endpoint without API key authentication
 
 ## IPN Service Implementation
@@ -202,7 +202,7 @@ Integrate M-Pesa Daraja API Instant Payment Notification (IPN) as the primary tr
 **File**: `apps/api/src/controllers/public/mpesa-ipn.controller.ts`
 
 - Public endpoint (no authentication required)
-- Route: `POST /api/public/mpesa/confirmation`
+- Route: `POST /api/public/mpayesa/confirmation`
 - Accept IPN payload from M-Pesa Daraja API
 - Use `@Body()` decorator to receive JSON payload
 - Call `MpesaIpnService.processIpnNotification()`
@@ -222,8 +222,8 @@ Integrate M-Pesa Daraja API Instant Payment Notification (IPN) as the primary tr
 **File**: `apps/api/src/middleware/api-key-auth.middleware.ts` (around line 34)
 
 - Add IPN endpoint to skip list:
-  - `/api/public/mpesa/confirmation`
-  - `/public/mpesa/confirmation`
+  - `/api/public/mpayesa/confirmation`
+  - `/public/mpayesa/confirmation`
 - This allows M-Pesa to call the endpoint without API key authentication
 
 ### 14. Register Controllers in AppModule

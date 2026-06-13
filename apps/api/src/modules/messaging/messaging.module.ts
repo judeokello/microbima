@@ -3,6 +3,7 @@ import { PrismaModule } from '../../prisma/prisma.module';
 import { SupabaseService } from '../../services/supabase.service';
 import { MessagingService } from './messaging.service';
 import { MessagingWorker } from './messaging.worker';
+import { PaymentMessagingService } from './payment-messaging.service';
 import { MessagingOutboxRepository } from './messaging-outbox.repository';
 import { SystemSettingsService } from './settings/system-settings.service';
 import { TemplateResolverService } from './rendering/template-resolver.service';
@@ -26,6 +27,7 @@ import { AfricasTalkingWebhookController } from '../../controllers/webhooks/mess
     SupabaseService,
     MessagingService,
     MessagingWorker,
+    PaymentMessagingService,
     MessagingOutboxRepository,
     SystemSettingsService,
     MessagingTemplatesService,
@@ -40,7 +42,7 @@ import { AfricasTalkingWebhookController } from '../../controllers/webhooks/mess
     AttachmentGeneratorService,
     AttachmentRetentionCleanupService,
   ],
-  exports: [MessagingService, SystemSettingsService],
+  exports: [MessagingService, SystemSettingsService, PaymentMessagingService],
 })
 export class MessagingModule {}
 

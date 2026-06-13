@@ -7,6 +7,7 @@ import { MpesaDarajaApiService } from './mpesa-daraja-api.service';
 import { MpesaErrorMapperService } from './mpesa-error-mapper.service';
 import { ConfigurationService } from '../config/configuration.service';
 import { PolicyService } from './policy.service';
+import { PaymentMessagingService } from '../modules/messaging/payment-messaging.service';
 import {
   InitiateStkPushDto,
   StkPushRequestResponseDto,
@@ -39,6 +40,7 @@ export class MpesaStkPushService implements OnModuleInit {
     private readonly jwtService: JwtService,
     @Inject(forwardRef(() => PolicyService))
     private readonly policyService: PolicyService,
+    private readonly paymentMessagingService: PaymentMessagingService,
     @Inject(forwardRef(() => PaymentStatusGateway))
     private readonly paymentStatusGateway: PaymentStatusGateway
   ) {}
@@ -823,6 +825,7 @@ export class MpesaStkPushService implements OnModuleInit {
     });
 
     if (policy) {
+      let policyPaymentId: number | null = null;
       // Check if policy payment already exists with real transaction reference
       // (This handles the case where IPN arrived first and created/updated the payment)
       if (!existingPolicyPayment) {
@@ -857,6 +860,7 @@ export class MpesaStkPushService implements OnModuleInit {
               }),
             },
           });
+          policyPaymentId = placeholderPayment.id;
 
           this.logger.log(
             JSON.stringify({
@@ -873,7 +877,7 @@ export class MpesaStkPushService implements OnModuleInit {
           );
         } else {
           // No placeholder payment found - create new payment record
-          await this.prismaService.policyPayment.create({
+          const createdPayment = await this.prismaService.policyPayment.create({
             data: {
               policyId: policy.id,
               paymentType: 'MPESA',
@@ -890,6 +894,7 @@ export class MpesaStkPushService implements OnModuleInit {
               }),
             },
           });
+          policyPaymentId = createdPayment.id;
 
           this.logger.log(
             JSON.stringify({
@@ -904,33 +909,8 @@ export class MpesaStkPushService implements OnModuleInit {
           );
         }
 
-        // Activate policy if it's in PENDING_ACTIVATION status
-        if (policy.status === 'PENDING_ACTIVATION') {
-          try {
-            await this.policyService.activatePolicy(policy.id, correlationId);
-            this.logger.log(
-              JSON.stringify({
-                event: 'STK_PUSH_POLICY_ACTIVATED',
-                correlationId,
-                stkPushRequestId: stkPushRequest.id,
-                policyId: policy.id,
-                transactionReference: mpesaReceiptNumber,
-                timestamp: new Date().toISOString(),
-              })
-            );
-          } catch (activationError) {
-            // Log error but don't fail - payment record was created successfully
-            this.logger.error(
-              JSON.stringify({
-                event: 'STK_PUSH_POLICY_ACTIVATION_FAILED',
-                correlationId,
-                stkPushRequestId: stkPushRequest.id,
-                policyId: policy.id,
-                error: activationError instanceof Error ? activationError.message : String(activationError),
-                timestamp: new Date().toISOString(),
-              })
-            );
-          }
+        if (policyPaymentId != null) {
+          await this.finalizeMatchedPolicyPaymentSms(policy, policyPaymentId, correlationId);
         }
       }
     } else {
@@ -1012,6 +992,7 @@ export class MpesaStkPushService implements OnModuleInit {
     });
 
     if (policy) {
+      let policyPaymentId: number | null = null;
       // Find placeholder payment
       const placeholderPayment = await this.prismaService.policyPayment.findFirst({
         where: {
@@ -1042,6 +1023,7 @@ export class MpesaStkPushService implements OnModuleInit {
             }),
           },
         });
+        policyPaymentId = placeholderPayment.id;
 
         this.logger.log(
           JSON.stringify({
@@ -1058,7 +1040,7 @@ export class MpesaStkPushService implements OnModuleInit {
         );
       } else {
         // No placeholder - create new payment
-        await this.prismaService.policyPayment.create({
+        const createdPayment = await this.prismaService.policyPayment.create({
           data: {
             policyId: policy.id,
             paymentType: 'MPESA',
@@ -1075,6 +1057,7 @@ export class MpesaStkPushService implements OnModuleInit {
             }),
           },
         });
+        policyPaymentId = createdPayment.id;
 
         this.logger.log(
           JSON.stringify({
@@ -1089,32 +1072,8 @@ export class MpesaStkPushService implements OnModuleInit {
         );
       }
 
-      // Activate policy if PENDING_ACTIVATION
-      if (policy.status === 'PENDING_ACTIVATION') {
-        try {
-          await this.policyService.activatePolicy(policy.id, correlationId);
-          this.logger.log(
-            JSON.stringify({
-              event: 'QUERY_POLICY_ACTIVATED',
-              correlationId,
-              stkPushRequestId: stkPushRequest.id,
-              policyId: policy.id,
-              transactionReference: queryPendingReference,
-              timestamp: new Date().toISOString(),
-            })
-          );
-        } catch (activationError) {
-          this.logger.error(
-            JSON.stringify({
-              event: 'QUERY_POLICY_ACTIVATION_FAILED',
-              correlationId,
-              stkPushRequestId: stkPushRequest.id,
-              policyId: policy.id,
-              error: activationError instanceof Error ? activationError.message : String(activationError),
-              timestamp: new Date().toISOString(),
-            })
-          );
-        }
+      if (policyPaymentId != null) {
+        await this.finalizeMatchedPolicyPaymentSms(policy, policyPaymentId, correlationId);
       }
     } else {
       this.logger.warn(
@@ -1506,6 +1465,41 @@ export class MpesaStkPushService implements OnModuleInit {
       select: { id: true },
     });
     return list.map((r) => r.id);
+  }
+
+  private async finalizeMatchedPolicyPaymentSms(
+    policy: { id: string; status: string },
+    policyPaymentId: number,
+    correlationId: string,
+  ): Promise<void> {
+    const wasPendingActivation = policy.status === 'PENDING_ACTIVATION';
+    let activationSucceeded = !wasPendingActivation;
+
+    if (wasPendingActivation) {
+      activationSucceeded = false;
+      try {
+        await this.policyService.activatePolicy(policy.id, correlationId);
+        activationSucceeded = true;
+      } catch (activationError) {
+        this.logger.error(
+          JSON.stringify({
+            event: 'POLICY_ACTIVATION_FAILED_BEFORE_PAYMENT_SMS',
+            correlationId,
+            policyId: policy.id,
+            policyPaymentId,
+            error: activationError instanceof Error ? activationError.message : String(activationError),
+            timestamp: new Date().toISOString(),
+          }),
+        );
+      }
+    }
+
+    this.paymentMessagingService.notifyMatchedPaymentSmsAsync({
+      policyPaymentId,
+      wasPendingActivation,
+      activationSucceeded,
+      correlationId,
+    });
   }
 }
 

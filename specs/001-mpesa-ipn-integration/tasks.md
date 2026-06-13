@@ -161,7 +161,7 @@ Each increment is independently testable and delivers value.
 
 **Goal**: Process IPN notifications in real-time, create payment records immediately, and link to STK Push requests when applicable.
 
-**Independent Test**: Send IPN payloads from M-Pesa sandbox to `/api/public/mpesa/confirmation` endpoint and verify payment records are created with correct transaction details, customer information, and account references.
+**Independent Test**: Send IPN payloads from M-Pesa sandbox to `/api/public/mpayesa/confirmation` endpoint and verify payment records are created with correct transaction details, customer information, and account references.
 
 ### DTOs
 
@@ -226,7 +226,7 @@ Each increment is independently testable and delivers value.
 ### Controller
 
 - [x] T013 [US1] Create IPN controller in `apps/api/src/controllers/public/mpesa-ipn.controller.ts`
-  - Create `MpesaIpnController` class with `@Controller('public/mpesa')` decorator
+  - Create `MpesaIpnController` class with `@Controller('public/mpayesa')` decorator
   - Add `@Post('confirmation')` endpoint method
   - Inject `MpesaIpnService` and `CorrelationIdService` (or generate correlationId)
   - Call service `processIpnNotification()` method
@@ -237,7 +237,7 @@ Each increment is independently testable and delivers value.
 ### Security Middleware
 
 - [x] T014 [US1] Update API key auth middleware to exclude IPN callback endpoint in `apps/api/src/middleware/api-key-auth.middleware.ts`
-  - Add path check: `req.path.startsWith('/api/public/mpesa/confirmation')` or `req.originalUrl.startsWith('/api/public/mpesa/confirmation')`
+  - Add path check: `req.path.startsWith('/api/public/mpayesa/confirmation')` or `req.originalUrl.startsWith('/api/public/mpayesa/confirmation')`
   - Skip authentication for this path (return `next()`)
   - Add comment explaining M-Pesa requirement
 
@@ -335,9 +335,9 @@ Each increment is independently testable and delivers value.
   - Add Swagger decorators
 
 - [x] T023b [US2] Create STK Push public controller for callback endpoint in `apps/api/src/controllers/public/mpesa-stk-push.controller.ts`
-  - Create `MpesaStkPushPublicController` class with `@Controller('public/mpesa/stk-push')` decorator
+  - Create `MpesaStkPushPublicController` class with `@Controller('public/mpayesa/stk-push')` decorator
   - Add `@Post('callback')` endpoint for M-Pesa callbacks (public, no authentication)
-  - Endpoint path: `/api/public/mpesa/stk-push/callback`
+  - Endpoint path: `/api/public/mpayesa/stk-push/callback`
   - Inject `MpesaStkPushService` and correlation ID service
   - Call service `handleStkPushCallback()` method
   - Return response DTOs
@@ -358,7 +358,7 @@ Each increment is independently testable and delivers value.
 ### Security Middleware
 
 - [x] T024 [US2] Update API key auth middleware to exclude STK Push callback endpoint in `apps/api/src/middleware/api-key-auth.middleware.ts`
-  - Add path check: `req.path.startsWith('/api/public/mpesa/stk-push/callback')` or `req.originalUrl.startsWith('/api/public/mpesa/stk-push/callback')`
+  - Add path check: `req.path.startsWith('/api/public/mpayesa/stk-push/callback')` or `req.originalUrl.startsWith('/api/public/mpayesa/stk-push/callback')`
   - Skip authentication for this path
 
 - [x] T025 [US2] Apply security guard to STK Push callback endpoint in `apps/api/src/controllers/public/mpesa-stk-push.controller.ts`

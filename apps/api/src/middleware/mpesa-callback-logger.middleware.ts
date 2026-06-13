@@ -13,7 +13,8 @@ export class MpesaCallbackLoggerMiddleware implements NestMiddleware {
     // Only log for M-Pesa callback endpoints (path uses mpayesa to satisfy Safaricom URL constraint)
     if (
       req.path === '/api/public/mpayesa/stk-push/callback' ||
-      req.path === '/api/public/mpayesa/confirmation'
+      req.path === '/api/public/mpayesa/confirmation' ||
+      req.path === '/api/public/mpayesa/validation'
     ) {
       this.logger.debug(
         JSON.stringify({

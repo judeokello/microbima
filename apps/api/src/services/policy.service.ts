@@ -5,7 +5,7 @@ import { PaymentFrequency, PaymentType, Prisma, DependantRelationship } from '@p
 import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
 import * as Sentry from '@sentry/nestjs';
 import { PaymentAccountNumberService } from './payment-account-number.service';
-import { MessagingService } from '../modules/messaging/messaging.service';
+import { PaymentMessagingService } from '../modules/messaging/payment-messaging.service';
 import { policyDatesFromPayment, policyEndDateFromStart } from '../utils/policy-dates.util';
 
 /**
@@ -27,7 +27,7 @@ export class PolicyService {
   constructor(
     private readonly prismaService: PrismaService,
     private readonly paymentAccountNumberService: PaymentAccountNumberService,
-    private readonly messagingService: MessagingService,
+    private readonly paymentMessagingService: PaymentMessagingService,
   ) {}
 
   /**
@@ -761,21 +761,20 @@ export class PolicyService {
         `[${correlationId}] Policy ${result.policy.id} created successfully with payment ${result.policyPayment.id}`
       );
 
-      // T018: Trigger messaging notification for policy purchase (fire-and-forget)
-      if (result.policy.status === 'ACTIVE' && result.policy.policyNumber) {
-        this.enqueuePolicyPurchaseMessage(result.policy, correlationId, messagingOverride).catch((error) => {
-          this.logger.warn(
-            `[${correlationId}] Failed to enqueue policy purchase message: ${error instanceof Error ? error.message : 'Unknown error'}`
-          );
-          Sentry.captureException(error, {
-            tags: {
-              service: 'PolicyService',
-              operation: 'createPolicyWithPayment',
-              subOperation: 'enqueuePolicyPurchaseMessage',
-              correlationId,
-            },
-            extra: { policyId: result.policy.id },
-          });
+      // Payment received SMS (activation when payment completed at registration)
+      const paymentStatus = result.policyPayment.paymentStatus;
+      if (
+        paymentStatus === 'COMPLETED' ||
+        paymentStatus === 'COMPLETED_PENDING_RECEIPT'
+      ) {
+        const wasPendingActivation = true;
+        const activationSucceeded = result.policy.status === 'ACTIVE';
+        this.paymentMessagingService.notifyMatchedPaymentSmsAsync({
+          policyPaymentId: result.policyPayment.id,
+          wasPendingActivation,
+          activationSucceeded,
+          correlationId,
+          messagingOverride,
         });
       }
 
@@ -1761,46 +1760,6 @@ export class PolicyService {
         paymentCadence,
       },
     });
-  }
-
-  /**
-   * T018: Enqueue policy purchase message.
-   * Fire-and-forget; errors are logged but don't block policy creation.
-   * @param messagingOverride - Optional override for recipients (T050: dev/staging only). When provided, SMS/email go to these instead of the customer's.
-   */
-  private async enqueuePolicyPurchaseMessage(
-    policy: Prisma.PolicyGetPayload<Record<string, never>>,
-    correlationId: string,
-    messagingOverride?: { phone?: string; email?: string }
-  ): Promise<void> {
-    this.logger.log(
-      `[${correlationId}] Enqueueing policy purchase message for policyId=${policy.id}, policyNumber=${policy.policyNumber}`
-    );
-
-    try {
-      await this.messagingService.enqueue({
-        templateKey: 'policy_purchase',
-        customerId: policy.customerId,
-        policyId: policy.id,
-        placeholderValues: {
-          policy_number: policy.policyNumber ?? '',
-          product_name: policy.productName ?? '',
-          premium: policy.premium.toString(),
-          start_date: policy.startDate ?? new Date(),
-          end_date: policy.endDate ?? new Date(),
-        },
-        correlationId,
-        overrideRecipientPhone: messagingOverride?.phone ?? undefined,
-        overrideRecipientEmail: messagingOverride?.email ?? undefined,
-      });
-
-      this.logger.log(
-        `[${correlationId}] Successfully enqueued policy purchase message for policyId=${policy.id}`
-      );
-    } catch (error) {
-      // Rethrow to be caught by caller for logging/Sentry
-      throw error;
-    }
   }
 
   /**

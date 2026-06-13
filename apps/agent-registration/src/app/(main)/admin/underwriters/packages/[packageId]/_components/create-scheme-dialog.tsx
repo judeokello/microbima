@@ -26,6 +26,7 @@ export default function CreateSchemeDialog({
   const [formData, setFormData] = useState({
     schemeName: '',
     description: '',
+    generalSchemeWaitingPeriod: '',
     isActive: true,
     isPostpaid: false,
     frequency: '' as string,
@@ -57,8 +58,13 @@ export default function CreateSchemeDialog({
       // Trim and validate required fields
       const schemeName = formData.schemeName.trim();
       const description = formData.description.trim();
-      if (!schemeName || !description) {
+      const waitingPeriodRaw = formData.generalSchemeWaitingPeriod.trim();
+      if (!schemeName || !description || !waitingPeriodRaw) {
         throw new Error('All fields are required');
+      }
+      const generalSchemeWaitingPeriod = parseInt(waitingPeriodRaw, 10);
+      if (Number.isNaN(generalSchemeWaitingPeriod) || generalSchemeWaitingPeriod < 0 || generalSchemeWaitingPeriod > 9999) {
+        throw new Error('Waiting period must be a number between 0 and 9999');
       }
 
       // Validate postpaid requirements
@@ -82,6 +88,7 @@ export default function CreateSchemeDialog({
         description: string;
         isActive: boolean;
         packageId: number;
+        generalSchemeWaitingPeriod: number;
         isPostpaid?: boolean;
         frequency?: string;
         paymentCadence?: number;
@@ -90,6 +97,7 @@ export default function CreateSchemeDialog({
         description,
         isActive: formData.isActive,
         packageId: packageId,
+        generalSchemeWaitingPeriod,
       };
 
       // Add postpaid fields if checked
@@ -138,6 +146,7 @@ export default function CreateSchemeDialog({
       setFormData({
         schemeName: '',
         description: '',
+        generalSchemeWaitingPeriod: '',
         isActive: true,
         isPostpaid: false,
         frequency: '',
@@ -190,6 +199,21 @@ export default function CreateSchemeDialog({
                 onChange={(e) => setFormData({ ...formData, schemeName: e.target.value })}
                 required
                 maxLength={100}
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="generalSchemeWaitingPeriod">Waiting period (days) *</Label>
+              <Input
+                id="generalSchemeWaitingPeriod"
+                type="number"
+                inputMode="numeric"
+                value={formData.generalSchemeWaitingPeriod}
+                onChange={(e) => setFormData({ ...formData, generalSchemeWaitingPeriod: e.target.value.replace(/\D/g, '').slice(0, 4) })}
+                required
+                min={0}
+                max={9999}
+                placeholder="e.g. 30"
               />
             </div>
 

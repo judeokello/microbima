@@ -1,6 +1,7 @@
 -- Customer self-service: support numbers in system_settings (FR-016).
 -- Values stored as JSON scalar strings. Idempotent upserts.
 -- Run via prisma/seed.ts after seed-messaging.sql.
+-- These keys are cached via MessagingSettingsSnapshot (see system-settings-snapshot.mdc).
 
 INSERT INTO system_settings (key, value, "updatedAt", "updatedBy")
 VALUES (

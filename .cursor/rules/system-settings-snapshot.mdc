@@ -1,0 +1,28 @@
+---
+description: Keep system_settings keys in sync with MessagingSettingsSnapshot cache
+alwaysApply: true
+---
+
+# System Settings Snapshot Sync
+
+The `system_settings` table is a generic key/value store. **Only keys listed in `MessagingSettingsSnapshot` are cached** at runtime via `SystemSettingsService.getSnapshot()`.
+
+## When adding a new `system_settings` key
+
+You MUST also update all of the following:
+
+1. [`apps/api/src/modules/messaging/messaging.types.ts`](apps/api/src/modules/messaging/messaging.types.ts) — add the key to `MessagingSettingsSnapshot`
+2. [`apps/api/src/modules/messaging/settings/system-settings.service.ts`](apps/api/src/modules/messaging/settings/system-settings.service.ts):
+   - `DEFAULT_SETTINGS` — default value
+   - `assignFromJson()` — parsing/coercion for the key type
+3. Migration or seed SQL — idempotent `INSERT ... ON CONFLICT` into `system_settings`
+4. Bump `system_settings_meta.updatedAt` in the same migration/seed
+
+## Reading settings at runtime
+
+- **DO** read configurable values via `SystemSettingsService.getSnapshot()` (in-process cache + meta refresh)
+- **DO NOT** use `prisma.systemSetting.findUnique/findMany` in services for hot paths (exceptions: `SystemSettingsService` internals, one-off scripts, admin list endpoint)
+
+## SMS amount formatting
+
+Use `{amount}` placeholder with value from `formatSmsAmount(n, snapshot.defaultSystemCurrency)` — do not hardcode currency labels in template bodies.

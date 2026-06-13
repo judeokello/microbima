@@ -702,9 +702,11 @@ model Scheme {
 }
 
 model PackageScheme {
-  id        Int @id @default(autoincrement())
-  packageId Int
-  schemeId  Int
+  id                        Int  @id @default(autoincrement())
+  packageId                 Int
+  schemeId                  Int
+  /// Days before treatment access after policy activation (0–9999); nullable until backfill
+  generalSchemeWaitingPeriod Int?
 
   // Relations
   package                Package                 @relation(fields: [packageId], references: [id])
@@ -798,6 +800,7 @@ model PolicyPayment {
   actualPaymentDate    DateTime?
   paymentMessageBlob   String?       @db.VarChar(500)
   paymentStatus        PaymentStatus @default(PENDING_STK_CALLBACK)
+  paymentSmsEnqueuedAt DateTime?     @db.Timestamptz
 
   // Relations
   policy                    Policy                    @relation(fields: [policyId], references: [id])

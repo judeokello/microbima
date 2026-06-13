@@ -10,6 +10,7 @@ import { existsSync } from 'fs';
 import { ValidationException } from '../exceptions/validation.exception';
 import { ErrorCodes } from '../enums/error-codes.enum';
 import { PolicyService } from './policy.service';
+import { PaymentMessagingService } from '../modules/messaging/payment-messaging.service';
 
 /** Result of processing statement items into policy payments */
 export interface StatementItemsProcessingResult {
@@ -69,6 +70,7 @@ export class MpesaPaymentsService {
     private readonly prismaService: PrismaService,
     private readonly supabaseService: SupabaseService,
     private readonly policyService: PolicyService,
+    private readonly paymentMessagingService: PaymentMessagingService,
   ) {}
 
   /**
@@ -858,7 +860,8 @@ export class MpesaPaymentsService {
           }
 
           await this.prismaService.$transaction(async (tx) => {
-            const _payment = await tx.policyPayment.create({
+            const wasPendingActivation = policy.status === 'PENDING_ACTIVATION';
+            const payment = await tx.policyPayment.create({
               data: {
                 policyId: policy.id,
                 paymentType: 'MPESA',
@@ -881,8 +884,30 @@ export class MpesaPaymentsService {
             result.policyPaymentsCreated++;
             result.itemsUpdatedAsProcessed++;
 
-            if (policy.status === 'PENDING_ACTIVATION') {
-              await this.policyService.activatePolicy(policy.id, correlationId, tx);
+            let activationSucceeded = !wasPendingActivation;
+            if (wasPendingActivation) {
+              activationSucceeded = false;
+              try {
+                await this.policyService.activatePolicy(policy.id, correlationId, tx);
+                activationSucceeded = true;
+              } catch (activationError) {
+                this.logger.error(
+                  `[${correlationId}] Statement import activation failed for policy ${policy.id}: ${
+                    activationError instanceof Error ? activationError.message : String(activationError)
+                  }`,
+                );
+              }
+            }
+
+            return { policyPaymentId: payment.id, wasPendingActivation, activationSucceeded };
+          }).then((smsContext) => {
+            if (smsContext) {
+              this.paymentMessagingService.notifyMatchedPaymentSmsAsync({
+                policyPaymentId: smsContext.policyPaymentId,
+                wasPendingActivation: smsContext.wasPendingActivation,
+                activationSucceeded: smsContext.activationSucceeded,
+                correlationId,
+              });
             }
           });
         } catch (error) {

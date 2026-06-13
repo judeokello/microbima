@@ -1,6 +1,7 @@
 import { Injectable, Logger, forwardRef, Inject } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { PolicyService } from './policy.service';
+import { PaymentMessagingService } from '../modules/messaging/payment-messaging.service';
 import { MpesaIpnPayloadDto, MpesaIpnResponseDto } from '../dto/mpesa-ipn/mpesa-ipn.dto';
 import { normalizeMsisdnOrReturnRaw } from '../utils/phone-number.util';
 import {
@@ -28,7 +29,8 @@ export class MpesaIpnService {
   constructor(
     private readonly prismaService: PrismaService,
     @Inject(forwardRef(() => PolicyService))
-    private readonly policyService: PolicyService
+    private readonly policyService: PolicyService,
+    private readonly paymentMessagingService: PaymentMessagingService,
   ) {}
 
   /**
@@ -508,6 +510,15 @@ export class MpesaIpnService {
           timestamp: new Date().toISOString(),
         })
       );
+      this.paymentMessagingService.notifyUnmatchedPaymentSmsAsync({
+        firstName: payload.FirstName ?? '',
+        lastName: payload.LastName ?? '',
+        phone: payload.MSISDN,
+        amount,
+        paymentType: 'MPESA',
+        paymentReference: payload.TransID,
+        correlationId,
+      });
       return false;
     }
 
@@ -534,6 +545,9 @@ export class MpesaIpnService {
       );
       return true; // Already mapped
     }
+
+    const wasPendingActivation = policy.status === 'PENDING_ACTIVATION';
+    let policyPaymentId: number | null = null;
 
     // Check for placeholder payment (transactionReference starts with "PENDING-STK-")
     const placeholderPayment = await this.prismaService.policyPayment.findFirst({
@@ -566,6 +580,7 @@ export class MpesaIpnService {
           }),
         },
       });
+      policyPaymentId = placeholderPayment.id;
 
       this.logger.log(
         JSON.stringify({
@@ -581,7 +596,7 @@ export class MpesaIpnService {
         })
       );
     } else {
-      await this.prismaService.policyPayment.create({
+      const createdPayment = await this.prismaService.policyPayment.create({
         data: {
           policyId: policy.id,
           paymentType: 'MPESA',
@@ -600,6 +615,7 @@ export class MpesaIpnService {
           }),
         },
       });
+      policyPaymentId = createdPayment.id;
 
       this.logger.log(
         JSON.stringify({
@@ -615,9 +631,12 @@ export class MpesaIpnService {
     }
 
     // Activate policy if it's in PENDING_ACTIVATION status
-    if (policy.status === 'PENDING_ACTIVATION') {
+    let activationSucceeded = !wasPendingActivation;
+    if (wasPendingActivation) {
+      activationSucceeded = false;
       try {
         await this.policyService.activatePolicy(policy.id, correlationId);
+        activationSucceeded = true;
         this.logger.log(
           JSON.stringify({
             event: 'IPN_POLICY_ACTIVATED',
@@ -641,6 +660,15 @@ export class MpesaIpnService {
           })
         );
       }
+    }
+
+    if (policyPaymentId != null) {
+      this.paymentMessagingService.notifyMatchedPaymentSmsAsync({
+        policyPaymentId,
+        wasPendingActivation,
+        activationSucceeded,
+        correlationId,
+      });
     }
 
     return true;

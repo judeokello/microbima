@@ -8,7 +8,8 @@ export interface DynamicAttachmentSpec {
 
 export interface EnqueueMessageRequest {
   templateKey: string;
-  customerId: string;
+  /** Required for customer-targeted messages; optional when overrideRecipientPhone is set (unmatched paybill). */
+  customerId?: string;
   policyId?: string | null;
   /**
    * Flat render context for placeholder substitution.
@@ -53,5 +54,9 @@ export interface MessagingSettingsSnapshot {
   messagingAttachmentRetentionMonths: number;
   /** Rendered email/SMS content retention in months. 0 or negative = never expires. */
   messagingContentRetentionMonths: number;
+  /** Currency label prepended to SMS amounts (e.g. "Kes"). */
+  defaultSystemCurrency: string;
+  general_support_number: string;
+  medical_support_number: string;
 }
 

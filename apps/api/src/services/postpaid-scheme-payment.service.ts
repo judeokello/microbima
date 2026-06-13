@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { PolicyService } from './policy.service';
+import { PaymentMessagingService } from '../modules/messaging/payment-messaging.service';
 import { SupabaseService } from './supabase.service';
 import { PaymentType } from '@prisma/client';
 import type { PostpaidSchemePaymentCsvRow } from '../dto/postpaid-scheme-payments/postpaid-scheme-payment.dto';
@@ -52,7 +53,8 @@ export class PostpaidSchemePaymentService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly policyService: PolicyService,
-    private readonly supabase: SupabaseService
+    private readonly supabase: SupabaseService,
+    private readonly paymentMessagingService: PaymentMessagingService,
   ) {}
 
   /**
@@ -256,6 +258,12 @@ export class PostpaidSchemePaymentService {
       throw new BadRequestException('transactionDate must be a valid date');
     }
 
+    const paymentSmsQueue: Array<{
+      policyPaymentId: number;
+      wasPendingActivation: boolean;
+      activationSucceeded: boolean;
+    }> = [];
+
     const created = await this.prisma.$transaction(async (tx) => {
       const postpaid = await tx.postpaidSchemePayment.create({
         data: {
@@ -332,13 +340,38 @@ export class PostpaidSchemePaymentService {
           },
         });
 
-        if (policy.status === 'PENDING_ACTIVATION') {
-          await this.policyService.activatePolicy(policy.id, correlationId, tx);
+        const wasPendingActivation = policy.status === 'PENDING_ACTIVATION';
+        let activationSucceeded = !wasPendingActivation;
+        if (wasPendingActivation) {
+          activationSucceeded = false;
+          try {
+            await this.policyService.activatePolicy(policy.id, correlationId, tx);
+            activationSucceeded = true;
+          } catch (activationError) {
+            this.logger.error(
+              `[${correlationId}] Postpaid CSV activation failed for policy ${policy.id}: ${
+                activationError instanceof Error ? activationError.message : String(activationError)
+              }`,
+            );
+          }
         }
+
+        paymentSmsQueue.push({
+          policyPaymentId: policyPayment.id,
+          wasPendingActivation,
+          activationSucceeded,
+        });
       }
 
       return postpaid;
     });
+
+    for (const item of paymentSmsQueue) {
+      this.paymentMessagingService.notifyMatchedPaymentSmsAsync({
+        ...item,
+        correlationId,
+      });
+    }
 
     return {
       id: created.id,

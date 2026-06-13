@@ -6,6 +6,7 @@ import { MpesaDarajaApiService } from '../../src/services/mpesa-daraja-api.servi
 import { MpesaErrorMapperService } from '../../src/services/mpesa-error-mapper.service';
 import { ConfigurationService } from '../../src/config/configuration.service';
 import { PolicyService } from '../../src/services/policy.service';
+import { PaymentMessagingService } from '../../src/modules/messaging/payment-messaging.service';
 import {
   InitiateStkPushDto,
   StkPushCallbackDto,
@@ -72,12 +73,18 @@ describe('MpesaStkPushService', () => {
     activatePolicy: jest.fn(),
   });
 
+  const createPaymentMessagingServiceMock = () => ({
+    notifyMatchedPaymentSmsAsync: jest.fn(),
+    tryEnqueueMatchedPaymentSms: jest.fn(),
+  });
+
   beforeEach(async () => {
     const prismaMock = createPrismaMock();
     const mpesaDarajaApiMock = createMpesaDarajaApiMock();
     const mpesaErrorMapperMock = createMpesaErrorMapperMock();
     const configServiceMock = createConfigServiceMock();
     const policyServiceMock = createPolicyServiceMock();
+    const paymentMessagingServiceMock = createPaymentMessagingServiceMock();
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -101,6 +108,10 @@ describe('MpesaStkPushService', () => {
         {
           provide: PolicyService,
           useValue: policyServiceMock,
+        },
+        {
+          provide: PaymentMessagingService,
+          useValue: paymentMessagingServiceMock,
         },
       ],
     })

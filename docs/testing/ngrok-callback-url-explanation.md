@@ -14,14 +14,14 @@ https://unwhisperable-underanged-ivory.ngrok-free.dev -> http://localhost:3001
 For your `.env` file, use:
 
 ```bash
-MPESA_STK_PUSH_CALLBACK_URL=https://unwhisperable-underanged-ivory.ngrok-free.dev/api/public/mpesa/stk-push/callback
-MPESA_IPN_CONFIRMATION_URL=https://unwhisperable-underanged-ivory.ngrok-free.dev/api/public/mpesa/confirmation
+MPESA_STK_PUSH_CALLBACK_URL=https://unwhisperable-underanged-ivory.ngrok-free.dev/api/public/mpayesa/stk-push/callback
+MPESA_IPN_CONFIRMATION_URL=https://unwhisperable-underanged-ivory.ngrok-free.dev/api/public/mpayesa/confirmation
 ```
 
 **Breakdown:**
 - Base URL: `https://unwhisperable-underanged-ivory.ngrok-free.dev`
-- API Path: `/api/public/mpesa/stk-push/callback`
-- Full URL: `https://unwhisperable-underanged-ivory.ngrok-free.dev/api/public/mpesa/stk-push/callback`
+- API Path: `/api/public/mpayesa/stk-push/callback`
+- Full URL: `https://unwhisperable-underanged-ivory.ngrok-free.dev/api/public/mpayesa/stk-push/callback`
 
 ### Testing the URL
 
@@ -29,10 +29,10 @@ You can test that your callback endpoint is accessible:
 
 ```bash
 # Test STK Push callback endpoint (should return 200 OK)
-curl https://unwhisperable-underanged-ivory.ngrok-free.dev/api/public/mpesa/stk-push/callback
+curl https://unwhisperable-underanged-ivory.ngrok-free.dev/api/public/mpayesa/stk-push/callback
 
 # Test IPN confirmation endpoint (should return 200 OK)
-curl https://unwhisperable-underanged-ivory.ngrok-free.dev/api/public/mpesa/confirmation
+curl https://unwhisperable-underanged-ivory.ngrok-free.dev/api/public/mpayesa/confirmation
 ```
 
 **Note**: These endpoints expect POST requests with M-Pesa payloads, so a GET request might return 404 or 405, but that's okay - it confirms the URL is reachable.
@@ -53,7 +53,7 @@ The callback URL is sent **dynamically with each STK Push request** to M-Pesa. H
 2. **Your API reads the callback URL from `.env`**:
    ```typescript
    const callbackUrl = config.mpesa.stkPushCallbackUrl;
-   // e.g., "https://unwhisperable-underanged-ivory.ngrok-free.dev/api/public/mpesa/stk-push/callback"
+   // e.g., "https://unwhisperable-underanged-ivory.ngrok-free.dev/api/public/mpayesa/stk-push/callback"
    ```
 
 3. **Your API sends STK Push request to M-Pesa** with the callback URL included:
@@ -62,7 +62,7 @@ The callback URL is sent **dynamically with each STK Push request** to M-Pesa. H
      "BusinessShortCode": "174379",
      "PhoneNumber": "254722000000",
      "Amount": 100.00,
-     "CallBackURL": "https://unwhisperable-underanged-ivory.ngrok-free.dev/api/public/mpesa/stk-push/callback",
+     "CallBackURL": "https://unwhisperable-underanged-ivory.ngrok-free.dev/api/public/mpayesa/stk-push/callback",
      "AccountReference": "POL123456",
      ...
    }
@@ -72,7 +72,7 @@ The callback URL is sent **dynamically with each STK Push request** to M-Pesa. H
 
 5. **When customer completes/cancels**, M-Pesa sends callback to the URL you provided:
    ```
-   POST https://unwhisperable-underanged-ivory.ngrok-free.dev/api/public/mpesa/stk-push/callback
+   POST https://unwhisperable-underanged-ivory.ngrok-free.dev/api/public/mpayesa/stk-push/callback
    ```
 
 ### Key Points
@@ -109,7 +109,7 @@ ngrok http 3001
 
 # 3. Copy the new URL
 # 4. Update .env file
-MPESA_STK_PUSH_CALLBACK_URL=https://new-url.ngrok-free.dev/api/public/mpesa/stk-push/callback
+MPESA_STK_PUSH_CALLBACK_URL=https://new-url.ngrok-free.dev/api/public/mpayesa/stk-push/callback
 
 # 5. Restart your API
 pnpm start:dev
@@ -166,10 +166,10 @@ For production/staging, you don't need ngrok because your API is already publicl
 
 ```bash
 # Staging
-MPESA_STK_PUSH_CALLBACK_URL=https://maishapoa-staging-internal-api.fly.dev/api/public/mpesa/stk-push/callback
+MPESA_STK_PUSH_CALLBACK_URL=https://maishapoa-staging-internal-api.fly.dev/api/public/mpayesa/stk-push/callback
 
 # Production
-MPESA_STK_PUSH_CALLBACK_URL=https://maishapoa-production-internal-api.fly.dev/api/public/mpesa/stk-push/callback
+MPESA_STK_PUSH_CALLBACK_URL=https://maishapoa-production-internal-api.fly.dev/api/public/mpayesa/stk-push/callback
 ```
 
 ## Quick Setup Checklist
@@ -191,8 +191,8 @@ MPESA_PASSKEY=your_passkey
 MPESA_ENVIRONMENT=sandbox
 
 # Callback URLs (use your current ngrok URL)
-MPESA_STK_PUSH_CALLBACK_URL=https://unwhisperable-underanged-ivory.ngrok-free.dev/api/public/mpesa/stk-push/callback
-MPESA_IPN_CONFIRMATION_URL=https://unwhisperable-underanged-ivory.ngrok-free.dev/api/public/mpesa/confirmation
+MPESA_STK_PUSH_CALLBACK_URL=https://unwhisperable-underanged-ivory.ngrok-free.dev/api/public/mpayesa/stk-push/callback
+MPESA_IPN_CONFIRMATION_URL=https://unwhisperable-underanged-ivory.ngrok-free.dev/api/public/mpayesa/confirmation
 
 # IP Whitelist (optional for sandbox)
 MPESA_ALLOWED_IP_RANGES=127.0.0.1/32,::1/128

@@ -147,3 +147,85 @@ SET "body"         = EXCLUDED."body",
     "placeholders" = EXCLUDED."placeholders",
     "isActive"     = EXCLUDED."isActive",
     "updatedAt"    = NOW();
+
+-- ---------- Payment received SMS templates ----------
+
+INSERT INTO messaging_routes ("templateKey", "smsEnabled", "emailEnabled", "isActive", "createdAt", "updatedAt")
+VALUES ('payment_received_activation', true, false, true, NOW(), NOW())
+ON CONFLICT ("templateKey") DO UPDATE
+SET "smsEnabled" = EXCLUDED."smsEnabled", "emailEnabled" = EXCLUDED."emailEnabled", "isActive" = EXCLUDED."isActive", "updatedAt" = NOW();
+
+INSERT INTO messaging_templates (id, "templateKey", "channel", "language", "subject", "body", "textBody", "placeholders", "isActive", "createdAt", "updatedAt")
+VALUES (
+  gen_random_uuid(), 'payment_received_activation', 'SMS', 'en', NULL,
+  'Dear {first_name}, we have received your payment of {amount} and {payment_type} reference number {payment_reference}. Your {product_name} policy number is {policy_number} and it is now active. Your {scheme_waiting_period} day waiting period starts today and you can access treatment from {waiting_period_end_date}. Thank you',
+  NULL,
+  ARRAY['first_name', 'amount', 'payment_type', 'payment_reference', 'product_name', 'policy_number', 'scheme_waiting_period', 'waiting_period_end_date'],
+  true, NOW(), NOW()
+)
+ON CONFLICT ("templateKey", "channel", "language") DO UPDATE
+SET "body" = EXCLUDED."body", "placeholders" = EXCLUDED."placeholders", "isActive" = EXCLUDED."isActive", "updatedAt" = NOW();
+
+INSERT INTO messaging_routes ("templateKey", "smsEnabled", "emailEnabled", "isActive", "createdAt", "updatedAt")
+VALUES ('payment_received_activation_pending_receipt', true, false, true, NOW(), NOW())
+ON CONFLICT ("templateKey") DO UPDATE
+SET "smsEnabled" = EXCLUDED."smsEnabled", "emailEnabled" = EXCLUDED."emailEnabled", "isActive" = EXCLUDED."isActive", "updatedAt" = NOW();
+
+INSERT INTO messaging_templates (id, "templateKey", "channel", "language", "subject", "body", "textBody", "placeholders", "isActive", "createdAt", "updatedAt")
+VALUES (
+  gen_random_uuid(), 'payment_received_activation_pending_receipt', 'SMS', 'en', NULL,
+  'Dear {first_name}, we have received your {payment_type} payment of {amount}. Your {product_name} policy number is {policy_number} and it is now active. Your {scheme_waiting_period} day waiting period starts today and you can access treatment from {waiting_period_end_date}. Thank you',
+  NULL,
+  ARRAY['first_name', 'amount', 'payment_type', 'product_name', 'policy_number', 'scheme_waiting_period', 'waiting_period_end_date'],
+  true, NOW(), NOW()
+)
+ON CONFLICT ("templateKey", "channel", "language") DO UPDATE
+SET "body" = EXCLUDED."body", "placeholders" = EXCLUDED."placeholders", "isActive" = EXCLUDED."isActive", "updatedAt" = NOW();
+
+INSERT INTO messaging_routes ("templateKey", "smsEnabled", "emailEnabled", "isActive", "createdAt", "updatedAt")
+VALUES ('payment_received', true, false, true, NOW(), NOW())
+ON CONFLICT ("templateKey") DO UPDATE
+SET "smsEnabled" = EXCLUDED."smsEnabled", "emailEnabled" = EXCLUDED."emailEnabled", "isActive" = EXCLUDED."isActive", "updatedAt" = NOW();
+
+INSERT INTO messaging_templates (id, "templateKey", "channel", "language", "subject", "body", "textBody", "placeholders", "isActive", "createdAt", "updatedAt")
+VALUES (
+  gen_random_uuid(), 'payment_received', 'SMS', 'en', NULL,
+  'Dear {first_name}, we have received your {product_name} payment of {amount} and {payment_type} reference number is {payment_reference}. Thank you',
+  NULL,
+  ARRAY['first_name', 'product_name', 'amount', 'payment_type', 'payment_reference'],
+  true, NOW(), NOW()
+)
+ON CONFLICT ("templateKey", "channel", "language") DO UPDATE
+SET "body" = EXCLUDED."body", "placeholders" = EXCLUDED."placeholders", "isActive" = EXCLUDED."isActive", "updatedAt" = NOW();
+
+INSERT INTO messaging_routes ("templateKey", "smsEnabled", "emailEnabled", "isActive", "createdAt", "updatedAt")
+VALUES ('payment_received_pending_receipt', true, false, true, NOW(), NOW())
+ON CONFLICT ("templateKey") DO UPDATE
+SET "smsEnabled" = EXCLUDED."smsEnabled", "emailEnabled" = EXCLUDED."emailEnabled", "isActive" = EXCLUDED."isActive", "updatedAt" = NOW();
+
+INSERT INTO messaging_templates (id, "templateKey", "channel", "language", "subject", "body", "textBody", "placeholders", "isActive", "createdAt", "updatedAt")
+VALUES (
+  gen_random_uuid(), 'payment_received_pending_receipt', 'SMS', 'en', NULL,
+  'Dear {first_name}, we have received payment for your {product_name} insurance package from {payment_type}. Payment amount is {amount}. Thank you',
+  NULL,
+  ARRAY['first_name', 'product_name', 'payment_type', 'amount'],
+  true, NOW(), NOW()
+)
+ON CONFLICT ("templateKey", "channel", "language") DO UPDATE
+SET "body" = EXCLUDED."body", "placeholders" = EXCLUDED."placeholders", "isActive" = EXCLUDED."isActive", "updatedAt" = NOW();
+
+INSERT INTO messaging_routes ("templateKey", "smsEnabled", "emailEnabled", "isActive", "createdAt", "updatedAt")
+VALUES ('payment_received_unmatched', true, false, true, NOW(), NOW())
+ON CONFLICT ("templateKey") DO UPDATE
+SET "smsEnabled" = EXCLUDED."smsEnabled", "emailEnabled" = EXCLUDED."emailEnabled", "isActive" = EXCLUDED."isActive", "updatedAt" = NOW();
+
+INSERT INTO messaging_templates (id, "templateKey", "channel", "language", "subject", "body", "textBody", "placeholders", "isActive", "createdAt", "updatedAt")
+VALUES (
+  gen_random_uuid(), 'payment_received_unmatched', 'SMS', 'en', NULL,
+  'Dear {first_name} {last_name}, MaishaPoa has received your payment. The {amount} {payment_type} reference is {payment_reference}. Please call {general_support_number} to ensure receipting of your payment',
+  NULL,
+  ARRAY['first_name', 'last_name', 'amount', 'payment_type', 'payment_reference', 'general_support_number'],
+  true, NOW(), NOW()
+)
+ON CONFLICT ("templateKey", "channel", "language") DO UPDATE
+SET "body" = EXCLUDED."body", "placeholders" = EXCLUDED."placeholders", "isActive" = EXCLUDED."isActive", "updatedAt" = NOW();

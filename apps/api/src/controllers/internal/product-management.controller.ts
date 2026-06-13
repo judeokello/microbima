@@ -3,6 +3,7 @@ import {
   Get,
   Post,
   Put,
+  Patch,
   Delete,
   Body,
   Param,
@@ -46,6 +47,10 @@ import { CorrelationId } from '../../decorators/correlation-id.decorator';
 import { UserId } from '../../decorators/user.decorator';
 import { CreatePackageRequestDto } from '../../dto/packages/package.dto';
 import { CreateSchemeRequestDto } from '../../dto/schemes/scheme.dto';
+import {
+  PackageSchemeDetailResponseDto,
+  UpdatePackageSchemeRequestDto,
+} from '../../dto/schemes/package-scheme.dto';
 import {
   CreateSchemeContactDto,
   UpdateSchemeContactDto,
@@ -581,6 +586,12 @@ export class ProductManagementController {
     type: Number,
     example: 1,
   })
+  @ApiQuery({
+    name: 'packageId',
+    description: 'Package ID for package-scheme waiting period context',
+    required: false,
+    type: Number,
+  })
   @ApiResponse({
     status: 200,
     description: 'Scheme retrieved successfully',
@@ -596,11 +607,15 @@ export class ProductManagementController {
   })
   async getSchemeById(
     @Param('schemeId', ParseIntPipe) schemeId: number,
+    @Query('packageId') packageId?: string,
     @CorrelationId() correlationId?: string
   ): Promise<SchemeDetailResponseDto> {
+    const parsedPackageId =
+      packageId != null && packageId.trim() !== '' ? parseInt(packageId, 10) : undefined;
     const scheme = await this.productManagementService.getSchemeById(
       schemeId,
-      correlationId ?? 'unknown'
+      correlationId ?? 'unknown',
+      Number.isFinite(parsedPackageId) ? parsedPackageId : undefined,
     );
 
     return {
@@ -608,6 +623,36 @@ export class ProductManagementController {
       correlationId: correlationId ?? 'unknown',
       message: 'Scheme retrieved successfully',
       data: scheme,
+    };
+  }
+
+  /**
+   * Update package-scheme waiting period
+   */
+  @Patch('packages/:packageId/schemes/:schemeId')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Update package-scheme waiting period',
+    description: 'Update generalSchemeWaitingPeriod on the package-schemes junction row.',
+  })
+  async updatePackageSchemeWaitingPeriod(
+    @Param('packageId', ParseIntPipe) packageId: number,
+    @Param('schemeId', ParseIntPipe) schemeId: number,
+    @Body() body: UpdatePackageSchemeRequestDto,
+    @CorrelationId() correlationId?: string,
+  ): Promise<PackageSchemeDetailResponseDto> {
+    const data = await this.productManagementService.updatePackageSchemeWaitingPeriod(
+      packageId,
+      schemeId,
+      body.generalSchemeWaitingPeriod,
+      correlationId ?? 'unknown',
+    );
+
+    return {
+      status: HttpStatus.OK,
+      correlationId: correlationId ?? 'unknown',
+      message: 'Package scheme updated successfully',
+      data,
     };
   }
 

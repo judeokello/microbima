@@ -34,8 +34,8 @@ MPESA_ENVIRONMENT=sandbox
 
 # Callback URLs (use ngrok for local testing)
 # Example: If ngrok gives you https://abc123.ngrok.io
-MPESA_STK_PUSH_CALLBACK_URL=https://abc123.ngrok.io/api/public/mpesa/stk-push/callback
-MPESA_IPN_CONFIRMATION_URL=https://abc123.ngrok.io/api/public/mpesa/confirmation
+MPESA_STK_PUSH_CALLBACK_URL=https://abc123.ngrok.io/api/public/mpayesa/stk-push/callback
+MPESA_IPN_CONFIRMATION_URL=https://abc123.ngrok.io/api/public/mpayesa/confirmation
 
 # IP Whitelist (optional for sandbox, required for production)
 # For sandbox testing, leave empty or use localhost ranges
@@ -58,8 +58,8 @@ flyctl secrets set \
   MPESA_BUSINESS_SHORT_CODE="174379" \
   MPESA_PASSKEY="your_passkey" \
   MPESA_ENVIRONMENT="sandbox" \
-  MPESA_STK_PUSH_CALLBACK_URL="https://maishapoa-staging-internal-api.fly.dev/api/public/mpesa/stk-push/callback" \
-  MPESA_IPN_CONFIRMATION_URL="https://maishapoa-staging-internal-api.fly.dev/api/public/mpesa/confirmation" \
+  MPESA_STK_PUSH_CALLBACK_URL="https://maishapoa-staging-internal-api.fly.dev/api/public/mpayesa/stk-push/callback" \
+  MPESA_IPN_CONFIRMATION_URL="https://maishapoa-staging-internal-api.fly.dev/api/public/mpayesa/confirmation" \
   MPESA_ALLOWED_IP_RANGES="196.201.214.0/24,196.201.215.0/24" \
   -a maishapoa-staging-internal-api
 ```
@@ -76,8 +76,8 @@ flyctl secrets set \
   MPESA_BUSINESS_SHORT_CODE="your_production_shortcode" \
   MPESA_PASSKEY="your_production_passkey" \
   MPESA_ENVIRONMENT="production" \
-  MPESA_STK_PUSH_CALLBACK_URL="https://maishapoa-production-internal-api.fly.dev/api/public/mpesa/stk-push/callback" \
-  MPESA_IPN_CONFIRMATION_URL="https://maishapoa-production-internal-api.fly.dev/api/public/mpesa/confirmation" \
+  MPESA_STK_PUSH_CALLBACK_URL="https://maishapoa-production-internal-api.fly.dev/api/public/mpayesa/stk-push/callback" \
+  MPESA_IPN_CONFIRMATION_URL="https://maishapoa-production-internal-api.fly.dev/api/public/mpayesa/confirmation" \
   MPESA_ALLOWED_IP_RANGES="196.201.214.0/24,196.201.215.0/24" \
   -a maishapoa-production-internal-api
 ```
@@ -161,7 +161,7 @@ curl -X POST https://maishapoa-staging-internal-api.fly.dev/api/internal/mpesa/s
    - Enter PIN and confirm → Status becomes `COMPLETED`
    - Cancel → Status becomes `CANCELLED`
    - Let it timeout → Status becomes `EXPIRED`
-5. **Callback Received**: M-Pesa sends callback to `/api/public/mpesa/stk-push/callback`
+5. **Callback Received**: M-Pesa sends callback to `/api/public/mpayesa/stk-push/callback`
 6. **Payment Records Created**: If completed, records are created in `mpesa_payment_report_items` and `policy_payments`
 7. **IPN Linking**: When IPN arrives, it links to the STK Push request if within 24-hour window
 
@@ -229,8 +229,8 @@ ngrok http 3001
 
 # Copy the HTTPS URL (e.g., https://abc123.ngrok.io)
 # Use it in your .env:
-# MPESA_STK_PUSH_CALLBACK_URL=https://abc123.ngrok.io/api/public/mpesa/stk-push/callback
-# MPESA_IPN_CONFIRMATION_URL=https://abc123.ngrok.io/api/public/mpesa/confirmation
+# MPESA_STK_PUSH_CALLBACK_URL=https://abc123.ngrok.io/api/public/mpayesa/stk-push/callback
+# MPESA_IPN_CONFIRMATION_URL=https://abc123.ngrok.io/api/public/mpayesa/confirmation
 ```
 
 ## Next Steps

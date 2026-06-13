@@ -145,7 +145,7 @@ When statement files are uploaded manually, the system checks each transaction a
 - **FR-031**: System MUST update placeholder payment records (with `transactionReference` starting with `PENDING-STK-` and `actualPaymentDate = null`) when payment is completed via IPN or STK Push callback, instead of creating duplicate payment records. The placeholder payment MUST be updated with the real transaction reference and payment date
 - **FR-032**: System MUST use UTC for all date/time operations to ensure consistency across timezones. All timestamps stored in the database MUST be in UTC format
 - **FR-033**: System MUST allow all IP addresses in development environment for M-Pesa callback endpoints (IP whitelist guard must bypass validation when `NODE_ENV = development`). In production, IP whitelist validation MUST be enforced
-- **FR-034**: System MUST skip `x-correlation-id` header requirement for M-Pesa public callback endpoints (`/api/public/mpesa/confirmation` and `/api/public/mpesa/stk-push/callback`). System MUST automatically generate a correlation ID for these requests if not provided for request tracing
+- **FR-034**: System MUST skip `x-correlation-id` header requirement for M-Pesa public callback endpoints (`/api/public/mpayesa/confirmation` and `/api/public/mpayesa/stk-push/callback`). System MUST automatically generate a correlation ID for these requests if not provided for request tracing
 
 ### Payment Record Creation Flow
 
@@ -282,7 +282,7 @@ The following environment variables MUST be configured for M-Pesa Daraja API int
 
 **Generation**: 
 - Check if M-Pesa provides correlation ID in request headers
-- **For M-Pesa public callbacks** (`/api/public/mpesa/confirmation` and `/api/public/mpesa/stk-push/callback`): Skip `x-correlation-id` header requirement (M-Pesa doesn't send this header), automatically generate correlation ID if not provided
+- **For M-Pesa public callbacks** (`/api/public/mpayesa/confirmation` and `/api/public/mpayesa/stk-push/callback`): Skip `x-correlation-id` header requirement (M-Pesa doesn't send this header), automatically generate correlation ID if not provided
 - For other routes: If not provided, generate unique correlation ID (UUID format) in middleware/controller
 - Same logic applies to all routes (automatic generation if missing)
 

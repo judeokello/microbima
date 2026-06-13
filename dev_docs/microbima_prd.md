@@ -416,7 +416,7 @@ microbima/
 - OIDC/OAuth2 authentication (via Kong)
 - Rate limiting and quotas
 
-**M-Pesa Callbacks** (`/api/public/mpesa/*`):
+**M-Pesa Callbacks** (`/api/public/mpayesa/*`):
 - IPN confirmation endpoint
 - STK Push callback endpoint
 - Publicly accessible (IP whitelist protection)
