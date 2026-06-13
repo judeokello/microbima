@@ -50,8 +50,8 @@ Integrate M-Pesa Daraja API Instant Payment Notification (IPN) as the primary tr
 - **Compliance**: All functionality exposed via REST APIs (NestJS Internal API)
 - **Endpoints**: 
   - Internal: `POST /api/internal/mpesa/stk-push/initiate` (agent-initiated STK Push)
-  - Public: `POST /api/public/mpesa/confirmation` (IPN callback)
-  - Public: `POST /api/public/mpesa/stk-push/callback` (STK Push callback)
+  - Public: `POST /api/public/mpayesa/confirmation` (IPN callback)
+  - Public: `POST /api/public/mpayesa/stk-push/callback` (STK Push callback)
 - **Status**: ✅ PASS - Follows API-first architecture
 
 ### II. Database Standards ✅

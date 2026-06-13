@@ -128,8 +128,8 @@ Add the ngrok URL to your callback URLs:
 
 ```bash
 # In apps/api/.env
-MPESA_STK_PUSH_CALLBACK_URL=https://abc123.ngrok-free.app/api/public/mpesa/stk-push/callback
-MPESA_IPN_CONFIRMATION_URL=https://abc123.ngrok-free.app/api/public/mpesa/confirmation
+MPESA_STK_PUSH_CALLBACK_URL=https://abc123.ngrok-free.app/api/public/mpayesa/stk-push/callback
+MPESA_IPN_CONFIRMATION_URL=https://abc123.ngrok-free.app/api/public/mpayesa/confirmation
 ```
 
 **Note**: 
@@ -241,7 +241,7 @@ open http://127.0.0.1:4040
 curl https://your-ngrok-url.ngrok-free.app/api/health
 
 # Update .env with ngrok URL
-MPESA_STK_PUSH_CALLBACK_URL=https://your-ngrok-url.ngrok-free.app/api/public/mpesa/stk-push/callback
-MPESA_IPN_CONFIRMATION_URL=https://your-ngrok-url.ngrok-free.app/api/public/mpesa/confirmation
+MPESA_STK_PUSH_CALLBACK_URL=https://your-ngrok-url.ngrok-free.app/api/public/mpayesa/stk-push/callback
+MPESA_IPN_CONFIRMATION_URL=https://your-ngrok-url.ngrok-free.app/api/public/mpayesa/confirmation
 ```
 

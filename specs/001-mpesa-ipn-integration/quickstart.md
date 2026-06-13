@@ -77,8 +77,8 @@ MPESA_CONSUMER_SECRET=your_consumer_secret
 MPESA_BUSINESS_SHORT_CODE=174379
 MPESA_PASSKEY=your_passkey
 MPESA_ENVIRONMENT=sandbox
-MPESA_STK_PUSH_CALLBACK_URL=https://your-domain.com/api/public/mpesa/stk-push/callback
-MPESA_IPN_CONFIRMATION_URL=https://your-domain.com/api/public/mpesa/confirmation
+MPESA_STK_PUSH_CALLBACK_URL=https://your-domain.com/api/public/mpayesa/stk-push/callback
+MPESA_IPN_CONFIRMATION_URL=https://your-domain.com/api/public/mpayesa/confirmation
 MPESA_ALLOWED_IP_RANGES=196.201.214.0/24,196.201.215.0/24  # Example - get from Safaricom
 ```
 
@@ -198,7 +198,7 @@ Key responsibilities:
 **File**: `apps/api/src/controllers/public/mpesa-ipn.controller.ts`
 
 ```typescript
-@Controller('public/mpesa')
+@Controller('public/mpayesa')
 @ApiTags('M-Pesa IPN')
 export class MpesaIpnController {
   constructor(private readonly mpesaIpnService: MpesaIpnService) {}
@@ -243,10 +243,10 @@ Add public callback endpoints to skip list:
 ```typescript
 // Skip authentication for M-Pesa callback endpoints
 if (
-  req.path.startsWith('/api/public/mpesa/confirmation') ||
-  req.path.startsWith('/api/public/mpesa/stk-push/callback') ||
-  req.originalUrl.startsWith('/api/public/mpesa/confirmation') ||
-  req.originalUrl.startsWith('/api/public/mpesa/stk-push/callback')
+  req.path.startsWith('/api/public/mpayesa/confirmation') ||
+  req.path.startsWith('/api/public/mpayesa/stk-push/callback') ||
+  req.originalUrl.startsWith('/api/public/mpayesa/confirmation') ||
+  req.originalUrl.startsWith('/api/public/mpayesa/stk-push/callback')
 ) {
   return next();
 }
@@ -310,7 +310,7 @@ export class AppModule {}
 
 ```bash
 # Send test IPN payload
-curl -X POST http://localhost:3001/api/public/mpesa/confirmation \
+curl -X POST http://localhost:3001/api/public/mpayesa/confirmation \
   -H "Content-Type: application/json" \
   -d '{
     "TransactionType": "Pay Bill",

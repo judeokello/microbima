@@ -497,7 +497,7 @@ describe('M-Pesa Callback Endpoints (Integration)', () => {
     }
   });
   
-  describe('POST /api/public/mpesa/confirmation (IPN)', () => {
+  describe('POST /api/public/mpayesa/confirmation (IPN)', () => {
     it('should process valid IPN payload and create payment record', async () => {
       // Test implementation
     });
@@ -509,7 +509,7 @@ describe('M-Pesa Callback Endpoints (Integration)', () => {
     // ... more tests
   });
   
-  describe('POST /api/public/mpesa/stk-push-callback', () => {
+  describe('POST /api/public/mpayesa/stk-push-callback', () => {
     it('should process STK Push callback and update request status', async () => {
       // Test implementation
     });

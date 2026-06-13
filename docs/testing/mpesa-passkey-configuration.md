@@ -67,8 +67,8 @@ MPESA_PASSKEY='bfb279f9aa9bdbcf158e97dd71a467cd2e0c893059b10f78e6b72ada1ed2c919'
 MPESA_ENVIRONMENT=sandbox
 
 # Callback URLs
-MPESA_STK_PUSH_CALLBACK_URL=https://unwhisperable-underanged-ivory.ngrok-free.dev/api/public/mpesa/stk-push/callback
-MPESA_IPN_CONFIRMATION_URL=https://unwhisperable-underanged-ivory.ngrok-free.dev/api/public/mpesa/confirmation
+MPESA_STK_PUSH_CALLBACK_URL=https://unwhisperable-underanged-ivory.ngrok-free.dev/api/public/mpayesa/stk-push/callback
+MPESA_IPN_CONFIRMATION_URL=https://unwhisperable-underanged-ivory.ngrok-free.dev/api/public/mpayesa/confirmation
 ```
 
 ## Verification

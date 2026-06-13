@@ -7,14 +7,14 @@
 
 **Important Note on API Terminology**:
 - **Internal API endpoint**: `/api/internal/mpesa/stk-push/initiate` - For agents to initiate STK Push requests (requires authentication)
-- **Public callback/webhook endpoints**: `/api/public/mpesa/confirmation` and `/api/public/mpesa/stk-push/callback` - These are webhooks called by M-Pesa (not a customer-facing public API). They are "publicly accessible" only in the sense that M-Pesa needs to call them without API key authentication, but they are secured via IP whitelist and signature verification.
+- **Public callback/webhook endpoints**: `/api/public/mpayesa/confirmation` and `/api/public/mpayesa/stk-push/callback` - These are webhooks called by M-Pesa (not a customer-facing public API). They are "publicly accessible" only in the sense that M-Pesa needs to call them without API key authentication, but they are secured via IP whitelist and signature verification.
 - This feature does NOT create a customer-facing public API. The "public" endpoints are payment gateway webhooks, not public API endpoints for customers.
 
 ## Requirement Completeness
 
 - [x] CHK001 - Are all required endpoints explicitly specified with HTTP methods and paths? [Completeness, Spec §FR-005, FR-020, FR-021]
   - Internal API endpoint: `/api/internal/mpesa/stk-push/initiate` (for agents)
-  - Public callback endpoints: `/api/public/mpesa/confirmation` and `/api/public/mpesa/stk-push/callback` (webhooks from M-Pesa, not customer-facing API)
+  - Public callback endpoints: `/api/public/mpayesa/confirmation` and `/api/public/mpayesa/stk-push/callback` (webhooks from M-Pesa, not customer-facing API)
 - [x] CHK002 - Are request/response payload structures defined for all endpoints? [Completeness, Gap]
   - Defined in contracts/mpesa-ipn-stk-push-api.yaml
 - [x] CHK003 - Are authentication/authorization requirements specified for each endpoint type? [Completeness, Spec §FR-005, FR-020, FR-021]
@@ -248,7 +248,7 @@
 
 **Note**: These refer to:
 - **Internal API endpoint**: `/api/internal/mpesa/stk-push/initiate` (agent-initiated STK Push)
-- **Public callback/webhook endpoints**: `/api/public/mpesa/confirmation` and `/api/public/mpesa/stk-push/callback` (M-Pesa webhooks, not customer-facing public API)
+- **Public callback/webhook endpoints**: `/api/public/mpayesa/confirmation` and `/api/public/mpayesa/stk-push/callback` (M-Pesa webhooks, not customer-facing public API)
 
 - [x] CHK095 - Are request payload schemas fully defined for all endpoints (required vs optional fields)? [Completeness, Contracts]
   - contracts/mpesa-ipn-stk-push-api.yaml defines all schemas with required/optional fields

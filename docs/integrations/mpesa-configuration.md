@@ -22,6 +22,8 @@ This guide explains how to configure the M-Pesa Daraja API integration for Micro
    - For local development: Use ngrok or similar tunnel service
    - For staging/production: Deploy API with publicly accessible HTTPS URL
 
+> **Callback URL path:** Live routes use `/api/public/mpayesa/` (not `/mpesa/`). Safaricom rejects callback URLs that contain the literal string `mpesa` in the path. See `apps/api/env.example` for all three public endpoints: confirmation, validation, and STK push callback.
+
 ## Environment Variables
 
 All M-Pesa configuration is done via environment variables. See `apps/api/env.example` for a complete list with detailed comments.
@@ -34,8 +36,9 @@ All M-Pesa configuration is done via environment variables. See `apps/api/env.ex
 | `MPESA_CONSUMER_SECRET` | OAuth consumer secret | `your_consumer_secret` | Safaricom Developer Portal |
 | `MPESA_BUSINESS_SHORT_CODE` | Business short code | `174379` (sandbox) | Safaricom Developer Portal / Production credentials |
 | `MPESA_PASSKEY` | Security credential/passkey | `your_passkey` | Safaricom Developer Portal / Production credentials |
-| `MPESA_STK_PUSH_CALLBACK_URL` | STK Push callback URL | `https://api.example.com/api/public/mpesa/stk-push/callback` | Your deployed API URL |
-| `MPESA_IPN_CONFIRMATION_URL` | IPN confirmation URL | `https://api.example.com/api/public/mpesa/confirmation` | Your deployed API URL |
+| `MPESA_STK_PUSH_CALLBACK_URL` | STK Push callback URL | `https://api.example.com/api/public/mpayesa/stk-push/callback` | Your deployed API URL |
+| `MPESA_IPN_CONFIRMATION_URL` | IPN confirmation URL | `https://api.example.com/api/public/mpayesa/confirmation` | Your deployed API URL + Safaricom C2B portal |
+| `MPESA_C2B_VALIDATION_URL` | C2B validation URL (optional) | `https://api.example.com/api/public/mpayesa/validation` | Required for sandbox shortcode 174379; optional in production if external validation disabled |
 
 ### Optional Variables
 
@@ -63,8 +66,8 @@ MPESA_ENVIRONMENT=sandbox
 
 # Callback URLs (use ngrok for local testing)
 # Example: If ngrok gives you https://abc123.ngrok.io
-MPESA_STK_PUSH_CALLBACK_URL=https://abc123.ngrok.io/api/public/mpesa/stk-push/callback
-MPESA_IPN_CONFIRMATION_URL=https://abc123.ngrok.io/api/public/mpesa/confirmation
+MPESA_STK_PUSH_CALLBACK_URL=https://abc123.ngrok.io/api/public/mpayesa/stk-push/callback
+MPESA_IPN_CONFIRMATION_URL=https://abc123.ngrok.io/api/public/mpayesa/confirmation
 
 # IP Whitelist (optional for sandbox)
 MPESA_ALLOWED_IP_RANGES=127.0.0.1/32,::1/128
@@ -79,8 +82,8 @@ flyctl secrets set \
   MPESA_BUSINESS_SHORT_CODE="your_production_shortcode" \
   MPESA_PASSKEY="your_production_passkey" \
   MPESA_ENVIRONMENT="production" \
-  MPESA_STK_PUSH_CALLBACK_URL="https://your-api.fly.dev/api/public/mpesa/stk-push/callback" \
-  MPESA_IPN_CONFIRMATION_URL="https://your-api.fly.dev/api/public/mpesa/confirmation" \
+  MPESA_STK_PUSH_CALLBACK_URL="https://your-api.fly.dev/api/public/mpayesa/stk-push/callback" \
+  MPESA_IPN_CONFIRMATION_URL="https://your-api.fly.dev/api/public/mpayesa/confirmation" \
   MPESA_ALLOWED_IP_RANGES="196.201.214.0/24,196.201.215.0/24" \
   -a your-production-app
 ```
@@ -110,8 +113,8 @@ For local development, you need a publicly accessible HTTPS endpoint. Use ngrok:
 ngrok http 3001
 
 # Use the ngrok URL in your .env file
-MPESA_STK_PUSH_CALLBACK_URL=https://abc123.ngrok.io/api/public/mpesa/stk-push/callback
-MPESA_IPN_CONFIRMATION_URL=https://abc123.ngrok.io/api/public/mpesa/confirmation
+MPESA_STK_PUSH_CALLBACK_URL=https://abc123.ngrok.io/api/public/mpayesa/stk-push/callback
+MPESA_IPN_CONFIRMATION_URL=https://abc123.ngrok.io/api/public/mpayesa/confirmation
 ```
 
 See [Ngrok Setup Guide](../testing/ngrok-setup-guide.md) for detailed instructions.

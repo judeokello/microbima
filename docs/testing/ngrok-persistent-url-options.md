@@ -35,8 +35,8 @@ https://microbima-dev.ngrok.io
 
 **Your `.env` stays the same:**
 ```bash
-MPESA_STK_PUSH_CALLBACK_URL=https://microbima-dev.ngrok.io/api/public/mpesa/stk-push/callback
-MPESA_IPN_CONFIRMATION_URL=https://microbima-dev.ngrok.io/api/public/mpesa/confirmation
+MPESA_STK_PUSH_CALLBACK_URL=https://microbima-dev.ngrok.io/api/public/mpayesa/stk-push/callback
+MPESA_IPN_CONFIRMATION_URL=https://microbima-dev.ngrok.io/api/public/mpayesa/confirmation
 ```
 
 ### Option 2: Use Staging Environment ⭐ Best for Real Testing
@@ -56,8 +56,8 @@ MPESA_IPN_CONFIRMATION_URL=https://microbima-dev.ngrok.io/api/public/mpesa/confi
 
 ```bash
 # In Fly secrets for staging
-MPESA_STK_PUSH_CALLBACK_URL=https://maishapoa-staging-internal-api.fly.dev/api/public/mpesa/stk-push/callback
-MPESA_IPN_CONFIRMATION_URL=https://maishapoa-staging-internal-api.fly.dev/api/public/mpesa/confirmation
+MPESA_STK_PUSH_CALLBACK_URL=https://maishapoa-staging-internal-api.fly.dev/api/public/mpayesa/stk-push/callback
+MPESA_IPN_CONFIRMATION_URL=https://maishapoa-staging-internal-api.fly.dev/api/public/mpayesa/confirmation
 ```
 
 **Workflow:**
