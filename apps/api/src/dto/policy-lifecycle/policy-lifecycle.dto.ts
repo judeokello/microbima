@@ -116,6 +116,9 @@ export class ModifyPolicyOptionsPaymentDto {
 
   @ApiPropertyOptional()
   actualPaymentDate?: string;
+
+  @ApiProperty({ description: 'COMPLETED or COMPLETED_PENDING_RECEIPT' })
+  paymentStatus: string;
 }
 
 export class ModifyPolicyOptionsSchemeDto {

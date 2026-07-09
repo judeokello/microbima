@@ -2388,6 +2388,7 @@ export interface ModifyPolicyOptionsPayment {
   amount: number
   expectedPaymentDate: string
   actualPaymentDate?: string
+  paymentStatus: string
 }
 
 export interface ModifyPolicyOptionsScheme {

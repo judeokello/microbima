@@ -27,6 +27,10 @@ import {
   computeInstallmentBackfillSlots,
 } from '../utils/installment-backfill.util';
 import {
+  getBasePolicyNumber,
+  nextDisabledPolicyNumber,
+} from '../utils/disabled-policy-number.util';
+import {
   deriveFamilyCategoryFromDependants,
   hasAdditionalSpousePremium,
 } from '../utils/family-category.util';
@@ -418,6 +422,7 @@ export class PolicyLifecycleService {
         amount: Number(p.amount),
         expectedPaymentDate: p.expectedPaymentDate.toISOString(),
         actualPaymentDate: p.actualPaymentDate?.toISOString(),
+        paymentStatus: p.paymentStatus,
       })),
       schemes: packageSchemes.map((ps) => ({
         packageSchemeId: ps.id,
@@ -526,6 +531,24 @@ export class PolicyLifecycleService {
     const now = new Date();
 
     const result = await this.prisma.$transaction(async (tx) => {
+      let releasedPolicyNumber: string | null = null;
+      let sourcePolicyNumberAfterDeactivate: string | null | undefined = source.policyNumber;
+
+      if (
+        dto.policyNumberChoice === PolicyNumberChoice.KEEP_EXISTING &&
+        source.policyNumber
+      ) {
+        releasedPolicyNumber = getBasePolicyNumber(source.policyNumber);
+        const existingNumbers = await tx.policy.findMany({
+          where: { policyNumber: { not: null } },
+          select: { policyNumber: true },
+        });
+        sourcePolicyNumberAfterDeactivate = nextDisabledPolicyNumber(
+          source.policyNumber,
+          existingNumbers.map((row) => row.policyNumber)
+        );
+      }
+
       // Deactivate source
       await this.statusChangeService.record({
         entityType: StatusChangeEntityType.POLICY,
@@ -546,6 +569,9 @@ export class PolicyLifecycleService {
           status: PolicyStatus.DEACTIVATED,
           deactivatedAt: now,
           paymentAcNumber: null,
+          ...(sourcePolicyNumberAfterDeactivate !== source.policyNumber
+            ? { policyNumber: sourcePolicyNumberAfterDeactivate }
+            : {}),
         },
       });
 
@@ -559,7 +585,7 @@ export class PolicyLifecycleService {
           correlationId
         );
       } else if (dto.policyNumberChoice === PolicyNumberChoice.KEEP_EXISTING) {
-        policyNumber = source.policyNumber;
+        policyNumber = releasedPolicyNumber;
       }
 
       const newPolicy = await tx.policy.create({

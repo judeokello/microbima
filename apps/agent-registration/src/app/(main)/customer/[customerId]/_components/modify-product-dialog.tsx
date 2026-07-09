@@ -22,6 +22,10 @@ import {
 import { Input } from '@/components/ui/input';
 import { Loader2 } from 'lucide-react';
 import {
+  formatMigrationPaymentStatusLabel,
+  formatTransactionReferenceForDisplay,
+} from '@/lib/transaction-reference-display';
+import {
   getModifyPolicyOptions,
   getPackagePlans,
   modifyCustomerPolicy,
@@ -293,15 +297,23 @@ export default function ModifyProductDialog({
             {options.paymentMigrationAllowed && (
               <div>
                 <Label>First payment to migrate</Label>
-                <Select value={firstPaymentId} onValueChange={setFirstPaymentId}>
+                <Select
+                  value={firstPaymentId}
+                  onValueChange={(v) => {
+                    setFirstPaymentId(v);
+                    setError(null);
+                  }}
+                >
                   <SelectTrigger>
                     <SelectValue placeholder="Select first payment" />
                   </SelectTrigger>
                   <SelectContent>
                     {options.eligiblePayments.map((p) => (
                       <SelectItem key={p.id} value={String(p.id)}>
-                        {p.transactionReference} — KES {p.amount} —{' '}
-                        {new Date(p.expectedPaymentDate).toLocaleDateString()}
+                        {formatTransactionReferenceForDisplay(p.transactionReference)} — KES{' '}
+                        {p.amount} —{' '}
+                        {new Date(p.expectedPaymentDate).toLocaleDateString()}{' '}
+                        {formatMigrationPaymentStatusLabel(p.paymentStatus)}
                       </SelectItem>
                     ))}
                   </SelectContent>

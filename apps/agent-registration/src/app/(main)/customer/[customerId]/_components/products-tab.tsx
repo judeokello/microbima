@@ -103,6 +103,8 @@ export default function ProductsTab({ customerId, basePath }: ProductsTabProps) 
   const canActivate = (p: CustomerPolicyListItem) => p.status === 'SUSPENDED';
   const canReset = (p: CustomerPolicyListItem) =>
     p.status === 'ACTIVE' || p.status === 'SUSPENDED';
+  const hasRowActions = (p: CustomerPolicyListItem) =>
+    canModify(p) || canDeactivate(p) || canActivate(p) || canReset(p);
 
   if (loading) {
     return (
@@ -204,40 +206,44 @@ export default function ProductsTab({ customerId, basePath }: ProductsTabProps) 
                       </TableCell>
                       {showAdminActions && (
                         <TableCell>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8"
-                                onClick={(e) => e.stopPropagation()}
-                              >
-                                <MoreHorizontal className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              {canModify(p) && (
-                                <DropdownMenuItem onClick={() => openAction(p, 'modify')}>
-                                  Modify product
-                                </DropdownMenuItem>
-                              )}
-                              {canDeactivate(p) && (
-                                <DropdownMenuItem onClick={() => openAction(p, 'deactivate')}>
-                                  Deactivate
-                                </DropdownMenuItem>
-                              )}
-                              {canActivate(p) && (
-                                <DropdownMenuItem onClick={() => openAction(p, 'activate')}>
-                                  Activate
-                                </DropdownMenuItem>
-                              )}
-                              {canReset(p) && (
-                                <DropdownMenuItem onClick={() => openAction(p, 'reset')}>
-                                  Reset start date
-                                </DropdownMenuItem>
-                              )}
-                            </DropdownMenuContent>
-                          </DropdownMenu>
+                          {hasRowActions(p) ? (
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  <MoreHorizontal className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                {canModify(p) && (
+                                  <DropdownMenuItem onClick={() => openAction(p, 'modify')}>
+                                    Modify product
+                                  </DropdownMenuItem>
+                                )}
+                                {canDeactivate(p) && (
+                                  <DropdownMenuItem onClick={() => openAction(p, 'deactivate')}>
+                                    Deactivate
+                                  </DropdownMenuItem>
+                                )}
+                                {canActivate(p) && (
+                                  <DropdownMenuItem onClick={() => openAction(p, 'activate')}>
+                                    Activate
+                                  </DropdownMenuItem>
+                                )}
+                                {canReset(p) && (
+                                  <DropdownMenuItem onClick={() => openAction(p, 'reset')}>
+                                    Reset start date
+                                  </DropdownMenuItem>
+                                )}
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          )}
                         </TableCell>
                       )}
                     </TableRow>

@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { ArrowLeft, RefreshCw } from 'lucide-react';
 import { formatDate } from '@/lib/utils';
+import { formatTransactionReferenceForDisplay } from '@/lib/transaction-reference-display';
 import { supabase } from '@/lib/supabase';
 
 interface MpesaPaymentUpload {
@@ -314,7 +315,7 @@ export default function MpesaPaymentDetailsPage() {
                   <TableBody>
                     {items.map((item) => (
                       <TableRow key={item.id}>
-                        <TableCell className="font-medium">{item.transactionReference}</TableCell>
+                        <TableCell className="font-medium">{formatTransactionReferenceForDisplay(item.transactionReference)}</TableCell>
                         <TableCell>{formatDate(item.completionTime)}</TableCell>
                         <TableCell>{formatDate(item.initiationTime)}</TableCell>
                         <TableCell className="max-w-xs truncate">{item.paymentDetails ?? '-'}</TableCell>

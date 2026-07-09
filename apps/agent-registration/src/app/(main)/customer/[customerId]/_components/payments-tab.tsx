@@ -21,6 +21,7 @@ import {
   type MissedPaymentsAmountSide,
 } from '@/lib/api';
 import * as Sentry from '@sentry/nextjs';
+import { formatTransactionReferenceForDisplay } from '@/lib/transaction-reference-display';
 import RequestPaymentDialog from './request-payment-dialog';
 import { PAYMENTS_POLICY_STORAGE_KEY } from './products-tab';
 
@@ -568,7 +569,7 @@ export default function PaymentsTab({ customerId, customerPhone = '' }: Payments
                       </TableCell>
                     )}
                     <TableCell>{payment.paymentType}</TableCell>
-                    <TableCell>{payment.transactionReference}</TableCell>
+                    <TableCell>{formatTransactionReferenceForDisplay(payment.transactionReference)}</TableCell>
                     <TableCell>{payment.accountNumber ?? 'N/A'}</TableCell>
                     <TableCell>{payment.paymentStatus ?? '—'}</TableCell>
                     <TableCell>{formatDate(payment.expectedPaymentDate)}</TableCell>
