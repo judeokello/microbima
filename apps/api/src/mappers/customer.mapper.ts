@@ -174,6 +174,8 @@ export class CustomerMapper {
         return 'active';
       case CustomerStatus.SUSPENDED:
         return 'suspended';
+      case CustomerStatus.DEACTIVATED:
+        return 'deactivated';
       case CustomerStatus.TERMINATED:
         return 'terminated';
       case CustomerStatus.DELETED:

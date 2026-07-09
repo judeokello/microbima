@@ -30,6 +30,9 @@ export class MemberCardsByPolicyItemDto {
   @ApiProperty({ description: 'Policy number', nullable: true })
   policyNumber: string | null;
 
+  @ApiProperty({ description: 'Policy status' })
+  policyStatus: string;
+
   @ApiProperty({ description: 'Package id' })
   packageId: number;
 

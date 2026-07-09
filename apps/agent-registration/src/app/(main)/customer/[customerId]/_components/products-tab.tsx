@@ -5,25 +5,52 @@ import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Loader2 } from 'lucide-react';
-import { getCustomerPoliciesList, CustomerPolicyListItem } from '@/lib/api';
+import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { Loader2, MoreHorizontal } from 'lucide-react';
+import {
+  activateCustomerPolicy,
+  deactivateCustomerPolicy,
+  getCustomerPoliciesList,
+  resetCustomerPolicyStartDate,
+  type CustomerPolicyListItem,
+} from '@/lib/api';
+import { useAuth } from '@/hooks/useAuth';
 import * as Sentry from '@sentry/nextjs';
+import PolicyReasonDialog from './policy-reason-dialog';
+import ModifyProductDialog from './modify-product-dialog';
+import ResetStartDateDialog from './reset-start-date-dialog';
+
+const PAYMENTS_POLICY_STORAGE_KEY = (customerId: string) =>
+  `customer-${customerId}-payments-policy`;
 
 interface ProductsTabProps {
   customerId: string;
-  /** 'admin' or 'dashboard' - used for policy detail link */
-  basePath: 'admin' | 'dashboard';
+  /** 'admin' | 'dashboard' | 'agent' — used for policy detail link */
+  basePath: 'admin' | 'dashboard' | 'agent';
 }
+
+type RowAction = 'deactivate' | 'activate' | 'reset' | 'modify' | null;
 
 export default function ProductsTab({ customerId, basePath }: ProductsTabProps) {
   const router = useRouter();
+  const { isAdmin } = useAuth();
+  const showAdminActions = basePath === 'admin' && isAdmin;
+
   const [policies, setPolicies] = useState<CustomerPolicyListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [actionPolicy, setActionPolicy] = useState<CustomerPolicyListItem | null>(null);
+  const [rowAction, setRowAction] = useState<RowAction>(null);
 
   useEffect(() => {
     if (customerId) {
-      loadProducts();
+      void loadProducts();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [customerId]);
@@ -49,8 +76,33 @@ export default function ProductsTab({ customerId, basePath }: ProductsTabProps) 
   };
 
   const handleRowClick = (policyId: string) => {
-    router.push(`/${basePath}/customer/${customerId}/policy/${policyId}`);
+    const prefix =
+      basePath === 'agent' ? 'dashboard' : basePath;
+    router.push(`/${prefix}/customer/${customerId}/policy/${policyId}`);
   };
+
+  const openAction = (policy: CustomerPolicyListItem, action: RowAction) => {
+    setActionPolicy(policy);
+    setRowAction(action);
+  };
+
+  const closeAction = () => {
+    setActionPolicy(null);
+    setRowAction(null);
+  };
+
+  const onModifySuccess = (newPolicyId: string) => {
+    sessionStorage.setItem(PAYMENTS_POLICY_STORAGE_KEY(customerId), newPolicyId);
+    void loadProducts();
+  };
+
+  const canModify = (p: CustomerPolicyListItem) =>
+    p.status === 'ACTIVE' || p.status === 'PENDING_ACTIVATION';
+  const canDeactivate = (p: CustomerPolicyListItem) =>
+    p.status === 'ACTIVE' || p.status === 'SUSPENDED' || p.status === 'PENDING_ACTIVATION';
+  const canActivate = (p: CustomerPolicyListItem) => p.status === 'SUSPENDED';
+  const canReset = (p: CustomerPolicyListItem) =>
+    p.status === 'ACTIVE' || p.status === 'SUSPENDED';
 
   if (loading) {
     return (
@@ -73,62 +125,185 @@ export default function ProductsTab({ customerId, basePath }: ProductsTabProps) 
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Products</CardTitle>
-        <CardDescription>
-          Policies this customer is enrolled in. Click a row to view product and enrollment details.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        {policies.length === 0 ? (
-          <p className="text-muted-foreground py-8 text-center">No products enrolled</p>
-        ) : (
-          <div className="rounded-md border">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Product / Package</TableHead>
-                  <TableHead>Plan</TableHead>
-                  <TableHead>Scheme</TableHead>
-                  <TableHead>Underwriter</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Total premium</TableHead>
-                  <TableHead className="text-right">Installment</TableHead>
-                  <TableHead className="text-right">Paid</TableHead>
-                  <TableHead className="text-right">Missed</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {policies.map((p) => (
-                  <TableRow
-                    key={p.id}
-                    className="cursor-pointer hover:bg-muted/50"
-                    onClick={() => handleRowClick(p.id)}
-                  >
-                    <TableCell className="font-medium">
-                      {p.productName}
-                      <span className="block text-xs text-muted-foreground">{p.packageName}</span>
-                    </TableCell>
-                    <TableCell>{p.planName ?? '—'}</TableCell>
-                    <TableCell>{p.schemeName}</TableCell>
-                    <TableCell>{p.underwriterName ?? '—'}</TableCell>
-                    <TableCell>
-                      <Badge variant={p.status === 'ACTIVE' ? 'default' : 'secondary'}>
-                        {p.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right">{p.totalPremium}</TableCell>
-                    <TableCell className="text-right">{p.installment}</TableCell>
-                    <TableCell className="text-right">{p.installmentsPaid}</TableCell>
-                    <TableCell className="text-right">{p.missedPayments}</TableCell>
+    <>
+      <Card>
+        <CardHeader>
+          <CardTitle>Products</CardTitle>
+          <CardDescription>
+            Policies this customer is enrolled in. Click a row to view product and enrollment
+            details.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {policies.length === 0 ? (
+            <p className="text-muted-foreground py-8 text-center">No products enrolled</p>
+          ) : (
+            <div className="rounded-md border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Product / Package</TableHead>
+                    <TableHead>Plan</TableHead>
+                    <TableHead>Scheme</TableHead>
+                    <TableHead>Underwriter</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="text-right">Total premium</TableHead>
+                    <TableHead className="text-right">Installment</TableHead>
+                    <TableHead className="text-right">Paid</TableHead>
+                    <TableHead className="text-right">Missed</TableHead>
+                    {showAdminActions && <TableHead className="w-10" />}
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-        )}
-      </CardContent>
-    </Card>
+                </TableHeader>
+                <TableBody>
+                  {policies.map((p) => (
+                    <TableRow key={p.id} className="hover:bg-muted/50">
+                      <TableCell
+                        className="font-medium cursor-pointer"
+                        onClick={() => handleRowClick(p.id)}
+                      >
+                        {p.productName}
+                        <span className="block text-xs text-muted-foreground">{p.packageName}</span>
+                      </TableCell>
+                      <TableCell className="cursor-pointer" onClick={() => handleRowClick(p.id)}>
+                        {p.planName ?? '—'}
+                      </TableCell>
+                      <TableCell className="cursor-pointer" onClick={() => handleRowClick(p.id)}>
+                        {p.schemeName}
+                      </TableCell>
+                      <TableCell className="cursor-pointer" onClick={() => handleRowClick(p.id)}>
+                        {p.underwriterName ?? '—'}
+                      </TableCell>
+                      <TableCell className="cursor-pointer" onClick={() => handleRowClick(p.id)}>
+                        <Badge variant={p.status === 'ACTIVE' ? 'default' : 'secondary'}>
+                          {p.status}
+                        </Badge>
+                      </TableCell>
+                      <TableCell
+                        className="text-right cursor-pointer"
+                        onClick={() => handleRowClick(p.id)}
+                      >
+                        {p.totalPremium}
+                      </TableCell>
+                      <TableCell
+                        className="text-right cursor-pointer"
+                        onClick={() => handleRowClick(p.id)}
+                      >
+                        {p.installment}
+                      </TableCell>
+                      <TableCell
+                        className="text-right cursor-pointer"
+                        onClick={() => handleRowClick(p.id)}
+                      >
+                        {p.installmentsPaid}
+                      </TableCell>
+                      <TableCell
+                        className="text-right cursor-pointer"
+                        onClick={() => handleRowClick(p.id)}
+                      >
+                        {p.missedPayments}
+                      </TableCell>
+                      {showAdminActions && (
+                        <TableCell>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <MoreHorizontal className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              {canModify(p) && (
+                                <DropdownMenuItem onClick={() => openAction(p, 'modify')}>
+                                  Modify product
+                                </DropdownMenuItem>
+                              )}
+                              {canDeactivate(p) && (
+                                <DropdownMenuItem onClick={() => openAction(p, 'deactivate')}>
+                                  Deactivate
+                                </DropdownMenuItem>
+                              )}
+                              {canActivate(p) && (
+                                <DropdownMenuItem onClick={() => openAction(p, 'activate')}>
+                                  Activate
+                                </DropdownMenuItem>
+                              )}
+                              {canReset(p) && (
+                                <DropdownMenuItem onClick={() => openAction(p, 'reset')}>
+                                  Reset start date
+                                </DropdownMenuItem>
+                              )}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </TableCell>
+                      )}
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {actionPolicy && rowAction === 'modify' && (
+        <ModifyProductDialog
+          open
+          onOpenChange={(o) => !o && closeAction()}
+          customerId={customerId}
+          policyId={actionPolicy.id}
+          onSuccess={onModifySuccess}
+        />
+      )}
+
+      {actionPolicy && rowAction === 'deactivate' && (
+        <PolicyReasonDialog
+          open
+          onOpenChange={(o) => !o && closeAction()}
+          title="Deactivate policy"
+          description={`Deactivate ${actionPolicy.productName}. Customer status may change if this is their only active policy.`}
+          confirmLabel="Deactivate"
+          onSubmit={async (reason) => {
+            await deactivateCustomerPolicy(customerId, actionPolicy.id, reason);
+            await loadProducts();
+          }}
+        />
+      )}
+
+      {actionPolicy && rowAction === 'activate' && (
+        <PolicyReasonDialog
+          open
+          onOpenChange={(o) => !o && closeAction()}
+          title="Activate policy"
+          description="Reactivate a suspended policy."
+          confirmLabel="Activate"
+          onSubmit={async (reason) => {
+            await activateCustomerPolicy(customerId, actionPolicy.id, reason);
+            await loadProducts();
+          }}
+        />
+      )}
+
+      {actionPolicy && rowAction === 'reset' && (
+        <ResetStartDateDialog
+          open
+          onOpenChange={(o) => !o && closeAction()}
+          onSubmit={async (reason, startDateIso) => {
+            await resetCustomerPolicyStartDate(
+              customerId,
+              actionPolicy.id,
+              reason,
+              startDateIso
+            );
+            await loadProducts();
+          }}
+        />
+      )}
+    </>
   );
 }
+
+export { PAYMENTS_POLICY_STORAGE_KEY };

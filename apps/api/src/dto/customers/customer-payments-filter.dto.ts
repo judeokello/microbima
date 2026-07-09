@@ -106,6 +106,41 @@ export class PolicyOptionDto {
   @IsOptional()
   @IsString()
   planName?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  status?: string;
+
+  @ApiProperty({ required: false, nullable: true })
+  @IsOptional()
+  policyNumber?: string | null;
+
+  @ApiProperty({ required: false, nullable: true })
+  @IsOptional()
+  startDate?: string | null;
+
+  @ApiProperty({ required: false, nullable: true })
+  @IsOptional()
+  endDate?: string | null;
+
+  @ApiProperty({ required: false, nullable: true })
+  @IsOptional()
+  deactivatedAt?: string | null;
+}
+
+export class PaymentPolicySummaryDto {
+  @ApiProperty()
+  id: string;
+
+  @ApiProperty({ nullable: true })
+  policyNumber: string | null;
+
+  @ApiProperty()
+  status: string;
+
+  @ApiProperty()
+  displayText: string;
 }
 
 export class PaymentDto {
@@ -167,6 +202,14 @@ export class PaymentDto {
   @IsOptional()
   @IsEnum(PaymentStatus)
   paymentStatus?: PaymentStatus;
+
+  @ApiProperty({
+    description: 'Policy summary when listing all policies (no policyId filter)',
+    type: PaymentPolicySummaryDto,
+    required: false,
+  })
+  @IsOptional()
+  policy?: PaymentPolicySummaryDto;
 }
 
 export class CustomerPaymentsResponseDto {

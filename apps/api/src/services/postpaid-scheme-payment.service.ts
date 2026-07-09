@@ -151,13 +151,13 @@ export class PostpaidSchemePaymentService {
         errors.push(`Row ${i + 1}: ID number "${row.idNumber}" is not enrolled in this scheme`);
         continue;
       }
-      const policy = await this.prisma.policy.findUnique({
+      const policy = await this.prisma.policy.findFirst({
         where: {
-          customerId_packageId: {
-            customerId: customer.id,
-            packageId: psc.packageScheme.packageId,
-          },
+          customerId: customer.id,
+          packageId: psc.packageScheme.packageId,
+          status: { in: ['ACTIVE', 'PENDING_ACTIVATION', 'SUSPENDED'] },
         },
+        orderBy: { createdAt: 'desc' },
         select: { id: true, paymentAcNumber: true },
       });
       if (!policy) {
@@ -298,13 +298,13 @@ export class PostpaidSchemePaymentService {
           include: { packageScheme: { select: { packageId: true } } },
         });
         if (!psc) continue;
-        const policy = await tx.policy.findUnique({
+        const policy = await tx.policy.findFirst({
           where: {
-            customerId_packageId: {
-              customerId: customer.id,
-              packageId: psc.packageScheme.packageId,
-            },
+            customerId: customer.id,
+            packageId: psc.packageScheme.packageId,
+            status: { in: ['ACTIVE', 'PENDING_ACTIVATION', 'SUSPENDED'] },
           },
+          orderBy: { createdAt: 'desc' },
         });
         if (!policy) continue;
 
