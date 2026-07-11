@@ -7,6 +7,7 @@ import { MpesaDarajaApiService } from './mpesa-daraja-api.service';
 import { MpesaErrorMapperService } from './mpesa-error-mapper.service';
 import { ConfigurationService } from '../config/configuration.service';
 import { PolicyService } from './policy.service';
+import { PolicyLifecycleService } from './policy-lifecycle.service';
 import { PaymentMessagingService } from '../modules/messaging/payment-messaging.service';
 import {
   InitiateStkPushDto,
@@ -41,6 +42,7 @@ export class MpesaStkPushService implements OnModuleInit {
     @Inject(forwardRef(() => PolicyService))
     private readonly policyService: PolicyService,
     private readonly paymentMessagingService: PaymentMessagingService,
+    private readonly policyLifecycleService: PolicyLifecycleService,
     @Inject(forwardRef(() => PaymentStatusGateway))
     private readonly paymentStatusGateway: PaymentStatusGateway
   ) {}
@@ -1500,6 +1502,18 @@ export class MpesaStkPushService implements OnModuleInit {
       activationSucceeded,
       correlationId,
     });
+
+    if (!wasPendingActivation || activationSucceeded) {
+      this.policyLifecycleService
+        .applyPaymentToPolicyLifecycle(policy.id, correlationId)
+        .catch((error) => {
+          this.logger.warn(
+            `[${correlationId}] applyPaymentToPolicyLifecycle failed for policy ${policy.id}: ${
+              error instanceof Error ? error.message : String(error)
+            }`,
+          );
+        });
+    }
   }
 }
 

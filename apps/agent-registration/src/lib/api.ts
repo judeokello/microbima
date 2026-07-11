@@ -2466,6 +2466,18 @@ export async function deactivateCustomerPolicy(
   )
 }
 
+export async function terminateCustomerPolicy(
+  customerId: string,
+  policyId: string,
+  reason: string
+): Promise<PolicyLifecycleResponse> {
+  return policyLifecycleFetch(
+    `/internal/customers/${customerId}/policies/${policyId}/terminate`,
+    'POST',
+    { reason }
+  )
+}
+
 export async function activateCustomerPolicy(
   customerId: string,
   policyId: string,

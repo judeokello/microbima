@@ -3,6 +3,7 @@ import { PolicyService } from '../policy.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { PaymentAccountNumberService } from '../payment-account-number.service';
 import { PaymentMessagingService } from '../../modules/messaging/payment-messaging.service';
+import { PolicyLifecycleMessagingService } from '../../modules/messaging/policy-lifecycle-messaging.service';
 
 describe('PolicyService - generatePolicyNumber', () => {
   const prismaMock = {
@@ -25,10 +26,16 @@ describe('PolicyService - generatePolicyNumber', () => {
     tryEnqueueMatchedPaymentSms: jest.fn(),
   };
 
+  const lifecycleMessagingServiceMock = {
+    suppressPendingActivationReminders: jest.fn(),
+    enqueueLifecycleNotification: jest.fn(),
+  };
+
   const policyService = new PolicyService(
     prismaMock as unknown as PrismaService,
     paymentAccountNumberServiceMock as unknown as PaymentAccountNumberService,
-    paymentMessagingServiceMock as unknown as PaymentMessagingService
+    paymentMessagingServiceMock as unknown as PaymentMessagingService,
+    lifecycleMessagingServiceMock as unknown as PolicyLifecycleMessagingService
   );
 
   beforeEach(() => {

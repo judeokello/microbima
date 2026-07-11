@@ -6,7 +6,9 @@ import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
 import * as Sentry from '@sentry/nestjs';
 import { PaymentAccountNumberService } from './payment-account-number.service';
 import { PaymentMessagingService } from '../modules/messaging/payment-messaging.service';
+import { PolicyLifecycleMessagingService } from '../modules/messaging/policy-lifecycle-messaging.service';
 import { policyDatesFromPayment, policyEndDateFromStart } from '../utils/policy-dates.util';
+import { assertPolicyMayBecomeActive } from '../utils/policy-activation-gate.util';
 
 /**
  * Policy Service
@@ -28,6 +30,7 @@ export class PolicyService {
     private readonly prismaService: PrismaService,
     private readonly paymentAccountNumberService: PaymentAccountNumberService,
     private readonly paymentMessagingService: PaymentMessagingService,
+    private readonly lifecycleMessaging: PolicyLifecycleMessagingService,
   ) {}
 
   /**
@@ -1117,6 +1120,11 @@ export class PolicyService {
           throw new NotFoundException(`Policy with ID ${policyId} not found`);
         }
 
+        assertPolicyMayBecomeActive({
+          status: policy.status,
+          endDate: policy.endDate,
+        });
+
         // Resolve scheme by package (for this policy's package)
         const customerScheme = await txClient.packageSchemeCustomer.findFirst({
           where: {
@@ -1178,6 +1186,12 @@ export class PolicyService {
             where: { id: policyId },
             data: updateData,
           });
+
+          await this.lifecycleMessaging.suppressPendingActivationReminders(
+            policyId,
+            correlationId,
+            txClient
+          );
 
           return updatedPolicy;
         }
@@ -1316,6 +1330,12 @@ export class PolicyService {
         }
 
         this.logger.log(`[${correlationId}] Policy ${policyId} fully activated successfully`);
+
+        await this.lifecycleMessaging.suppressPendingActivationReminders(
+          policyId,
+          correlationId,
+          txClient
+        );
 
         return updatedPolicy;
       };

@@ -18,6 +18,7 @@ import {
   deactivateCustomerPolicy,
   getCustomerPoliciesList,
   resetCustomerPolicyStartDate,
+  terminateCustomerPolicy,
   type CustomerPolicyListItem,
 } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
@@ -35,7 +36,7 @@ interface ProductsTabProps {
   basePath: 'admin' | 'dashboard' | 'agent';
 }
 
-type RowAction = 'deactivate' | 'activate' | 'reset' | 'modify' | null;
+type RowAction = 'deactivate' | 'activate' | 'reset' | 'modify' | 'terminate' | null;
 
 export default function ProductsTab({ customerId, basePath }: ProductsTabProps) {
   const router = useRouter();
@@ -103,8 +104,10 @@ export default function ProductsTab({ customerId, basePath }: ProductsTabProps) 
   const canActivate = (p: CustomerPolicyListItem) => p.status === 'SUSPENDED';
   const canReset = (p: CustomerPolicyListItem) =>
     p.status === 'ACTIVE' || p.status === 'SUSPENDED';
+  const canTerminate = (p: CustomerPolicyListItem) =>
+    p.status !== 'TERMINATED' && p.status !== 'DEACTIVATED';
   const hasRowActions = (p: CustomerPolicyListItem) =>
-    canModify(p) || canDeactivate(p) || canActivate(p) || canReset(p);
+    canModify(p) || canDeactivate(p) || canActivate(p) || canReset(p) || canTerminate(p);
 
   if (loading) {
     return (
@@ -239,6 +242,14 @@ export default function ProductsTab({ customerId, basePath }: ProductsTabProps) 
                                     Reset start date
                                   </DropdownMenuItem>
                                 )}
+                                {canTerminate(p) && (
+                                  <DropdownMenuItem
+                                    className="text-destructive focus:text-destructive"
+                                    onClick={() => openAction(p, 'terminate')}
+                                  >
+                                    Terminate
+                                  </DropdownMenuItem>
+                                )}
                               </DropdownMenuContent>
                             </DropdownMenu>
                           ) : (
@@ -297,13 +308,27 @@ export default function ProductsTab({ customerId, basePath }: ProductsTabProps) 
         <ResetStartDateDialog
           open
           onOpenChange={(o) => !o && closeAction()}
-          onSubmit={async (reason, startDateIso) => {
+          onSubmit={async (reason, startDate) => {
             await resetCustomerPolicyStartDate(
               customerId,
               actionPolicy.id,
               reason,
-              startDateIso
+              startDate
             );
+            await loadProducts();
+          }}
+        />
+      )}
+
+      {actionPolicy && rowAction === 'terminate' && (
+        <PolicyReasonDialog
+          open
+          onOpenChange={(o) => !o && closeAction()}
+          title="Terminate policy"
+          description={`Permanently terminate ${actionPolicy.productName}. The customer becomes Terminated only if they have no remaining Active, Pending, or Suspended policies.`}
+          confirmLabel="Terminate"
+          onSubmit={async (reason) => {
+            await terminateCustomerPolicy(customerId, actionPolicy.id, reason);
             await loadProducts();
           }}
         />

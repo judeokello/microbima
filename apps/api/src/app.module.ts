@@ -22,6 +22,7 @@ import { MissingRequirementService } from './services/missing-requirement.servic
 import { ProductManagementService } from './services/product-management.service';
 import { PolicyService } from './services/policy.service';
 import { PolicyLifecycleService } from './services/policy-lifecycle.service';
+import { PolicyLifecycleJobService } from './services/policy-lifecycle-job.service';
 import { EntityStatusChangeService } from './services/entity-status-change.service';
 import { UnderwriterService } from './services/underwriter.service';
 import { MpesaPaymentsService } from './services/mpesa-payments.service';
@@ -46,7 +47,7 @@ import { MpesaIpnController } from './controllers/public/mpesa-ipn.controller';
 import { MpesaStkPushController } from './controllers/internal/mpesa-stk-push.controller';
 import { MpesaStkPushPublicController } from './controllers/public/mpesa-stk-push.controller';
 import { RecoveryController } from './controllers/internal/recovery.controller';
-import { PolicyLifecycleController } from './controllers/internal/policy-lifecycle.controller';
+import { PolicyLifecycleController, PolicyLifecycleOpsController } from './controllers/internal/policy-lifecycle.controller';
 import { TestCustomersController } from './controllers/internal/test-customers.controller';
 import { MpesaIpnService } from './services/mpesa-ipn.service';
 import { MpesaStkPushService } from './services/mpesa-stk-push.service';
@@ -79,8 +80,8 @@ import { PaymentStatusGateway } from './gateways/payment-status.gateway';
     MessagingModule,
     CustomerPortalModule,
   ],
-  controllers: [AppController, CustomerController, InternalCustomerController, InternalPartnerManagementController, PublicPartnerManagementController, SupabaseTestController, ConnectionMonitorController, SosController, AgentRegistrationController, BootstrapController, ProductManagementController, PolicyController, PolicyLifecycleController, UnderwriterController, UserController, MpesaPaymentsController, MpesaIpnController, MpesaStkPushController, MpesaStkPushPublicController, RecoveryController, TestCustomersController],
-  providers: [AppService, ExternalIntegrationsService, CustomerService, PartnerManagementService, SupabaseService, SosService, AgentRegistrationService, MissingRequirementService, ProductManagementService, PolicyService, PolicyLifecycleService, EntityStatusChangeService, UnderwriterService, MpesaPaymentsService, PaymentAccountNumberService, SchemeContactService, PostpaidSchemePaymentService, MpesaIpnService, MpesaStkPushService, MpesaDarajaApiService, MpesaErrorMapperService, TestCustomersService, BootstrapUserService, IpWhitelistGuard, RootOnlyGuard, PaymentStatusGateway, PremiumStatementService],
+  controllers: [AppController, CustomerController, InternalCustomerController, InternalPartnerManagementController, PublicPartnerManagementController, SupabaseTestController, ConnectionMonitorController, SosController, AgentRegistrationController, BootstrapController, ProductManagementController, PolicyController, PolicyLifecycleController, PolicyLifecycleOpsController, UnderwriterController, UserController, MpesaPaymentsController, MpesaIpnController, MpesaStkPushController, MpesaStkPushPublicController, RecoveryController, TestCustomersController],
+  providers: [AppService, ExternalIntegrationsService, CustomerService, PartnerManagementService, SupabaseService, SosService, AgentRegistrationService, MissingRequirementService, ProductManagementService, PolicyService, PolicyLifecycleService, PolicyLifecycleJobService, EntityStatusChangeService, UnderwriterService, MpesaPaymentsService, PaymentAccountNumberService, SchemeContactService, PostpaidSchemePaymentService, MpesaIpnService, MpesaStkPushService, MpesaDarajaApiService, MpesaErrorMapperService, TestCustomersService, BootstrapUserService, IpWhitelistGuard, RootOnlyGuard, PaymentStatusGateway, PremiumStatementService],
   exports: [PrismaModule], // Export PrismaModule so middleware can access PrismaService
 })
 export class AppModule implements NestModule {

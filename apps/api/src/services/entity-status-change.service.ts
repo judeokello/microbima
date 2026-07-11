@@ -20,6 +20,9 @@ export interface RecordStatusChangeParams {
   tx?: Prisma.TransactionClient;
 }
 
+/** Audit marker for grace overlay enter (member-facing status stays ACTIVE). */
+export const POLICY_STATUS_ACTIVE_GRACE = 'ACTIVE_GRACE';
+
 @Injectable()
 export class EntityStatusChangeService {
   private readonly logger = new Logger(EntityStatusChangeService.name);
@@ -45,5 +48,46 @@ export class EntityStatusChangeService {
     this.logger.log(
       `[${params.correlationId ?? 'n/a'}] Status change ${params.entityType} ${params.fromStatus} → ${params.toStatus} (customer=${params.customerId})`
     );
+  }
+
+  /**
+   * Required for every Policy status transition and grace enter/exit.
+   * Triggers: SYSTEM (daily), PAYMENT_LIFECYCLE (payments), MANUAL_ADMIN (admin).
+   */
+  async recordPolicyChange(
+    params: Omit<RecordStatusChangeParams, 'entityType'> & { policyId: string }
+  ): Promise<void> {
+    await this.record({
+      ...params,
+      entityType: StatusChangeEntityType.POLICY,
+    });
+  }
+
+  /** Grace enter: ACTIVE → ACTIVE_GRACE (overlay only; Policy.status remains ACTIVE). */
+  async recordGraceEnter(
+    params: Omit<RecordStatusChangeParams, 'entityType' | 'fromStatus' | 'toStatus'> & {
+      policyId: string;
+      fromStatus?: string;
+    }
+  ): Promise<void> {
+    await this.recordPolicyChange({
+      ...params,
+      fromStatus: params.fromStatus ?? 'ACTIVE',
+      toStatus: POLICY_STATUS_ACTIVE_GRACE,
+    });
+  }
+
+  /** Grace exit: ACTIVE_GRACE → ACTIVE (or next status such as SUSPENDED via recordPolicyChange). */
+  async recordGraceExit(
+    params: Omit<RecordStatusChangeParams, 'entityType' | 'fromStatus' | 'toStatus'> & {
+      policyId: string;
+      toStatus?: string;
+    }
+  ): Promise<void> {
+    await this.recordPolicyChange({
+      ...params,
+      fromStatus: POLICY_STATUS_ACTIVE_GRACE,
+      toStatus: params.toStatus ?? 'ACTIVE',
+    });
   }
 }

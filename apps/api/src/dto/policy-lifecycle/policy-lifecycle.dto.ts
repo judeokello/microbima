@@ -24,6 +24,8 @@ export class DeactivatePolicyRequestDto extends PolicyLifecycleReasonDto {}
 
 export class ActivatePolicyRequestDto extends PolicyLifecycleReasonDto {}
 
+export class TerminatePolicyRequestDto extends PolicyLifecycleReasonDto {}
+
 export class ResetPolicyStartDateRequestDto extends PolicyLifecycleReasonDto {
   @ApiProperty({ description: 'New policy start date (ISO 8601)', example: '2026-02-15T00:00:00.000Z' })
   @IsString()
@@ -180,4 +182,33 @@ export class ModifyPolicyOptionsResponseDto {
 
   @ApiProperty({ type: [ModifyPolicyOptionsSchemeDto] })
   schemes: ModifyPolicyOptionsSchemeDto[];
+}
+
+export class DailyLifecycleRunResponseDto {
+  @ApiProperty()
+  evaluatedAt: string;
+
+  @ApiProperty()
+  graceEntered: number;
+
+  @ApiProperty()
+  graceCleared: number;
+
+  @ApiProperty()
+  suspended: number;
+
+  @ApiProperty()
+  inactivated: number;
+
+  @ApiProperty()
+  expired: number;
+
+  @ApiProperty()
+  notificationsQueued: number;
+
+  @ApiProperty()
+  correlationId: string;
+
+  @ApiPropertyOptional()
+  durationMs?: number;
 }

@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { PolicyService } from './policy.service';
+import { PolicyLifecycleService } from './policy-lifecycle.service';
 import { PaymentMessagingService } from '../modules/messaging/payment-messaging.service';
 import { SupabaseService } from './supabase.service';
 import { PaymentType } from '@prisma/client';
@@ -55,6 +56,7 @@ export class PostpaidSchemePaymentService {
     private readonly policyService: PolicyService,
     private readonly supabase: SupabaseService,
     private readonly paymentMessagingService: PaymentMessagingService,
+    private readonly policyLifecycleService: PolicyLifecycleService,
   ) {}
 
   /**
@@ -260,6 +262,7 @@ export class PostpaidSchemePaymentService {
 
     const paymentSmsQueue: Array<{
       policyPaymentId: number;
+      policyId: string;
       wasPendingActivation: boolean;
       activationSucceeded: boolean;
     }> = [];
@@ -358,6 +361,7 @@ export class PostpaidSchemePaymentService {
 
         paymentSmsQueue.push({
           policyPaymentId: policyPayment.id,
+          policyId: policy.id,
           wasPendingActivation,
           activationSucceeded,
         });
@@ -368,9 +372,22 @@ export class PostpaidSchemePaymentService {
 
     for (const item of paymentSmsQueue) {
       this.paymentMessagingService.notifyMatchedPaymentSmsAsync({
-        ...item,
+        policyPaymentId: item.policyPaymentId,
+        wasPendingActivation: item.wasPendingActivation,
+        activationSucceeded: item.activationSucceeded,
         correlationId,
       });
+      if (!item.wasPendingActivation || item.activationSucceeded) {
+        this.policyLifecycleService
+          .applyPaymentToPolicyLifecycle(item.policyId, correlationId)
+          .catch((error) => {
+            this.logger.warn(
+              `[${correlationId}] applyPaymentToPolicyLifecycle failed for policy ${item.policyId}: ${
+                error instanceof Error ? error.message : String(error)
+              }`
+            );
+          });
+      }
     }
 
     return {

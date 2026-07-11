@@ -18,20 +18,26 @@ import {
 import { Request } from 'express';
 import { CorrelationId } from '../../decorators/correlation-id.decorator';
 import { PolicyLifecycleService } from '../../services/policy-lifecycle.service';
+import { PolicyLifecycleJobService } from '../../services/policy-lifecycle-job.service';
 import {
   ActivatePolicyRequestDto,
+  DailyLifecycleRunResponseDto,
   DeactivatePolicyRequestDto,
   ModifyPolicyOptionsResponseDto,
   ModifyPolicyRequestDto,
   PolicyLifecycleResponseDto,
   ResetPolicyStartDateRequestDto,
+  TerminatePolicyRequestDto,
 } from '../../dto/policy-lifecycle/policy-lifecycle.dto';
 
 @ApiTags('Internal - Policy Lifecycle')
 @ApiBearerAuth()
 @Controller('internal/customers')
 export class PolicyLifecycleController {
-  constructor(private readonly policyLifecycleService: PolicyLifecycleService) {}
+  constructor(
+    private readonly policyLifecycleService: PolicyLifecycleService,
+    private readonly policyLifecycleJobService: PolicyLifecycleJobService
+  ) {}
 
   @Post(':customerId/policies/:policyId/deactivate')
   @HttpCode(HttpStatus.OK)
@@ -49,6 +55,31 @@ export class PolicyLifecycleController {
     const userId = req.user?.id ?? 'system';
     const userRoles = req.user?.roles ?? [];
     return this.policyLifecycleService.deactivatePolicy(
+      customerId,
+      policyId,
+      body,
+      userId,
+      userRoles,
+      correlationId
+    );
+  }
+
+  @Post(':customerId/policies/:policyId/terminate')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Terminate policy (admin; starter blacklist)' })
+  @ApiParam({ name: 'customerId' })
+  @ApiParam({ name: 'policyId' })
+  @ApiResponse({ status: 200, type: PolicyLifecycleResponseDto })
+  async terminatePolicy(
+    @Param('customerId') customerId: string,
+    @Param('policyId') policyId: string,
+    @Body() body: TerminatePolicyRequestDto,
+    @CorrelationId() correlationId: string,
+    @Req() req: Request
+  ): Promise<PolicyLifecycleResponseDto> {
+    const userId = req.user?.id ?? 'system';
+    const userRoles = req.user?.roles ?? [];
+    return this.policyLifecycleService.terminatePolicy(
       customerId,
       policyId,
       body,
@@ -152,5 +183,28 @@ export class PolicyLifecycleController {
       userRoles,
       correlationId
     );
+  }
+}
+
+@ApiTags('Internal - Policy Lifecycle')
+@ApiBearerAuth()
+@Controller('internal/policies/lifecycle')
+export class PolicyLifecycleOpsController {
+  constructor(
+    private readonly policyLifecycleService: PolicyLifecycleService,
+    private readonly policyLifecycleJobService: PolicyLifecycleJobService
+  ) {}
+
+  @Post('run-daily')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Run daily policy lifecycle evaluation once (admin/ops)' })
+  @ApiResponse({ status: 200, type: DailyLifecycleRunResponseDto })
+  async runDaily(
+    @CorrelationId() correlationId: string,
+    @Req() req: Request
+  ): Promise<DailyLifecycleRunResponseDto> {
+    const userRoles = req.user?.roles ?? [];
+    this.policyLifecycleService.assertAdmin(userRoles);
+    return this.policyLifecycleJobService.runDaily(correlationId);
   }
 }

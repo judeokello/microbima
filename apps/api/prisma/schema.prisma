@@ -305,6 +305,18 @@ model Policy {
   /// Denormalized; source of truth is EntityStatusChange
   deactivatedAt DateTime?
 
+  /// Grace overlay (member-facing status remains ACTIVE when true)
+  inGracePeriod        Boolean   @default(false)
+  graceEnteredAt       DateTime?
+  /// Anchor: next unpaid expected due date that opened this overdue episode
+  overdueAnchorDueDate DateTime?
+  /// When status became SUSPENDED (for >30 day → INACTIVE clock before end)
+  suspendedAt          DateTime?
+  /// When status became INACTIVE
+  inactivatedAt        DateTime?
+  /// When status became EXPIRED
+  expiredAt            DateTime?
+
   /// Modify-product lineage: this policy replaced an older policy (same package)
   supersedesPolicyId   String? @db.Uuid
   /// Modify-product lineage: this policy was replaced by a newer policy
@@ -317,6 +329,7 @@ model Policy {
   policyPayments PolicyPayment[]
   policyTags     PolicyTag[]
   messagingDeliveries MessagingDelivery[]
+  lifecycleNotifications PolicyLifecycleNotification[]
 
   supersedesPolicy       Policy?  @relation("PolicySupersedes", fields: [supersedesPolicyId], references: [id], onDelete: SetNull)
   policiesSupersedingThis Policy[] @relation("PolicySupersedes")
@@ -330,6 +343,22 @@ model Policy {
 
   @@index([customerId, packageId])
   @@map("policies")
+}
+
+/// Idempotent scheduled/event notification ledger for policy lifecycle SMS
+model PolicyLifecycleNotification {
+  id          String   @id @default(uuid()) @db.Uuid
+  policyId    String   @db.Uuid
+  scheduleKey String   @db.VarChar(80)
+  templateKey String   @db.VarChar(120)
+  sentAt      DateTime @default(now())
+  metadata    Json?
+
+  policy Policy @relation(fields: [policyId], references: [id], onDelete: Cascade)
+
+  @@unique([policyId, scheduleKey])
+  @@index([policyId])
+  @@map("policy_lifecycle_notifications")
 }
 
 enum CustomerStatus {
@@ -393,6 +422,7 @@ enum PolicyStatus {
   PENDING_ACTIVATION
   ACTIVE
   SUSPENDED
+  INACTIVE
   DEACTIVATED
   TERMINATED
   EXPIRED

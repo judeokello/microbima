@@ -229,3 +229,255 @@ VALUES (
 )
 ON CONFLICT ("templateKey", "channel", "language") DO UPDATE
 SET "body" = EXCLUDED."body", "placeholders" = EXCLUDED."placeholders", "isActive" = EXCLUDED."isActive", "updatedAt" = NOW();
+
+-- ---------- Pending activation reminders (D3 / D7 only; day-0 = customer_created) ----------
+
+INSERT INTO messaging_routes ("templateKey", "smsEnabled", "emailEnabled", "isActive", "createdAt", "updatedAt")
+VALUES ('pending_activation_d3', true, false, true, NOW(), NOW())
+ON CONFLICT ("templateKey") DO UPDATE
+SET "smsEnabled" = EXCLUDED."smsEnabled", "emailEnabled" = EXCLUDED."emailEnabled", "isActive" = EXCLUDED."isActive", "updatedAt" = NOW();
+
+INSERT INTO messaging_templates (id, "templateKey", "channel", "language", "subject", "body", "textBody", "placeholders", "isActive", "createdAt", "updatedAt")
+VALUES (
+  gen_random_uuid(), 'pending_activation_d3', 'SMS', 'en', NULL,
+  'Dear {first_name}, your {product_name} cover is still pending activation. Please complete your first premium payment to activate your policy. For help call {general_support_number}.',
+  NULL,
+  ARRAY['first_name', 'product_name', 'general_support_number'],
+  true, NOW(), NOW()
+)
+ON CONFLICT ("templateKey", "channel", "language") DO UPDATE
+SET "body" = EXCLUDED."body", "placeholders" = EXCLUDED."placeholders", "isActive" = EXCLUDED."isActive", "updatedAt" = NOW();
+
+INSERT INTO messaging_routes ("templateKey", "smsEnabled", "emailEnabled", "isActive", "createdAt", "updatedAt")
+VALUES ('pending_activation_d7', true, false, true, NOW(), NOW())
+ON CONFLICT ("templateKey") DO UPDATE
+SET "smsEnabled" = EXCLUDED."smsEnabled", "emailEnabled" = EXCLUDED."emailEnabled", "isActive" = EXCLUDED."isActive", "updatedAt" = NOW();
+
+INSERT INTO messaging_templates (id, "templateKey", "channel", "language", "subject", "body", "textBody", "placeholders", "isActive", "createdAt", "updatedAt")
+VALUES (
+  gen_random_uuid(), 'pending_activation_d7', 'SMS', 'en', NULL,
+  'Dear {first_name}, this is a final reminder that your {product_name} cover is still pending activation. Pay your first premium to activate. For help call {general_support_number}.',
+  NULL,
+  ARRAY['first_name', 'product_name', 'general_support_number'],
+  true, NOW(), NOW()
+)
+ON CONFLICT ("templateKey", "channel", "language") DO UPDATE
+SET "body" = EXCLUDED."body", "placeholders" = EXCLUDED."placeholders", "isActive" = EXCLUDED."isActive", "updatedAt" = NOW();
+
+-- ---------- Grace period reminders ----------
+
+INSERT INTO messaging_routes ("templateKey", "smsEnabled", "emailEnabled", "isActive", "createdAt", "updatedAt")
+VALUES ('grace_due', true, false, true, NOW(), NOW())
+ON CONFLICT ("templateKey") DO UPDATE
+SET "smsEnabled" = EXCLUDED."smsEnabled", "emailEnabled" = EXCLUDED."emailEnabled", "isActive" = EXCLUDED."isActive", "updatedAt" = NOW();
+
+INSERT INTO messaging_templates (id, "templateKey", "channel", "language", "subject", "body", "textBody", "placeholders", "isActive", "createdAt", "updatedAt")
+VALUES (
+  gen_random_uuid(), 'grace_due', 'SMS', 'en', NULL,
+  'Dear {first_name}, your {product_name} premium of {amount_due} was due on {due_date}. Please pay to stay covered. Call {general_support_number} for help.',
+  NULL,
+  ARRAY['first_name', 'product_name', 'amount_due', 'due_date', 'general_support_number'],
+  true, NOW(), NOW()
+)
+ON CONFLICT ("templateKey", "channel", "language") DO UPDATE
+SET "body" = EXCLUDED."body", "placeholders" = EXCLUDED."placeholders", "isActive" = EXCLUDED."isActive", "updatedAt" = NOW();
+
+INSERT INTO messaging_routes ("templateKey", "smsEnabled", "emailEnabled", "isActive", "createdAt", "updatedAt")
+VALUES ('grace_d7', true, false, true, NOW(), NOW())
+ON CONFLICT ("templateKey") DO UPDATE
+SET "smsEnabled" = EXCLUDED."smsEnabled", "emailEnabled" = EXCLUDED."emailEnabled", "isActive" = EXCLUDED."isActive", "updatedAt" = NOW();
+
+INSERT INTO messaging_templates (id, "templateKey", "channel", "language", "subject", "body", "textBody", "placeholders", "isActive", "createdAt", "updatedAt")
+VALUES (
+  gen_random_uuid(), 'grace_d7', 'SMS', 'en', NULL,
+  'Dear {first_name}, your {product_name} premium of {amount_due} is overdue (due {due_date}). Please pay soon to avoid suspension. Call {general_support_number}.',
+  NULL,
+  ARRAY['first_name', 'product_name', 'amount_due', 'due_date', 'general_support_number'],
+  true, NOW(), NOW()
+)
+ON CONFLICT ("templateKey", "channel", "language") DO UPDATE
+SET "body" = EXCLUDED."body", "placeholders" = EXCLUDED."placeholders", "isActive" = EXCLUDED."isActive", "updatedAt" = NOW();
+
+INSERT INTO messaging_routes ("templateKey", "smsEnabled", "emailEnabled", "isActive", "createdAt", "updatedAt")
+VALUES ('grace_d10', true, false, true, NOW(), NOW())
+ON CONFLICT ("templateKey") DO UPDATE
+SET "smsEnabled" = EXCLUDED."smsEnabled", "emailEnabled" = EXCLUDED."emailEnabled", "isActive" = EXCLUDED."isActive", "updatedAt" = NOW();
+
+INSERT INTO messaging_templates (id, "templateKey", "channel", "language", "subject", "body", "textBody", "placeholders", "isActive", "createdAt", "updatedAt")
+VALUES (
+  gen_random_uuid(), 'grace_d10', 'SMS', 'en', NULL,
+  'Dear {first_name}, urgent: your {product_name} premium of {amount_due} (due {due_date}) is still unpaid. Pay now to keep cover. Call {general_support_number}.',
+  NULL,
+  ARRAY['first_name', 'product_name', 'amount_due', 'due_date', 'general_support_number'],
+  true, NOW(), NOW()
+)
+ON CONFLICT ("templateKey", "channel", "language") DO UPDATE
+SET "body" = EXCLUDED."body", "placeholders" = EXCLUDED."placeholders", "isActive" = EXCLUDED."isActive", "updatedAt" = NOW();
+
+INSERT INTO messaging_routes ("templateKey", "smsEnabled", "emailEnabled", "isActive", "createdAt", "updatedAt")
+VALUES ('grace_d13', true, false, true, NOW(), NOW())
+ON CONFLICT ("templateKey") DO UPDATE
+SET "smsEnabled" = EXCLUDED."smsEnabled", "emailEnabled" = EXCLUDED."emailEnabled", "isActive" = EXCLUDED."isActive", "updatedAt" = NOW();
+
+INSERT INTO messaging_templates (id, "templateKey", "channel", "language", "subject", "body", "textBody", "placeholders", "isActive", "createdAt", "updatedAt")
+VALUES (
+  gen_random_uuid(), 'grace_d13', 'SMS', 'en', NULL,
+  'Dear {first_name}, final notice before suspension: pay {amount_due} for {product_name} (due {due_date}) today. Call {general_support_number}.',
+  NULL,
+  ARRAY['first_name', 'product_name', 'amount_due', 'due_date', 'general_support_number'],
+  true, NOW(), NOW()
+)
+ON CONFLICT ("templateKey", "channel", "language") DO UPDATE
+SET "body" = EXCLUDED."body", "placeholders" = EXCLUDED."placeholders", "isActive" = EXCLUDED."isActive", "updatedAt" = NOW();
+
+-- ---------- Suspension / reactivation SMS ----------
+
+INSERT INTO messaging_routes ("templateKey", "smsEnabled", "emailEnabled", "isActive", "createdAt", "updatedAt")
+VALUES ('policy_suspended', true, false, true, NOW(), NOW())
+ON CONFLICT ("templateKey") DO UPDATE
+SET "smsEnabled" = EXCLUDED."smsEnabled", "emailEnabled" = EXCLUDED."emailEnabled", "isActive" = EXCLUDED."isActive", "updatedAt" = NOW();
+
+INSERT INTO messaging_templates (id, "templateKey", "channel", "language", "subject", "body", "textBody", "placeholders", "isActive", "createdAt", "updatedAt")
+VALUES (
+  gen_random_uuid(), 'policy_suspended', 'SMS', 'en', NULL,
+  'Dear {first_name}, your {product_name} policy has been suspended due to unpaid premium of {amount_due}. Pay arrears plus 2 weeks to restore cover. Call {general_support_number}.',
+  NULL,
+  ARRAY['first_name', 'product_name', 'amount_due', 'general_support_number'],
+  true, NOW(), NOW()
+)
+ON CONFLICT ("templateKey", "channel", "language") DO UPDATE
+SET "body" = EXCLUDED."body", "placeholders" = EXCLUDED."placeholders", "isActive" = EXCLUDED."isActive", "updatedAt" = NOW();
+
+INSERT INTO messaging_routes ("templateKey", "smsEnabled", "emailEnabled", "isActive", "createdAt", "updatedAt")
+VALUES ('policy_reactivated', true, false, true, NOW(), NOW())
+ON CONFLICT ("templateKey") DO UPDATE
+SET "smsEnabled" = EXCLUDED."smsEnabled", "emailEnabled" = EXCLUDED."emailEnabled", "isActive" = EXCLUDED."isActive", "updatedAt" = NOW();
+
+INSERT INTO messaging_templates (id, "templateKey", "channel", "language", "subject", "body", "textBody", "placeholders", "isActive", "createdAt", "updatedAt")
+VALUES (
+  gen_random_uuid(), 'policy_reactivated', 'SMS', 'en', NULL,
+  'Dear {first_name}, your {product_name} policy is active again. Thank you for your payment. Call {general_support_number} for help.',
+  NULL,
+  ARRAY['first_name', 'product_name', 'general_support_number'],
+  true, NOW(), NOW()
+)
+ON CONFLICT ("templateKey", "channel", "language") DO UPDATE
+SET "body" = EXCLUDED."body", "placeholders" = EXCLUDED."placeholders", "isActive" = EXCLUDED."isActive", "updatedAt" = NOW();
+
+INSERT INTO messaging_routes ("templateKey", "smsEnabled", "emailEnabled", "isActive", "createdAt", "updatedAt")
+VALUES ('suspend_d1', true, false, true, NOW(), NOW())
+ON CONFLICT ("templateKey") DO UPDATE
+SET "smsEnabled" = EXCLUDED."smsEnabled", "emailEnabled" = EXCLUDED."emailEnabled", "isActive" = EXCLUDED."isActive", "updatedAt" = NOW();
+
+INSERT INTO messaging_templates (id, "templateKey", "channel", "language", "subject", "body", "textBody", "placeholders", "isActive", "createdAt", "updatedAt")
+VALUES (
+  gen_random_uuid(), 'suspend_d1', 'SMS', 'en', NULL,
+  'Dear {first_name}, your {product_name} policy remains suspended. Outstanding amount is {amount_due}. Call {general_support_number}.',
+  NULL,
+  ARRAY['first_name', 'product_name', 'amount_due', 'general_support_number'],
+  true, NOW(), NOW()
+)
+ON CONFLICT ("templateKey", "channel", "language") DO UPDATE
+SET "body" = EXCLUDED."body", "placeholders" = EXCLUDED."placeholders", "isActive" = EXCLUDED."isActive", "updatedAt" = NOW();
+
+INSERT INTO messaging_routes ("templateKey", "smsEnabled", "emailEnabled", "isActive", "createdAt", "updatedAt")
+VALUES ('suspend_d7', true, false, true, NOW(), NOW())
+ON CONFLICT ("templateKey") DO UPDATE
+SET "smsEnabled" = EXCLUDED."smsEnabled", "emailEnabled" = EXCLUDED."emailEnabled", "isActive" = EXCLUDED."isActive", "updatedAt" = NOW();
+
+INSERT INTO messaging_templates (id, "templateKey", "channel", "language", "subject", "body", "textBody", "placeholders", "isActive", "createdAt", "updatedAt")
+VALUES (
+  gen_random_uuid(), 'suspend_d7', 'SMS', 'en', NULL,
+  'Dear {first_name}, reminder: {product_name} is suspended. Pay {amount_due} (arrears + 2 weeks) to restore. Call {general_support_number}.',
+  NULL,
+  ARRAY['first_name', 'product_name', 'amount_due', 'general_support_number'],
+  true, NOW(), NOW()
+)
+ON CONFLICT ("templateKey", "channel", "language") DO UPDATE
+SET "body" = EXCLUDED."body", "placeholders" = EXCLUDED."placeholders", "isActive" = EXCLUDED."isActive", "updatedAt" = NOW();
+
+INSERT INTO messaging_routes ("templateKey", "smsEnabled", "emailEnabled", "isActive", "createdAt", "updatedAt")
+VALUES ('suspend_d13', true, false, true, NOW(), NOW())
+ON CONFLICT ("templateKey") DO UPDATE
+SET "smsEnabled" = EXCLUDED."smsEnabled", "emailEnabled" = EXCLUDED."emailEnabled", "isActive" = EXCLUDED."isActive", "updatedAt" = NOW();
+
+INSERT INTO messaging_templates (id, "templateKey", "channel", "language", "subject", "body", "textBody", "placeholders", "isActive", "createdAt", "updatedAt")
+VALUES (
+  gen_random_uuid(), 'suspend_d13', 'SMS', 'en', NULL,
+  'Dear {first_name}, final notice: {product_name} may become inactive soon. Pay {amount_due} to restore. Call {general_support_number}.',
+  NULL,
+  ARRAY['first_name', 'product_name', 'amount_due', 'general_support_number'],
+  true, NOW(), NOW()
+)
+ON CONFLICT ("templateKey", "channel", "language") DO UPDATE
+SET "body" = EXCLUDED."body", "placeholders" = EXCLUDED."placeholders", "isActive" = EXCLUDED."isActive", "updatedAt" = NOW();
+
+-- ---------- Inactive / renewal SMS ----------
+
+INSERT INTO messaging_routes ("templateKey", "smsEnabled", "emailEnabled", "isActive", "createdAt", "updatedAt")
+VALUES ('policy_inactive', true, false, true, NOW(), NOW())
+ON CONFLICT ("templateKey") DO UPDATE
+SET "smsEnabled" = EXCLUDED."smsEnabled", "emailEnabled" = EXCLUDED."emailEnabled", "isActive" = EXCLUDED."isActive", "updatedAt" = NOW();
+
+INSERT INTO messaging_templates (id, "templateKey", "channel", "language", "subject", "body", "textBody", "placeholders", "isActive", "createdAt", "updatedAt")
+VALUES (
+  gen_random_uuid(), 'policy_inactive', 'SMS', 'en', NULL,
+  'Dear {first_name}, your {product_name} policy is now inactive due to prolonged non-payment. Pay to restore cover. Call {general_support_number}.',
+  NULL,
+  ARRAY['first_name', 'product_name', 'general_support_number'],
+  true, NOW(), NOW()
+)
+ON CONFLICT ("templateKey", "channel", "language") DO UPDATE
+SET "body" = EXCLUDED."body", "placeholders" = EXCLUDED."placeholders", "isActive" = EXCLUDED."isActive", "updatedAt" = NOW();
+
+INSERT INTO messaging_routes ("templateKey", "smsEnabled", "emailEnabled", "isActive", "createdAt", "updatedAt")
+VALUES ('policy_renewed', true, false, true, NOW(), NOW())
+ON CONFLICT ("templateKey") DO UPDATE
+SET "smsEnabled" = EXCLUDED."smsEnabled", "emailEnabled" = EXCLUDED."emailEnabled", "isActive" = EXCLUDED."isActive", "updatedAt" = NOW();
+
+INSERT INTO messaging_templates (id, "templateKey", "channel", "language", "subject", "body", "textBody", "placeholders", "isActive", "createdAt", "updatedAt")
+VALUES (
+  gen_random_uuid(), 'policy_renewed', 'SMS', 'en', NULL,
+  'Dear {first_name}, your {product_name} cover has been renewed. Thank you. Call {general_support_number} for help.',
+  NULL,
+  ARRAY['first_name', 'product_name', 'general_support_number'],
+  true, NOW(), NOW()
+)
+ON CONFLICT ("templateKey", "channel", "language") DO UPDATE
+SET "body" = EXCLUDED."body", "placeholders" = EXCLUDED."placeholders", "isActive" = EXCLUDED."isActive", "updatedAt" = NOW();
+
+-- ---------- Terminate SMS ----------
+
+INSERT INTO messaging_routes ("templateKey", "smsEnabled", "emailEnabled", "isActive", "createdAt", "updatedAt")
+VALUES ('policy_terminated', true, false, true, NOW(), NOW())
+ON CONFLICT ("templateKey") DO UPDATE
+SET "smsEnabled" = EXCLUDED."smsEnabled", "emailEnabled" = EXCLUDED."emailEnabled", "isActive" = EXCLUDED."isActive", "updatedAt" = NOW();
+
+INSERT INTO messaging_templates (id, "templateKey", "channel", "language", "subject", "body", "textBody", "placeholders", "isActive", "createdAt", "updatedAt")
+VALUES (
+  gen_random_uuid(), 'policy_terminated', 'SMS', 'en', NULL,
+  'Dear {first_name}, your {product_name} policy has been terminated. Call {general_support_number} if you have questions.',
+  NULL,
+  ARRAY['first_name', 'product_name', 'general_support_number'],
+  true, NOW(), NOW()
+)
+ON CONFLICT ("templateKey", "channel", "language") DO UPDATE
+SET "body" = EXCLUDED."body", "placeholders" = EXCLUDED."placeholders", "isActive" = EXCLUDED."isActive", "updatedAt" = NOW();
+
+-- ---------- Renewal reminder schedule templates ----------
+
+INSERT INTO messaging_routes ("templateKey", "smsEnabled", "emailEnabled", "isActive", "createdAt", "updatedAt")
+VALUES ('renewal_reminder', true, false, true, NOW(), NOW())
+ON CONFLICT ("templateKey") DO UPDATE
+SET "smsEnabled" = EXCLUDED."smsEnabled", "emailEnabled" = EXCLUDED."emailEnabled", "isActive" = EXCLUDED."isActive", "updatedAt" = NOW();
+
+INSERT INTO messaging_templates (id, "templateKey", "channel", "language", "subject", "body", "textBody", "placeholders", "isActive", "createdAt", "updatedAt")
+VALUES (
+  gen_random_uuid(), 'renewal_reminder', 'SMS', 'en', NULL,
+  'Dear {first_name}, your {product_name} cover {renewal_message}. Call {general_support_number} to renew.',
+  NULL,
+  ARRAY['first_name', 'product_name', 'renewal_message', 'general_support_number'],
+  true, NOW(), NOW()
+)
+ON CONFLICT ("templateKey", "channel", "language") DO UPDATE
+SET "body" = EXCLUDED."body", "placeholders" = EXCLUDED."placeholders", "isActive" = EXCLUDED."isActive", "updatedAt" = NOW();

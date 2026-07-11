@@ -3,6 +3,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { MpesaIpnService } from '../../src/services/mpesa-ipn.service';
 import { PrismaService } from '../../src/prisma/prisma.service';
 import { PolicyService } from '../../src/services/policy.service';
+import { PolicyLifecycleService } from '../../src/services/policy-lifecycle.service';
 import { PaymentMessagingService } from '../../src/modules/messaging/payment-messaging.service';
 import { MpesaIpnPayloadDto, MpesaIpnResponseDto } from '../../src/dto/mpesa-ipn/mpesa-ipn.dto';
 import { MpesaPaymentSource, MpesaStkPushStatus, MpesaStatementReasonType } from '@prisma/client';
@@ -50,10 +51,15 @@ describe('MpesaIpnService', () => {
     tryEnqueueUnmatchedPaymentSms: jest.fn(),
   });
 
+  const createPolicyLifecycleServiceMock = () => ({
+    applyPaymentToPolicyLifecycle: jest.fn().mockResolvedValue({ action: 'noop' }),
+  });
+
   beforeEach(async () => {
     const prismaMock = createPrismaMock();
     const policyServiceMock = createPolicyServiceMock();
     const paymentMessagingServiceMock = createPaymentMessagingServiceMock();
+    const policyLifecycleServiceMock = createPolicyLifecycleServiceMock();
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -69,6 +75,10 @@ describe('MpesaIpnService', () => {
         {
           provide: PaymentMessagingService,
           useValue: paymentMessagingServiceMock,
+        },
+        {
+          provide: PolicyLifecycleService,
+          useValue: policyLifecycleServiceMock,
         },
       ],
     })

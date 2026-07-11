@@ -11,6 +11,8 @@ Auto-generated from all feature plans. Last updated: 2025-11-27
 - PostgreSQL (policies, policy_payments, mpesa_stk_push_requests, scheme.isPostpaid) (001-request-payment-ondemand)
 - TypeScript 5.3.x, Node.js 18+ + NestJS 11, Prisma 6, Next.js (agent-registration), `@react-pdf/renderer`, Sentry (001-premium-statement-pdf)
 - PostgreSQL; new column `packages.product_duration_days` (001-premium-statement-pdf)
+- TypeScript 5.3.x, Node.js >= 18 + NestJS 11.x, Prisma 6.x, `@nestjs/schedule`, existing messaging outbox, Next.js agent-registration (admin UI) (003-policy-lifecycle)
+- PostgreSQL via Prisma migrations (no `db push`) (003-policy-lifecycle)
 
 - TypeScript 5.3.x + NestJS 11.x, Prisma 6.x, Express (001-mpesa-ipn-integration)
 
@@ -30,6 +32,7 @@ npm test && npm run lint
 TypeScript 5.3.x: Follow standard conventions
 
 ## Recent Changes
+- 003-policy-lifecycle: Added TypeScript 5.3.x, Node.js >= 18 + NestJS 11.x, Prisma 6.x, `@nestjs/schedule`, existing messaging outbox, Next.js agent-registration (admin UI)
 - 001-premium-statement-pdf: Added TypeScript 5.3.x, Node.js 18+ + NestJS 11, Prisma 6, Next.js (agent-registration), `@react-pdf/renderer`, Sentry
 - 001-request-payment-ondemand: Added TypeScript 5.3.x, Node.js 18+ + NestJS 11, Prisma 6, Next.js (agent-registration), Socket.IO, Sentry
 

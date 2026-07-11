@@ -30,10 +30,18 @@ export function buildPolicyDisplayText(params: {
     return `${base} ${suffix}`;
   }
 
-  if (status === 'ACTIVE' || status === 'PENDING_ACTIVATION' || status === 'SUSPENDED') {
+  if (status === 'ACTIVE' || status === 'PENDING_ACTIVATION' || status === 'SUSPENDED' || status === 'INACTIVE') {
     const suffix = params.startDate
       ? `(${status}, from ${formatPolicyLabelDate(params.startDate)})`
       : `(${status})`;
+    return `${base} ${suffix}`;
+  }
+
+  if (status === 'EXPIRED') {
+    const ended = params.endDate;
+    const suffix = ended
+      ? `(EXPIRED, ended ${formatPolicyLabelDate(ended)})`
+      : '(EXPIRED)';
     return `${base} ${suffix}`;
   }
 

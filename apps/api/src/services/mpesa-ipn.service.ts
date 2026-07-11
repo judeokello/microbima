@@ -1,6 +1,7 @@
 import { Injectable, Logger, forwardRef, Inject } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { PolicyService } from './policy.service';
+import { PolicyLifecycleService } from './policy-lifecycle.service';
 import { PaymentMessagingService } from '../modules/messaging/payment-messaging.service';
 import { MpesaIpnPayloadDto, MpesaIpnResponseDto } from '../dto/mpesa-ipn/mpesa-ipn.dto';
 import { normalizeMsisdnOrReturnRaw } from '../utils/phone-number.util';
@@ -31,6 +32,7 @@ export class MpesaIpnService {
     @Inject(forwardRef(() => PolicyService))
     private readonly policyService: PolicyService,
     private readonly paymentMessagingService: PaymentMessagingService,
+    private readonly policyLifecycleService: PolicyLifecycleService,
   ) {}
 
   /**
@@ -669,6 +671,18 @@ export class MpesaIpnService {
         activationSucceeded,
         correlationId,
       });
+    }
+
+    if (policyPaymentId != null && (!wasPendingActivation || activationSucceeded)) {
+      this.policyLifecycleService
+        .applyPaymentToPolicyLifecycle(policy.id, correlationId)
+        .catch((error) => {
+          this.logger.warn(
+            `[${correlationId}] applyPaymentToPolicyLifecycle failed for policy ${policy.id}: ${
+              error instanceof Error ? error.message : String(error)
+            }`
+          );
+        });
     }
 
     return true;
