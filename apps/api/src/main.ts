@@ -139,6 +139,7 @@ async function bootstrap() {
       credentials: false,
       methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'HEAD', 'PATCH'],
       allowedHeaders: ['Content-Type', 'Authorization', 'x-api-key', 'x-correlation-id'],
+      exposedHeaders: ['Content-Disposition'],
     });
     console.log('✅ CORS enabled');
 
