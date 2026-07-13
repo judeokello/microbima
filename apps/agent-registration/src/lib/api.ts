@@ -5,7 +5,7 @@ export { ROLES }
 
 // Define types directly to avoid import issues
 export interface UserMetadata {
-  roles: string[]  // ['brand_ambassador', 'registration_admin']
+  roles: string[]  // ['brand_ambassador', 'registration_admin', 'customer_care']
   partnerId?: number
   displayName?: string
   phone?: string

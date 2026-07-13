@@ -101,6 +101,7 @@ export function useAuth() {
   // Convenience methods
   const isBrandAmbassador = checkRole(ROLES.BRAND_AMBASSADOR)
   const isRegistrationAdmin = checkRole(ROLES.REGISTRATION_ADMIN)
+  const isCustomerCare = checkRole(ROLES.CUSTOMER_CARE)
   const isAdmin = isRegistrationAdmin
 
   // Sign out function
@@ -120,6 +121,7 @@ export function useAuth() {
     // Convenience properties
     isBrandAmbassador,
     isRegistrationAdmin,
+    isCustomerCare,
     isAdmin,
     // Actions
     signOut

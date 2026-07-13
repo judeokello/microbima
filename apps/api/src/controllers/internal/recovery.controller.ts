@@ -24,13 +24,14 @@ import {
   ReconcilePolicyMemberNumbersRequestDto,
 } from '../../dto/recovery/recovery.dto';
 import { CorrelationId } from '../../decorators/correlation-id.decorator';
+import { hasGlobalCustomerAccess } from '../../utils/roles.util';
 
 /**
  * Internal Recovery Controller
  *
  * Handles recovery flow for customers whose policy creation failed.
  * Used when M-Pesa payments exist but no policy record was created.
- * List/create are scoped: registration_admin sees all; agents see only customers they registered.
+ * List/create are scoped: registration_admin and customer_care see all; agents see only customers they registered.
  */
 @ApiTags('Internal - Recovery')
 @ApiBearerAuth()
@@ -45,7 +46,7 @@ export class RecoveryController {
   } {
     const userId = req.user?.id ?? 'system';
     const userRoles = req.user?.roles ?? [];
-    const createdByFilter = userRoles.includes('registration_admin') ? undefined : userId;
+    const createdByFilter = hasGlobalCustomerAccess(userRoles) ? undefined : userId;
     return { userId, userRoles, createdByFilter };
   }
 
@@ -54,7 +55,7 @@ export class RecoveryController {
   @ApiOperation({
     summary: 'Get customers without policies who have M-Pesa payments',
     description:
-      'Returns customers where accountNumber in mpesa_payment_report_items matches customers.idNumber, and the customer has no policy. Agents see only their registrations; registration_admin sees all.',
+      'Returns customers where accountNumber in mpesa_payment_report_items matches customers.idNumber, and the customer has no policy. Agents see only their registrations; registration_admin and customer_care see all.',
   })
   @ApiResponse({ status: 200, description: 'List of customers with payments' })
   async getCustomersWithoutPolicies(
@@ -93,7 +94,7 @@ export class RecoveryController {
   @ApiOperation({
     summary: 'Get customers with no policy and no M-Pesa payments',
     description:
-      'Returns customers who have a package (from scheme) but no policy and no payment records matching their idNumber. Agents see only their registrations; registration_admin sees all.',
+      'Returns customers who have a package (from scheme) but no policy and no payment records matching their idNumber. Agents see only their registrations; registration_admin and customer_care see all.',
   })
   @ApiResponse({ status: 200, description: 'List of customers with no payments' })
   async getCustomersWithoutPolicyNoPayments(

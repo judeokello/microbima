@@ -124,6 +124,7 @@ export default function AddRolePage() {
             <p><strong>Available roles:</strong></p>
             <ul className="list-disc list-inside ml-2">
               <li>brand_ambassador</li>
+              <li>customer_care</li>
               <li>registration_admin</li>
             </ul>
           </div>

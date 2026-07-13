@@ -592,7 +592,7 @@ export class InternalMessagingController {
 
   private assertSupportOrAdmin(user: AuthenticatedUser) {
     const roles = user?.roles ?? [];
-    if (roles.includes('registration_admin') || roles.includes('support')) return;
+    if (roles.includes('registration_admin') || roles.includes('customer_care')) return;
     throw new ForbiddenException({
       error: { code: ErrorCodes.AUTHORIZATION_ERROR, message: 'Insufficient permissions' },
     });

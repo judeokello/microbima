@@ -300,6 +300,16 @@ export default function BARegistrationPage() {
                 </div>
                 <div className="flex items-center space-x-2">
                   <Checkbox
+                    id="customer_care"
+                    checked={formData.roles.includes(ROLES.CUSTOMER_CARE)}
+                    onCheckedChange={(checked) => handleRoleToggle(ROLES.CUSTOMER_CARE, checked as boolean)}
+                  />
+                  <Label htmlFor="customer_care" className="text-sm font-normal">
+                    Customer Care (search any customer; download statements)
+                  </Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Checkbox
                     id="registration_admin"
                     checked={formData.roles.includes(ROLES.REGISTRATION_ADMIN)}
                     onCheckedChange={(checked) => handleRoleToggle(ROLES.REGISTRATION_ADMIN, checked as boolean)}
@@ -310,7 +320,7 @@ export default function BARegistrationPage() {
                 </div>
               </div>
               <p className="text-sm text-muted-foreground">
-                Select one or both roles. Agent role is required for customer registration.
+                Select one or more roles. Agent role is required for customer registration; pair Customer Care with Agent for care users.
               </p>
             </div>
 

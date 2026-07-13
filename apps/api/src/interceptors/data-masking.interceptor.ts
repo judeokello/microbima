@@ -30,8 +30,13 @@ export class DataMaskingInterceptor implements NestInterceptor {
     return next.handle().pipe(
       map(data => {
         try {
-          // Only mask data for Brand Ambassadors (not admins)
-          if (user && user.roles.includes('brand_ambassador') && !user.roles.includes('registration_admin')) {
+          // Only mask data for Brand Ambassadors (not admins or customer care)
+          if (
+            user &&
+            user.roles.includes('brand_ambassador') &&
+            !user.roles.includes('registration_admin') &&
+            !user.roles.includes('customer_care')
+          ) {
             return this.maskSensitiveData(data);
           }
 

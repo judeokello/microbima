@@ -41,7 +41,7 @@ export class UpdateBrandAmbassadorRequestDto {
 
   @ApiProperty({
     description: 'User roles',
-    example: ['brand_ambassador'],
+    example: ['brand_ambassador', 'customer_care'],
     type: [String],
     required: false,
   })
