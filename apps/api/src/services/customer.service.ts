@@ -59,6 +59,7 @@ import { InitiateStkPushDto, StkPushRequestResponseDto } from '../dto/mpesa-stk-
 import { MpesaStkPushService } from './mpesa-stk-push.service';
 import { PremiumStatementService } from './premium-statement.service';
 import { ConfigurationService } from '../config/configuration.service';
+import { PolicyService } from './policy.service';
 import { UpdateCustomerDto } from '../dto/customers/update-customer.dto';
 import { UpdateDependantDto } from '../dto/dependants/update-dependant.dto';
 import { UpdateBeneficiaryDto } from '../dto/beneficiaries/update-beneficiary.dto';
@@ -113,6 +114,7 @@ export class CustomerService {
     private readonly mpesaStkPushService: MpesaStkPushService,
     private readonly configService: ConfigurationService,
     private readonly premiumStatementService: PremiumStatementService,
+    private readonly policyService: PolicyService,
   ) {}
 
   /**
@@ -329,7 +331,7 @@ export class CustomerService {
           const scheme = packageScheme.scheme;
           const frequency = scheme.frequency ?? PaymentFrequency.MONTHLY;
           const paymentCadence = scheme.paymentCadence ?? 30;
-          await this.prismaService.policy.create({
+          const postpaidPolicy = await this.prismaService.policy.create({
             data: {
               customerId: createdCustomer.id,
               packageId: packageScheme.package.id,
@@ -346,6 +348,19 @@ export class CustomerService {
             },
           });
           this.logger.log(`[${correlationId}] Postpaid policy created for customer ${createdCustomer.id} (package ${packageScheme.package.id})`);
+
+          // A: map historical paybill payments (accountNumber == idNumber) onto the new policy
+          if (createdCustomer.idNumber) {
+            await this.prismaService.$transaction(async (tx) => {
+              await this.policyService.mapUnmappedMpesaItemsToPolicy(
+                postpaidPolicy.id,
+                createdCustomer.idNumber,
+                correlationId,
+                tx,
+                { activateIfPending: true }
+              );
+            });
+          }
         }
       } catch (error) {
         this.logger.error(`[${correlationId}] Failed to create package scheme customer: ${error instanceof Error ? error.message : 'Unknown error'}`);

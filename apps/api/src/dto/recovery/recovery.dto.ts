@@ -49,6 +49,15 @@ export class CustomerWithoutPolicyDto {
 
   @ApiProperty({ description: 'Earliest payment date (for startDate)' })
   earliestPaymentDate: string;
+
+  @ApiProperty({ description: 'Customer registration timestamp (ISO)' })
+  registeredAt: string;
+
+  @ApiProperty({
+    description: 'Display name of the agent who registered the customer',
+    nullable: true,
+  })
+  registeredByDisplayName: string | null;
 }
 
 export class GetCustomersWithoutPoliciesResponseDto {
