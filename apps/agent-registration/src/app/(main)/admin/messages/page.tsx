@@ -20,8 +20,8 @@ export default function AdminMessagesPage() {
   const [error, setError] = useState<string | null>(null);
   const [customerId, setCustomerId] = useState('');
   const [policyId, setPolicyId] = useState('');
-  const [channel, setChannel] = useState<string>('');
-  const [status, setStatus] = useState<string>('');
+  const [channel, setChannel] = useState<string>('all');
+  const [status, setStatus] = useState<string>('all');
   const [page] = useState(1);
   const pageSize = 20;
 
@@ -35,8 +35,8 @@ export default function AdminMessagesPage() {
       };
       if (customerId.trim()) params.customerId = customerId.trim();
       if (policyId.trim()) params.policyId = policyId.trim();
-      if (channel) params.channel = channel as 'SMS' | 'EMAIL';
-      if (status) params.status = status;
+      if (channel && channel !== 'all') params.channel = channel as 'SMS' | 'EMAIL';
+      if (status && status !== 'all') params.status = status;
 
       const result = await listMessagingDeliveries(params);
       setDeliveries(result.data);
@@ -108,7 +108,7 @@ export default function AdminMessagesPage() {
                 <SelectValue placeholder="All" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">All</SelectItem>
+                <SelectItem value="all">All</SelectItem>
                 <SelectItem value="SMS">SMS</SelectItem>
                 <SelectItem value="EMAIL">Email</SelectItem>
               </SelectContent>
@@ -121,7 +121,7 @@ export default function AdminMessagesPage() {
                 <SelectValue placeholder="All" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">All</SelectItem>
+                <SelectItem value="all">All</SelectItem>
                 <SelectItem value="PENDING">Pending</SelectItem>
                 <SelectItem value="PROCESSING">Processing</SelectItem>
                 <SelectItem value="SENT">Sent</SelectItem>

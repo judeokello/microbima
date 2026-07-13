@@ -136,7 +136,9 @@ export default function MessagingTab({ customerId }: MessagingTabProps) {
                     <TableCell>
                       <div className="flex gap-2">
                         <Button variant="link" size="sm" asChild>
-                          <Link href={`/admin/messages/${d.id}`}>View</Link>
+                          <Link href={`/admin/messages/${d.id}?from=customer&customerId=${customerId}`}>
+                            View
+                          </Link>
                         </Button>
                         <Button
                           variant="outline"

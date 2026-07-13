@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -36,11 +36,20 @@ interface DeliveryDetail {
 
 export default function MessageDetailPage() {
   const params = useParams();
+  const searchParams = useSearchParams();
   const deliveryId = params?.deliveryId as string;
   const [delivery, setDelivery] = useState<DeliveryDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [resending, setResending] = useState(false);
+
+  const backCustomerId = searchParams.get('customerId') ?? delivery?.customer?.id ?? null;
+  const backHref =
+    searchParams.get('from') === 'customer' && backCustomerId
+      ? `/admin/customer/${backCustomerId}?tab=messages`
+      : '/admin/messages';
+  const backLabel =
+    backHref.includes('?tab=messages') ? 'Back to Customer Messages' : 'Back to Messages';
 
   const fetchDelivery = useCallback(async () => {
     if (!deliveryId) return;
@@ -92,7 +101,7 @@ export default function MessageDetailPage() {
       <div className="space-y-4">
         <p className="text-red-600">Invalid delivery ID</p>
         <Button asChild variant="outline">
-          <Link href="/admin/messages">Back to Messages</Link>
+          <Link href={backHref}>{backLabel}</Link>
         </Button>
       </div>
     );
@@ -112,7 +121,7 @@ export default function MessageDetailPage() {
       <div className="space-y-4">
         <p className="text-red-600">{error}</p>
         <Button asChild variant="outline">
-          <Link href="/admin/messages">Back to Messages</Link>
+          <Link href={backHref}>{backLabel}</Link>
         </Button>
       </div>
     );
@@ -122,7 +131,7 @@ export default function MessageDetailPage() {
     <div className="space-y-6">
       <div className="flex items-center gap-4">
         <Button variant="ghost" size="icon" asChild>
-          <Link href="/admin/messages">
+          <Link href={backHref} aria-label={backLabel}>
             <ArrowLeft className="h-4 w-4" />
           </Link>
         </Button>
@@ -263,7 +272,7 @@ export default function MessageDetailPage() {
           {resending ? 'Resending…' : 'Resend'}
         </Button>
         <Button variant="outline" asChild>
-          <Link href="/admin/messages">Back to Messages</Link>
+          <Link href={backHref}>{backLabel}</Link>
         </Button>
       </div>
     </div>
