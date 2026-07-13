@@ -4,6 +4,7 @@ import { SupabaseService } from '../../services/supabase.service';
 import { MessagingService } from './messaging.service';
 import { MessagingWorker } from './messaging.worker';
 import { PaymentMessagingService } from './payment-messaging.service';
+import { PolicyLifecycleMessagingService } from './policy-lifecycle-messaging.service';
 import { MessagingOutboxRepository } from './messaging-outbox.repository';
 import { SystemSettingsService } from './settings/system-settings.service';
 import { TemplateResolverService } from './rendering/template-resolver.service';
@@ -28,6 +29,7 @@ import { AfricasTalkingWebhookController } from '../../controllers/webhooks/mess
     MessagingService,
     MessagingWorker,
     PaymentMessagingService,
+    PolicyLifecycleMessagingService,
     MessagingOutboxRepository,
     SystemSettingsService,
     MessagingTemplatesService,
@@ -42,7 +44,7 @@ import { AfricasTalkingWebhookController } from '../../controllers/webhooks/mess
     AttachmentGeneratorService,
     AttachmentRetentionCleanupService,
   ],
-  exports: [MessagingService, SystemSettingsService, PaymentMessagingService],
+  exports: [MessagingService, SystemSettingsService, PaymentMessagingService, PolicyLifecycleMessagingService],
 })
 export class MessagingModule {}
 

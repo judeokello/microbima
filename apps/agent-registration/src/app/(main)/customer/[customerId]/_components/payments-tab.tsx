@@ -21,7 +21,11 @@ import {
   type MissedPaymentsAmountSide,
 } from '@/lib/api';
 import * as Sentry from '@sentry/nextjs';
+import { formatTransactionReferenceForDisplay } from '@/lib/transaction-reference-display';
 import RequestPaymentDialog from './request-payment-dialog';
+import { PAYMENTS_POLICY_STORAGE_KEY } from './products-tab';
+
+const ALL_POLICIES_VALUE = '__all__';
 
 function numberOfInstallments(paymentCadenceDays: number, productDurationDays: number | null): number {
   if (paymentCadenceDays <= 0) return 0;
@@ -122,8 +126,11 @@ export default function PaymentsTab({ customerId, customerPhone = '' }: Payments
       setPoliciesLoading(true);
       const response = await getCustomerPolicies(customerId);
       setPolicies(response.data);
-      // T038: auto-select when exactly one selectable plan
-      if (response.data.length === 1) {
+      const stored = sessionStorage.getItem(PAYMENTS_POLICY_STORAGE_KEY(customerId));
+      if (stored && response.data.some((p) => p.id === stored)) {
+        setSelectedPolicyId(stored);
+        sessionStorage.removeItem(PAYMENTS_POLICY_STORAGE_KEY(customerId));
+      } else if (response.data.length === 1) {
         setSelectedPolicyId(response.data[0].id);
       }
     } catch (err) {
@@ -152,31 +159,36 @@ export default function PaymentsTab({ customerId, customerPhone = '' }: Payments
       return;
     }
 
+    const isAllPolicies = selectedPolicyId === ALL_POLICIES_VALUE;
+
     try {
       setLoading(true);
       setError(null);
       setGenerateError(null);
 
       const filters: PaymentFilter = {
-        policyId: selectedPolicyId,
+        policyId: isAllPolicies ? undefined : selectedPolicyId,
         fromDate: fromDate || undefined,
         toDate: toDate || undefined,
       };
 
-      const [paymentsRes, policyDetailRes] = await Promise.all([
-        getCustomerPayments(customerId, filters),
-        getCustomerPolicyDetail(customerId, selectedPolicyId, {
+      const paymentsRes = await getCustomerPayments(customerId, filters);
+      setPayments(paymentsRes.data);
+
+      if (isAllPolicies) {
+        setPolicyDetail(null);
+        setFilterRanForPolicyId(ALL_POLICIES_VALUE);
+      } else {
+        const policyDetailRes = await getCustomerPolicyDetail(customerId, selectedPolicyId, {
           fromDate: fromDate || undefined,
           toDate: toDate || undefined,
         }).catch((e) => {
           console.error('Error loading policy detail:', e);
           return null;
-        }),
-      ]);
-
-      setPayments(paymentsRes.data);
-      setPolicyDetail(policyDetailRes?.data ?? null);
-      setFilterRanForPolicyId(selectedPolicyId);
+        });
+        setPolicyDetail(policyDetailRes?.data ?? null);
+        setFilterRanForPolicyId(selectedPolicyId);
+      }
     } catch (err) {
       console.error('Error loading payments:', err);
       // Report error to Sentry
@@ -289,7 +301,10 @@ export default function PaymentsTab({ customerId, customerPhone = '' }: Payments
   };
 
   const confirmedCount = payments.filter(isConfirmedPayment).length;
+  const isAllPoliciesView = filterRanForPolicyId === ALL_POLICIES_VALUE;
+
   const canGenerateReport =
+    !isAllPoliciesView &&
     filterRanForPolicyId === selectedPolicyId &&
     !!selectedPolicyId &&
     policyDetail?.schemeBillingMode === 'prepaid' &&
@@ -316,12 +331,13 @@ export default function PaymentsTab({ customerId, customerPhone = '' }: Payments
             <Select
               value={selectedPolicyId}
               onValueChange={setSelectedPolicyId}
-              disabled={policiesLoading || policies.length === 1}
+              disabled={policiesLoading || policies.length === 0}
             >
               <SelectTrigger id="policy">
                 <SelectValue placeholder="Select policy" />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value={ALL_POLICIES_VALUE}>All policies</SelectItem>
                 {policies.map((policy) => (
                   <SelectItem key={policy.id} value={policy.id}>
                     {policy.displayText}
@@ -525,6 +541,7 @@ export default function PaymentsTab({ customerId, customerPhone = '' }: Payments
             <Table>
               <TableHeader>
                 <TableRow>
+                  {isAllPoliciesView && <TableHead>Policy</TableHead>}
                   <TableHead>Payment Type</TableHead>
                   <TableHead>Transaction Reference</TableHead>
                   <TableHead>Account Number</TableHead>
@@ -537,8 +554,22 @@ export default function PaymentsTab({ customerId, customerPhone = '' }: Payments
               <TableBody>
                 {payments.map((payment) => (
                   <TableRow key={payment.id}>
+                    {isAllPoliciesView && (
+                      <TableCell className="text-sm">
+                        {payment.policy ? (
+                          <span>
+                            {payment.policy.policyNumber ?? '—'}{' '}
+                            <Badge variant="outline" className="ml-1 text-xs">
+                              {payment.policy.status}
+                            </Badge>
+                          </span>
+                        ) : (
+                          '—'
+                        )}
+                      </TableCell>
+                    )}
                     <TableCell>{payment.paymentType}</TableCell>
-                    <TableCell>{payment.transactionReference}</TableCell>
+                    <TableCell>{formatTransactionReferenceForDisplay(payment.transactionReference)}</TableCell>
                     <TableCell>{payment.accountNumber ?? 'N/A'}</TableCell>
                     <TableCell>{payment.paymentStatus ?? '—'}</TableCell>
                     <TableCell>{formatDate(payment.expectedPaymentDate)}</TableCell>

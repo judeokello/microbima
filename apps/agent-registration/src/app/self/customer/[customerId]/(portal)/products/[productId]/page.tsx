@@ -14,6 +14,7 @@ import {
   type PortalPayment,
   type PortalMemberCardsResponse,
 } from '@/lib/customer-portal-api';
+import { formatTransactionReferenceForDisplay } from '@/lib/transaction-reference-display';
 import { Loader2 } from 'lucide-react';
 import MemberCardWithDownload from '@/components/member-cards/MemberCardWithDownload';
 
@@ -325,7 +326,7 @@ function PaymentsTab({
                       {p.paymentStatus ?? '—'}
                     </td>
                     <td className="px-4 py-3 text-xs text-[#4f434e]">
-                      {p.transactionReference || '—'}
+                      {formatTransactionReferenceForDisplay(p.transactionReference)}
                     </td>
                   </tr>
                 ))}

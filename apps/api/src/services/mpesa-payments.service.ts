@@ -10,6 +10,7 @@ import { existsSync } from 'fs';
 import { ValidationException } from '../exceptions/validation.exception';
 import { ErrorCodes } from '../enums/error-codes.enum';
 import { PolicyService } from './policy.service';
+import { PolicyLifecycleService } from './policy-lifecycle.service';
 import { PaymentMessagingService } from '../modules/messaging/payment-messaging.service';
 
 /** Result of processing statement items into policy payments */
@@ -71,6 +72,7 @@ export class MpesaPaymentsService {
     private readonly supabaseService: SupabaseService,
     private readonly policyService: PolicyService,
     private readonly paymentMessagingService: PaymentMessagingService,
+    private readonly policyLifecycleService: PolicyLifecycleService,
   ) {}
 
   /**
@@ -899,7 +901,12 @@ export class MpesaPaymentsService {
               }
             }
 
-            return { policyPaymentId: payment.id, wasPendingActivation, activationSucceeded };
+            return {
+              policyPaymentId: payment.id,
+              policyId: policy.id,
+              wasPendingActivation,
+              activationSucceeded,
+            };
           }).then((smsContext) => {
             if (smsContext) {
               this.paymentMessagingService.notifyMatchedPaymentSmsAsync({
@@ -908,6 +915,17 @@ export class MpesaPaymentsService {
                 activationSucceeded: smsContext.activationSucceeded,
                 correlationId,
               });
+              if (!smsContext.wasPendingActivation || smsContext.activationSucceeded) {
+                this.policyLifecycleService
+                  .applyPaymentToPolicyLifecycle(smsContext.policyId, correlationId)
+                  .catch((error) => {
+                    this.logger.warn(
+                      `[${correlationId}] applyPaymentToPolicyLifecycle failed for policy ${smsContext.policyId}: ${
+                        error instanceof Error ? error.message : String(error)
+                      }`
+                    );
+                  });
+              }
             }
           });
         } catch (error) {

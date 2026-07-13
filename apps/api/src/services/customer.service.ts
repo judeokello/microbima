@@ -53,6 +53,7 @@ import {
   isUtcCalendarDayBefore,
   parseYmdToUtcStart,
 } from '../utils/premium-statement-math';
+import { buildPolicyDisplayText } from '../utils/policy-display.util';
 import { OndemandStkMode, OndemandStkPaymentDto } from '../dto/customers/ondemand-stk-payment.dto';
 import { InitiateStkPushDto, StkPushRequestResponseDto } from '../dto/mpesa-stk-push/mpesa-stk-push.dto';
 import { MpesaStkPushService } from './mpesa-stk-push.service';
@@ -181,6 +182,29 @@ export class CustomerService {
             validationErrors['general'] = error;
           }
         });
+      }
+
+      // Block registration when identity matches a TERMINATED customer
+      const terminatedById = await this.prismaService.customer.findFirst({
+        where: {
+          idNumber: customerEntity.idNumber,
+          status: 'TERMINATED',
+        },
+      });
+      if (terminatedById) {
+        validationErrors['id_number'] =
+          'This ID number is associated with a terminated account and cannot be used';
+      }
+
+      const terminatedByPhone = await this.prismaService.customer.findFirst({
+        where: {
+          phoneNumber: customerEntity.phoneNumber,
+          status: 'TERMINATED',
+        },
+      });
+      if (terminatedByPhone) {
+        validationErrors['phoneNumber'] =
+          'This phone number is associated with a terminated account and cannot be used';
       }
 
       // Pre-save validation: Check for email uniqueness
@@ -2436,15 +2460,26 @@ export class CustomerService {
             },
           },
         },
+        orderBy: { createdAt: 'desc' },
       });
 
       const policyOptions: PolicyOptionDto[] = policies.map((p) => ({
         id: p.id,
-        displayText: p.packagePlan
-          ? `${p.package.name} - ${p.packagePlan.name}`
-          : p.package.name,
+        displayText: buildPolicyDisplayText({
+          packageName: p.package.name,
+          planName: p.packagePlan?.name,
+          status: p.status,
+          startDate: p.startDate,
+          endDate: p.endDate,
+          deactivatedAt: p.deactivatedAt,
+        }),
         packageName: p.package.name,
         planName: p.packagePlan?.name,
+        status: p.status,
+        policyNumber: p.policyNumber,
+        startDate: p.startDate?.toISOString() ?? null,
+        endDate: p.endDate?.toISOString() ?? null,
+        deactivatedAt: p.deactivatedAt?.toISOString() ?? null,
       }));
 
       return {
@@ -3000,19 +3035,56 @@ export class CustomerService {
         orderBy: {
           actualPaymentDate: 'desc',
         },
+        include: {
+          policy: {
+            select: {
+              id: true,
+              policyNumber: true,
+              status: true,
+              package: { select: { name: true } },
+              packagePlan: { select: { name: true } },
+              startDate: true,
+              endDate: true,
+              deactivatedAt: true,
+            },
+          },
+        },
         ...(paginate ? { skip: (page - 1) * pageSize, take: pageSize } : {}),
       });
 
-      const paymentDtos: PaymentDto[] = payments.map((p) => ({
-        id: p.id,
-        paymentType: p.paymentType,
-        transactionReference: p.transactionReference,
-        accountNumber: p.accountNumber ?? undefined,
-        expectedPaymentDate: p.expectedPaymentDate.toISOString(),
-        actualPaymentDate: p.actualPaymentDate?.toISOString(),
-        amount: Number(p.amount),
-        paymentStatus: p.paymentStatus,
-      }));
+      const paymentDtos: PaymentDto[] = payments.map((p) => {
+        const base = {
+          id: p.id,
+          paymentType: p.paymentType,
+          transactionReference: p.transactionReference,
+          accountNumber: p.accountNumber ?? undefined,
+          expectedPaymentDate: p.expectedPaymentDate.toISOString(),
+          actualPaymentDate: p.actualPaymentDate?.toISOString(),
+          amount: Number(p.amount),
+          paymentStatus: p.paymentStatus,
+        };
+        if (!filters.policyId) {
+          const pol = p.policy;
+          const label = buildPolicyDisplayText({
+            packageName: pol.package.name,
+            planName: pol.packagePlan?.name,
+            status: pol.status,
+            startDate: pol.startDate,
+            endDate: pol.endDate,
+            deactivatedAt: pol.deactivatedAt,
+          });
+          return {
+            ...base,
+            policy: {
+              id: pol.id,
+              policyNumber: pol.policyNumber,
+              status: pol.status,
+              displayText: label,
+            },
+          };
+        }
+        return base;
+      });
 
       const totalPages =
         paginate && totalItems != null ? Math.max(1, Math.ceil(totalItems / pageSize)) : undefined;
@@ -3601,6 +3673,7 @@ export class CustomerService {
       memberCardsByPolicy.push({
         policyId: policy.id,
         policyNumber: policy.policyNumber,
+        policyStatus: policy.status,
         packageId: pkg.id,
         packageName: pkg.name,
         cardTemplateName: pkg.cardTemplateName ?? null,

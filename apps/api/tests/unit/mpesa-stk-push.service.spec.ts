@@ -6,6 +6,7 @@ import { MpesaDarajaApiService } from '../../src/services/mpesa-daraja-api.servi
 import { MpesaErrorMapperService } from '../../src/services/mpesa-error-mapper.service';
 import { ConfigurationService } from '../../src/config/configuration.service';
 import { PolicyService } from '../../src/services/policy.service';
+import { PolicyLifecycleService } from '../../src/services/policy-lifecycle.service';
 import { PaymentMessagingService } from '../../src/modules/messaging/payment-messaging.service';
 import {
   InitiateStkPushDto,
@@ -78,6 +79,10 @@ describe('MpesaStkPushService', () => {
     tryEnqueueMatchedPaymentSms: jest.fn(),
   });
 
+  const createPolicyLifecycleServiceMock = () => ({
+    applyPaymentToPolicyLifecycle: jest.fn().mockResolvedValue({ action: 'noop' }),
+  });
+
   beforeEach(async () => {
     const prismaMock = createPrismaMock();
     const mpesaDarajaApiMock = createMpesaDarajaApiMock();
@@ -85,6 +90,7 @@ describe('MpesaStkPushService', () => {
     const configServiceMock = createConfigServiceMock();
     const policyServiceMock = createPolicyServiceMock();
     const paymentMessagingServiceMock = createPaymentMessagingServiceMock();
+    const policyLifecycleServiceMock = createPolicyLifecycleServiceMock();
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -112,6 +118,10 @@ describe('MpesaStkPushService', () => {
         {
           provide: PaymentMessagingService,
           useValue: paymentMessagingServiceMock,
+        },
+        {
+          provide: PolicyLifecycleService,
+          useValue: policyLifecycleServiceMock,
         },
       ],
     })

@@ -30,6 +30,7 @@ import {
   type RecoveryCustomer,
   type Plan,
 } from '@/lib/api';
+import { formatTransactionReferenceForDisplay } from '@/lib/transaction-reference-display';
 import { Loader2, RefreshCw, Plus } from 'lucide-react';
 
 interface InsurancePricing {
@@ -281,7 +282,7 @@ export default function RecoveryPage() {
                     <ul className="text-sm text-muted-foreground space-y-1">
                       {c.payments.map((p) => (
                         <li key={p.id}>
-                          {p.transactionReference} - KES {p.paidIn.toLocaleString()} - {new Date(p.completionTime).toLocaleString()}
+                          {formatTransactionReferenceForDisplay(p.transactionReference)} - KES {p.paidIn.toLocaleString()} - {new Date(p.completionTime).toLocaleString()}
                         </li>
                       ))}
                     </ul>

@@ -1,0 +1,159 @@
+openapi: 3.0.3
+info:
+  title: MicroBima Policy Payment Lifecycle (Internal)
+  version: 0.1.0
+  description: >
+    Payment-driven and daily policy status automation, admin Terminate,
+    and optional daily job trigger. Authenticated via staff bearer token + registration_admin.
+servers:
+  - url: /api/v1
+paths:
+  /internal/customers/{customerId}/policies/{policyId}/terminate:
+    post:
+      summary: Terminate policy (starter blacklist)
+      operationId: terminatePolicy
+      tags: [PolicyLifecycle]
+      parameters:
+        - $ref: '#/components/parameters/CustomerId'
+        - $ref: '#/components/parameters/PolicyId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TerminatePolicyRequest'
+      responses:
+        '200':
+          description: Policy terminated; customer may be Terminated if no open policies remain
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PolicyLifecycleActionResponse'
+        '401':
+          description: Authentication error
+        '403':
+          description: Insufficient permissions
+        '404':
+          description: Customer or policy not found
+        '422':
+          description: Validation error (e.g. missing reason, already terminated)
+  /internal/customers/{customerId}/policies/{policyId}/activate:
+    post:
+      summary: Activate suspended policy (existing; tightened for end date)
+      operationId: activatePolicyLifecycle
+      tags: [PolicyLifecycle]
+      parameters:
+        - $ref: '#/components/parameters/CustomerId'
+        - $ref: '#/components/parameters/PolicyId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReasonRequest'
+      responses:
+        '200':
+          description: Policy activated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PolicyLifecycleActionResponse'
+        '422':
+          description: Rejected when endDate has passed or status is not SUSPENDED
+  /internal/policies/lifecycle/run-daily:
+    post:
+      summary: Run daily policy lifecycle evaluation once (ops/dev)
+      operationId: runDailyPolicyLifecycle
+      tags: [PolicyLifecycle]
+      description: >
+        Batch for the current UTC day. Protected by admin role.
+        Production also schedules this via Nest cron.
+      responses:
+        '200':
+          description: Batch summary
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DailyLifecycleRunResponse'
+        '401':
+          description: Authentication error
+        '403':
+          description: Insufficient permissions
+components:
+  parameters:
+    CustomerId:
+      name: customerId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    PolicyId:
+      name: policyId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+  schemas:
+    ReasonRequest:
+      type: object
+      required: [reason]
+      properties:
+        reason:
+          type: string
+          minLength: 1
+          description: Mandatory admin description
+    TerminatePolicyRequest:
+      allOf:
+        - $ref: '#/components/schemas/ReasonRequest'
+    PolicyLifecycleActionResponse:
+      type: object
+      properties:
+        policyId:
+          type: string
+          format: uuid
+        policyStatus:
+          type: string
+          enum:
+            - PENDING_ACTIVATION
+            - ACTIVE
+            - SUSPENDED
+            - INACTIVE
+            - DEACTIVATED
+            - TERMINATED
+            - EXPIRED
+        customerId:
+          type: string
+          format: uuid
+        customerStatus:
+          type: string
+        inGracePeriod:
+          type: boolean
+        correlationId:
+          type: string
+    DailyLifecycleRunResponse:
+      type: object
+      properties:
+        evaluatedAt:
+          type: string
+          format: date-time
+        graceEntered:
+          type: integer
+        suspended:
+          type: integer
+        inactivated:
+          type: integer
+        expired:
+          type: integer
+        notificationsQueued:
+          type: integer
+        correlationId:
+          type: string
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+security:
+  - BearerAuth: []

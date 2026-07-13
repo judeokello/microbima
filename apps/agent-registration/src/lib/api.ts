@@ -929,6 +929,11 @@ export interface PolicyOption {
   displayText: string
   packageName: string
   planName?: string
+  status?: string
+  policyNumber?: string | null
+  startDate?: string | null
+  endDate?: string | null
+  deactivatedAt?: string | null
 }
 
 export interface CustomerPoliciesResponse {
@@ -1024,6 +1029,12 @@ export interface Payment {
   actualPaymentDate?: string
   amount: number
   paymentStatus?: string
+  policy?: {
+    id: string
+    policyNumber: string | null
+    status: string
+    displayText: string
+  }
 }
 
 export interface CustomerPaymentsResponse {
@@ -2353,6 +2364,165 @@ export async function resendMessagingDelivery(deliveryId: string): Promise<{ new
   }
   const body = await response.json()
   return { newDeliveryId: body.data?.newDeliveryId ?? body.newDeliveryId ?? deliveryId }
+}
+
+// ── Policy lifecycle (admin) ─────────────────────────────────────────────────
+
+export interface PolicyLifecyclePolicy {
+  id: string
+  policyNumber?: string | null
+  status: string
+}
+
+export interface PolicyLifecycleResponse {
+  status: number
+  correlationId: string
+  message: string
+  policy: PolicyLifecyclePolicy
+  newPolicyId?: string
+}
+
+export interface ModifyPolicyOptionsPayment {
+  id: number
+  transactionReference: string
+  amount: number
+  expectedPaymentDate: string
+  actualPaymentDate?: string
+  paymentStatus: string
+}
+
+export interface ModifyPolicyOptionsScheme {
+  packageSchemeId: number
+  schemeName: string
+  isPostpaid: boolean
+}
+
+export interface ModifyPolicyOptions {
+  status: number
+  correlationId: string
+  message: string
+  packageId: number
+  packageName: string
+  familyCategory: string
+  additionalSpouse: boolean
+  currentPackagePlanId: number
+  currentPlanName?: string
+  currentPremium: number
+  currentFrequency: string
+  currentPaymentCadence: number
+  currentPackageSchemeId: number | null
+  paymentMigrationAllowed: boolean
+  eligiblePayments: ModifyPolicyOptionsPayment[]
+  schemes: ModifyPolicyOptionsScheme[]
+}
+
+export type PolicyNumberChoice = 'KEEP_EXISTING' | 'GENERATE_NEW'
+
+export interface ModifyPolicyRequest {
+  reason: string
+  packagePlanId: number
+  frequency: 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'QUARTERLY' | 'ANNUALLY' | 'CUSTOM'
+  premium: number
+  customDays?: number
+  packageSchemeId?: number
+  policyNumberChoice: PolicyNumberChoice
+  firstPaymentId?: number
+}
+
+async function policyLifecycleFetch<T>(
+  path: string,
+  method: 'GET' | 'POST',
+  body?: unknown
+): Promise<T> {
+  const token = await getSupabaseToken()
+  const response = await fetch(
+    `${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}${path}`,
+    {
+      method,
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+        'x-correlation-id': `policy-lifecycle-${Date.now()}`,
+      },
+      ...(body != null ? { body: JSON.stringify(body) } : {}),
+    }
+  )
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}))
+    throw new Error(err?.error?.message ?? `Request failed: ${response.statusText}`)
+  }
+  return response.json() as Promise<T>
+}
+
+export async function deactivateCustomerPolicy(
+  customerId: string,
+  policyId: string,
+  reason: string
+): Promise<PolicyLifecycleResponse> {
+  return policyLifecycleFetch(
+    `/internal/customers/${customerId}/policies/${policyId}/deactivate`,
+    'POST',
+    { reason }
+  )
+}
+
+export async function terminateCustomerPolicy(
+  customerId: string,
+  policyId: string,
+  reason: string
+): Promise<PolicyLifecycleResponse> {
+  return policyLifecycleFetch(
+    `/internal/customers/${customerId}/policies/${policyId}/terminate`,
+    'POST',
+    { reason }
+  )
+}
+
+export async function activateCustomerPolicy(
+  customerId: string,
+  policyId: string,
+  reason: string
+): Promise<PolicyLifecycleResponse> {
+  return policyLifecycleFetch(
+    `/internal/customers/${customerId}/policies/${policyId}/activate`,
+    'POST',
+    { reason }
+  )
+}
+
+export async function resetCustomerPolicyStartDate(
+  customerId: string,
+  policyId: string,
+  reason: string,
+  startDate: string
+): Promise<PolicyLifecycleResponse> {
+  return policyLifecycleFetch(
+    `/internal/customers/${customerId}/policies/${policyId}/reset-start-date`,
+    'POST',
+    { reason, startDate }
+  )
+}
+
+export async function getModifyPolicyOptions(
+  customerId: string,
+  policyId: string
+): Promise<ModifyPolicyOptions> {
+  return policyLifecycleFetch(
+    `/internal/customers/${customerId}/policies/${policyId}/modify-options`,
+    'GET'
+  )
+}
+
+export async function modifyCustomerPolicy(
+  customerId: string,
+  policyId: string,
+  body: ModifyPolicyRequest
+): Promise<PolicyLifecycleResponse> {
+  return policyLifecycleFetch(
+    `/internal/customers/${customerId}/policies/${policyId}/modify`,
+    'POST',
+    body
+  )
 }
 
 async function getSupabaseToken(): Promise<string> {

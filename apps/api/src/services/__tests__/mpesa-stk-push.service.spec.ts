@@ -7,6 +7,7 @@ import { MpesaDarajaApiService } from '../mpesa-daraja-api.service';
 import { MpesaErrorMapperService } from '../mpesa-error-mapper.service';
 import { ConfigurationService } from '../../config/configuration.service';
 import { PolicyService } from '../policy.service';
+import { PolicyLifecycleService } from '../policy-lifecycle.service';
 import { SchedulerRegistry } from '@nestjs/schedule';
 import {
   InitiateStkPushDto,
@@ -118,6 +119,9 @@ describe('MpesaStkPushService', () => {
     const paymentStatusGatewayMock = createPaymentStatusGatewayMock();
     const jwtServiceMock = createJwtServiceMock();
     const paymentMessagingServiceMock = createPaymentMessagingServiceMock();
+    const policyLifecycleServiceMock = {
+      applyPaymentToPolicyLifecycle: jest.fn().mockResolvedValue({ action: 'noop' }),
+    };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -153,6 +157,10 @@ describe('MpesaStkPushService', () => {
         {
           provide: PaymentMessagingService,
           useValue: paymentMessagingServiceMock,
+        },
+        {
+          provide: PolicyLifecycleService,
+          useValue: policyLifecycleServiceMock,
         },
         {
           provide: SchedulerRegistry,

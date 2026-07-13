@@ -14,6 +14,7 @@ import SpouseSection from './_components/spouse-section';
 import ChildrenSection from './_components/children-section';
 import PaymentsTab from './_components/payments-tab';
 import MemberCardsTab from './_components/member-cards-tab';
+import ProductsTab from './_components/products-tab';
 import { useEditPermissions } from './_hooks/use-edit-permissions';
 
 export default function CustomerDetailPage() {
@@ -113,6 +114,7 @@ export default function CustomerDetailPage() {
       <Tabs defaultValue="details" className="w-full">
         <TabsList>
           <TabsTrigger value="details">Customer Details</TabsTrigger>
+          <TabsTrigger value="products">Products</TabsTrigger>
           <TabsTrigger value="payments">Payments</TabsTrigger>
           <TabsTrigger value="member-cards">Member cards</TabsTrigger>
         </TabsList>
@@ -144,6 +146,10 @@ export default function CustomerDetailPage() {
             canAdd={canEdit}
             onUpdate={loadCustomerDetails}
           />
+        </TabsContent>
+
+        <TabsContent value="products">
+          <ProductsTab customerId={customerId} basePath="agent" />
         </TabsContent>
 
         <TabsContent value="payments">

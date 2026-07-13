@@ -13,6 +13,7 @@ import { RefreshCw, Edit, Save, X, CheckCircle, XCircle, Plus, Trash2 } from 'lu
 import { supabase } from '@/lib/supabase';
 import * as Sentry from '@sentry/nextjs';
 import { formatDate } from '@/lib/utils';
+import { formatTransactionReferenceForDisplay } from '@/lib/transaction-reference-display';
 import { TruncatedDescription } from '../../../../[underwriterId]/_components/truncated-description';
 import { validatePhoneNumber } from '@/lib/phone-validation';
 
@@ -1034,7 +1035,7 @@ export default function SchemeDetailPage() {
                   <TableBody>
                     {postpaidPayments.map((p) => (
                       <TableRow key={p.id}>
-                        <TableCell className="font-medium">{p.transactionReference}</TableCell>
+                        <TableCell className="font-medium">{formatTransactionReferenceForDisplay(p.transactionReference)}</TableCell>
                         <TableCell>{p.amount}</TableCell>
                         <TableCell>{p.paymentType}</TableCell>
                         <TableCell>{formatDate(p.createdAt)}</TableCell>

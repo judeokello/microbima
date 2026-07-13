@@ -12,6 +12,7 @@ type CustomerStatusKey =
   | 'PENDING_ACTIVATION'
   | 'PENDING_KYC'
   | 'SUSPENDED'
+  | 'DEACTIVATED'
   | 'DELETED'
   | 'TERMINATED'
   | 'KYC_VERIFIED';
@@ -33,6 +34,10 @@ function getCustomerStatusDisplay(status: string): { label: string; className: s
     SUSPENDED: {
       label: 'Suspended',
       className: 'bg-amber-100 text-amber-800 border-amber-300',
+    },
+    DEACTIVATED: {
+      label: 'Deactivated',
+      className: 'bg-gray-100 text-gray-700 border-gray-300',
     },
     DELETED: {
       label: 'Deleted',
