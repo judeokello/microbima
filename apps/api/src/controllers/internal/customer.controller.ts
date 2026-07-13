@@ -324,7 +324,8 @@ export class InternalCustomerController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Search customers',
-    description: 'Search for customers using partial matching on name, ID number, phone number, or email. At least one search parameter is required.',
+    description:
+      'Search for customers using partial matching on name, ID number, phone number, email, or member number. At least one search parameter is required. Brand ambassadors only see customers they registered; registration_admin and customer_care see all.',
   })
   @ApiQuery({
     name: 'name',
@@ -388,6 +389,8 @@ export class InternalCustomerController {
     @Query('page') page: string = '1',
     @Query('pageSize') pageSize: string = '20',
   ): Promise<CustomerSearchResponseDto> {
+    const userId = req.user?.id;
+    const userRoles = req.user?.roles ?? [];
     return this.customerService.searchCustomers(
       name,
       idNumber,
@@ -396,7 +399,9 @@ export class InternalCustomerController {
       memberNumber,
       parseInt(page),
       parseInt(pageSize),
-      correlationId
+      correlationId,
+      userId,
+      userRoles,
     );
   }
 

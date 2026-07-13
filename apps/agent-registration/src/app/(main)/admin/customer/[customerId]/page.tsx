@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Loader2 } from 'lucide-react';
@@ -18,11 +18,16 @@ import MessagingTab from '../../../customer/[customerId]/_components/messaging-t
 import ProductsTab from '../../../customer/[customerId]/_components/products-tab';
 import { useEditPermissions } from '../../../customer/[customerId]/_hooks/use-edit-permissions';
 
+const CUSTOMER_TABS = new Set(['details', 'products', 'payments', 'member-cards', 'messages']);
+
 export default function CustomerDetailPage() {
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { user } = useAuth();
   const customerId = params.customerId as string;
+  const tabParam = searchParams.get('tab');
+  const activeTab = tabParam && CUSTOMER_TABS.has(tabParam) ? tabParam : 'details';
 
   const [customerData, setCustomerData] = useState<CustomerDetailData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -112,7 +117,23 @@ export default function CustomerDetailPage() {
         </p>
       </div>
 
-      <Tabs defaultValue="details" className="w-full">
+      <Tabs
+        value={activeTab}
+        onValueChange={(value) => {
+          const next = new URLSearchParams(searchParams.toString());
+          if (value === 'details') {
+            next.delete('tab');
+          } else {
+            next.set('tab', value);
+          }
+          const query = next.toString();
+          router.replace(
+            `/admin/customer/${customerId}${query ? `?${query}` : ''}`,
+            { scroll: false },
+          );
+        }}
+        className="w-full"
+      >
         <TabsList>
           <TabsTrigger value="details">Customer Details</TabsTrigger>
           <TabsTrigger value="products">Products</TabsTrigger>

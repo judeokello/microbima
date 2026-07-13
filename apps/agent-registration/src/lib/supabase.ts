@@ -40,7 +40,7 @@ export const supabaseAdmin = supabaseServiceRoleKey ? createClient(safeSupabaseU
 
 // Types for our application
 export interface UserMetadata {
-  roles: string[]  // ['brand_ambassador', 'registration_admin']
+  roles: string[]  // ['brand_ambassador', 'registration_admin', 'customer_care']
   partnerId?: number
   displayName?: string
   phone?: string
@@ -51,6 +51,7 @@ export interface UserMetadata {
 export const ROLES = {
   BRAND_AMBASSADOR: 'brand_ambassador',
   REGISTRATION_ADMIN: 'registration_admin',
+  CUSTOMER_CARE: 'customer_care',
   CUSTOMER: 'customer',
 } as const
 

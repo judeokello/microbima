@@ -56,7 +56,6 @@ export function buildStatementFilename(params: {
   statementDate: Date;
   productAndPlanLabel: string;
   fullName: string;
-  policyNumber: string;
 }): string {
   const day = String(params.statementDate.getUTCDate()).padStart(2, '0');
   const monthNames = [
@@ -81,8 +80,7 @@ export function buildStatementFilename(params: {
       .trim();
   const label = safe(params.productAndPlanLabel);
   const name = safe(params.fullName);
-  const pol = safe(params.policyNumber.replace(/\//g, '-'));
-  return `${day}-${monthName}-${label} Premium-Statement-${name}-${pol}.pdf`;
+  return `${day}-${monthName}-${label} Premium-Statement-${name}.pdf`;
 }
 
 @Injectable()
@@ -270,7 +268,6 @@ export class PremiumStatementService {
       statementDate: generatedAt,
       productAndPlanLabel: productAndPlanLabel || policy.package.name,
       fullName: customerName || 'Customer',
-      policyNumber,
     });
 
     const logoPath = this.resolveLogoPath();

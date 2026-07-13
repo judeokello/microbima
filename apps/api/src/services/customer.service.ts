@@ -66,6 +66,7 @@ import { UpdateBeneficiaryDto } from '../dto/beneficiaries/update-beneficiary.dt
 import { SupabaseService } from './supabase.service';
 import { PaymentAccountNumberService } from './payment-account-number.service';
 import { assertKenyanPhoneForOndemandStk, normalizePhoneNumber } from '../utils/phone-number.util';
+import { hasGlobalCustomerAccess } from '../utils/roles.util';
 import {
   buildSyntheticCustomerEmail,
   generatePortalRegistrationOtp,
@@ -1888,6 +1889,7 @@ export class CustomerService {
    * Uses partial matching (LIKE query) for all search fields
    * Name search: each space-separated token must match at least one of firstName, middleName, lastName (e.g. "Simon Gateri" matches both names)
    * Member number: suffix 00 = principal (policy_member_principals), 01/02/... = dependant (policy_member_dependants); returns max 10 when used
+   * BA-only users are limited to customers they registered; registration_admin and customer_care can search all.
    */
   async searchCustomers(
     name?: string,
@@ -1897,7 +1899,9 @@ export class CustomerService {
     memberNumber?: string,
     page: number = 1,
     pageSize: number = 20,
-    correlationId: string = 'unknown'
+    correlationId: string = 'unknown',
+    userId?: string,
+    userRoles: string[] = [],
   ) {
     try {
       this.logger.log(`[${correlationId}] Searching customers: name=${name}, idNumber=${idNumber}, phoneNumber=${phoneNumber}, email=${email}, memberNumber=${memberNumber}`);
@@ -1919,6 +1923,10 @@ export class CustomerService {
 
       const skip = (page - 1) * pageSize;
       const MEMBER_NUMBER_MAX_RESULTS = 10;
+      const scopeToOwnRegistrations =
+        !hasGlobalCustomerAccess(userRoles) &&
+        !!userId &&
+        userRoles.includes('brand_ambassador');
 
       // Resolve member number to up to 10 customer IDs when memberNumber is provided
       let memberNumberCustomerIds: string[] = [];
@@ -2026,6 +2034,21 @@ export class CustomerService {
         };
       } else {
         whereClause = { OR: orConditions };
+      }
+
+      if (scopeToOwnRegistrations) {
+        whereClause = {
+          AND: [
+            whereClause,
+            {
+              registrations: {
+                some: {
+                  ba: { userId },
+                },
+              },
+            },
+          ],
+        };
       }
 
       // When filtering by member number only, cap at 10 and use pageSize 10 for that path
@@ -3713,8 +3736,8 @@ export class CustomerService {
     userId: string,
     userRoles: string[]
   ): Promise<boolean> {
-    // Admins can access any customer
-    if (userRoles.includes('registration_admin')) {
+    // Admins and customer care can access any customer
+    if (hasGlobalCustomerAccess(userRoles)) {
       return true;
     }
 

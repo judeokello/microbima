@@ -145,30 +145,21 @@ export class PolicyLifecycleMessagingService {
       },
     ];
 
-    for (const row of keys) {
-      try {
-        await client.policyLifecycleNotification.create({
-          data: {
-            policyId,
-            scheduleKey: row.scheduleKey,
-            templateKey: row.templateKey,
-            metadata: {
-              suppressed: true,
-              reason: 'activated',
-              correlationId,
-            },
-          },
-        });
-      } catch (error) {
-        if (
-          error instanceof Prisma.PrismaClientKnownRequestError &&
-          error.code === 'P2002'
-        ) {
-          continue;
-        }
-        throw error;
-      }
-    }
+    // Use createMany + skipDuplicates (ON CONFLICT DO NOTHING) so existing
+    // schedule keys do not abort a shared Postgres transaction (P2002 / 25P02).
+    await client.policyLifecycleNotification.createMany({
+      data: keys.map((row) => ({
+        policyId,
+        scheduleKey: row.scheduleKey,
+        templateKey: row.templateKey,
+        metadata: {
+          suppressed: true,
+          reason: 'activated',
+          correlationId,
+        },
+      })),
+      skipDuplicates: true,
+    });
 
     this.logger.log(
       `[${correlationId}] Suppressed pending-activation reminders for policy ${policyId}`

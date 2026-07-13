@@ -16,6 +16,7 @@ import { PaymentMessagingService } from '../modules/messaging/payment-messaging.
 import { PolicyLifecycleMessagingService } from '../modules/messaging/policy-lifecycle-messaging.service';
 import { policyDatesFromPayment, policyEndDateFromStart } from '../utils/policy-dates.util';
 import { assertPolicyMayBecomeActive } from '../utils/policy-activation-gate.util';
+import { hasGlobalCustomerAccess } from '../utils/roles.util';
 
 /**
  * Policy Service
@@ -179,7 +180,7 @@ export class PolicyService {
   }
 
   /**
-   * Ensure the caller may recover this customer: registration_admin sees all;
+   * Ensure the caller may recover this customer: registration_admin and customer_care see all;
    * otherwise only the agent who registered the customer (customers.createdBy).
    */
   async assertRecoveryAccessToCustomer(
@@ -188,7 +189,7 @@ export class PolicyService {
     userRoles: string[],
     correlationId: string
   ): Promise<void> {
-    if (userRoles.includes('registration_admin')) {
+    if (hasGlobalCustomerAccess(userRoles)) {
       return;
     }
     const customer = await this.prismaService.customer.findUnique({
