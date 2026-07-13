@@ -7,6 +7,7 @@ import {
   Param,
   HttpStatus,
   HttpCode,
+  Req,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -14,6 +15,7 @@ import {
   ApiResponse,
   ApiBearerAuth,
 } from '@nestjs/swagger';
+import { Request } from 'express';
 import { PolicyService } from '../../services/policy.service';
 import {
   GetCustomersWithoutPoliciesResponseDto,
@@ -28,6 +30,7 @@ import { CorrelationId } from '../../decorators/correlation-id.decorator';
  *
  * Handles recovery flow for customers whose policy creation failed.
  * Used when M-Pesa payments exist but no policy record was created.
+ * List/create are scoped: registration_admin sees all; agents see only customers they registered.
  */
 @ApiTags('Internal - Recovery')
 @ApiBearerAuth()
@@ -35,20 +38,34 @@ import { CorrelationId } from '../../decorators/correlation-id.decorator';
 export class RecoveryController {
   constructor(private readonly policyService: PolicyService) {}
 
+  private recoveryScope(req: Request): {
+    userId: string;
+    userRoles: string[];
+    createdByFilter?: string;
+  } {
+    const userId = req.user?.id ?? 'system';
+    const userRoles = req.user?.roles ?? [];
+    const createdByFilter = userRoles.includes('registration_admin') ? undefined : userId;
+    return { userId, userRoles, createdByFilter };
+  }
+
   @Get('customers-without-policies')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Get customers without policies who have M-Pesa payments',
     description:
-      'Returns customers where accountNumber in mpesa_payment_report_items matches customers.idNumber, and the customer has no policy. Used for recovery flow.',
+      'Returns customers where accountNumber in mpesa_payment_report_items matches customers.idNumber, and the customer has no policy. Agents see only their registrations; registration_admin sees all.',
   })
   @ApiResponse({ status: 200, description: 'List of customers with payments' })
   async getCustomersWithoutPolicies(
-    @CorrelationId() correlationId: string
+    @CorrelationId() correlationId: string,
+    @Req() req: Request
   ): Promise<GetCustomersWithoutPoliciesResponseDto> {
+    const { createdByFilter } = this.recoveryScope(req);
     const customers =
       await this.policyService.getCustomersWithoutPoliciesWithPayments(
-        correlationId
+        correlationId,
+        createdByFilter
       );
     return {
       customers: customers.map((c) => ({
@@ -65,6 +82,8 @@ export class RecoveryController {
           accountNumber: p.accountNumber,
         })),
         earliestPaymentDate: c.earliestPaymentDate.toISOString(),
+        registeredAt: c.registeredAt.toISOString(),
+        registeredByDisplayName: c.registeredByDisplayName,
       })),
     };
   }
@@ -74,15 +93,18 @@ export class RecoveryController {
   @ApiOperation({
     summary: 'Get customers with no policy and no M-Pesa payments',
     description:
-      'Returns customers who have a package (from scheme) but no policy and no payment records matching their idNumber. For recovery: create policy only (PENDING_ACTIVATION); activation on first payment.',
+      'Returns customers who have a package (from scheme) but no policy and no payment records matching their idNumber. Agents see only their registrations; registration_admin sees all.',
   })
   @ApiResponse({ status: 200, description: 'List of customers with no payments' })
   async getCustomersWithoutPolicyNoPayments(
-    @CorrelationId() correlationId: string
+    @CorrelationId() correlationId: string,
+    @Req() req: Request
   ): Promise<GetCustomersWithoutPoliciesResponseDto> {
+    const { createdByFilter } = this.recoveryScope(req);
     const customers =
       await this.policyService.getCustomersWithoutPolicyAndWithoutPayments(
-        correlationId
+        correlationId,
+        createdByFilter
       );
     return {
       customers: customers.map((c) => ({
@@ -95,6 +117,8 @@ export class RecoveryController {
         earliestPaymentDate: c.earliestPaymentDate
           ? c.earliestPaymentDate.toISOString()
           : '',
+        registeredAt: c.registeredAt.toISOString(),
+        registeredByDisplayName: c.registeredByDisplayName,
       })),
     };
   }
@@ -108,11 +132,20 @@ export class RecoveryController {
   })
   @ApiResponse({ status: 201, description: 'Policy created and activated' })
   @ApiResponse({ status: 400, description: 'Validation error' })
+  @ApiResponse({ status: 403, description: 'Not allowed to recover this customer' })
   @ApiResponse({ status: 404, description: 'Customer or package not found' })
   async createPolicyFromRecovery(
     @Body() body: CreatePolicyFromRecoveryRequestDto,
-    @CorrelationId() correlationId: string
+    @CorrelationId() correlationId: string,
+    @Req() req: Request
   ) {
+    const { userId, userRoles } = this.recoveryScope(req);
+    await this.policyService.assertRecoveryAccessToCustomer(
+      body.customerId,
+      userId,
+      userRoles,
+      correlationId
+    );
     const policy = await this.policyService.createPolicyFromRecovery(
       {
         customerId: body.customerId,
@@ -150,11 +183,20 @@ export class RecoveryController {
   })
   @ApiResponse({ status: 201, description: 'Policy created' })
   @ApiResponse({ status: 400, description: 'Validation error' })
+  @ApiResponse({ status: 403, description: 'Not allowed to recover this customer' })
   @ApiResponse({ status: 404, description: 'Customer or package not found' })
   async createPolicyWithoutPayments(
     @Body() body: CreatePolicyFromRecoveryRequestDto,
-    @CorrelationId() correlationId: string
+    @CorrelationId() correlationId: string,
+    @Req() req: Request
   ) {
+    const { userId, userRoles } = this.recoveryScope(req);
+    await this.policyService.assertRecoveryAccessToCustomer(
+      body.customerId,
+      userId,
+      userRoles,
+      correlationId
+    );
     const policy = await this.policyService.createPolicyWithoutPayments(
       {
         customerId: body.customerId,

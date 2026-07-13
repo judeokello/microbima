@@ -2100,6 +2100,8 @@ export interface RecoveryCustomer {
   packageName: string
   payments: RecoveryPaymentItem[]
   earliestPaymentDate: string
+  registeredAt: string
+  registeredByDisplayName: string | null
 }
 
 export interface CreatePolicyFromRecoveryRequest {

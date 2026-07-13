@@ -1,4 +1,11 @@
-import { Injectable, Logger, NotFoundException, BadRequestException, ConflictException } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  NotFoundException,
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { PAYMENT_CADENCE } from '../constants/payment-cadence.constants';
 import { PaymentFrequency, PaymentType, Prisma, DependantRelationship } from '@prisma/client';
@@ -38,6 +45,181 @@ export class PolicyService {
    */
   private escapeRegExp(value: string): string {
     return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  }
+
+  /**
+   * Normalize account number for matching (trim, remove spaces).
+   * Aligns with recovery SQL and MpesaPaymentsService.normalizeAccountNumber.
+   */
+  private normalizeAccountNumber(value: string | null | undefined): string {
+    if (!value || typeof value !== 'string') return '';
+    return value.trim().replace(/\s/g, '');
+  }
+
+  /**
+   * Map unmapped mpesa_payment_report_items whose accountNumber matches paymentAcNumber
+   * onto the given policy as COMPLETED policy_payments. Idempotent by transactionReference.
+   * Used at registration (A) and recovery; also the shared helper for future reconcile (B).
+   */
+  async mapUnmappedMpesaItemsToPolicy(
+    policyId: string,
+    paymentAcNumber: string,
+    correlationId: string,
+    tx: Prisma.TransactionClient,
+    options?: { activateIfPending?: boolean }
+  ): Promise<{ mappedCount: number; activated: boolean; policyPaymentIds: number[] }> {
+    const activateIfPending = options?.activateIfPending !== false;
+    const normalized = this.normalizeAccountNumber(paymentAcNumber);
+    if (!normalized) {
+      this.logger.warn(
+        `[${correlationId}] mapUnmappedMpesaItemsToPolicy: empty paymentAcNumber for policy ${policyId}`
+      );
+      return { mappedCount: 0, activated: false, policyPaymentIds: [] };
+    }
+
+    const items = await tx.$queryRaw<
+      Array<{
+        id: string;
+        transactionReference: string;
+        paidIn: number;
+        completionTime: Date;
+        accountNumber: string | null;
+        isMapped: boolean;
+        isProcessed: boolean;
+      }>
+    >`
+      SELECT id, "transactionReference", "paidIn", "completionTime", "accountNumber",
+             "isMapped", "isProcessed"
+      FROM mpesa_payment_report_items
+      WHERE "paidIn" > 0
+        AND "transactionReference" IS NOT NULL
+        AND "completionTime" IS NOT NULL
+        AND REPLACE(TRIM(COALESCE("accountNumber", '')), ' ', '') = ${normalized}
+      ORDER BY "completionTime" ASC
+    `;
+
+    if (items.length === 0) {
+      return { mappedCount: 0, activated: false, policyPaymentIds: [] };
+    }
+
+    const seenRefs = new Set<string>();
+    const uniqueItems = items.filter((item) => {
+      if (seenRefs.has(item.transactionReference)) return false;
+      seenRefs.add(item.transactionReference);
+      return true;
+    });
+
+    const refs = uniqueItems.map((i) => i.transactionReference);
+    const existingPayments = await tx.policyPayment.findMany({
+      where: { transactionReference: { in: refs } },
+      select: { transactionReference: true },
+    });
+    const existingRefs = new Set(existingPayments.map((p) => p.transactionReference));
+
+    const policy = await tx.policy.findUnique({
+      where: { id: policyId },
+      select: { id: true, status: true },
+    });
+    if (!policy) {
+      throw new NotFoundException(`Policy ${policyId} not found`);
+    }
+
+    let mappedCount = 0;
+    const policyPaymentIds: number[] = [];
+    const wasPendingActivation = policy.status === 'PENDING_ACTIVATION';
+
+    for (const item of uniqueItems) {
+      if (existingRefs.has(item.transactionReference)) {
+        if (!item.isMapped || !item.isProcessed) {
+          await tx.mpesaPaymentReportItem.update({
+            where: { id: item.id },
+            data: { isProcessed: true, isMapped: true },
+          });
+        }
+        continue;
+      }
+
+      const created = await tx.policyPayment.create({
+        data: {
+          policyId,
+          paymentType: 'MPESA',
+          transactionReference: item.transactionReference,
+          amount: Number(item.paidIn),
+          accountNumber: item.accountNumber ?? null,
+          expectedPaymentDate: item.completionTime,
+          actualPaymentDate: item.completionTime,
+          details: 'Mapped from historical M-Pesa payment',
+          paymentStatus: 'COMPLETED',
+        },
+      });
+      policyPaymentIds.push(created.id);
+      existingRefs.add(item.transactionReference);
+      mappedCount++;
+
+      await tx.mpesaPaymentReportItem.update({
+        where: { id: item.id },
+        data: { isProcessed: true, isMapped: true },
+      });
+    }
+
+    let activated = false;
+    if (activateIfPending && wasPendingActivation && mappedCount > 0) {
+      await this.activatePolicy(policyId, correlationId, tx);
+      activated = true;
+      this.logger.log(
+        `[${correlationId}] Activated policy ${policyId} after mapping ${mappedCount} historical M-Pesa payment(s)`
+      );
+    } else if (mappedCount > 0) {
+      this.logger.log(
+        `[${correlationId}] Mapped ${mappedCount} historical M-Pesa payment(s) to policy ${policyId}`
+      );
+    }
+
+    return { mappedCount, activated, policyPaymentIds };
+  }
+
+  /**
+   * Ensure the caller may recover this customer: registration_admin sees all;
+   * otherwise only the agent who registered the customer (customers.createdBy).
+   */
+  async assertRecoveryAccessToCustomer(
+    customerId: string,
+    userId: string,
+    userRoles: string[],
+    correlationId: string
+  ): Promise<void> {
+    if (userRoles.includes('registration_admin')) {
+      return;
+    }
+    const customer = await this.prismaService.customer.findUnique({
+      where: { id: customerId },
+      select: { id: true, createdBy: true },
+    });
+    if (!customer) {
+      throw new NotFoundException(`Customer ${customerId} not found`);
+    }
+    if (customer.createdBy !== userId) {
+      this.logger.warn(
+        `[${correlationId}] Recovery access denied for user ${userId} on customer ${customerId}`
+      );
+      throw new ForbiddenException('You can only recover customers you registered');
+    }
+  }
+
+  private async resolveRegisteredByDisplayNames(
+    createdByIds: string[]
+  ): Promise<Map<string, string>> {
+    const uniqueIds = [...new Set(createdByIds.filter(Boolean))];
+    const map = new Map<string, string>();
+    if (uniqueIds.length === 0) return map;
+    const ambassadors = await this.prismaService.brandAmbassador.findMany({
+      where: { userId: { in: uniqueIds } },
+      select: { userId: true, displayName: true },
+    });
+    for (const ba of ambassadors) {
+      map.set(ba.userId, ba.displayName);
+    }
+    return map;
   }
 
   /**
@@ -764,6 +946,20 @@ export class PolicyService {
           );
         }
 
+        // A: backfill historical paybill payments (accountNumber == paymentAcNumber) onto this policy
+        if (paymentAcNumber) {
+          const mapped = await this.mapUnmappedMpesaItemsToPolicy(
+            policy.id,
+            paymentAcNumber,
+            correlationId,
+            tx,
+            { activateIfPending: true }
+          );
+          if (mapped.activated) {
+            policy = await tx.policy.findUniqueOrThrow({ where: { id: policy.id } });
+          }
+        }
+
         return {
           policy,
           policyPayment,
@@ -1366,9 +1562,11 @@ export class PolicyService {
   /**
    * Get customers without policies who have M-Pesa payments where accountNumber matches idNumber.
    * Used for recovery flow when policy creation failed.
+   * @param createdByUserId - When set, only customers registered by this user; omit for registration_admin (all).
    */
   async getCustomersWithoutPoliciesWithPayments(
-    _correlationId: string
+    _correlationId: string,
+    createdByUserId?: string
   ): Promise<
     Array<{
       id: string;
@@ -1384,6 +1582,8 @@ export class PolicyService {
         accountNumber: string | null;
       }>;
       earliestPaymentDate: Date;
+      registeredAt: Date;
+      registeredByDisplayName: string | null;
     }>
   > {
     const payments = await this.prismaService.mpesaPaymentReportItem.findMany({
@@ -1414,7 +1614,7 @@ export class PolicyService {
 
     for (const p of payments) {
       if (p.transactionReference == null || p.completionTime == null) continue;
-      const accountNum = p.accountNumber?.trim().replace(/\s/g, '') ?? '';
+      const accountNum = this.normalizeAccountNumber(p.accountNumber);
       if (!accountNum) continue;
       const existing = customersByAccountNumber.get(accountNum) ?? [];
       // Deduplicate by transactionReference: keep first record only (payments already ordered by completionTime asc)
@@ -1445,20 +1645,26 @@ export class PolicyService {
         accountNumber: string | null;
       }>;
       earliestPaymentDate: Date;
+      registeredAt: Date;
+      createdBy: string | null;
+      registeredByDisplayName: string | null;
     }> = [];
 
     const allCustomers = await this.prismaService.customer.findMany({
+      where: createdByUserId ? { createdBy: createdByUserId } : undefined,
       select: {
         id: true,
         firstName: true,
         middleName: true,
         lastName: true,
         idNumber: true,
+        createdAt: true,
+        createdBy: true,
       },
     });
 
     for (const customer of allCustomers) {
-      const idNum = customer.idNumber?.trim().replace(/\s/g, '') ?? '';
+      const idNum = this.normalizeAccountNumber(customer.idNumber);
       if (!idNum) continue;
 
       const customerPayments = customersByAccountNumber.get(idNum);
@@ -1496,18 +1702,29 @@ export class PolicyService {
         packageName: psc.packageScheme.package.name,
         payments: customerPayments,
         earliestPaymentDate,
+        registeredAt: customer.createdAt,
+        createdBy: customer.createdBy,
+        registeredByDisplayName: null,
       });
     }
 
-    return customersWithoutPolicy;
+    const displayNames = await this.resolveRegisteredByDisplayNames(
+      customersWithoutPolicy.map((c) => c.createdBy).filter((id): id is string => !!id)
+    );
+    return customersWithoutPolicy.map(({ createdBy, ...rest }) => ({
+      ...rest,
+      registeredByDisplayName: createdBy ? displayNames.get(createdBy) ?? null : null,
+    }));
   }
 
   /**
    * Get customers with no policy and no M-Pesa payments (accountNumber matching idNumber).
    * Used for recovery: create policy record only (PENDING_ACTIVATION); activation on first payment.
+   * @param createdByUserId - When set, only customers registered by this user; omit for registration_admin (all).
    */
   async getCustomersWithoutPolicyAndWithoutPayments(
-    _correlationId: string
+    _correlationId: string,
+    createdByUserId?: string
   ): Promise<
     Array<{
       id: string;
@@ -1523,6 +1740,8 @@ export class PolicyService {
         accountNumber: string | null;
       }>;
       earliestPaymentDate: Date | null;
+      registeredAt: Date;
+      registeredByDisplayName: string | null;
     }>
   > {
     const payments = await this.prismaService.mpesaPaymentReportItem.findMany({
@@ -1536,17 +1755,20 @@ export class PolicyService {
     });
     const accountNumbersWithPayments = new Set<string>();
     for (const p of payments) {
-      const accountNum = p.accountNumber?.trim().replace(/\s/g, '') ?? '';
+      const accountNum = this.normalizeAccountNumber(p.accountNumber);
       if (accountNum) accountNumbersWithPayments.add(accountNum);
     }
 
     const allCustomers = await this.prismaService.customer.findMany({
+      where: createdByUserId ? { createdBy: createdByUserId } : undefined,
       select: {
         id: true,
         firstName: true,
         middleName: true,
         lastName: true,
         idNumber: true,
+        createdAt: true,
+        createdBy: true,
       },
     });
 
@@ -1558,10 +1780,13 @@ export class PolicyService {
       packageName: string;
       payments: Array<never>;
       earliestPaymentDate: Date | null;
+      registeredAt: Date;
+      createdBy: string | null;
+      registeredByDisplayName: string | null;
     }> = [];
 
     for (const customer of allCustomers) {
-      const idNum = customer.idNumber?.trim().replace(/\s/g, '') ?? '';
+      const idNum = this.normalizeAccountNumber(customer.idNumber);
       if (!idNum) continue;
       if (accountNumbersWithPayments.has(idNum)) continue;
 
@@ -1594,15 +1819,24 @@ export class PolicyService {
         packageName: psc.packageScheme.package.name,
         payments: [],
         earliestPaymentDate: null,
+        registeredAt: customer.createdAt,
+        createdBy: customer.createdBy,
+        registeredByDisplayName: null,
       });
     }
 
-    return result;
+    const displayNames = await this.resolveRegisteredByDisplayNames(
+      result.map((c) => c.createdBy).filter((id): id is string => !!id)
+    );
+    return result.map(({ createdBy, ...rest }) => ({
+      ...rest,
+      registeredByDisplayName: createdBy ? displayNames.get(createdBy) ?? null : null,
+    }));
   }
 
   /**
    * Create policy from recovery flow - for customers whose policy creation failed.
-   * Creates policy, policy_payments (from M-Pesa items), then activates.
+   * Creates policy, maps historical M-Pesa items to policy_payments, then activates.
    */
   async createPolicyFromRecovery(
     data: {
@@ -1641,39 +1875,24 @@ export class PolicyService {
     const paymentCadence = this.calculatePaymentCadence(data.frequency, data.customDays);
     const paymentAcNumber = customer.idNumber ?? '';
 
-    const normalizedIdNumber = (customer.idNumber ?? '').trim().replace(/\s/g, '');
+    const normalizedIdNumber = this.normalizeAccountNumber(customer.idNumber);
     if (!normalizedIdNumber) {
       throw new BadRequestException(`Customer ${data.customerId} has no idNumber`);
     }
-    const payments = await this.prismaService.$queryRaw<
-      Array<{
-        id: string;
-        transactionReference: string;
-        paidIn: number;
-        completionTime: Date;
-        accountNumber: string | null;
-      }>
-    >`
-      SELECT id, "transactionReference", "paidIn", "completionTime", "accountNumber"
+
+    const matchingPaymentCount = await this.prismaService.$queryRaw<Array<{ count: bigint }>>`
+      SELECT COUNT(DISTINCT "transactionReference")::bigint AS count
       FROM mpesa_payment_report_items
       WHERE "paidIn" > 0
+        AND "transactionReference" IS NOT NULL
+        AND "completionTime" IS NOT NULL
         AND REPLACE(TRIM(COALESCE("accountNumber", '')), ' ', '') = ${normalizedIdNumber}
-      ORDER BY "completionTime" ASC
     `;
-
-    if (payments.length === 0) {
+    if (Number(matchingPaymentCount[0]?.count ?? 0) === 0) {
       throw new BadRequestException(
         `No M-Pesa payments found for customer ${data.customerId} with accountNumber matching idNumber`
       );
     }
-
-    // Deduplicate by transactionReference: keep first record only (query already ordered by completionTime asc)
-    const seenRefs = new Set<string>();
-    const uniquePayments = payments.filter((p) => {
-      if (seenRefs.has(p.transactionReference)) return false;
-      seenRefs.add(p.transactionReference);
-      return true;
-    });
 
     const customerScheme = await this.prismaService.packageSchemeCustomer.findFirst({
       where: {
@@ -1710,24 +1929,21 @@ export class PolicyService {
         },
       });
 
-      for (const p of uniquePayments) {
-        await tx.policyPayment.create({
-          data: {
-            policyId: policy.id,
-            paymentType: 'MPESA',
-            transactionReference: p.transactionReference,
-            amount: p.paidIn,
-            accountNumber: p.accountNumber ?? null,
-            expectedPaymentDate: p.completionTime,
-            actualPaymentDate: p.completionTime,
-            paymentStatus: 'COMPLETED',
-          },
-        });
+      const mapped = await this.mapUnmappedMpesaItemsToPolicy(
+        policy.id,
+        paymentAcNumber,
+        correlationId,
+        tx,
+        { activateIfPending: true }
+      );
+
+      if (mapped.mappedCount === 0) {
+        throw new BadRequestException(
+          `Could not map any M-Pesa payments to the new policy for customer ${data.customerId}`
+        );
       }
 
-      const activatedPolicy = await this.activatePolicy(policy.id, correlationId, tx);
-
-      return activatedPolicy;
+      return tx.policy.findUniqueOrThrow({ where: { id: policy.id } });
     });
   }
 
@@ -1774,21 +1990,36 @@ export class PolicyService {
     const paymentCadence = this.calculatePaymentCadence(data.frequency, data.customDays);
     const paymentAcNumber = customer.idNumber ?? null;
 
-    return this.prismaService.policy.create({
-      data: {
-        policyNumber: null,
-        status: 'PENDING_ACTIVATION',
-        customerId: data.customerId,
-        packageId: data.packageId,
-        packagePlanId: data.packagePlanId,
-        paymentAcNumber,
-        productName,
-        startDate: null,
-        endDate: null,
-        premium: data.premium,
-        frequency: data.frequency,
-        paymentCadence,
-      },
+    return this.prismaService.$transaction(async (tx) => {
+      const policy = await tx.policy.create({
+        data: {
+          policyNumber: null,
+          status: 'PENDING_ACTIVATION',
+          customerId: data.customerId,
+          packageId: data.packageId,
+          packagePlanId: data.packagePlanId,
+          paymentAcNumber,
+          productName,
+          startDate: null,
+          endDate: null,
+          premium: data.premium,
+          frequency: data.frequency,
+          paymentCadence,
+        },
+      });
+
+      // Defensive: if any historical M-Pesa items match, map them (list path usually has none)
+      if (paymentAcNumber) {
+        await this.mapUnmappedMpesaItemsToPolicy(
+          policy.id,
+          paymentAcNumber,
+          _correlationId,
+          tx,
+          { activateIfPending: true }
+        );
+      }
+
+      return tx.policy.findUniqueOrThrow({ where: { id: policy.id } });
     });
   }
 

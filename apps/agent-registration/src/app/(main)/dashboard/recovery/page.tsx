@@ -31,6 +31,7 @@ import {
   type Plan,
 } from '@/lib/api';
 import { formatTransactionReferenceForDisplay } from '@/lib/transaction-reference-display';
+import { formatDate } from '@/lib/utils';
 import { Loader2, RefreshCw, Plus } from 'lucide-react';
 
 interface InsurancePricing {
@@ -269,7 +270,13 @@ export default function RecoveryPage() {
                     <div className="flex justify-between items-start">
                       <div>
                         <CardTitle className="text-lg">{c.fullName}</CardTitle>
-                        <CardDescription>ID: {c.idNumber} | Package: {c.packageName}</CardDescription>
+                        <CardDescription>
+                          ID: {c.idNumber} | Package: {c.packageName}
+                          <br />
+                          Registered: {formatDate(c.registeredAt)}
+                          {' · '}
+                          Agent: {c.registeredByDisplayName ?? 'Unknown'}
+                        </CardDescription>
                       </div>
                       <Button size="sm" onClick={() => openCreateDialog(c)}>
                         <Plus className="h-4 w-4 mr-1" />
@@ -301,7 +308,13 @@ export default function RecoveryPage() {
                     <div className="flex justify-between items-start">
                       <div>
                         <CardTitle className="text-lg">{c.fullName}</CardTitle>
-                        <CardDescription>ID: {c.idNumber} | Package: {c.packageName}</CardDescription>
+                        <CardDescription>
+                          ID: {c.idNumber} | Package: {c.packageName}
+                          <br />
+                          Registered: {formatDate(c.registeredAt)}
+                          {' · '}
+                          Agent: {c.registeredByDisplayName ?? 'Unknown'}
+                        </CardDescription>
                       </div>
                       <Button size="sm" onClick={() => openCreateDialog(c)}>
                         <Plus className="h-4 w-4 mr-1" />
