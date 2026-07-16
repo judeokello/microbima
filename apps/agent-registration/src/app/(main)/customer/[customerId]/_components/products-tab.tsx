@@ -26,6 +26,7 @@ import * as Sentry from '@sentry/nextjs';
 import PolicyReasonDialog from './policy-reason-dialog';
 import ModifyProductDialog from './modify-product-dialog';
 import ResetStartDateDialog from './reset-start-date-dialog';
+import RemapPaymentsDialog from './remap-payments-dialog';
 
 const PAYMENTS_POLICY_STORAGE_KEY = (customerId: string) =>
   `customer-${customerId}-payments-policy`;
@@ -36,7 +37,7 @@ interface ProductsTabProps {
   basePath: 'admin' | 'dashboard' | 'agent';
 }
 
-type RowAction = 'deactivate' | 'activate' | 'reset' | 'modify' | 'terminate' | null;
+type RowAction = 'deactivate' | 'activate' | 'reset' | 'remap' | 'modify' | 'terminate' | null;
 
 export default function ProductsTab({ customerId, basePath }: ProductsTabProps) {
   const router = useRouter();
@@ -48,6 +49,7 @@ export default function ProductsTab({ customerId, basePath }: ProductsTabProps) 
   const [error, setError] = useState<string | null>(null);
   const [actionPolicy, setActionPolicy] = useState<CustomerPolicyListItem | null>(null);
   const [rowAction, setRowAction] = useState<RowAction>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   useEffect(() => {
     if (customerId) {
@@ -104,10 +106,16 @@ export default function ProductsTab({ customerId, basePath }: ProductsTabProps) 
   const canActivate = (p: CustomerPolicyListItem) => p.status === 'SUSPENDED';
   const canReset = (p: CustomerPolicyListItem) =>
     p.status === 'ACTIVE' || p.status === 'SUSPENDED';
+  const canRemap = (p: CustomerPolicyListItem) => p.status !== 'TERMINATED';
   const canTerminate = (p: CustomerPolicyListItem) =>
     p.status !== 'TERMINATED' && p.status !== 'DEACTIVATED';
   const hasRowActions = (p: CustomerPolicyListItem) =>
-    canModify(p) || canDeactivate(p) || canActivate(p) || canReset(p) || canTerminate(p);
+    canModify(p) ||
+    canDeactivate(p) ||
+    canActivate(p) ||
+    canReset(p) ||
+    canRemap(p) ||
+    canTerminate(p);
 
   if (loading) {
     return (
@@ -140,6 +148,9 @@ export default function ProductsTab({ customerId, basePath }: ProductsTabProps) 
           </CardDescription>
         </CardHeader>
         <CardContent>
+          {successMessage && (
+            <p className="mb-4 text-sm text-green-700 dark:text-green-400">{successMessage}</p>
+          )}
           {policies.length === 0 ? (
             <p className="text-muted-foreground py-8 text-center">No products enrolled</p>
           ) : (
@@ -242,6 +253,11 @@ export default function ProductsTab({ customerId, basePath }: ProductsTabProps) 
                                     Reset start date
                                   </DropdownMenuItem>
                                 )}
+                                {canRemap(p) && (
+                                  <DropdownMenuItem onClick={() => openAction(p, 'remap')}>
+                                    Remap payments
+                                  </DropdownMenuItem>
+                                )}
                                 {canTerminate(p) && (
                                   <DropdownMenuItem
                                     className="text-destructive focus:text-destructive"
@@ -316,6 +332,20 @@ export default function ProductsTab({ customerId, basePath }: ProductsTabProps) 
               startDate
             );
             await loadProducts();
+          }}
+        />
+      )}
+
+      {actionPolicy && rowAction === 'remap' && (
+        <RemapPaymentsDialog
+          open
+          onOpenChange={(o) => !o && closeAction()}
+          customerId={customerId}
+          policyId={actionPolicy.id}
+          productName={actionPolicy.productName}
+          onSuccess={(message) => {
+            setSuccessMessage(message);
+            void loadProducts();
           }}
         />
       )}

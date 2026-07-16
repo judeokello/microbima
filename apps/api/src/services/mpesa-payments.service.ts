@@ -2,7 +2,7 @@
 import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { SupabaseService } from './supabase.service';
-import { MpesaStatementReasonType, MpesaPaymentSource } from '@prisma/client';
+import { MpesaStatementReasonType, MpesaPaymentSource, PolicyStatus } from '@prisma/client';
 import * as XLSX from 'xlsx';
 import { writeFile, mkdir } from 'fs/promises';
 import { join } from 'path';
@@ -12,6 +12,9 @@ import { ErrorCodes } from '../enums/error-codes.enum';
 import { PolicyService } from './policy.service';
 import { PolicyLifecycleService } from './policy-lifecycle.service';
 import { PaymentMessagingService } from '../modules/messaging/payment-messaging.service';
+import { MessagingService } from '../modules/messaging/messaging.service';
+import { SystemSettingsService } from '../modules/messaging/settings/system-settings.service';
+import { formatSmsAmount } from '../utils/sms-format.util';
 
 /** Result of processing statement items into policy payments */
 export interface StatementItemsProcessingResult {
@@ -73,6 +76,8 @@ export class MpesaPaymentsService {
     private readonly policyService: PolicyService,
     private readonly paymentMessagingService: PaymentMessagingService,
     private readonly policyLifecycleService: PolicyLifecycleService,
+    private readonly messagingService: MessagingService,
+    private readonly systemSettings: SystemSettingsService,
   ) {}
 
   /**
@@ -1147,6 +1152,348 @@ export class MpesaPaymentsService {
         error instanceof Error ? error.stack : undefined
       );
       throw error;
+    }
+  }
+
+  /**
+   * List unmapped M-Pesa report items for a wrong account number (admin remap lookup).
+   */
+  async listUnmappedMpesaPaymentsForRemap(
+    customerId: string,
+    policyId: string,
+    accountNumber: string,
+    correlationId: string
+  ): Promise<{
+    items: Array<{
+      id: string;
+      transactionReference: string;
+      paidIn: number;
+      completionTime: string;
+      accountNumber: string | null;
+      source: MpesaPaymentSource;
+    }>;
+  }> {
+    await this.loadPolicyForRemap(customerId, policyId, correlationId);
+
+    const normalized = this.normalizeAccountNumber(accountNumber);
+    if (!normalized) {
+      throw ValidationException.forField('accountNumber', 'Account number is required');
+    }
+
+    const rows = await this.prismaService.$queryRaw<
+      Array<{
+        id: string;
+        transactionReference: string;
+        paidIn: number;
+        completionTime: Date;
+        accountNumber: string | null;
+        source: MpesaPaymentSource;
+      }>
+    >`
+      SELECT id, "transactionReference", "paidIn", "completionTime", "accountNumber", source
+      FROM mpesa_payment_report_items
+      WHERE "isProcessed" = true
+        AND "isMapped" = false
+        AND "paidIn" > 0
+        AND "transactionReference" IS NOT NULL
+        AND "completionTime" IS NOT NULL
+        AND REPLACE(TRIM(COALESCE("accountNumber", '')), ' ', '') = ${normalized}
+      ORDER BY "completionTime" ASC
+    `;
+
+    return {
+      items: rows.map((row) => ({
+        id: row.id,
+        transactionReference: row.transactionReference,
+        paidIn: Number(row.paidIn),
+        completionTime: row.completionTime.toISOString(),
+        accountNumber: row.accountNumber,
+        source: row.source,
+      })),
+    };
+  }
+
+  /**
+   * Remap selected unmapped M-Pesa report items onto a customer policy (admin).
+   */
+  async remapMpesaPaymentsToPolicy(
+    customerId: string,
+    policyId: string,
+    params: { accountNumber: string; itemIds: string[]; reason: string },
+    correlationId: string
+  ): Promise<{
+    mappedCount: number;
+    totalAmount: number;
+    lifecycleAction: string;
+    note?: string;
+    message: string;
+  }> {
+    const wrongAccount = this.normalizeAccountNumber(params.accountNumber);
+    if (!wrongAccount) {
+      throw ValidationException.forField('accountNumber', 'Account number is required');
+    }
+    const reason = params.reason.trim();
+    if (!reason) {
+      throw ValidationException.forField('reason', 'Reason is required');
+    }
+    if (params.itemIds.length === 0) {
+      throw ValidationException.forField('itemIds', 'Select at least one payment');
+    }
+
+    const policy = await this.loadPolicyForRemap(customerId, policyId, correlationId);
+    if (policy.status === PolicyStatus.TERMINATED) {
+      throw ValidationException.forField(
+        'status',
+        'Cannot remap payments onto a terminated policy'
+      );
+    }
+    if (!policy.paymentAcNumber) {
+      throw ValidationException.forField(
+        'paymentAcNumber',
+        'Policy has no payment account number'
+      );
+    }
+
+    const uniqueItemIds = [...new Set(params.itemIds)];
+    const items = await this.prismaService.mpesaPaymentReportItem.findMany({
+      where: { id: { in: uniqueItemIds } },
+      select: {
+        id: true,
+        transactionReference: true,
+        paidIn: true,
+        completionTime: true,
+        accountNumber: true,
+        isProcessed: true,
+        isMapped: true,
+      },
+    });
+
+    if (items.length !== uniqueItemIds.length) {
+      throw ValidationException.forField('itemIds', 'One or more payment items were not found');
+    }
+
+    const eligible: typeof items = [];
+    for (const item of items) {
+      if (!item.isProcessed || item.isMapped) continue;
+      if (this.normalizeAccountNumber(item.accountNumber) !== wrongAccount) {
+        throw ValidationException.forField(
+          'itemIds',
+          'Selected payments must match the entered account number and be unmapped'
+        );
+      }
+      if (
+        item.transactionReference == null ||
+        item.completionTime == null ||
+        Number(item.paidIn) <= 0
+      ) {
+        continue;
+      }
+      eligible.push(item);
+    }
+
+    if (eligible.length === 0) {
+      throw ValidationException.forField(
+        'itemIds',
+        'No eligible unmapped payments to remap'
+      );
+    }
+
+    const detailsBase = `Admin remap from ${wrongAccount}: ${reason}`;
+    const details =
+      detailsBase.length > 500 ? detailsBase.slice(0, 497) + '...' : detailsBase;
+
+    const wasPendingActivation = policy.status === PolicyStatus.PENDING_ACTIVATION;
+    let mappedCount = 0;
+    let totalAmount = 0;
+
+    await this.prismaService.$transaction(async (tx) => {
+      const refs = eligible
+        .map((i) => i.transactionReference)
+        .filter((r): r is string => r != null);
+      const existingPayments = await tx.policyPayment.findMany({
+        where: { transactionReference: { in: refs } },
+        select: { transactionReference: true },
+      });
+      const existingRefs = new Set(existingPayments.map((p) => p.transactionReference));
+
+      for (const item of eligible) {
+        const txRef = item.transactionReference!;
+        const compTime = item.completionTime!;
+        const amount = Number(item.paidIn);
+
+        if (existingRefs.has(txRef)) {
+          await tx.mpesaPaymentReportItem.update({
+            where: { id: item.id },
+            data: {
+              accountNumber: policy.paymentAcNumber,
+              isProcessed: true,
+              isMapped: true,
+            },
+          });
+          continue;
+        }
+
+        await tx.policyPayment.create({
+          data: {
+            policyId: policy.id,
+            paymentType: 'MPESA',
+            transactionReference: txRef,
+            amount,
+            accountNumber: policy.customer.idNumber,
+            expectedPaymentDate: compTime,
+            actualPaymentDate: compTime,
+            details,
+            paymentStatus: 'COMPLETED',
+            paymentSmsEnqueuedAt: new Date(),
+          },
+        });
+
+        await tx.mpesaPaymentReportItem.update({
+          where: { id: item.id },
+          data: {
+            accountNumber: policy.paymentAcNumber,
+            isProcessed: true,
+            isMapped: true,
+          },
+        });
+
+        existingRefs.add(txRef);
+        mappedCount += 1;
+        totalAmount += amount;
+      }
+    });
+
+    let lifecycleAction = 'noop';
+    if (mappedCount > 0) {
+      if (wasPendingActivation) {
+        try {
+          await this.policyService.activatePolicy(policy.id, correlationId);
+          lifecycleAction = 'activated';
+        } catch (activationError) {
+          this.logger.error(
+            `[${correlationId}] Remap activation failed for policy ${policy.id}: ${
+              activationError instanceof Error ? activationError.message : String(activationError)
+            }`
+          );
+          lifecycleAction = 'activation_failed';
+        }
+      }
+
+      if (!wasPendingActivation || lifecycleAction === 'activated') {
+        try {
+          const result = await this.policyLifecycleService.applyPaymentToPolicyLifecycle(
+            policy.id,
+            correlationId
+          );
+          if (lifecycleAction === 'activated' && result.action === 'noop') {
+            // keep activated
+          } else if (lifecycleAction !== 'activated') {
+            lifecycleAction = result.action;
+          } else if (result.action !== 'noop') {
+            lifecycleAction = `activated_then_${result.action}`;
+          }
+        } catch (lifecycleError) {
+          this.logger.warn(
+            `[${correlationId}] applyPaymentToPolicyLifecycle failed after remap for policy ${policy.id}: ${
+              lifecycleError instanceof Error ? lifecycleError.message : String(lifecycleError)
+            }`
+          );
+          if (lifecycleAction !== 'activated') {
+            lifecycleAction = 'lifecycle_error';
+          }
+        }
+      }
+
+      await this.enqueuePaymentRemappedSms({
+        customerId: policy.customerId,
+        policyId: policy.id,
+        firstName: policy.customer.firstName ?? '',
+        policyNumber: policy.policyNumber,
+        totalAmount,
+        correlationId,
+      });
+    }
+
+    let note: string | undefined;
+    if (
+      lifecycleAction === 'insufficient_restore' ||
+      lifecycleAction === 'insufficient_inactive_restore'
+    ) {
+      note =
+        lifecycleAction === 'insufficient_restore'
+          ? 'Payments remapped; policy is still suspended'
+          : 'Payments remapped; policy is still inactive';
+    }
+
+    this.logger.log(
+      `[${correlationId}] Remapped ${mappedCount} M-Pesa payment(s) to policy ${policyId} (lifecycle=${lifecycleAction})`
+    );
+
+    return {
+      mappedCount,
+      totalAmount,
+      lifecycleAction,
+      note,
+      message:
+        mappedCount > 0
+          ? `Remapped ${mappedCount} payment(s) totaling ${totalAmount}`
+          : 'No new payments were created (already mapped or duplicates)',
+    };
+  }
+
+  private async loadPolicyForRemap(
+    customerId: string,
+    policyId: string,
+    correlationId: string
+  ) {
+    const policy = await this.prismaService.policy.findFirst({
+      where: { id: policyId, customerId },
+      select: {
+        id: true,
+        customerId: true,
+        status: true,
+        paymentAcNumber: true,
+        policyNumber: true,
+        customer: { select: { idNumber: true, firstName: true } },
+      },
+    });
+    if (!policy) {
+      this.logger.warn(
+        `[${correlationId}] Policy ${policyId} not found for customer ${customerId}`
+      );
+      throw ValidationException.forField('policyId', 'Policy not found for customer');
+    }
+    return policy;
+  }
+
+  private async enqueuePaymentRemappedSms(params: {
+    customerId: string;
+    policyId: string;
+    firstName: string;
+    policyNumber: string | null;
+    totalAmount: number;
+    correlationId: string;
+  }): Promise<void> {
+    try {
+      const settings = await this.systemSettings.getSnapshot();
+      await this.messagingService.enqueue({
+        templateKey: 'payment_remapped',
+        customerId: params.customerId,
+        policyId: params.policyId,
+        placeholderValues: {
+          first_name: params.firstName,
+          amount: formatSmsAmount(params.totalAmount, settings.defaultSystemCurrency),
+          policy_number: params.policyNumber ?? '',
+          general_support_number: settings.general_support_number ?? '',
+        },
+        correlationId: params.correlationId,
+      });
+    } catch (error) {
+      this.logger.warn(
+        `[${params.correlationId}] Failed to enqueue payment_remapped SMS for policy ${params.policyId}: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      );
     }
   }
 }
