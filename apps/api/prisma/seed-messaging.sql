@@ -230,6 +230,22 @@ VALUES (
 ON CONFLICT ("templateKey", "channel", "language") DO UPDATE
 SET "body" = EXCLUDED."body", "placeholders" = EXCLUDED."placeholders", "isActive" = EXCLUDED."isActive", "updatedAt" = NOW();
 
+INSERT INTO messaging_routes ("templateKey", "smsEnabled", "emailEnabled", "isActive", "createdAt", "updatedAt")
+VALUES ('payment_remapped', true, false, true, NOW(), NOW())
+ON CONFLICT ("templateKey") DO UPDATE
+SET "smsEnabled" = EXCLUDED."smsEnabled", "emailEnabled" = EXCLUDED."emailEnabled", "isActive" = EXCLUDED."isActive", "updatedAt" = NOW();
+
+INSERT INTO messaging_templates (id, "templateKey", "channel", "language", "subject", "body", "textBody", "placeholders", "isActive", "createdAt", "updatedAt")
+VALUES (
+  gen_random_uuid(), 'payment_remapped', 'SMS', 'en', NULL,
+  'Dear {first_name}, your M-Pesa payment(s) totaling {amount} have been applied to your policy {policy_number}. For support call {general_support_number}. Thank you',
+  NULL,
+  ARRAY['first_name', 'amount', 'policy_number', 'general_support_number'],
+  true, NOW(), NOW()
+)
+ON CONFLICT ("templateKey", "channel", "language") DO UPDATE
+SET "body" = EXCLUDED."body", "placeholders" = EXCLUDED."placeholders", "isActive" = EXCLUDED."isActive", "updatedAt" = NOW();
+
 -- ---------- Pending activation reminders (D3 / D7 only; day-0 = customer_created) ----------
 
 INSERT INTO messaging_routes ("templateKey", "smsEnabled", "emailEnabled", "isActive", "createdAt", "updatedAt")

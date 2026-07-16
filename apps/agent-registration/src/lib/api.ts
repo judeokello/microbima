@@ -2505,6 +2505,55 @@ export async function resetCustomerPolicyStartDate(
   )
 }
 
+export interface UnmappedMpesaPaymentItem {
+  id: string
+  transactionReference: string
+  paidIn: number
+  completionTime: string
+  accountNumber: string | null
+  source: 'IPN' | 'STATEMENT'
+}
+
+export interface UnmappedMpesaPaymentsResponse {
+  status: number
+  correlationId: string
+  items: UnmappedMpesaPaymentItem[]
+}
+
+export interface RemapMpesaPaymentsResponse {
+  status: number
+  correlationId: string
+  message: string
+  mappedCount: number
+  totalAmount: number
+  lifecycleAction: string
+  note?: string
+}
+
+export async function listUnmappedMpesaPaymentsForRemap(
+  customerId: string,
+  policyId: string,
+  accountNumber: string
+): Promise<UnmappedMpesaPaymentsResponse> {
+  const q = encodeURIComponent(accountNumber)
+  return policyLifecycleFetch(
+    `/internal/customers/${customerId}/policies/${policyId}/unmapped-mpesa-payments?accountNumber=${q}`,
+    'GET'
+  )
+}
+
+export async function remapMpesaPaymentsToPolicy(
+  customerId: string,
+  policyId: string,
+  body: { accountNumber: string; itemIds: string[]; reason: string }
+): Promise<RemapMpesaPaymentsResponse> {
+  return policyLifecycleFetch(
+    `/internal/customers/${customerId}/policies/${policyId}/remap-mpesa-payments`,
+    'POST',
+    body
+  )
+}
+
 export async function getModifyPolicyOptions(
   customerId: string,
   policyId: string

@@ -9,8 +9,11 @@ import {
   IsNumber,
   Min,
   ValidateIf,
+  IsArray,
+  ArrayMinSize,
+  IsUUID,
 } from 'class-validator';
-import { PaymentFrequency, PolicyStatus } from '@prisma/client';
+import { PaymentFrequency, PolicyStatus, MpesaPaymentSource } from '@prisma/client';
 
 export class PolicyLifecycleReasonDto {
   @ApiProperty({ description: 'Mandatory reason for the status change', maxLength: 1000 })
@@ -211,4 +214,78 @@ export class DailyLifecycleRunResponseDto {
 
   @ApiPropertyOptional()
   durationMs?: number;
+}
+
+export class RemapMpesaPaymentsRequestDto {
+  @ApiProperty({ description: 'Wrong payment account number entered on M-Pesa' })
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(100)
+  accountNumber: string;
+
+  @ApiProperty({ type: [String], description: 'Selected mpesa_payment_report_items ids' })
+  @IsArray()
+  @ArrayMinSize(1)
+  @IsUUID('4', { each: true })
+  itemIds: string[];
+
+  @ApiProperty({ description: 'Mandatory admin reason for the remap', maxLength: 400 })
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(400)
+  reason: string;
+}
+
+export class UnmappedMpesaPaymentItemDto {
+  @ApiProperty()
+  id: string;
+
+  @ApiProperty()
+  transactionReference: string;
+
+  @ApiProperty()
+  paidIn: number;
+
+  @ApiProperty()
+  completionTime: string;
+
+  @ApiPropertyOptional({ nullable: true })
+  accountNumber: string | null;
+
+  @ApiProperty({ enum: MpesaPaymentSource })
+  source: MpesaPaymentSource;
+}
+
+export class UnmappedMpesaPaymentsResponseDto {
+  @ApiProperty({ example: 200 })
+  status: number;
+
+  @ApiProperty()
+  correlationId: string;
+
+  @ApiProperty({ type: [UnmappedMpesaPaymentItemDto] })
+  items: UnmappedMpesaPaymentItemDto[];
+}
+
+export class RemapMpesaPaymentsResponseDto {
+  @ApiProperty({ example: 200 })
+  status: number;
+
+  @ApiProperty()
+  correlationId: string;
+
+  @ApiProperty()
+  message: string;
+
+  @ApiProperty()
+  mappedCount: number;
+
+  @ApiProperty()
+  totalAmount: number;
+
+  @ApiProperty()
+  lifecycleAction: string;
+
+  @ApiPropertyOptional({ description: 'Admin-facing note when status did not change as expected' })
+  note?: string;
 }

@@ -6,12 +6,14 @@ import {
   HttpStatus,
   Param,
   Post,
+  Query,
   Req,
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiOperation,
   ApiParam,
+  ApiQuery,
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
@@ -19,6 +21,7 @@ import { Request } from 'express';
 import { CorrelationId } from '../../decorators/correlation-id.decorator';
 import { PolicyLifecycleService } from '../../services/policy-lifecycle.service';
 import { PolicyLifecycleJobService } from '../../services/policy-lifecycle-job.service';
+import { MpesaPaymentsService } from '../../services/mpesa-payments.service';
 import {
   ActivatePolicyRequestDto,
   DailyLifecycleRunResponseDto,
@@ -26,8 +29,11 @@ import {
   ModifyPolicyOptionsResponseDto,
   ModifyPolicyRequestDto,
   PolicyLifecycleResponseDto,
+  RemapMpesaPaymentsRequestDto,
+  RemapMpesaPaymentsResponseDto,
   ResetPolicyStartDateRequestDto,
   TerminatePolicyRequestDto,
+  UnmappedMpesaPaymentsResponseDto,
 } from '../../dto/policy-lifecycle/policy-lifecycle.dto';
 
 @ApiTags('Internal - Policy Lifecycle')
@@ -36,7 +42,8 @@ import {
 export class PolicyLifecycleController {
   constructor(
     private readonly policyLifecycleService: PolicyLifecycleService,
-    private readonly policyLifecycleJobService: PolicyLifecycleJobService
+    private readonly policyLifecycleJobService: PolicyLifecycleJobService,
+    private readonly mpesaPaymentsService: MpesaPaymentsService
   ) {}
 
   @Post(':customerId/policies/:policyId/deactivate')
@@ -137,6 +144,71 @@ export class PolicyLifecycleController {
       userRoles,
       correlationId
     );
+  }
+
+  @Get(':customerId/policies/:policyId/unmapped-mpesa-payments')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'List unmapped M-Pesa payments by wrong account number (admin remap)' })
+  @ApiParam({ name: 'customerId' })
+  @ApiParam({ name: 'policyId' })
+  @ApiQuery({ name: 'accountNumber', required: true })
+  @ApiResponse({ status: 200, type: UnmappedMpesaPaymentsResponseDto })
+  async listUnmappedMpesaPayments(
+    @Param('customerId') customerId: string,
+    @Param('policyId') policyId: string,
+    @Query('accountNumber') accountNumber: string,
+    @CorrelationId() correlationId: string,
+    @Req() req: Request
+  ): Promise<UnmappedMpesaPaymentsResponseDto> {
+    const userRoles = req.user?.roles ?? [];
+    this.policyLifecycleService.assertAdmin(userRoles);
+    const result = await this.mpesaPaymentsService.listUnmappedMpesaPaymentsForRemap(
+      customerId,
+      policyId,
+      accountNumber ?? '',
+      correlationId
+    );
+    return {
+      status: 200,
+      correlationId,
+      items: result.items,
+    };
+  }
+
+  @Post(':customerId/policies/:policyId/remap-mpesa-payments')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Remap selected unmapped M-Pesa payments onto this policy (admin)' })
+  @ApiParam({ name: 'customerId' })
+  @ApiParam({ name: 'policyId' })
+  @ApiResponse({ status: 200, type: RemapMpesaPaymentsResponseDto })
+  async remapMpesaPayments(
+    @Param('customerId') customerId: string,
+    @Param('policyId') policyId: string,
+    @Body() body: RemapMpesaPaymentsRequestDto,
+    @CorrelationId() correlationId: string,
+    @Req() req: Request
+  ): Promise<RemapMpesaPaymentsResponseDto> {
+    const userRoles = req.user?.roles ?? [];
+    this.policyLifecycleService.assertAdmin(userRoles);
+    const result = await this.mpesaPaymentsService.remapMpesaPaymentsToPolicy(
+      customerId,
+      policyId,
+      {
+        accountNumber: body.accountNumber,
+        itemIds: body.itemIds,
+        reason: body.reason,
+      },
+      correlationId
+    );
+    return {
+      status: 200,
+      correlationId,
+      message: result.message,
+      mappedCount: result.mappedCount,
+      totalAmount: result.totalAmount,
+      lifecycleAction: result.lifecycleAction,
+      note: result.note,
+    };
   }
 
   @Get(':customerId/policies/:policyId/modify-options')
