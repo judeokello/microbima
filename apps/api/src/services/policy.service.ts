@@ -5,6 +5,8 @@ import {
   BadRequestException,
   ConflictException,
   ForbiddenException,
+  Inject,
+  forwardRef,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { PAYMENT_CADENCE } from '../constants/payment-cadence.constants';
@@ -14,6 +16,7 @@ import * as Sentry from '@sentry/nestjs';
 import { PaymentAccountNumberService } from './payment-account-number.service';
 import { PaymentMessagingService } from '../modules/messaging/payment-messaging.service';
 import { PolicyLifecycleMessagingService } from '../modules/messaging/policy-lifecycle-messaging.service';
+import { LctSyncService } from '../modules/lct/lct-sync.service';
 import { policyDatesFromPayment, policyEndDateFromStart } from '../utils/policy-dates.util';
 import { assertPolicyMayBecomeActive } from '../utils/policy-activation-gate.util';
 import { hasGlobalCustomerAccess } from '../utils/roles.util';
@@ -39,6 +42,8 @@ export class PolicyService {
     private readonly paymentAccountNumberService: PaymentAccountNumberService,
     private readonly paymentMessagingService: PaymentMessagingService,
     private readonly lifecycleMessaging: PolicyLifecycleMessagingService,
+    @Inject(forwardRef(() => LctSyncService))
+    private readonly lctSyncService: LctSyncService,
   ) {}
 
   /**
@@ -1052,6 +1057,25 @@ export class PolicyService {
    * @param correlationId - Correlation ID for tracing
    * @returns Generated member number
    */
+  /**
+   * Public wrapper for member-number generation (used by LctSyncService for late dependants).
+   */
+  async generateMemberNumberForPolicy(
+    packageId: number,
+    policyNumber: string | null,
+    tx: Prisma.TransactionClient,
+    correlationId: string,
+    memberSequence?: number
+  ): Promise<string> {
+    return this.generateMemberNumber(
+      packageId,
+      policyNumber,
+      tx,
+      correlationId,
+      memberSequence
+    );
+  }
+
   private async generateMemberNumber(
     packageId: number,
     policyNumber: string | null,
@@ -1345,11 +1369,10 @@ export class PolicyService {
           `[${correlationId}] Customer ${policy.customerId} is ${isPostpaidScheme ? 'in a POSTPAID' : 'NOT in a postpaid'} scheme`
         );
 
-        // GENERAL RULE: Always check policy_member_principals table first
-        // If a record exists, it means the policy was activated before and member records were created
-        // In this case, we only update the status to ACTIVE and don't touch policy number or member records
+        // GENERAL RULE: Always check policy_member_principals for this policy first.
+        // If a record exists for this policyId, the policy was activated before — only update status.
         const existingPrincipalMember = await txClient.policyMemberPrincipal.findFirst({
-          where: { customerId: policy.customerId },
+          where: { policyId },
         });
 
         if (existingPrincipalMember) {
@@ -1389,6 +1412,8 @@ export class PolicyService {
             correlationId,
             txClient
           );
+
+          await this.lctSyncService.onPolicyActivated(policyId, correlationId, txClient);
 
           return updatedPolicy;
         }
@@ -1465,6 +1490,7 @@ export class PolicyService {
         await txClient.policyMemberPrincipal.create({
           data: {
             customerId: policy.customerId,
+            policyId: policyId,
             memberNumber: principalMemberNumber,
           },
         });
@@ -1498,6 +1524,7 @@ export class PolicyService {
             await txClient.policyMemberDependant.create({
               data: {
                 dependantId: dependant.id,
+                policyId: policyId,
                 memberNumber: dependantMemberNumber,
               },
             });
@@ -1533,6 +1560,8 @@ export class PolicyService {
           correlationId,
           txClient
         );
+
+        await this.lctSyncService.onPolicyActivated(policyId, correlationId, txClient);
 
         return updatedPolicy;
       };
@@ -2192,7 +2221,10 @@ export class PolicyService {
       });
 
       const principal = await tx.policyMemberPrincipal.findFirst({
-        where: { customerId: policy.customerId },
+        where: {
+          OR: [{ policyId }, { customerId: policy.customerId, policyId: null }],
+        },
+        orderBy: { policyId: 'desc' },
       });
       const principalMemberNumber = await this.generateMemberNumber(
         policy.packageId,
@@ -2204,12 +2236,17 @@ export class PolicyService {
       if (principal) {
         await tx.policyMemberPrincipal.update({
           where: { id: principal.id },
-          data: { memberNumber: principalMemberNumber, updatedAt: new Date() },
+          data: {
+            memberNumber: principalMemberNumber,
+            policyId,
+            updatedAt: new Date(),
+          },
         });
       } else {
         await tx.policyMemberPrincipal.create({
           data: {
             customerId: policy.customerId,
+            policyId,
             memberNumber: principalMemberNumber,
           },
         });
@@ -2222,7 +2259,11 @@ export class PolicyService {
       for (let i = 0; i < orderedDependants.length; i++) {
         const dependant = orderedDependants[i];
         const pmd = await tx.policyMemberDependant.findFirst({
-          where: { dependantId: dependant.id },
+          where: {
+            dependantId: dependant.id,
+            OR: [{ policyId }, { policyId: null }],
+          },
+          orderBy: { policyId: 'desc' },
         });
         const dependantMemberNumber = await this.generateMemberNumber(
           policy.packageId,
@@ -2234,12 +2275,17 @@ export class PolicyService {
         if (pmd) {
           await tx.policyMemberDependant.update({
             where: { id: pmd.id },
-            data: { memberNumber: dependantMemberNumber, updatedAt: new Date() },
+            data: {
+              memberNumber: dependantMemberNumber,
+              policyId,
+              updatedAt: new Date(),
+            },
           });
         } else {
           await tx.policyMemberDependant.create({
             data: {
               dependantId: dependant.id,
+              policyId,
               memberNumber: dependantMemberNumber,
             },
           });
@@ -2249,6 +2295,8 @@ export class PolicyService {
         }
       }
     });
+
+    await this.lctSyncService.onPolicyActivated(policyId, correlationId);
 
     this.logger.log(`[${correlationId}] Successfully reconciled member numbers for policy ${policyId}`);
   }

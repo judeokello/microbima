@@ -74,6 +74,7 @@ export interface AppConfig {
     africasTalkingSenderId: string;
     // Attachments (Supabase Storage)
     supabaseMessagingAttachmentsBucket: string;
+    supabaseLctCustomerExportsBucket: string;
   };
 }
 
@@ -158,6 +159,7 @@ export class ConfigurationService extends BaseConfigurationService implements On
         africasTalkingUsername: process.env.AFRICAS_TALKING_USERNAME ?? '',
         africasTalkingSenderId: process.env.AFRICAS_TALKING_SENDER_ID ?? '',
         supabaseMessagingAttachmentsBucket: process.env.SUPABASE_MESSAGING_ATTACHMENTS_BUCKET ?? 'messaging-attachments',
+        supabaseLctCustomerExportsBucket: process.env.SUPABASE_LCT_CUSTOMER_EXPORTS_BUCKET ?? 'lct_customer_exports',
       },
     };
   }
@@ -375,6 +377,7 @@ export class ConfigurationService extends BaseConfigurationService implements On
       africasTalkingUsername: '',
       africasTalkingSenderId: '',
       supabaseMessagingAttachmentsBucket: 'messaging-attachments',
+      supabaseLctCustomerExportsBucket: 'lct_customer_exports',
     };
   }
 

@@ -980,6 +980,7 @@ export interface CustomerPolicyDetail {
   id: string
   policyNumber: string | null
   status: string
+  staffNumber?: string | null
   packageId: number
   packageSchemeId: number | null
   /** From linked scheme (prepaid vs postpaid) */
@@ -2588,4 +2589,159 @@ async function getSupabaseToken(): Promise<string> {
     console.error('Error getting Supabase token:', error)
     throw new Error('Authentication failed')
   }
+}
+
+// ---------- LCT Customer Export ----------
+
+export interface LctPendingRow {
+  id: string
+  policyId: string
+  memberNumber: string
+  subjectType: 'PRINCIPAL' | 'DEPENDANT'
+  customerId: string
+  dependantId: string | null
+  pendingAction: string | null
+  pendingReasons: string[]
+  pendingSince: string | null
+  productName: string
+  staffNumber: string | null
+  personName: string
+  idNumber: string
+  phone: string
+  relationship: string
+}
+
+export interface LctPendingGroup {
+  principal: LctPendingRow | null
+  dependants: LctPendingRow[]
+  policyId: string
+  customerId: string
+}
+
+export interface LctOpenBatch {
+  id: string
+  status: string
+  filename: string
+  rowCount: number
+  exportedAt: string
+  exportedBy: string
+}
+
+async function lctFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
+  const token = await getSupabaseToken()
+  const response = await fetch(
+    `${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}${path}`,
+    {
+      ...options,
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+        'x-correlation-id': `lct-${Date.now()}`,
+        ...(options.headers ?? {}),
+      },
+    }
+  )
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}))
+    const msg =
+      errorData?.error?.message ??
+      errorData?.error?.details ??
+      (typeof errorData?.message === 'string' ? errorData.message : null) ??
+      `HTTP ${response.status}`
+    throw new Error(typeof msg === 'object' ? JSON.stringify(msg) : msg)
+  }
+  return response.json()
+}
+
+export async function getLctPending(filters?: {
+  name?: string
+  idNumber?: string
+  memberNumber?: string
+  phone?: string
+  product?: string
+}): Promise<{
+  status: number
+  data: { groups: LctPendingGroup[]; openBatch: LctOpenBatch | null }
+}> {
+  const params = new URLSearchParams()
+  if (filters?.name) params.set('name', filters.name)
+  if (filters?.idNumber) params.set('idNumber', filters.idNumber)
+  if (filters?.memberNumber) params.set('memberNumber', filters.memberNumber)
+  if (filters?.phone) params.set('phone', filters.phone)
+  if (filters?.product) params.set('product', filters.product)
+  const q = params.toString()
+  return lctFetch(`/internal/lct-exports/pending${q ? `?${q}` : ''}`)
+}
+
+export async function getLctErrors(): Promise<{ status: number; data: unknown[] }> {
+  return lctFetch('/internal/lct-exports/errors')
+}
+
+export async function getLctBatches(): Promise<{ status: number; data: LctOpenBatch[] }> {
+  return lctFetch('/internal/lct-exports/batches')
+}
+
+export async function getLctBatch(id: string): Promise<{ status: number; data: Record<string, unknown> }> {
+  return lctFetch(`/internal/lct-exports/batches/${id}`)
+}
+
+export async function createLctBatch(syncTargetIds: string[]): Promise<{ status: number; data: LctOpenBatch }> {
+  return lctFetch('/internal/lct-exports/batches', {
+    method: 'POST',
+    body: JSON.stringify({ syncTargetIds }),
+  })
+}
+
+export async function sendLctBatch(
+  id: string,
+  body: {
+    toEmails?: string[]
+    ccEmails?: string[]
+    bccEmails?: string[]
+    bodyHtml?: string
+    bodyText?: string
+  }
+): Promise<{ status: number; data: Record<string, unknown> }> {
+  return lctFetch(`/internal/lct-exports/batches/${id}/send`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
+}
+
+export async function cancelLctBatch(id: string): Promise<{ status: number; data: Record<string, unknown> }> {
+  return lctFetch(`/internal/lct-exports/batches/${id}/cancel`, { method: 'POST' })
+}
+
+export async function downloadLctBatch(id: string): Promise<Blob> {
+  const token = await getSupabaseToken()
+  const response = await fetch(
+    `${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/lct-exports/batches/${id}/download`,
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'x-correlation-id': `lct-dl-${Date.now()}`,
+      },
+    }
+  )
+  if (!response.ok) {
+    throw new Error(`Download failed: HTTP ${response.status}`)
+  }
+  return response.blob()
+}
+
+export async function getLctRecipientConfig(templateKey = 'lct_customer_export'): Promise<{
+  status: number
+  data: { toEmails: string[]; ccEmails: string[]; bccEmails: string[]; templateKey: string }
+}> {
+  return lctFetch(`/internal/lct-exports/recipient-configs/${templateKey}`)
+}
+
+export async function updatePolicyStaffNumber(
+  policyId: string,
+  staffNumber: string | null
+): Promise<{ status: number; data: { id: string; staffNumber: string | null } }> {
+  return lctFetch(`/internal/lct-exports/policies/${policyId}/staff-number`, {
+    method: 'PATCH',
+    body: JSON.stringify({ staffNumber }),
+  })
 }

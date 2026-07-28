@@ -142,6 +142,8 @@ model Customer {
   // Messaging relations
   messagingDeliveries MessagingDelivery[]
 
+  lctMemberSyncTargets LctMemberSyncTarget[]
+
   /// Denormalized; source of truth is EntityStatusChange
   deactivatedAt DateTime?
 
@@ -322,6 +324,9 @@ model Policy {
   /// Modify-product lineage: this policy was replaced by a newer policy
   supersededByPolicyId String? @db.Uuid
 
+  /// Employer / scheme staff number for LCT CSV export (optional)
+  staffNumber String? @db.VarChar(50)
+
   // Relations
   customer       Customer        @relation(fields: [customerId], references: [id], onDelete: Cascade)
   package        Package         @relation(fields: [packageId], references: [id], onDelete: Restrict)
@@ -330,6 +335,9 @@ model Policy {
   policyTags     PolicyTag[]
   messagingDeliveries MessagingDelivery[]
   lifecycleNotifications PolicyLifecycleNotification[]
+  policyMemberPrincipals PolicyMemberPrincipal[]
+  policyMemberDependants PolicyMemberDependant[]
+  lctMemberSyncTargets   LctMemberSyncTarget[]
 
   supersedesPolicy       Policy?  @relation("PolicySupersedes", fields: [supersedesPolicyId], references: [id], onDelete: SetNull)
   policiesSupersedingThis Policy[] @relation("PolicySupersedes")
@@ -848,30 +856,40 @@ model PackagePlan {
 }
 
 model PolicyMemberPrincipal {
-  id           Int    @id @default(autoincrement())
-  customerId   String @db.Uuid
-  memberNumber String @db.VarChar(50)
+  id           Int     @id @default(autoincrement())
+  customerId   String  @db.Uuid
+  policyId     String? @db.Uuid
+  memberNumber String  @db.VarChar(50)
 
   // Relations
   customer Customer @relation(fields: [customerId], references: [id])
+  policy   Policy?  @relation(fields: [policyId], references: [id], onDelete: Cascade)
 
   createdAt DateTime  @default(now())
   updatedAt DateTime?
 
+  @@unique([policyId])
+  @@index([memberNumber])
+  @@index([customerId])
   @@map("policy_member_principals")
 }
 
 model PolicyMemberDependant {
-  id           Int    @id @default(autoincrement())
-  dependantId  String @db.Uuid
-  memberNumber String @db.VarChar(50)
+  id           Int     @id @default(autoincrement())
+  dependantId  String  @db.Uuid
+  policyId     String? @db.Uuid
+  memberNumber String  @db.VarChar(50)
 
   // Relations
   dependant Dependant @relation(fields: [dependantId], references: [id])
+  policy    Policy?   @relation(fields: [policyId], references: [id], onDelete: Cascade)
 
   createdAt DateTime  @default(now())
   updatedAt DateTime?
 
+  @@unique([policyId, dependantId])
+  @@index([memberNumber])
+  @@index([dependantId])
   @@map("policy_member_dependants")
 }
 
@@ -1359,4 +1377,131 @@ model SystemSettingsMeta {
   updatedAt DateTime @updatedAt
 
   @@map("system_settings_meta")
+}
+
+/// Default To/CC/BCC recipients per messaging template key (partner emails, not customer deliveries)
+model MessagingEmailRecipientConfig {
+  id          String   @id @default(uuid()) @db.Uuid
+  templateKey String   @unique @db.VarChar(100)
+  toEmails    String[] @default([])
+  ccEmails    String[] @default([])
+  bccEmails   String[] @default([])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String?
+  updatedBy String?
+
+  @@map("messaging_email_recipient_configs")
+}
+
+enum LctSubjectType {
+  PRINCIPAL
+  DEPENDANT
+}
+
+enum LctPendingAction {
+  ACTIVATE
+  DEACTIVATE
+  SUSPENDED
+}
+
+enum LctExportBatchStatus {
+  EXPORTED
+  SENT
+  CANCELLED
+}
+
+/// One trackable LCT sync unit per member number
+model LctMemberSyncTarget {
+  id            String  @id @default(uuid()) @db.Uuid
+  policyId      String  @db.Uuid
+  memberNumber  String  @unique @db.VarChar(50)
+  subjectType   LctSubjectType
+  customerId    String  @db.Uuid
+  dependantId   String? @db.Uuid
+
+  pendingAction  LctPendingAction?
+  pendingReasons String[]          @default([])
+  pendingSince   DateTime?
+
+  lastSentAt                 DateTime?
+  lastSentAction             LctPendingAction?
+  lastSentProfileFingerprint String? @db.VarChar(128)
+
+  errorCode String? @db.VarChar(64)
+
+  openBatchId String? @db.Uuid
+
+  policy    Policy          @relation(fields: [policyId], references: [id], onDelete: Cascade)
+  customer  Customer        @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  openBatch LctExportBatch? @relation("LctOpenBatchTargets", fields: [openBatchId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([policyId])
+  @@index([customerId])
+  @@index([pendingAction])
+  @@index([errorCode])
+  @@index([openBatchId])
+  @@map("lct_member_sync_targets")
+}
+
+model LctExportBatch {
+  id     String               @id @default(uuid()) @db.Uuid
+  status LctExportBatchStatus @default(EXPORTED)
+
+  exportedBy String
+  exportedAt DateTime @default(now())
+  filename   String   @db.VarChar(255)
+  storageBucket String @db.VarChar(100)
+  storagePath   String @db.VarChar(500)
+  rowCount      Int
+
+  toEmails  String[] @default([])
+  ccEmails  String[] @default([])
+  bccEmails String[] @default([])
+  subject   String?  @db.VarChar(500)
+  bodyHtml  String?  @db.Text
+  bodyText  String?  @db.Text
+
+  sentAt         DateTime?
+  sentBy         String?
+  smtpMessageId  String?   @db.VarChar(200)
+  lastSendError  String?   @db.Text
+
+  cancelledAt DateTime?
+  cancelledBy String?
+
+  rows           LctExportBatchRow[]
+  openTargets    LctMemberSyncTarget[] @relation("LctOpenBatchTargets")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status, exportedAt])
+  @@index([exportedAt])
+  @@map("lct_export_batches")
+}
+
+model LctExportBatchRow {
+  id      String @id @default(uuid()) @db.Uuid
+  batchId String @db.Uuid
+
+  syncTargetId String? @db.Uuid
+  memberNumber String  @db.VarChar(50)
+  action       LctPendingAction
+  reasons      String[] @default([])
+
+  /// Immutable CSV column snapshot
+  csvSnapshot Json
+
+  batch LctExportBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([batchId])
+  @@index([memberNumber])
+  @@map("lct_export_batch_rows")
 }

@@ -5,6 +5,7 @@ import {
   StatusChangeTrigger,
 } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { LctSyncService } from '../modules/lct/lct-sync.service';
 
 export interface RecordStatusChangeParams {
   entityType: StatusChangeEntityType;
@@ -27,7 +28,10 @@ export const POLICY_STATUS_ACTIVE_GRACE = 'ACTIVE_GRACE';
 export class EntityStatusChangeService {
   private readonly logger = new Logger(EntityStatusChangeService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly lctSyncService: LctSyncService
+  ) {}
 
   async record(params: RecordStatusChangeParams): Promise<void> {
     const client = params.tx ?? this.prisma;
@@ -48,6 +52,22 @@ export class EntityStatusChangeService {
     this.logger.log(
       `[${params.correlationId ?? 'n/a'}] Status change ${params.entityType} ${params.fromStatus} → ${params.toStatus} (customer=${params.customerId})`
     );
+
+    if (
+      params.entityType === StatusChangeEntityType.POLICY &&
+      params.policyId &&
+      params.toStatus !== POLICY_STATUS_ACTIVE_GRACE &&
+      params.fromStatus !== POLICY_STATUS_ACTIVE_GRACE
+    ) {
+      await this.lctSyncService.onPolicyStatusChange({
+        policyId: params.policyId,
+        customerId: params.customerId,
+        fromStatus: params.fromStatus,
+        toStatus: params.toStatus,
+        correlationId: params.correlationId,
+        tx: params.tx,
+      });
+    }
   }
 
   /**

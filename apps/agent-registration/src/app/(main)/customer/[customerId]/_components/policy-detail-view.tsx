@@ -18,7 +18,10 @@ import {
   type Scheme,
   getPackageSchemes,
   updateCustomerPolicyScheme,
+  updatePolicyStaffNumber,
 } from '@/lib/api';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
 
 interface PolicyDetailViewProps {
   data: CustomerPolicyDetail;
@@ -50,6 +53,13 @@ export default function PolicyDetailView({
   const [schemesLoading, setSchemesLoading] = useState(false);
   const [schemeUpdating, setSchemeUpdating] = useState(false);
   const [schemeError, setSchemeError] = useState<string | null>(null);
+  const [staffNumber, setStaffNumber] = useState(data.staffNumber ?? '');
+  const [staffSaving, setStaffSaving] = useState(false);
+  const [staffError, setStaffError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setStaffNumber(data.staffNumber ?? '');
+  }, [data.staffNumber]);
 
   useEffect(() => {
     if (!canEditScheme || !data.packageId) return;
@@ -82,6 +92,20 @@ export default function PolicyDetailView({
       setSchemeError(err instanceof Error ? err.message : 'Failed to update scheme');
     } finally {
       setSchemeUpdating(false);
+    }
+  };
+
+  const handleStaffNumberSave = async () => {
+    if (!policyId || !canEditScheme) return;
+    setStaffError(null);
+    setStaffSaving(true);
+    try {
+      await updatePolicyStaffNumber(policyId, staffNumber.trim() || null);
+      onSchemeUpdated?.();
+    } catch (err) {
+      setStaffError(err instanceof Error ? err.message : 'Failed to update staff number');
+    } finally {
+      setStaffSaving(false);
     }
   };
 
@@ -155,6 +179,30 @@ export default function PolicyDetailView({
           {data.policyNumber && (
             <p className="text-sm text-muted-foreground">Policy # {data.policyNumber}</p>
           )}
+          {canEditScheme ? (
+            <div className="space-y-2 pt-2 max-w-xs">
+              <Label className="text-sm text-muted-foreground">Staff number (LCT)</Label>
+              <div className="flex gap-2">
+                <Input
+                  value={staffNumber}
+                  onChange={(e) => setStaffNumber(e.target.value)}
+                  placeholder="Optional"
+                />
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={staffSaving || staffNumber === (data.staffNumber ?? '')}
+                  onClick={() => void handleStaffNumberSave()}
+                >
+                  {staffSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Save'}
+                </Button>
+              </div>
+              {staffError && <p className="text-sm text-destructive">{staffError}</p>}
+            </div>
+          ) : data.staffNumber ? (
+            <p className="text-sm text-muted-foreground">Staff # {data.staffNumber}</p>
+          ) : null}
         </CardHeader>
       </Card>
 

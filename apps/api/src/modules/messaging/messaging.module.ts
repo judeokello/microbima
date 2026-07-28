@@ -44,7 +44,13 @@ import { AfricasTalkingWebhookController } from '../../controllers/webhooks/mess
     AttachmentGeneratorService,
     AttachmentRetentionCleanupService,
   ],
-  exports: [MessagingService, SystemSettingsService, PaymentMessagingService, PolicyLifecycleMessagingService],
+  exports: [
+    MessagingService,
+    SystemSettingsService,
+    PaymentMessagingService,
+    PolicyLifecycleMessagingService,
+    SmtpEmailService,
+  ],
 })
 export class MessagingModule {}
 
