@@ -8,7 +8,8 @@
     "scripts/trim-onboarding-text-fields.ts",
     "scripts/backfill-customer-portal-users.ts",
     "scripts/backfill-customer-portal-announcement.ts",
-    "scripts/backfill-unmapped-mpesa-payments.ts"
+    "scripts/backfill-unmapped-mpesa-payments.ts",
+    "scripts/backfill-lct-never-sent.ts"
   ],
   "exclude": ["node_modules", "dist"]
 }

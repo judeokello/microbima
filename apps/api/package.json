@@ -37,6 +37,8 @@
     "backfill:customer-portal": "ts-node -r dotenv/config scripts/backfill-customer-portal-users.ts",
     "backfill:customer-portal-announcement": "ts-node -r dotenv/config scripts/backfill-customer-portal-announcement.ts",
     "backfill:unmapped-mpesa-payments": "ts-node -r dotenv/config scripts/backfill-unmapped-mpesa-payments.ts",
+    "backfill:lct-never-sent": "ts-node -r dotenv/config scripts/backfill-lct-never-sent.ts",
+    "audit:messaging-creator-phones": "ts-node -r dotenv/config scripts/audit-messaging-creator-phones.ts",
     "remediate:daily-premium-as-installment": "ts-node -r dotenv/config scripts/remediate-daily-premium-as-installment.ts"
   },
   "dependencies": {
