@@ -66,6 +66,10 @@ import { UpdateCustomerDto } from '../dto/customers/update-customer.dto';
 import { LctSyncService } from '../modules/lct/lct-sync.service';
 import { UpdateDependantDto } from '../dto/dependants/update-dependant.dto';
 import { UpdateBeneficiaryDto } from '../dto/beneficiaries/update-beneficiary.dto';
+import {
+  CONFIRMED_PAYMENT_STATUSES,
+  notDetachedPaymentWhere,
+} from '../utils/policy-payment-filters';
 import { SupabaseService } from './supabase.service';
 import { PaymentAccountNumberService } from './payment-account-number.service';
 import { assertKenyanPhoneForOndemandStk, normalizePhoneNumber } from '../utils/phone-number.util';
@@ -2578,6 +2582,7 @@ export class CustomerService {
         },
         packagePlan: { select: { name: true } },
         policyPayments: {
+          where: notDetachedPaymentWhere(),
           select: {
             expectedPaymentDate: true,
             actualPaymentDate: true,
@@ -2661,6 +2666,7 @@ export class CustomerService {
         },
         packagePlan: { select: { name: true } },
         policyPayments: {
+          where: notDetachedPaymentWhere(),
           select: {
             expectedPaymentDate: true,
             actualPaymentDate: true,
@@ -2709,10 +2715,7 @@ export class CustomerService {
         }
       );
     }
-    const confirmedStatuses: PaymentStatus[] = [
-      PaymentStatus.COMPLETED,
-      PaymentStatus.COMPLETED_PENDING_RECEIPT,
-    ];
+    const confirmedStatuses = CONFIRMED_PAYMENT_STATUSES;
     const now = new Date();
     const missedPayments = policy.policyPayments.filter(
       (pm) => pm.expectedPaymentDate < now && pm.actualPaymentDate == null
@@ -2929,6 +2932,7 @@ export class CustomerService {
     const inflight = await this.prismaService.policyPayment.findFirst({
       where: {
         policyId,
+        ...notDetachedPaymentWhere(),
         actualPaymentDate: null,
         transactionReference: { startsWith: 'PENDING-STK-' },
       },
@@ -3057,6 +3061,7 @@ export class CustomerService {
         policy: {
           customerId,
         },
+        ...notDetachedPaymentWhere(),
       };
 
       if (filters.policyId) {

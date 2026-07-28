@@ -22,10 +22,14 @@ import { CorrelationId } from '../../decorators/correlation-id.decorator';
 import { PolicyLifecycleService } from '../../services/policy-lifecycle.service';
 import { PolicyLifecycleJobService } from '../../services/policy-lifecycle-job.service';
 import { MpesaPaymentsService } from '../../services/mpesa-payments.service';
+import { ValidationException } from '../../exceptions/validation.exception';
 import {
   ActivatePolicyRequestDto,
   DailyLifecycleRunResponseDto,
   DeactivatePolicyRequestDto,
+  DetachablePaymentsResponseDto,
+  DetachPaymentsRequestDto,
+  DetachPaymentsResponseDto,
   ModifyPolicyOptionsResponseDto,
   ModifyPolicyRequestDto,
   PolicyLifecycleResponseDto,
@@ -207,6 +211,83 @@ export class PolicyLifecycleController {
       mappedCount: result.mappedCount,
       totalAmount: result.totalAmount,
       lifecycleAction: result.lifecycleAction,
+      note: result.note,
+    };
+  }
+
+  @Get(':customerId/policies/:policyId/detachable-payments')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'List active policy payments eligible for admin detach' })
+  @ApiParam({ name: 'customerId' })
+  @ApiParam({ name: 'policyId' })
+  @ApiResponse({ status: 200, type: DetachablePaymentsResponseDto })
+  async listDetachablePayments(
+    @Param('customerId') customerId: string,
+    @Param('policyId') policyId: string,
+    @CorrelationId() correlationId: string,
+    @Req() req: Request
+  ): Promise<DetachablePaymentsResponseDto> {
+    const userRoles = req.user?.roles ?? [];
+    this.policyLifecycleService.assertAdmin(userRoles);
+    const result = await this.mpesaPaymentsService.listDetachablePayments(
+      customerId,
+      policyId,
+      correlationId
+    );
+    return {
+      status: 200,
+      correlationId,
+      items: result.items,
+    };
+  }
+
+  @Post(':customerId/policies/:policyId/detach-payments')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Detach selected payments from this policy and re-point IPN account numbers (admin)',
+  })
+  @ApiParam({ name: 'customerId' })
+  @ApiParam({ name: 'policyId' })
+  @ApiResponse({ status: 200, type: DetachPaymentsResponseDto })
+  async detachPayments(
+    @Param('customerId') customerId: string,
+    @Param('policyId') policyId: string,
+    @Body() body: DetachPaymentsRequestDto,
+    @CorrelationId() correlationId: string,
+    @Req() req: Request
+  ): Promise<DetachPaymentsResponseDto> {
+    const userRoles = req.user?.roles ?? [];
+    this.policyLifecycleService.assertAdmin(userRoles);
+    const userId = req.user?.id;
+    if (!userId) {
+      throw ValidationException.forField('user', 'Authenticated admin user is required');
+    }
+    const result = await this.mpesaPaymentsService.detachPaymentsFromPolicy(
+      customerId,
+      policyId,
+      {
+        paymentIds: body.paymentIds,
+        newAccountNumber: body.newAccountNumber,
+        reason: body.reason,
+        detachedBy: userId,
+      },
+      correlationId
+    );
+    return {
+      status: 200,
+      correlationId,
+      message: result.message,
+      detachedCount: result.detachedCount,
+      detachedTotalAmount: result.detachedTotalAmount,
+      sourceLifecycleAction: result.sourceLifecycleAction,
+      rematchFound: result.rematchFound,
+      targetPolicyId: result.targetPolicyId,
+      targetPolicyNumber: result.targetPolicyNumber,
+      rematchedCount: result.rematchedCount,
+      rematchedTotalAmount: result.rematchedTotalAmount,
+      targetLifecycleAction: result.targetLifecycleAction,
+      detachSmsEnqueued: result.detachSmsEnqueued,
+      rematchSmsEnqueued: result.rematchSmsEnqueued,
       note: result.note,
     };
   }

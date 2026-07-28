@@ -2,7 +2,7 @@
 import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { SupabaseService } from './supabase.service';
-import { MpesaStatementReasonType, MpesaPaymentSource, PolicyStatus } from '@prisma/client';
+import { MpesaStatementReasonType, MpesaPaymentSource, PolicyStatus, PaymentStatus } from '@prisma/client';
 import * as XLSX from 'xlsx';
 import { writeFile, mkdir } from 'fs/promises';
 import { join } from 'path';
@@ -14,6 +14,7 @@ import { PolicyLifecycleService } from './policy-lifecycle.service';
 import { PaymentMessagingService } from '../modules/messaging/payment-messaging.service';
 import { MessagingService } from '../modules/messaging/messaging.service';
 import { SystemSettingsService } from '../modules/messaging/settings/system-settings.service';
+import { notDetachedPaymentWhere } from '../utils/policy-payment-filters';
 import { formatSmsAmount } from '../utils/sms-format.util';
 
 /** Result of processing statement items into policy payments */
@@ -835,7 +836,7 @@ export class MpesaPaymentsService {
     // Check which transactionReferences already exist in policy_payments (only non-null refs)
     const refs = items.map((i) => i.transactionReference).filter((r): r is string => r != null);
     const existingPayments = await this.prismaService.policyPayment.findMany({
-      where: { transactionReference: { in: refs } },
+      where: { transactionReference: { in: refs }, detachedAt: null },
       select: { transactionReference: true },
     });
     const existingRefs = new Set(existingPayments.map((p) => p.transactionReference));
@@ -1311,7 +1312,7 @@ export class MpesaPaymentsService {
         .map((i) => i.transactionReference)
         .filter((r): r is string => r != null);
       const existingPayments = await tx.policyPayment.findMany({
-        where: { transactionReference: { in: refs } },
+        where: { transactionReference: { in: refs }, detachedAt: null },
         select: { transactionReference: true },
       });
       const existingRefs = new Set(existingPayments.map((p) => p.transactionReference));
@@ -1473,7 +1474,7 @@ export class MpesaPaymentsService {
     policyNumber: string | null;
     totalAmount: number;
     correlationId: string;
-  }): Promise<void> {
+  }): Promise<boolean> {
     try {
       const settings = await this.systemSettings.getSnapshot();
       await this.messagingService.enqueue({
@@ -1488,12 +1489,465 @@ export class MpesaPaymentsService {
         },
         correlationId: params.correlationId,
       });
+      return true;
     } catch (error) {
       this.logger.warn(
         `[${params.correlationId}] Failed to enqueue payment_remapped SMS for policy ${params.policyId}: ${
           error instanceof Error ? error.message : String(error)
         }`
       );
+      return false;
+    }
+  }
+
+  /**
+   * List active (non-detached) payments on a policy for admin detach selection.
+   */
+  async listDetachablePayments(
+    customerId: string,
+    policyId: string,
+    correlationId: string
+  ): Promise<{
+    items: Array<{
+      id: number;
+      transactionReference: string;
+      amount: number;
+      expectedPaymentDate: string;
+      actualPaymentDate: string | null;
+      paymentStatus: string;
+      accountNumber: string | null;
+      details: string | null;
+    }>;
+  }> {
+    await this.loadPolicyForRemap(customerId, policyId, correlationId);
+
+    const rows = await this.prismaService.policyPayment.findMany({
+      where: {
+        policyId,
+        ...notDetachedPaymentWhere(),
+        paymentStatus: {
+          in: [PaymentStatus.COMPLETED, PaymentStatus.COMPLETED_PENDING_RECEIPT],
+        },
+      },
+      orderBy: { expectedPaymentDate: 'desc' },
+      select: {
+        id: true,
+        transactionReference: true,
+        amount: true,
+        expectedPaymentDate: true,
+        actualPaymentDate: true,
+        paymentStatus: true,
+        accountNumber: true,
+        details: true,
+      },
+    });
+
+    return {
+      items: rows.map((row) => ({
+        id: row.id,
+        transactionReference: row.transactionReference,
+        amount: Number(row.amount),
+        expectedPaymentDate: row.expectedPaymentDate.toISOString(),
+        actualPaymentDate: row.actualPaymentDate?.toISOString() ?? null,
+        paymentStatus: row.paymentStatus,
+        accountNumber: row.accountNumber,
+        details: row.details,
+      })),
+    };
+  }
+
+  /**
+   * Soft-detach selected policy payments, update IPN account numbers, optionally rematch.
+   */
+  async detachPaymentsFromPolicy(
+    customerId: string,
+    policyId: string,
+    params: {
+      paymentIds: number[];
+      newAccountNumber: string;
+      reason: string;
+      detachedBy: string;
+    },
+    correlationId: string
+  ): Promise<{
+    message: string;
+    detachedCount: number;
+    detachedTotalAmount: number;
+    sourceLifecycleAction: string;
+    rematchFound: boolean;
+    targetPolicyId: string | null;
+    targetPolicyNumber: string | null;
+    rematchedCount: number;
+    rematchedTotalAmount: number;
+    targetLifecycleAction: string | null;
+    detachSmsEnqueued: boolean;
+    rematchSmsEnqueued: boolean;
+    note?: string;
+  }> {
+    const reason = params.reason.trim();
+    if (!reason) {
+      throw ValidationException.forField('reason', 'Reason is required');
+    }
+    const newAccount = this.normalizeAccountNumber(params.newAccountNumber);
+    if (!newAccount) {
+      throw ValidationException.forField('newAccountNumber', 'Account number is required');
+    }
+    const uniquePaymentIds = [...new Set(params.paymentIds)];
+    if (uniquePaymentIds.length === 0) {
+      throw ValidationException.forField('paymentIds', 'Select at least one payment');
+    }
+    if (!params.detachedBy) {
+      throw ValidationException.forField('detachedBy', 'Admin user id is required');
+    }
+
+    const sourcePolicy = await this.loadPolicyForRemap(customerId, policyId, correlationId);
+
+    const payments = await this.prismaService.policyPayment.findMany({
+      where: { id: { in: uniquePaymentIds } },
+      select: {
+        id: true,
+        policyId: true,
+        transactionReference: true,
+        amount: true,
+        expectedPaymentDate: true,
+        actualPaymentDate: true,
+        paymentStatus: true,
+        detachedAt: true,
+        details: true,
+      },
+    });
+
+    if (payments.length !== uniquePaymentIds.length) {
+      throw ValidationException.forField('paymentIds', 'One or more payments were not found');
+    }
+
+    for (const payment of payments) {
+      if (payment.policyId !== policyId) {
+        throw ValidationException.forField(
+          'paymentIds',
+          'Selected payments must belong to this policy'
+        );
+      }
+      if (payment.detachedAt != null || payment.paymentStatus === PaymentStatus.DETACHED) {
+        throw ValidationException.forField(
+          'paymentIds',
+          'Already detached payments cannot be detached again'
+        );
+      }
+    }
+
+    const originalRefs = payments.map((p) => p.transactionReference);
+    const ipnItems = await this.prismaService.mpesaPaymentReportItem.findMany({
+      where: { transactionReference: { in: originalRefs } },
+      select: {
+        id: true,
+        transactionReference: true,
+        paidIn: true,
+        completionTime: true,
+      },
+    });
+    const ipnByRef = new Map(
+      ipnItems
+        .filter((i) => i.transactionReference != null)
+        .map((i) => [i.transactionReference as string, i])
+    );
+
+    const detailsBase = `Admin detach: ${reason}`;
+    const details =
+      detailsBase.length > 500 ? detailsBase.slice(0, 497) + '...' : detailsBase;
+    const detachedAt = new Date();
+
+    type RematchTarget = {
+      id: string;
+      customerId: string;
+      paymentAcNumber: string | null;
+      policyNumber: string | null;
+      status: PolicyStatus;
+      customer: { idNumber: string | null; firstName: string | null };
+    };
+
+    let targetPolicy: RematchTarget | null = null;
+    const candidateTargets = await this.prismaService.policy.findMany({
+      where: {
+        paymentAcNumber: { not: null },
+        status: { not: PolicyStatus.TERMINATED },
+      },
+      select: {
+        id: true,
+        customerId: true,
+        paymentAcNumber: true,
+        policyNumber: true,
+        status: true,
+        customer: { select: { idNumber: true, firstName: true } },
+      },
+    });
+    for (const p of candidateTargets) {
+      if (this.normalizeAccountNumber(p.paymentAcNumber) === newAccount) {
+        targetPolicy = p;
+        break;
+      }
+    }
+
+    let rematchedCount = 0;
+    let rematchedTotalAmount = 0;
+    let detachedTotalAmount = 0;
+
+    await this.prismaService.$transaction(async (tx) => {
+      for (const payment of payments) {
+        const originalRef = payment.transactionReference;
+        const renamedRef = `[d]${payment.id}-${originalRef}`;
+        if (renamedRef.length > 50) {
+          throw ValidationException.forField(
+            'paymentIds',
+            `Detached reference too long for payment ${payment.id}`
+          );
+        }
+
+        await tx.policyPayment.update({
+          where: { id: payment.id },
+          data: {
+            paymentStatus: PaymentStatus.DETACHED,
+            detachedAt,
+            detachedBy: params.detachedBy,
+            details,
+            transactionReference: renamedRef,
+          },
+        });
+        detachedTotalAmount += Number(payment.amount);
+
+        const ipn = ipnByRef.get(originalRef);
+        if (ipn) {
+          await tx.mpesaPaymentReportItem.update({
+            where: { id: ipn.id },
+            data: {
+              accountNumber: newAccount,
+              isMapped: false,
+              isProcessed: true,
+            },
+          });
+        }
+
+        if (targetPolicy && targetPolicy.id !== policyId) {
+          const existingOnTarget = await tx.policyPayment.findFirst({
+            where: {
+              transactionReference: originalRef,
+              ...notDetachedPaymentWhere(),
+            },
+            select: { id: true },
+          });
+          if (existingOnTarget) {
+            if (ipn) {
+              await tx.mpesaPaymentReportItem.update({
+                where: { id: ipn.id },
+                data: {
+                  accountNumber: targetPolicy.paymentAcNumber,
+                  isMapped: true,
+                  isProcessed: true,
+                },
+              });
+            }
+            continue;
+          }
+
+          const amount = Number(payment.amount);
+          const compTime =
+            payment.actualPaymentDate ??
+            payment.expectedPaymentDate ??
+            ipn?.completionTime ??
+            detachedAt;
+
+          await tx.policyPayment.create({
+            data: {
+              policyId: targetPolicy.id,
+              paymentType: 'MPESA',
+              transactionReference: originalRef,
+              amount,
+              accountNumber: targetPolicy.customer.idNumber,
+              expectedPaymentDate: compTime,
+              actualPaymentDate: compTime,
+              details: `Admin rematch after detach from policy ${policyId}: ${reason}`.slice(
+                0,
+                500
+              ),
+              paymentStatus: PaymentStatus.COMPLETED,
+              paymentSmsEnqueuedAt: new Date(),
+            },
+          });
+
+          if (ipn) {
+            await tx.mpesaPaymentReportItem.update({
+              where: { id: ipn.id },
+              data: {
+                accountNumber: targetPolicy.paymentAcNumber,
+                isMapped: true,
+                isProcessed: true,
+              },
+            });
+          }
+
+          rematchedCount += 1;
+          rematchedTotalAmount += amount;
+        } else if (targetPolicy && targetPolicy.id === policyId) {
+          // New account points back at same policy — leave unmapped after detach
+          this.logger.warn(
+            `[${correlationId}] Detach rematch account matches source policy ${policyId}; leaving IPN unmapped`
+          );
+        }
+      }
+    });
+
+    let sourceLifecycleAction = 'noop';
+    try {
+      const result = await this.policyLifecycleService.recalculatePolicyLifecycleAfterPaidChange(
+        policyId,
+        correlationId
+      );
+      sourceLifecycleAction = result.action;
+    } catch (lifecycleError) {
+      this.logger.warn(
+        `[${correlationId}] source lifecycle after detach failed for ${policyId}: ${
+          lifecycleError instanceof Error ? lifecycleError.message : String(lifecycleError)
+        }`
+      );
+      sourceLifecycleAction = 'lifecycle_error';
+    }
+
+    let targetLifecycleAction: string | null = null;
+    if (targetPolicy && rematchedCount > 0 && targetPolicy.id !== policyId) {
+      const wasPendingActivation = targetPolicy.status === PolicyStatus.PENDING_ACTIVATION;
+      let lifecycleAction = 'noop';
+      if (wasPendingActivation) {
+        try {
+          await this.policyService.activatePolicy(targetPolicy.id, correlationId);
+          lifecycleAction = 'activated';
+        } catch (activationError) {
+          this.logger.error(
+            `[${correlationId}] Rematch activation failed for policy ${targetPolicy.id}: ${
+              activationError instanceof Error ? activationError.message : String(activationError)
+            }`
+          );
+          lifecycleAction = 'activation_failed';
+        }
+      }
+
+      if (!wasPendingActivation || lifecycleAction === 'activated') {
+        try {
+          const result = await this.policyLifecycleService.applyPaymentToPolicyLifecycle(
+            targetPolicy.id,
+            correlationId
+          );
+          if (lifecycleAction === 'activated' && result.action === 'noop') {
+            // keep activated
+          } else if (lifecycleAction !== 'activated') {
+            lifecycleAction = result.action;
+          } else if (result.action !== 'noop') {
+            lifecycleAction = `activated_then_${result.action}`;
+          }
+        } catch (lifecycleError) {
+          this.logger.warn(
+            `[${correlationId}] target lifecycle after rematch failed for ${targetPolicy.id}: ${
+              lifecycleError instanceof Error ? lifecycleError.message : String(lifecycleError)
+            }`
+          );
+          if (lifecycleAction !== 'activated') {
+            lifecycleAction = 'lifecycle_error';
+          }
+        }
+      }
+      targetLifecycleAction = lifecycleAction;
+    }
+
+    const rematchFound = targetPolicy != null && targetPolicy.id !== policyId;
+    // If we found a match but rematched 0 (e.g. same policy), treat as not rematched for messaging
+    const effectiveRematch = rematchFound && rematchedCount > 0;
+
+    const detachSmsEnqueued = await this.enqueuePaymentDetachedSms({
+      customerId: sourcePolicy.customerId,
+      policyId: sourcePolicy.id,
+      firstName: sourcePolicy.customer.firstName ?? '',
+      policyNumber: sourcePolicy.policyNumber,
+      paymentCount: payments.length,
+      totalAmount: detachedTotalAmount,
+      correlationId,
+    });
+
+    let rematchSmsEnqueued = false;
+    if (effectiveRematch && targetPolicy) {
+      rematchSmsEnqueued = await this.enqueuePaymentRemappedSms({
+        customerId: targetPolicy.customerId,
+        policyId: targetPolicy.id,
+        firstName: targetPolicy.customer.firstName ?? '',
+        policyNumber: targetPolicy.policyNumber,
+        totalAmount: rematchedTotalAmount,
+        correlationId,
+      });
+    }
+
+    const parts = [
+      `Detached ${payments.length} payment(s) totaling ${detachedTotalAmount}`,
+      `source lifecycle=${sourceLifecycleAction}`,
+      `detach SMS=${detachSmsEnqueued ? 'enqueued' : 'failed/skipped'}`,
+    ];
+    if (effectiveRematch && targetPolicy) {
+      parts.push(
+        `rematched ${rematchedCount} to policy ${targetPolicy.policyNumber ?? targetPolicy.id}`,
+        `target lifecycle=${targetLifecycleAction}`,
+        `rematch SMS=${rematchSmsEnqueued ? 'enqueued' : 'failed/skipped'}`
+      );
+    } else if (targetPolicy == null) {
+      parts.push('no matching policy for new account number; IPNs left unmapped');
+    }
+
+    this.logger.log(`[${correlationId}] Detach payments on ${policyId}: ${parts.join('; ')}`);
+
+    return {
+      message: parts.join('. ') + '.',
+      detachedCount: payments.length,
+      detachedTotalAmount,
+      sourceLifecycleAction,
+      rematchFound: effectiveRematch,
+      targetPolicyId: effectiveRematch && targetPolicy ? targetPolicy.id : null,
+      targetPolicyNumber: effectiveRematch && targetPolicy ? targetPolicy.policyNumber : null,
+      rematchedCount,
+      rematchedTotalAmount,
+      targetLifecycleAction,
+      detachSmsEnqueued,
+      rematchSmsEnqueued,
+    };
+  }
+
+  private async enqueuePaymentDetachedSms(params: {
+    customerId: string;
+    policyId: string;
+    firstName: string;
+    policyNumber: string | null;
+    paymentCount: number;
+    totalAmount: number;
+    correlationId: string;
+  }): Promise<boolean> {
+    try {
+      const settings = await this.systemSettings.getSnapshot();
+      await this.messagingService.enqueue({
+        templateKey: 'payment_detached',
+        customerId: params.customerId,
+        policyId: params.policyId,
+        placeholderValues: {
+          first_name: params.firstName,
+          payment_count: String(params.paymentCount),
+          amount: formatSmsAmount(params.totalAmount, settings.defaultSystemCurrency),
+          policy_number: params.policyNumber ?? '',
+          general_support_number: settings.general_support_number ?? '',
+        },
+        correlationId: params.correlationId,
+      });
+      return true;
+    } catch (error) {
+      this.logger.warn(
+        `[${params.correlationId}] Failed to enqueue payment_detached SMS for policy ${params.policyId}: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      );
+      return false;
     }
   }
 }

@@ -506,7 +506,11 @@ export default function PaymentsTab({ customerId, customerPhone = '' }: Payments
                   </dd>
                 </div>
                 <div>
-                  <dt className="text-sm font-medium text-muted-foreground">Missed payments (total amount missed)</dt>
+                  <dt className="text-sm font-medium text-muted-foreground">
+                    {policyDetail.missedPaymentsAmount?.allTime.excessAmount != null
+                      ? 'Excess payment'
+                      : 'Missed payments (total amount missed)'}
+                  </dt>
                   <dd className="mt-1 text-sm">
                     {policyDetail.missedPaymentsAmount ? (
                       <MissedPaymentsAmountDisplay

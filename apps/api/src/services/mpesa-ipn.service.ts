@@ -89,6 +89,7 @@ export class MpesaIpnService {
       const existingPolicyPayment = await this.prismaService.policyPayment.findFirst({
         where: {
           transactionReference: payload.TransID,
+          detachedAt: null,
         },
       });
 
@@ -531,6 +532,7 @@ export class MpesaIpnService {
     const existingPayment = await this.prismaService.policyPayment.findFirst({
       where: {
         transactionReference: payload.TransID,
+        detachedAt: null,
       },
     });
 
@@ -559,6 +561,7 @@ export class MpesaIpnService {
           startsWith: 'PENDING-STK-',
         },
         actualPaymentDate: null,
+        detachedAt: null,
       },
     });
 

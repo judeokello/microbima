@@ -5,6 +5,7 @@ import { ConfigurationService } from '../../config/configuration.service';
 import { SupabaseService } from '../../services/supabase.service';
 import { MessagingService } from '../messaging/messaging.service';
 import { ValidationException } from '../../exceptions/validation.exception';
+import { notDetachedPaymentWhere } from '../../utils/policy-payment-filters';
 import {
   international254ToNational07,
   maskNationalPhoneForPortal,
@@ -163,6 +164,7 @@ export class CustomerPortalService {
         },
         packagePlan: { select: { name: true } },
         policyPayments: {
+          where: notDetachedPaymentWhere(),
           select: { expectedPaymentDate: true, actualPaymentDate: true, amount: true },
         },
       },
@@ -219,6 +221,7 @@ export class CustomerPortalService {
         },
         packagePlan: { select: { name: true } },
         policyPayments: {
+          where: notDetachedPaymentWhere(),
           select: {
             expectedPaymentDate: true,
             actualPaymentDate: true,
@@ -298,7 +301,10 @@ export class CustomerPortalService {
     correlationId: string,
   ) {
     this.logger.log(`[${correlationId}] portal payments for ${customerId}`);
-    const where: Prisma.PolicyPaymentWhereInput = { policy: { customerId } };
+    const where: Prisma.PolicyPaymentWhereInput = {
+      policy: { customerId },
+      ...notDetachedPaymentWhere(),
+    };
 
     if (filters.policyId) {
       where.policyId = filters.policyId;

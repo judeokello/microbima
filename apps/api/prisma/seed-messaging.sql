@@ -246,6 +246,22 @@ VALUES (
 ON CONFLICT ("templateKey", "channel", "language") DO UPDATE
 SET "body" = EXCLUDED."body", "placeholders" = EXCLUDED."placeholders", "isActive" = EXCLUDED."isActive", "updatedAt" = NOW();
 
+INSERT INTO messaging_routes ("templateKey", "smsEnabled", "emailEnabled", "isActive", "createdAt", "updatedAt")
+VALUES ('payment_detached', true, false, true, NOW(), NOW())
+ON CONFLICT ("templateKey") DO UPDATE
+SET "smsEnabled" = EXCLUDED."smsEnabled", "emailEnabled" = EXCLUDED."emailEnabled", "isActive" = EXCLUDED."isActive", "updatedAt" = NOW();
+
+INSERT INTO messaging_templates (id, "templateKey", "channel", "language", "subject", "body", "textBody", "placeholders", "isActive", "createdAt", "updatedAt")
+VALUES (
+  gen_random_uuid(), 'payment_detached', 'SMS', 'en', NULL,
+  'Dear {first_name}, {payment_count} payment(s) totaling {amount} have been unlinked from policy {policy_number}. For support call {general_support_number}. Thank you.',
+  NULL,
+  ARRAY['first_name', 'payment_count', 'amount', 'policy_number', 'general_support_number'],
+  true, NOW(), NOW()
+)
+ON CONFLICT ("templateKey", "channel", "language") DO UPDATE
+SET "body" = EXCLUDED."body", "placeholders" = EXCLUDED."placeholders", "isActive" = EXCLUDED."isActive", "updatedAt" = NOW();
+
 -- ---------- Pending activation reminders (D3 / D7 only; day-0 = customer_created) ----------
 
 INSERT INTO messaging_routes ("templateKey", "smsEnabled", "emailEnabled", "isActive", "createdAt", "updatedAt")

@@ -34,6 +34,7 @@ import {
   type PolicyNumberChoice,
   type Plan,
 } from '@/lib/api';
+import { computeInstallmentPremium } from '@/lib/insurance-installment';
 
 interface InsurancePricing {
   plans: Record<
@@ -137,8 +138,15 @@ export default function ModifyProductDialog({
       daily += plan.additional_spouse.daily;
       weekly += plan.additional_spouse.weekly;
     }
-    return frequency === 'WEEKLY' ? weekly : daily;
-  }, [pricing, options, selectedPlan, frequency, options?.additionalSpouse, options?.familyCategory]);
+    const customCadenceDays =
+      frequency === 'CUSTOM' ? parseInt(customDays, 10) || undefined : undefined;
+    return computeInstallmentPremium({
+      frequency,
+      daily,
+      weekly,
+      customDays: customCadenceDays,
+    });
+  }, [pricing, options, selectedPlan, frequency, customDays]);
 
   const packagePlanId = useMemo(() => {
     if (!selectedPlan || plans.length === 0) return 0;

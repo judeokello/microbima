@@ -27,6 +27,7 @@ import PolicyReasonDialog from './policy-reason-dialog';
 import ModifyProductDialog from './modify-product-dialog';
 import ResetStartDateDialog from './reset-start-date-dialog';
 import RemapPaymentsDialog from './remap-payments-dialog';
+import DetachPaymentsDialog from './detach-payments-dialog';
 
 const PAYMENTS_POLICY_STORAGE_KEY = (customerId: string) =>
   `customer-${customerId}-payments-policy`;
@@ -37,7 +38,15 @@ interface ProductsTabProps {
   basePath: 'admin' | 'dashboard' | 'agent';
 }
 
-type RowAction = 'deactivate' | 'activate' | 'reset' | 'remap' | 'modify' | 'terminate' | null;
+type RowAction =
+  | 'deactivate'
+  | 'activate'
+  | 'reset'
+  | 'remap'
+  | 'detach'
+  | 'modify'
+  | 'terminate'
+  | null;
 
 export default function ProductsTab({ customerId, basePath }: ProductsTabProps) {
   const router = useRouter();
@@ -100,13 +109,16 @@ export default function ProductsTab({ customerId, basePath }: ProductsTabProps) 
   };
 
   const canModify = (p: CustomerPolicyListItem) =>
-    p.status === 'ACTIVE' || p.status === 'PENDING_ACTIVATION';
+    p.status === 'ACTIVE' ||
+    p.status === 'PENDING_ACTIVATION' ||
+    p.status === 'SUSPENDED';
   const canDeactivate = (p: CustomerPolicyListItem) =>
     p.status === 'ACTIVE' || p.status === 'SUSPENDED' || p.status === 'PENDING_ACTIVATION';
   const canActivate = (p: CustomerPolicyListItem) => p.status === 'SUSPENDED';
   const canReset = (p: CustomerPolicyListItem) =>
     p.status === 'ACTIVE' || p.status === 'SUSPENDED';
   const canRemap = (p: CustomerPolicyListItem) => p.status !== 'TERMINATED';
+  const canDetach = (p: CustomerPolicyListItem) => p.status !== 'TERMINATED';
   const canTerminate = (p: CustomerPolicyListItem) =>
     p.status !== 'TERMINATED' && p.status !== 'DEACTIVATED';
   const hasRowActions = (p: CustomerPolicyListItem) =>
@@ -115,6 +127,7 @@ export default function ProductsTab({ customerId, basePath }: ProductsTabProps) 
     canActivate(p) ||
     canReset(p) ||
     canRemap(p) ||
+    canDetach(p) ||
     canTerminate(p);
 
   if (loading) {
@@ -258,6 +271,11 @@ export default function ProductsTab({ customerId, basePath }: ProductsTabProps) 
                                     Remap payments
                                   </DropdownMenuItem>
                                 )}
+                                {canDetach(p) && (
+                                  <DropdownMenuItem onClick={() => openAction(p, 'detach')}>
+                                    Detach payments
+                                  </DropdownMenuItem>
+                                )}
                                 {canTerminate(p) && (
                                   <DropdownMenuItem
                                     className="text-destructive focus:text-destructive"
@@ -338,6 +356,20 @@ export default function ProductsTab({ customerId, basePath }: ProductsTabProps) 
 
       {actionPolicy && rowAction === 'remap' && (
         <RemapPaymentsDialog
+          open
+          onOpenChange={(o) => !o && closeAction()}
+          customerId={customerId}
+          policyId={actionPolicy.id}
+          productName={actionPolicy.productName}
+          onSuccess={(message) => {
+            setSuccessMessage(message);
+            void loadProducts();
+          }}
+        />
+      )}
+
+      {actionPolicy && rowAction === 'detach' && (
+        <DetachPaymentsDialog
           open
           onOpenChange={(o) => !o && closeAction()}
           customerId={customerId}

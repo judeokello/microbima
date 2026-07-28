@@ -13,6 +13,7 @@ import {
   ArrayMinSize,
   IsUUID,
 } from 'class-validator';
+import { Type } from 'class-transformer';
 import { PaymentFrequency, PolicyStatus, MpesaPaymentSource } from '@prisma/client';
 
 export class PolicyLifecycleReasonDto {
@@ -287,5 +288,110 @@ export class RemapMpesaPaymentsResponseDto {
   lifecycleAction: string;
 
   @ApiPropertyOptional({ description: 'Admin-facing note when status did not change as expected' })
+  note?: string;
+}
+
+export class DetachPaymentsRequestDto {
+  @ApiProperty({ type: [Number], description: 'Selected policy_payments ids to detach' })
+  @IsArray()
+  @ArrayMinSize(1)
+  @Type(() => Number)
+  @IsInt({ each: true })
+  paymentIds: number[];
+
+  @ApiProperty({ description: 'Corrected account number to write onto IPN records' })
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(100)
+  newAccountNumber: string;
+
+  @ApiProperty({ description: 'Mandatory admin reason for the detach', maxLength: 400 })
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(400)
+  reason: string;
+}
+
+export class DetachablePaymentItemDto {
+  @ApiProperty()
+  id: number;
+
+  @ApiProperty()
+  transactionReference: string;
+
+  @ApiProperty()
+  amount: number;
+
+  @ApiProperty()
+  expectedPaymentDate: string;
+
+  @ApiPropertyOptional({ nullable: true })
+  actualPaymentDate: string | null;
+
+  @ApiProperty()
+  paymentStatus: string;
+
+  @ApiPropertyOptional({ nullable: true })
+  accountNumber: string | null;
+
+  @ApiPropertyOptional({ nullable: true })
+  details: string | null;
+}
+
+export class DetachablePaymentsResponseDto {
+  @ApiProperty({ example: 200 })
+  status: number;
+
+  @ApiProperty()
+  correlationId: string;
+
+  @ApiProperty({ type: [DetachablePaymentItemDto] })
+  items: DetachablePaymentItemDto[];
+}
+
+export class DetachPaymentsResponseDto {
+  @ApiProperty({ example: 200 })
+  status: number;
+
+  @ApiProperty()
+  correlationId: string;
+
+  @ApiProperty()
+  message: string;
+
+  @ApiProperty()
+  detachedCount: number;
+
+  @ApiProperty()
+  detachedTotalAmount: number;
+
+  @ApiProperty()
+  sourceLifecycleAction: string;
+
+  @ApiProperty()
+  rematchFound: boolean;
+
+  @ApiPropertyOptional({ nullable: true })
+  targetPolicyId?: string | null;
+
+  @ApiPropertyOptional({ nullable: true })
+  targetPolicyNumber?: string | null;
+
+  @ApiProperty()
+  rematchedCount: number;
+
+  @ApiProperty()
+  rematchedTotalAmount: number;
+
+  @ApiPropertyOptional({ nullable: true })
+  targetLifecycleAction?: string | null;
+
+  @ApiProperty()
+  detachSmsEnqueued: boolean;
+
+  @ApiProperty()
+  rematchSmsEnqueued: boolean;
+
+  @ApiPropertyOptional()
   note?: string;
 }
