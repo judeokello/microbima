@@ -92,6 +92,8 @@ export class CustomerPolicyDetailDto {
   policyNumber: string | null;
   @ApiProperty()
   status: string;
+  @ApiProperty({ nullable: true, description: 'Employer / LCT staff number' })
+  staffNumber: string | null;
 
   /** Package ID (for loading schemes and updating scheme) */
   packageId: number;

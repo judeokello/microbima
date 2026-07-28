@@ -1,0 +1,590 @@
+'use client'
+
+import { useCallback, useEffect, useMemo, useState, Fragment } from 'react'
+import Link from 'next/link'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Badge } from '@/components/ui/badge'
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { Textarea } from '@/components/ui/textarea'
+import {
+  cancelLctBatch,
+  createLctBatch,
+  downloadLctBatch,
+  getLctBatch,
+  getLctBatches,
+  getLctErrors,
+  getLctPending,
+  getLctRecipientConfig,
+  sendLctBatch,
+  type LctOpenBatch,
+  type LctPendingGroup,
+  type LctPendingRow,
+} from '@/lib/api'
+import { AlertTriangle, Download, Loader2, RefreshCw, UserPlus, ArrowRightLeft, UserCog } from 'lucide-react'
+
+type Tab = 'pending' | 'history' | 'errors'
+
+function reasonIcons(reasons: string[]) {
+  return (
+    <span className="inline-flex gap-1">
+      {reasons.includes('NEW') && (
+        <span title="New">
+          <UserPlus className="h-3.5 w-3.5 text-emerald-600" aria-hidden />
+        </span>
+      )}
+      {reasons.includes('STATUS_CHANGE') && (
+        <span title="Status change">
+          <ArrowRightLeft className="h-3.5 w-3.5 text-amber-600" aria-hidden />
+        </span>
+      )}
+      {reasons.includes('PROFILE_CHANGE') && (
+        <span title="Profile change">
+          <UserCog className="h-3.5 w-3.5 text-blue-600" aria-hidden />
+        </span>
+      )}
+      {reasons.includes('DEPENDANT_REMOVED') && (
+        <span title="Dependant removed">
+          <AlertTriangle className="h-3.5 w-3.5 text-red-600" aria-hidden />
+        </span>
+      )}
+      {reasons.includes('POLICY_REPLACED') && (
+        <span title="Policy replaced">
+          <ArrowRightLeft className="h-3.5 w-3.5 text-purple-600" aria-hidden />
+        </span>
+      )}
+    </span>
+  )
+}
+
+function rowCheckboxId(row: LctPendingRow) {
+  return row.id
+}
+
+export default function LctExportsAdminPage() {
+  const [tab, setTab] = useState<Tab>('pending')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [groups, setGroups] = useState<LctPendingGroup[]>([])
+  const [openBatch, setOpenBatch] = useState<LctOpenBatch | null>(null)
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [filters, setFilters] = useState({
+    name: '',
+    idNumber: '',
+    memberNumber: '',
+    phone: '',
+    product: '',
+  })
+  const [batches, setBatches] = useState<LctOpenBatch[]>([])
+  const [errors, setErrors] = useState<Array<Record<string, unknown>>>([])
+  const [batchDetail, setBatchDetail] = useState<Record<string, unknown> | null>(null)
+
+  const [sendOpen, setSendOpen] = useState(false)
+  const [sending, setSending] = useState(false)
+  const [toEmails, setToEmails] = useState('')
+  const [ccEmails, setCcEmails] = useState('')
+  const [bccEmails, setBccEmails] = useState('')
+  const [bodyHtml, setBodyHtml] = useState('')
+  const [subjectPreview, setSubjectPreview] = useState('Maisha Poa Customer Export - …')
+
+  const loadPending = useCallback(async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const res = await getLctPending({
+        name: filters.name || undefined,
+        idNumber: filters.idNumber || undefined,
+        memberNumber: filters.memberNumber || undefined,
+        phone: filters.phone || undefined,
+        product: filters.product || undefined,
+      })
+      setGroups(res.data.groups)
+      setOpenBatch(res.data.openBatch)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to load pending')
+    } finally {
+      setLoading(false)
+    }
+  }, [filters])
+
+  const loadHistory = useCallback(async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const res = await getLctBatches()
+      setBatches(res.data)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to load history')
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  const loadErrors = useCallback(async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const res = await getLctErrors()
+      setErrors(res.data as Array<Record<string, unknown>>)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to load errors')
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (tab === 'pending') void loadPending()
+    if (tab === 'history') void loadHistory()
+    if (tab === 'errors') void loadErrors()
+  }, [tab, loadPending, loadHistory, loadErrors])
+
+  const allPendingIds = useMemo(() => {
+    const ids: string[] = []
+    for (const g of groups) {
+      if (g.principal) ids.push(g.principal.id)
+      for (const d of g.dependants) ids.push(d.id)
+    }
+    return ids
+  }, [groups])
+
+  const toggleAll = (checked: boolean) => {
+    setSelected(checked ? new Set(allPendingIds) : new Set())
+  }
+
+  const toggleOne = (id: string, checked: boolean) => {
+    setSelected((prev) => {
+      const next = new Set(prev)
+      if (checked) next.add(id)
+      else next.delete(id)
+      return next
+    })
+  }
+
+  const handleExport = async () => {
+    if (!selected.size) return
+    setLoading(true)
+    setError(null)
+    try {
+      await createLctBatch(Array.from(selected))
+      setSelected(new Set())
+      await loadPending()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Export failed')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const openSendDialog = async () => {
+    if (!openBatch) return
+    try {
+      const cfg = await getLctRecipientConfig()
+      setToEmails((cfg.data.toEmails ?? []).join(', '))
+      setCcEmails((cfg.data.ccEmails ?? []).join(', '))
+      setBccEmails((cfg.data.bccEmails ?? []).join(', '))
+      setBodyHtml(
+        `<p>Dear LCT Africa,</p><p>Please find attached the Maisha Poa customer export file.</p><p>Row count: <strong>${openBatch.rowCount}</strong></p>`
+      )
+      setSubjectPreview('Maisha Poa Customer Export - (set on send)')
+      setSendOpen(true)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to load recipients')
+    }
+  }
+
+  const parseEmails = (raw: string) =>
+    raw
+      .split(/[,;\s]+/)
+      .map((s) => s.trim())
+      .filter(Boolean)
+
+  const handleSend = async () => {
+    if (!openBatch) return
+    setSending(true)
+    setError(null)
+    try {
+      await sendLctBatch(openBatch.id, {
+        toEmails: parseEmails(toEmails),
+        ccEmails: parseEmails(ccEmails),
+        bccEmails: parseEmails(bccEmails),
+        bodyHtml,
+      })
+      setSendOpen(false)
+      await loadPending()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Send failed')
+    } finally {
+      setSending(false)
+    }
+  }
+
+  const handleCancel = async () => {
+    if (!openBatch) return
+    if (!confirm('Cancel this export batch and return members to pending?')) return
+    setLoading(true)
+    try {
+      await cancelLctBatch(openBatch.id)
+      await loadPending()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Cancel failed')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleDownload = async (batchId: string, filename?: string) => {
+    try {
+      const blob = await downloadLctBatch(batchId)
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = filename ?? 'lct_export.csv'
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Download failed')
+    }
+  }
+
+  const renderRow = (row: LctPendingRow, indent = false) => (
+    <tr key={row.id} className="border-b text-sm">
+      <td className="p-2">
+        <input
+          type="checkbox"
+          checked={selected.has(rowCheckboxId(row))}
+          onChange={(e) => toggleOne(row.id, e.target.checked)}
+          disabled={!!openBatch}
+        />
+      </td>
+      <td className={`p-2 ${indent ? 'pl-8' : 'font-medium'}`}>{row.personName}</td>
+      <td className="p-2 font-mono text-xs">{row.memberNumber}</td>
+      <td className="p-2">{row.relationship}</td>
+      <td className="p-2">
+        <Badge variant="outline">{row.pendingAction}</Badge>
+      </td>
+      <td className="p-2">{reasonIcons(row.pendingReasons)}</td>
+      <td className="p-2 text-muted-foreground">{row.productName}</td>
+      <td className="p-2">
+        <Link
+          href={`/admin/customer/${row.customerId}`}
+          className="text-blue-600 hover:underline text-xs"
+        >
+          View
+        </Link>
+      </td>
+    </tr>
+  )
+
+  return (
+    <div className="space-y-6 p-4 md:p-6">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold">LCT Customer Export</h1>
+          <p className="text-sm text-muted-foreground">
+            Sync member changes to LCT Africa via CSV email
+          </p>
+        </div>
+        <Button variant="outline" size="sm" onClick={() => {
+          if (tab === 'pending') void loadPending()
+          if (tab === 'history') void loadHistory()
+          if (tab === 'errors') void loadErrors()
+        }}>
+          <RefreshCw className="h-4 w-4 mr-2" />
+          Refresh
+        </Button>
+      </div>
+
+      <div className="flex gap-2 border-b">
+        {(['pending', 'history', 'errors'] as Tab[]).map((t) => (
+          <button
+            key={t}
+            type="button"
+            className={`px-4 py-2 text-sm capitalize border-b-2 -mb-px ${
+              tab === t ? 'border-foreground font-medium' : 'border-transparent text-muted-foreground'
+            }`}
+            onClick={() => setTab(t)}
+          >
+            {t}
+          </button>
+        ))}
+      </div>
+
+      {error && (
+        <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+          {error}
+        </div>
+      )}
+
+      {tab === 'pending' && (
+        <>
+          {openBatch && (
+            <div className="rounded-md border border-amber-200 bg-amber-50 p-4 flex flex-wrap items-center gap-3 justify-between">
+              <div>
+                <p className="font-medium">Open export batch</p>
+                <p className="text-sm text-muted-foreground">
+                  {openBatch.filename} · {openBatch.rowCount} rows ·{' '}
+                  {new Date(openBatch.exportedAt).toLocaleString()}
+                </p>
+              </div>
+              <div className="flex gap-2">
+                <Button size="sm" onClick={() => void openSendDialog()}>
+                  Send
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => void handleDownload(openBatch.id, openBatch.filename)}>
+                  <Download className="h-4 w-4 mr-1" />
+                  Download
+                </Button>
+                <Button size="sm" variant="destructive" onClick={() => void handleCancel()}>
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          )}
+
+          <div className="grid gap-2 md:grid-cols-5">
+            {(
+              [
+                ['name', 'Name'],
+                ['idNumber', 'ID number'],
+                ['memberNumber', 'Member #'],
+                ['phone', 'Phone'],
+                ['product', 'Product'],
+              ] as const
+            ).map(([key, label]) => (
+              <div key={key}>
+                <Label className="text-xs">{label}</Label>
+                <Input
+                  value={filters[key]}
+                  onChange={(e) => setFilters((f) => ({ ...f, [key]: e.target.value }))}
+                  onBlur={() => void loadPending()}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') void loadPending()
+                  }}
+                />
+              </div>
+            ))}
+          </div>
+
+          <div className="flex items-center justify-between">
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={allPendingIds.length > 0 && selected.size === allPendingIds.length}
+                onChange={(e) => toggleAll(e.target.checked)}
+                disabled={!!openBatch || !allPendingIds.length}
+              />
+              Select all ({selected.size})
+            </label>
+            <Button
+              onClick={() => void handleExport()}
+              disabled={!selected.size || !!openBatch || loading}
+            >
+              {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              Export selected
+            </Button>
+          </div>
+
+          <div className="overflow-x-auto rounded-md border">
+            <table className="w-full">
+              <thead className="bg-muted/50 text-left text-xs uppercase text-muted-foreground">
+                <tr>
+                  <th className="p-2 w-8" />
+                  <th className="p-2">Name</th>
+                  <th className="p-2">Member #</th>
+                  <th className="p-2">Relationship</th>
+                  <th className="p-2">Action</th>
+                  <th className="p-2">Reasons</th>
+                  <th className="p-2">Product</th>
+                  <th className="p-2" />
+                </tr>
+              </thead>
+              <tbody>
+                {loading && !groups.length ? (
+                  <tr>
+                    <td colSpan={8} className="p-6 text-center text-muted-foreground">
+                      <Loader2 className="h-5 w-5 animate-spin inline mr-2" />
+                      Loading…
+                    </td>
+                  </tr>
+                ) : !groups.length ? (
+                  <tr>
+                    <td colSpan={8} className="p-6 text-center text-muted-foreground">
+                      No pending LCT changes
+                    </td>
+                  </tr>
+                ) : (
+                  groups.map((g) => (
+                    <Fragment key={`${g.customerId}:${g.policyId}`}>
+                      {g.principal && renderRow(g.principal)}
+                      {g.dependants.map((d) => renderRow(d, true))}
+                    </Fragment>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+
+      {tab === 'history' && (
+        <div className="space-y-4">
+          <div className="overflow-x-auto rounded-md border">
+            <table className="w-full text-sm">
+              <thead className="bg-muted/50 text-left text-xs uppercase text-muted-foreground">
+                <tr>
+                  <th className="p-2">Exported</th>
+                  <th className="p-2">Status</th>
+                  <th className="p-2">Rows</th>
+                  <th className="p-2">Filename</th>
+                  <th className="p-2" />
+                </tr>
+              </thead>
+              <tbody>
+                {batches.map((b) => (
+                  <tr key={b.id} className="border-b">
+                    <td className="p-2">{new Date(b.exportedAt).toLocaleString()}</td>
+                    <td className="p-2">
+                      <Badge variant="outline">{b.status}</Badge>
+                    </td>
+                    <td className="p-2">{b.rowCount}</td>
+                    <td className="p-2 font-mono text-xs">{b.filename}</td>
+                    <td className="p-2 space-x-2">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={async () => {
+                          const res = await getLctBatch(b.id)
+                          setBatchDetail(res.data)
+                        }}
+                      >
+                        Detail
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => void handleDownload(b.id, b.filename)}
+                      >
+                        <Download className="h-4 w-4" />
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {batchDetail && (
+            <div className="rounded-md border p-4 space-y-2">
+              <div className="flex justify-between">
+                <h3 className="font-medium">Batch detail</h3>
+                <Button size="sm" variant="ghost" onClick={() => setBatchDetail(null)}>
+                  Close
+                </Button>
+              </div>
+              <pre className="text-xs overflow-auto max-h-96 bg-muted p-2 rounded">
+                {JSON.stringify(batchDetail, null, 2)}
+              </pre>
+            </div>
+          )}
+        </div>
+      )}
+
+      {tab === 'errors' && (
+        <div className="overflow-x-auto rounded-md border">
+          <table className="w-full text-sm">
+            <thead className="bg-muted/50 text-left text-xs uppercase text-muted-foreground">
+              <tr>
+                <th className="p-2">Error</th>
+                <th className="p-2">Member #</th>
+                <th className="p-2">Customer</th>
+                <th className="p-2">Product</th>
+                <th className="p-2" />
+              </tr>
+            </thead>
+            <tbody>
+              {!errors.length ? (
+                <tr>
+                  <td colSpan={5} className="p-6 text-center text-muted-foreground">
+                    No LCT errors
+                  </td>
+                </tr>
+              ) : (
+                errors.map((row) => (
+                  <tr key={String(row.id)} className="border-b">
+                    <td className="p-2">
+                      <Badge variant="destructive">{String(row.errorCode)}</Badge>
+                    </td>
+                    <td className="p-2 font-mono text-xs">{String(row.memberNumber)}</td>
+                    <td className="p-2 font-mono text-xs">{String(row.customerId)}</td>
+                    <td className="p-2">
+                      {String((row.policy as { productName?: string } | undefined)?.productName ?? '—')}
+                    </td>
+                    <td className="p-2">
+                      <Link
+                        href={`/admin/customer/${String(row.customerId)}`}
+                        className="text-blue-600 hover:underline text-xs"
+                      >
+                        Fix on customer
+                      </Link>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <Dialog open={sendOpen} onOpenChange={setSendOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Send LCT export</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <Label>Subject (read-only)</Label>
+              <Input value={subjectPreview} readOnly />
+            </div>
+            <div>
+              <Label>To</Label>
+              <Input value={toEmails} onChange={(e) => setToEmails(e.target.value)} />
+            </div>
+            <div>
+              <Label>CC</Label>
+              <Input value={ccEmails} onChange={(e) => setCcEmails(e.target.value)} />
+            </div>
+            <div>
+              <Label>BCC</Label>
+              <Input value={bccEmails} onChange={(e) => setBccEmails(e.target.value)} />
+            </div>
+            <div>
+              <Label>Body (HTML)</Label>
+              <Textarea rows={6} value={bodyHtml} onChange={(e) => setBodyHtml(e.target.value)} />
+            </div>
+            {openBatch && (
+              <p className="text-sm text-muted-foreground">
+                Attachment: {openBatch.filename} ({openBatch.rowCount} rows)
+              </p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSendOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={() => void handleSend()} disabled={sending}>
+              {sending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              Send email
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  )
+}

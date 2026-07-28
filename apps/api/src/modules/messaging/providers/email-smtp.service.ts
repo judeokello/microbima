@@ -68,6 +68,8 @@ export class SmtpEmailService implements OnModuleInit {
    */
   async sendEmail(params: {
     to: string;
+    cc?: string;
+    bcc?: string;
     subject: string;
     htmlBody: string;
     textBody?: string;
@@ -84,13 +86,18 @@ export class SmtpEmailService implements OnModuleInit {
     const from = fromName ? `${fromName} <${fromEmail}>` : fromEmail;
 
     this.logger.log(
-      `Sending email to ${params.to} via SMTP (from=${from}, subject="${params.subject}")`
+      `Sending email to ${params.to}` +
+        `${params.cc ? ` cc=${params.cc}` : ''}` +
+        `${params.bcc ? ` bcc=${params.bcc}` : ''}` +
+        ` via SMTP (from=${from}, subject="${params.subject}")`
     );
 
     try {
       const info = await this.transporter.sendMail({
         from,
         to: params.to,
+        cc: params.cc,
+        bcc: params.bcc,
         subject: params.subject,
         html: params.htmlBody,
         text: params.textBody,

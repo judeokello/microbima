@@ -125,7 +125,7 @@ export class MpesaPaymentsService {
       return storagePath; // Return the storage path
     } else {
       // Use filesystem storage for development
-      const directoryPath = join(process.cwd(), 'public', 'mpesa_statements', userId);
+      const directoryPath = join(process.cwd(), 'storage', 'mpesa_statements', userId);
 
       // Create directory if it doesn't exist
       if (!existsSync(directoryPath)) {

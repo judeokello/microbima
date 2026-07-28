@@ -64,6 +64,7 @@ import {
   SUSPEND_SCHEDULE,
   SUSPEND_TEMPLATE,
 } from '../modules/messaging/policy-lifecycle-messaging.service';
+import { LctSyncService } from '../modules/lct/lct-sync.service';
 import { utcDayStart, utcDayEnd, sumConfirmedPaidThroughAsOf, computeExpectedPremiumThroughAsOf } from '../utils/premium-statement-math';
 
 /** Well-known actor UUID for SYSTEM / payment-lifecycle automated transitions. */
@@ -84,7 +85,8 @@ export class PolicyLifecycleService {
     private readonly prisma: PrismaService,
     private readonly statusChangeService: EntityStatusChangeService,
     private readonly policyService: PolicyService,
-    private readonly lifecycleMessaging: PolicyLifecycleMessagingService
+    private readonly lifecycleMessaging: PolicyLifecycleMessagingService,
+    private readonly lctSyncService: LctSyncService
   ) {}
 
   assertAdmin(userRoles: string[]): void {
@@ -1993,6 +1995,27 @@ export class PolicyLifecycleService {
 
       let placeholdersBackfilledCount = 0;
 
+      if (dto.policyNumberChoice === PolicyNumberChoice.KEEP_EXISTING) {
+        // Same member numbers move with the policy before activation; clear LCT pending from deactivate.
+        await tx.policyMemberPrincipal.updateMany({
+          where: { policyId },
+          data: { policyId: newPolicy.id },
+        });
+        await tx.policyMemberDependant.updateMany({
+          where: { policyId },
+          data: { policyId: newPolicy.id },
+        });
+        await tx.lctMemberSyncTarget.updateMany({
+          where: { policyId },
+          data: {
+            policyId: newPolicy.id,
+            pendingAction: null,
+            pendingReasons: [],
+            pendingSince: null,
+          },
+        });
+      }
+
       if (paymentsToMove.length > 0) {
         const paymentIds = paymentsToMove.map((p) => p.id);
         await tx.policyPayment.updateMany({
@@ -2061,8 +2084,28 @@ export class PolicyLifecycleService {
 
       await this.syncCustomerStatusAfterPolicyChange(customerId, userId, correlationId, tx);
 
+      if (dto.policyNumberChoice === PolicyNumberChoice.KEEP_EXISTING) {
+        // Renewal/keep: same member numbers must not create an LCT message
+        await tx.lctMemberSyncTarget.updateMany({
+          where: { policyId: newPolicy.id },
+          data: {
+            pendingAction: null,
+            pendingReasons: [],
+            pendingSince: null,
+          },
+        });
+      }
+
       return finalPolicy;
     });
+
+    if (dto.policyNumberChoice === PolicyNumberChoice.GENERATE_NEW) {
+      await this.lctSyncService.onPolicyReplaced({
+        oldPolicyId: policyId,
+        newPolicyId: result.id,
+        correlationId,
+      });
+    }
 
     return {
       status: 200,

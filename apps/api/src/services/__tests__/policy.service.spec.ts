@@ -33,11 +33,18 @@ describe('PolicyService - generatePolicyNumber', () => {
     enqueueLifecycleNotification: jest.fn(),
   };
 
+  const lctSyncServiceMock = {
+    onPolicyActivated: jest.fn(),
+    onPolicyStatusChange: jest.fn(),
+    onPolicyReplaced: jest.fn(),
+  };
+
   const policyService = new PolicyService(
     prismaMock as unknown as PrismaService,
     paymentAccountNumberServiceMock as unknown as PaymentAccountNumberService,
     paymentMessagingServiceMock as unknown as PaymentMessagingService,
-    lifecycleMessagingServiceMock as unknown as PolicyLifecycleMessagingService
+    lifecycleMessagingServiceMock as unknown as PolicyLifecycleMessagingService,
+    lctSyncServiceMock as never
   );
 
   beforeEach(() => {
@@ -94,6 +101,12 @@ describe('PolicyService - mapUnmappedMpesaItemsToPolicy', () => {
     suppressPendingActivationReminders: jest.fn(),
   };
 
+  const lctSyncServiceMock = {
+    onPolicyActivated: jest.fn(),
+    onPolicyStatusChange: jest.fn(),
+    onPolicyReplaced: jest.fn(),
+  };
+
   let policyService: PolicyService;
 
   beforeEach(() => {
@@ -102,7 +115,8 @@ describe('PolicyService - mapUnmappedMpesaItemsToPolicy', () => {
       prismaMock as unknown as PrismaService,
       paymentAccountNumberServiceMock as unknown as PaymentAccountNumberService,
       paymentMessagingServiceMock as unknown as PaymentMessagingService,
-      lifecycleMessagingServiceMock as unknown as PolicyLifecycleMessagingService
+      lifecycleMessagingServiceMock as unknown as PolicyLifecycleMessagingService,
+      lctSyncServiceMock as never
     );
     jest.spyOn(policyService, 'activatePolicy').mockResolvedValue({
       id: 'policy-1',
@@ -270,7 +284,8 @@ describe('PolicyService - assertRecoveryAccessToCustomer', () => {
     prismaMock as unknown as PrismaService,
     {} as PaymentAccountNumberService,
     {} as PaymentMessagingService,
-    {} as PolicyLifecycleMessagingService
+    {} as PolicyLifecycleMessagingService,
+    { onPolicyActivated: jest.fn() } as never
   );
 
   beforeEach(() => {

@@ -497,3 +497,59 @@ VALUES (
 )
 ON CONFLICT ("templateKey", "channel", "language") DO UPDATE
 SET "body" = EXCLUDED."body", "placeholders" = EXCLUDED."placeholders", "isActive" = EXCLUDED."isActive", "updatedAt" = NOW();
+
+-- ---------- Route + EMAIL template: lct_customer_export (partner email, not customer delivery) ----------
+INSERT INTO messaging_routes ("templateKey", "smsEnabled", "emailEnabled", "isActive", "createdAt", "updatedAt")
+VALUES ('lct_customer_export', false, true, true, NOW(), NOW())
+ON CONFLICT ("templateKey") DO UPDATE
+SET "smsEnabled" = EXCLUDED."smsEnabled", "emailEnabled" = EXCLUDED."emailEnabled", "isActive" = EXCLUDED."isActive", "updatedAt" = NOW();
+
+INSERT INTO messaging_templates (id, "templateKey", "channel", "language", "subject", "body", "textBody", "placeholders", "description", "isActive", "createdAt", "updatedAt")
+VALUES (
+  gen_random_uuid(),
+  'lct_customer_export',
+  'EMAIL',
+  'en',
+  'Maisha Poa Customer Export',
+  '<p>Dear LCT Africa,</p><p>Please find attached the Maisha Poa customer export file.</p><p>Row count: <strong>{row_count}</strong></p><p>Exported at: {exported_at}</p><p>Regards,<br/>Maisha Poa</p>',
+  'Dear LCT Africa,
+
+Please find attached the Maisha Poa customer export file.
+
+Row count: {row_count}
+Exported at: {exported_at}
+
+Regards,
+Maisha Poa',
+  ARRAY['row_count', 'exported_at'],
+  'Partner email for LCT Africa customer CSV export batches',
+  true,
+  NOW(),
+  NOW()
+)
+ON CONFLICT ("templateKey", "channel", "language") DO UPDATE
+SET "subject" = EXCLUDED."subject",
+    "body" = EXCLUDED."body",
+    "textBody" = EXCLUDED."textBody",
+    "placeholders" = EXCLUDED."placeholders",
+    "description" = EXCLUDED."description",
+    "isActive" = EXCLUDED."isActive",
+    "updatedAt" = NOW();
+
+INSERT INTO messaging_email_recipient_configs (
+  id, "templateKey", "toEmails", "ccEmails", "bccEmails", "createdAt", "updatedAt"
+)
+VALUES (
+  gen_random_uuid(),
+  'lct_customer_export',
+  ARRAY['bnyakundi@maishapoa.co.ke']::TEXT[],
+  ARRAY['jude@maishapoa.co.ke', 'maende@maishapoa.co.ke']::TEXT[],
+  ARRAY['jude.o.okello@gmail.com']::TEXT[],
+  NOW(),
+  NOW()
+)
+ON CONFLICT ("templateKey") DO UPDATE
+SET "toEmails" = EXCLUDED."toEmails",
+    "ccEmails" = EXCLUDED."ccEmails",
+    "bccEmails" = EXCLUDED."bccEmails",
+    "updatedAt" = NOW();

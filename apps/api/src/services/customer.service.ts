@@ -5,6 +5,8 @@ import {
   BadRequestException,
   ForbiddenException,
   ServiceUnavailableException,
+  Inject,
+  forwardRef,
 } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { ValidationException } from '../exceptions/validation.exception';
@@ -61,6 +63,7 @@ import { PremiumStatementService } from './premium-statement.service';
 import { ConfigurationService } from '../config/configuration.service';
 import { PolicyService } from './policy.service';
 import { UpdateCustomerDto } from '../dto/customers/update-customer.dto';
+import { LctSyncService } from '../modules/lct/lct-sync.service';
 import { UpdateDependantDto } from '../dto/dependants/update-dependant.dto';
 import { UpdateBeneficiaryDto } from '../dto/beneficiaries/update-beneficiary.dto';
 import { SupabaseService } from './supabase.service';
@@ -116,6 +119,8 @@ export class CustomerService {
     private readonly configService: ConfigurationService,
     private readonly premiumStatementService: PremiumStatementService,
     private readonly policyService: PolicyService,
+    @Inject(forwardRef(() => LctSyncService))
+    private readonly lctSyncService: LctSyncService,
   ) {}
 
   /**
@@ -962,6 +967,20 @@ export class CustomerService {
       });
 
       this.logger.log(`[${correlationId}] Successfully added ${result.totalProcessed} dependants to customer ${customerId}`);
+
+      // Late dependants: create member numbers + LCT pending for syncable policies
+      const policies = await this.prismaService.policy.findMany({
+        where: {
+          customerId,
+          status: { in: ['ACTIVE', 'SUSPENDED', 'INACTIVE', 'DEACTIVATED', 'TERMINATED', 'EXPIRED'] },
+        },
+        select: { id: true },
+      });
+      for (const policy of policies) {
+        await this.lctSyncService.ensureMemberRowsForLateDependants(policy.id, correlationId);
+        await this.lctSyncService.upsertTargetsForPolicy(policy.id, correlationId);
+        await this.lctSyncService.onPolicyActivated(policy.id, correlationId);
+      }
 
       return {
         status: 201,
@@ -2716,6 +2735,7 @@ export class CustomerService {
         id: policy.id,
         policyNumber: policy.policyNumber,
         status: policy.status,
+        staffNumber: policy.staffNumber ?? null,
         packageId: policy.packageId,
         packageSchemeId,
         product: {
@@ -3314,6 +3334,7 @@ export class CustomerService {
         });
 
         const customerEntity = Customer.fromPrismaData(updated);
+        await this.lctSyncService.onProfileChanged({ customerId, correlationId });
         return CustomerMapper.toPrincipalMemberDto(customerEntity);
       }
 
@@ -3324,6 +3345,7 @@ export class CustomerService {
       });
 
       const customerEntity = Customer.fromPrismaData(updated);
+      await this.lctSyncService.onProfileChanged({ customerId, correlationId });
       return CustomerMapper.toPrincipalMemberDto(customerEntity);
     } catch (error) {
       this.logger.error(`[${correlationId}] Error updating customer: ${error instanceof Error ? error.message : 'Unknown error'}`, error instanceof Error ? error.stack : undefined);
@@ -3398,6 +3420,12 @@ export class CustomerService {
       const updated = await this.prismaService.dependant.update({
         where: { id: dependantId },
         data: updatePayload,
+      });
+
+      await this.lctSyncService.onProfileChanged({
+        customerId: dependant.customerId,
+        dependantId,
+        correlationId,
       });
 
       return {
@@ -3541,6 +3569,8 @@ export class CustomerService {
         deletedBy: userId,
       },
     });
+
+    await this.lctSyncService.onDependantSoftDeleted(dependantId, correlationId);
 
     this.logger.log(`[${correlationId}] Soft deleted dependant ${dependantId} by user ${userId}`);
   }
