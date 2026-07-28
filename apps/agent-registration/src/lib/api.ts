@@ -2555,6 +2555,63 @@ export async function remapMpesaPaymentsToPolicy(
   )
 }
 
+export interface DetachablePaymentItem {
+  id: number
+  transactionReference: string
+  amount: number
+  expectedPaymentDate: string
+  actualPaymentDate: string | null
+  paymentStatus: string
+  accountNumber: string | null
+  details: string | null
+}
+
+export interface DetachablePaymentsResponse {
+  status: number
+  correlationId: string
+  items: DetachablePaymentItem[]
+}
+
+export interface DetachPaymentsResponse {
+  status: number
+  correlationId: string
+  message: string
+  detachedCount: number
+  detachedTotalAmount: number
+  sourceLifecycleAction: string
+  rematchFound: boolean
+  targetPolicyId?: string | null
+  targetPolicyNumber?: string | null
+  rematchedCount: number
+  rematchedTotalAmount: number
+  targetLifecycleAction?: string | null
+  detachSmsEnqueued: boolean
+  rematchSmsEnqueued: boolean
+  note?: string
+}
+
+export async function listDetachablePayments(
+  customerId: string,
+  policyId: string
+): Promise<DetachablePaymentsResponse> {
+  return policyLifecycleFetch(
+    `/internal/customers/${customerId}/policies/${policyId}/detachable-payments`,
+    'GET'
+  )
+}
+
+export async function detachPaymentsFromPolicy(
+  customerId: string,
+  policyId: string,
+  body: { paymentIds: number[]; newAccountNumber: string; reason: string }
+): Promise<DetachPaymentsResponse> {
+  return policyLifecycleFetch(
+    `/internal/customers/${customerId}/policies/${policyId}/detach-payments`,
+    'POST',
+    body
+  )
+}
+
 export async function getModifyPolicyOptions(
   customerId: string,
   policyId: string

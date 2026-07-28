@@ -2,7 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { readFileSync } from 'fs';
 import * as path from 'path';
 import * as Sentry from '@sentry/nestjs';
-import { PaymentStatus } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 import type { ReactElement } from 'react';
 import { PrismaService } from '../prisma/prisma.service';
 import { ValidationException } from '../exceptions/validation.exception';
@@ -16,8 +16,10 @@ import {
   utcDayEnd,
   utcDayStart,
 } from '../utils/premium-statement-math';
-
-const CONFIRMED: PaymentStatus[] = [PaymentStatus.COMPLETED, PaymentStatus.COMPLETED_PENDING_RECEIPT];
+import {
+  CONFIRMED_PAYMENT_STATUSES,
+  notDetachedPaymentWhere,
+} from '../utils/policy-payment-filters';
 
 export interface PremiumStatementGenerateParams {
   customerId: string;
@@ -206,7 +208,8 @@ export class PremiumStatementService {
     const paidThroughAsOfRows = await this.prismaService.policyPayment.findMany({
       where: {
         policyId,
-        paymentStatus: { in: CONFIRMED },
+        ...notDetachedPaymentWhere(),
+        paymentStatus: { in: CONFIRMED_PAYMENT_STATUSES },
         expectedPaymentDate: {
           gte: policyStartDay,
           lte: asOfEnd,
@@ -218,7 +221,7 @@ export class PremiumStatementService {
       paidThroughAsOfRows,
       policyStartDay,
       asOfEnd,
-      CONFIRMED
+      CONFIRMED_PAYMENT_STATUSES
     );
 
     const { premiumDue, excessAmount } = computePremiumDueAndExcess(expectedPremium, paidThroughAsOf);
@@ -226,19 +229,17 @@ export class PremiumStatementService {
     const allTimeRows = await this.prismaService.policyPayment.findMany({
       where: {
         policyId,
-        paymentStatus: { in: CONFIRMED },
+        ...notDetachedPaymentWhere(),
+        paymentStatus: { in: CONFIRMED_PAYMENT_STATUSES },
       },
       select: { amount: true },
     });
     const allTimeCaptured = allTimeRows.reduce((s, r) => s + Number(r.amount), 0);
 
-    const tableWhere: {
-      policyId: string;
-      paymentStatus: { in: PaymentStatus[] };
-      expectedPaymentDate?: { gte?: Date; lte?: Date };
-    } = {
+    const tableWhere: Prisma.PolicyPaymentWhereInput = {
       policyId,
-      paymentStatus: { in: CONFIRMED },
+      ...notDetachedPaymentWhere(),
+      paymentStatus: { in: CONFIRMED_PAYMENT_STATUSES },
     };
     if (fromDate || toDate) {
       tableWhere.expectedPaymentDate = {};

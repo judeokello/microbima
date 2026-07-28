@@ -20,6 +20,7 @@ import { LctSyncService } from '../modules/lct/lct-sync.service';
 import { policyDatesFromPayment, policyEndDateFromStart } from '../utils/policy-dates.util';
 import { assertPolicyMayBecomeActive } from '../utils/policy-activation-gate.util';
 import { hasGlobalCustomerAccess } from '../utils/roles.util';
+import { notDetachedPaymentWhere } from '../utils/policy-payment-filters';
 
 /**
  * Policy Service
@@ -117,7 +118,7 @@ export class PolicyService {
 
     const refs = uniqueItems.map((i) => i.transactionReference);
     const existingPayments = await tx.policyPayment.findMany({
-      where: { transactionReference: { in: refs } },
+      where: { transactionReference: { in: refs }, ...notDetachedPaymentWhere() },
       select: { transactionReference: true },
     });
     const existingRefs = new Set(existingPayments.map((p) => p.transactionReference));
@@ -519,11 +520,13 @@ export class PolicyService {
     const existingPayment = await this.prismaService.policyPayment.findFirst({
       where: {
         transactionReference: data.paymentData.transactionReference,
+        ...notDetachedPaymentWhere(),
       },
       include: {
         policy: {
           include: {
             policyPayments: {
+              where: notDetachedPaymentWhere(),
               orderBy: { createdAt: 'desc' },
               take: 1,
             },
@@ -633,6 +636,7 @@ export class PolicyService {
         const existingPaymentInTx = await tx.policyPayment.findFirst({
           where: {
             transactionReference: data.paymentData.transactionReference,
+            ...notDetachedPaymentWhere(),
           },
           include: {
             policy: true,
@@ -1033,6 +1037,7 @@ export class PolicyService {
     const existingPayment = await this.prismaService.policyPayment.findFirst({
       where: {
         transactionReference: capitalizedTransactionReference,
+        ...notDetachedPaymentWhere(),
       },
       select: {
         id: true,
@@ -1277,6 +1282,7 @@ export class PolicyService {
     const firstPayment = await tx.policyPayment.findFirst({
       where: {
         policyId: policy.id,
+        ...notDetachedPaymentWhere(),
         actualPaymentDate: { not: null },
         ...(isPostpaidScheme
           ? { postpaidSchemePaymentItem: { isNot: null } }

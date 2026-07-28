@@ -1412,11 +1412,11 @@ export class InternalCustomerController {
       },
     });
 
-    // Get all policy payments for customer's policies
+    // Get policy payments for customer's policies (exclude soft-detached by default)
     const policyIds = policies.map(p => p.id);
     const policyPayments = policyIds.length > 0
       ? await this.prismaService.policyPayment.findMany({
-          where: { policyId: { in: policyIds } },
+          where: { policyId: { in: policyIds }, detachedAt: null },
         })
       : [];
 

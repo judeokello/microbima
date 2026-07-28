@@ -30,6 +30,7 @@ import {
   type RecoveryCustomer,
   type Plan,
 } from '@/lib/api';
+import { computeInstallmentPremium, PAYMENT_CADENCE_DAYS } from '@/lib/insurance-installment';
 import { formatTransactionReferenceForDisplay } from '@/lib/transaction-reference-display';
 import { formatDate } from '@/lib/utils';
 import { Loader2, RefreshCw, Plus } from 'lucide-react';
@@ -56,14 +57,6 @@ interface InsurancePricing {
     };
   };
 }
-
-const PAYMENT_CADENCE: Record<string, number> = {
-  DAILY: 1,
-  WEEKLY: 7,
-  MONTHLY: 31,
-  QUARTERLY: 90,
-  ANNUALLY: 365,
-};
 
 const FREQUENCY_OPTIONS = [
   { value: 'DAILY', label: 'Daily (1 day)' },
@@ -163,13 +156,26 @@ export default function RecoveryPage() {
 
   useEffect(() => {
     if (formData.selectedPlan && formData.selectedCategory) {
-      const premium =
-        formData.frequency === 'WEEKLY'
-          ? calculatedPricing.totalWeekly
-          : calculatedPricing.totalDaily;
+      const premium = computeInstallmentPremium({
+        frequency: formData.frequency,
+        daily: calculatedPricing.totalDaily,
+        weekly: calculatedPricing.totalWeekly,
+        customDays:
+          formData.frequency === 'CUSTOM'
+            ? parseInt(formData.customDays, 10) || undefined
+            : undefined,
+      });
       setFormData((f) => ({ ...f, premium: premium.toString() }));
     }
-  }, [formData.selectedPlan, formData.selectedCategory, formData.additionalSpouse, formData.frequency, calculatedPricing.totalDaily, calculatedPricing.totalWeekly]);
+  }, [
+    formData.selectedPlan,
+    formData.selectedCategory,
+    formData.additionalSpouse,
+    formData.frequency,
+    formData.customDays,
+    calculatedPricing.totalDaily,
+    calculatedPricing.totalWeekly,
+  ]);
 
   const handleSubmit = async () => {
     if (!selectedCustomer) return;
@@ -224,7 +230,7 @@ export default function RecoveryPage() {
 
   const paymentCadence = formData.frequency === 'CUSTOM'
     ? parseInt(formData.customDays, 10) || 0
-    : PAYMENT_CADENCE[formData.frequency] ?? 0;
+    : PAYMENT_CADENCE_DAYS[formData.frequency] ?? 0;
 
   return (
     <div className="space-y-6">
@@ -401,15 +407,18 @@ export default function RecoveryPage() {
               </Label>
             </div>
             <div>
-              <Label>Premium (KES)</Label>
+              <Label>Installment (KES)</Label>
               <Input
                 type="number"
                 min={0}
                 step={0.01}
                 value={formData.premium}
                 onChange={(e) => setFormData((f) => ({ ...f, premium: e.target.value }))}
-                placeholder="Enter premium"
+                placeholder="Installment per payment period"
               />
+              <p className="text-xs text-muted-foreground mt-1">
+                Weekly uses table rate; other frequencies use daily × cadence
+              </p>
             </div>
             <div>
               <Label>Frequency</Label>

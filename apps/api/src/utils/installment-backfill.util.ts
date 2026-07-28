@@ -1,10 +1,6 @@
 import { PaymentStatus } from '@prisma/client';
 import { utcDayEnd, utcDayStart } from './premium-statement-math';
-
-const CONFIRMED: PaymentStatus[] = [
-  PaymentStatus.COMPLETED,
-  PaymentStatus.COMPLETED_PENDING_RECEIPT,
-];
+import { CONFIRMED_PAYMENT_STATUSES } from './policy-payment-filters';
 
 export interface InstallmentBackfillPayment {
   id: number;
@@ -55,7 +51,10 @@ function paymentCoversWindow(
   windowStart: Date,
   windowEnd: Date
 ): boolean {
-  if (!CONFIRMED.includes(payment.paymentStatus) || payment.actualPaymentDate == null) {
+  if (
+    !CONFIRMED_PAYMENT_STATUSES.includes(payment.paymentStatus) ||
+    payment.actualPaymentDate == null
+  ) {
     return false;
   }
   const anchor = payment.actualPaymentDate ?? payment.expectedPaymentDate;

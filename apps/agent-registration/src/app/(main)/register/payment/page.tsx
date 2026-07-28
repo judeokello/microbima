@@ -15,6 +15,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
 import { usePaymentStatus, PaymentStatusUpdate } from '@/hooks/usePaymentStatus';
 import { mapStkGatewayStatusToSpecVocabulary } from '@/lib/payment-status-vocabulary';
+import { computeInstallmentPremium } from '@/lib/insurance-installment';
 
 interface InsurancePricing {
   plans: {
@@ -465,9 +466,12 @@ export default function PaymentStep() {
       // Use selected frequency from the dropdown
       const frequency = selectedFrequency as 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'QUARTERLY' | 'ANNUALLY' | 'CUSTOM';
 
-      // Determine premium amount based on frequency
-      // For now, using weekly if selected, otherwise daily
-      const premium = frequency === 'WEEKLY' ? calculatedPricing.totalWeekly : calculatedPricing.totalDaily;
+      const premium = computeInstallmentPremium({
+        frequency,
+        daily: calculatedPricing.totalDaily,
+        weekly: calculatedPricing.totalWeekly,
+        customDays: frequency === 'CUSTOM' ? parseInt(customCadence, 10) || undefined : undefined,
+      });
 
       // Generate placeholder transaction reference for policy creation
       // The actual payment transaction reference will come from M-Pesa via IPN
@@ -715,14 +719,46 @@ export default function PaymentStep() {
                 <p className="text-sm text-blue-700">Comprehensive insurance coverage</p>
               </div>
               <div className="text-right">
-                <p className="text-sm text-blue-700">Daily Payment</p>
-                <p className="text-lg font-bold text-blue-900">{calculatedPricing.totalDaily} KES</p>
+                <p className="text-sm text-blue-700">
+                  {selectedFrequency
+                    ? `${formatFrequencyDisplay(selectedFrequency, selectedFrequency === 'CUSTOM' ? parseInt(customCadence, 10) || undefined : undefined)} installment`
+                    : 'Installment'}
+                </p>
+                <p className="text-lg font-bold text-blue-900">
+                  {selectedFrequency
+                    ? computeInstallmentPremium({
+                        frequency: selectedFrequency,
+                        daily: calculatedPricing.totalDaily,
+                        weekly: calculatedPricing.totalWeekly,
+                        customDays:
+                          selectedFrequency === 'CUSTOM'
+                            ? parseInt(customCadence, 10) || undefined
+                            : undefined,
+                      })
+                    : calculatedPricing.totalDaily}{' '}
+                  KES
+                </p>
               </div>
             </div>
 
             <div className="text-sm text-gray-600">
-              <p>• Daily payment: {calculatedPricing.totalDaily} KES</p>
-              <p>• Weekly payment: {calculatedPricing.totalWeekly} KES (recommended)</p>
+              <p>• Daily rate: {calculatedPricing.totalDaily} KES</p>
+              <p>• Weekly installment: {calculatedPricing.totalWeekly} KES (recommended)</p>
+              {selectedFrequency && selectedFrequency !== 'DAILY' && selectedFrequency !== 'WEEKLY' && (
+                <p>
+                  • Selected installment:{' '}
+                  {computeInstallmentPremium({
+                    frequency: selectedFrequency,
+                    daily: calculatedPricing.totalDaily,
+                    weekly: calculatedPricing.totalWeekly,
+                    customDays:
+                      selectedFrequency === 'CUSTOM'
+                        ? parseInt(customCadence, 10) || undefined
+                        : undefined,
+                  })}{' '}
+                  KES (daily × cadence)
+                </p>
+              )}
               <p>• Payment end date: {calculatePaymentEndDate()}</p>
             </div>
           </div>
@@ -865,11 +901,24 @@ export default function PaymentStep() {
             </div>
 
             <div>
-              <Label>Total Amount</Label>
+              <Label>Installment amount</Label>
               <div className="flex items-center h-10 px-3 py-2 border border-gray-200 rounded-md bg-gray-50 text-gray-900">
-                {calculatedPricing.totalDaily} KES
+                {selectedFrequency
+                  ? computeInstallmentPremium({
+                      frequency: selectedFrequency,
+                      daily: calculatedPricing.totalDaily,
+                      weekly: calculatedPricing.totalWeekly,
+                      customDays:
+                        selectedFrequency === 'CUSTOM'
+                          ? parseInt(customCadence, 10) || undefined
+                          : undefined,
+                    })
+                  : calculatedPricing.totalDaily}{' '}
+                KES
               </div>
-              <p className="text-xs text-gray-500 mt-1">Daily premium amount</p>
+              <p className="text-xs text-gray-500 mt-1">
+                Premium per payment period (weekly from table; otherwise daily × cadence)
+              </p>
             </div>
 
             <div>

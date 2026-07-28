@@ -423,6 +423,7 @@ export class MpesaStkPushService implements OnModuleInit {
           const existingPayment = await this.prismaService.policyPayment.findFirst({
             where: {
               transactionReference: mpesaReceiptNumber,
+              detachedAt: null,
             },
           });
 
@@ -669,6 +670,7 @@ export class MpesaStkPushService implements OnModuleInit {
     const existingPolicyPayment = await this.prismaService.policyPayment.findFirst({
       where: {
         transactionReference: mpesaReceiptNumber,
+        detachedAt: null,
       },
     });
 
@@ -710,6 +712,7 @@ export class MpesaStkPushService implements OnModuleInit {
       where: {
         transactionReference: `QUERY-PENDING-${stkPushRequest.id}`,
         paymentStatus: 'COMPLETED_PENDING_RECEIPT',
+        detachedAt: null,
       },
     });
 
@@ -838,6 +841,7 @@ export class MpesaStkPushService implements OnModuleInit {
             transactionReference: {
               startsWith: 'PENDING-STK-',
             },
+            detachedAt: null,
             // Only update if actualPaymentDate is null (payment hasn't completed yet)
             actualPaymentDate: null,
           },
@@ -1003,6 +1007,7 @@ export class MpesaStkPushService implements OnModuleInit {
             startsWith: 'PENDING-STK-',
           },
           actualPaymentDate: null,
+          detachedAt: null,
         },
       });
 

@@ -457,6 +457,7 @@ enum PaymentStatus {
   COMPLETED_PENDING_RECEIPT   // Query confirmed success, awaiting callback for receipt
   COMPLETED                   // Has real M-Pesa receipt number
   OUTSTANDING                 // Backfilled expected installment slot not yet paid
+  DETACHED                    // Soft-detached by admin; excluded from paid math
 }
 
 enum StatusChangeEntityType {
@@ -906,6 +907,8 @@ model PolicyPayment {
   paymentMessageBlob   String?       @db.VarChar(500)
   paymentStatus        PaymentStatus @default(PENDING_STK_CALLBACK)
   paymentSmsEnqueuedAt DateTime?     @db.Timestamptz
+  detachedAt           DateTime?     @db.Timestamptz
+  detachedBy           String?       @db.Uuid
 
   // Relations
   policy                    Policy                    @relation(fields: [policyId], references: [id])
@@ -914,6 +917,7 @@ model PolicyPayment {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  @@index([detachedAt], name: "idx_policy_payments_detached_at")
   @@map("policy_payments")
 }
 

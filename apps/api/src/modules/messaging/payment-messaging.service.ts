@@ -88,6 +88,10 @@ export class PaymentMessagingService {
       return;
     }
 
+    if (payment.detachedAt != null || payment.paymentStatus === PaymentStatus.DETACHED) {
+      return;
+    }
+
     if (payment.paymentSmsEnqueuedAt) {
       return;
     }

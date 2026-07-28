@@ -66,14 +66,14 @@ import {
 } from '../modules/messaging/policy-lifecycle-messaging.service';
 import { LctSyncService } from '../modules/lct/lct-sync.service';
 import { utcDayStart, utcDayEnd, sumConfirmedPaidThroughAsOf, computeExpectedPremiumThroughAsOf } from '../utils/premium-statement-math';
+import {
+  CONFIRMED_PAYMENT_STATUSES,
+  confirmedActivePaymentWhere,
+  notDetachedPaymentWhere,
+} from '../utils/policy-payment-filters';
 
 /** Well-known actor UUID for SYSTEM / payment-lifecycle automated transitions. */
 export const LIFECYCLE_SYSTEM_ACTOR_ID = '00000000-0000-0000-0000-000000000001';
-
-const CONFIRMED_PAYMENT_STATUSES: PaymentStatus[] = [
-  PaymentStatus.COMPLETED,
-  PaymentStatus.COMPLETED_PENDING_RECEIPT,
-];
 
 const ADMIN_ROLE = 'registration_admin';
 
@@ -174,6 +174,7 @@ export class PolicyLifecycleService {
         customer: { select: { firstName: true } },
         policyPayments: {
           where: {
+            ...notDetachedPaymentWhere(),
             paymentStatus: { in: CONFIRMED_PAYMENT_STATUSES },
             actualPaymentDate: { not: null },
           },
@@ -268,6 +269,7 @@ export class PolicyLifecycleService {
         overdueAnchorDueDate: true,
         customer: { select: { firstName: true } },
         policyPayments: {
+          where: notDetachedPaymentWhere(),
           select: {
             amount: true,
             paymentStatus: true,
@@ -497,6 +499,7 @@ export class PolicyLifecycleService {
         inGracePeriod: true,
         customer: { select: { firstName: true } },
         policyPayments: {
+          where: notDetachedPaymentWhere(),
           select: {
             amount: true,
             paymentStatus: true,
@@ -1011,6 +1014,7 @@ export class PolicyLifecycleService {
       include: {
         customer: { select: { firstName: true } },
         policyPayments: {
+          where: notDetachedPaymentWhere(),
           select: {
             amount: true,
             paymentStatus: true,
@@ -1193,6 +1197,157 @@ export class PolicyLifecycleService {
     }
 
     return { action: 'noop' };
+  }
+
+  /**
+   * Re-evaluate a single policy after paid amount decreases (e.g. admin detach).
+   * Applies the same overdue math as daily grace/suspend evaluators (can enter grace or suspend).
+   */
+  async recalculatePolicyLifecycleAfterPaidChange(
+    policyId: string,
+    correlationId: string
+  ): Promise<{ action: string }> {
+    const asOfUtc = new Date();
+    const policy = await this.prisma.policy.findUnique({
+      where: { id: policyId },
+      select: {
+        id: true,
+        customerId: true,
+        productName: true,
+        premium: true,
+        paymentCadence: true,
+        startDate: true,
+        endDate: true,
+        status: true,
+        inGracePeriod: true,
+        overdueAnchorDueDate: true,
+        customer: { select: { firstName: true } },
+        policyPayments: {
+          where: notDetachedPaymentWhere(),
+          select: {
+            amount: true,
+            paymentStatus: true,
+            expectedPaymentDate: true,
+          },
+        },
+      },
+    });
+
+    if (!policy || !policy.startDate) {
+      return { action: 'noop' };
+    }
+    if (policy.status !== PolicyStatus.ACTIVE) {
+      return { action: 'noop' };
+    }
+    if (isPolicyEndDatePassed(policy.endDate, asOfUtc)) {
+      return { action: 'noop' };
+    }
+
+    const installmentAmount = Number(policy.premium);
+    if (policy.paymentCadence <= 0 || installmentAmount <= 0) {
+      return { action: 'noop' };
+    }
+
+    const paidThroughAsOf = this.paidThroughAsOf(
+      policy.startDate,
+      policy.policyPayments,
+      asOfUtc
+    );
+    const nextDue = nextUnpaidExpectedDueDate({
+      policyStart: policy.startDate,
+      paymentCadenceDays: policy.paymentCadence,
+      installmentAmount,
+      paidThroughAsOf,
+      asOfUtc,
+    });
+    const overdue = daysOverdue({ nextUnpaidDueDate: nextDue, asOfUtc });
+    const arrears = outstandingArrears({
+      policyStart: policy.startDate,
+      paymentCadenceDays: policy.paymentCadence,
+      installmentAmount,
+      paidThroughAsOf,
+      asOfUtc,
+    });
+
+    if (overdue > 14) {
+      await this.prisma.$transaction(async (tx) => {
+        if (policy.inGracePeriod) {
+          await this.statusChangeService.recordGraceExit({
+            customerId: policy.customerId,
+            policyId: policy.id,
+            reason: 'Grace ended; suspending after payment detach (overdue >14 days)',
+            trigger: StatusChangeTrigger.PAYMENT_LIFECYCLE,
+            changedBy: LIFECYCLE_SYSTEM_ACTOR_ID,
+            correlationId,
+            toStatus: PolicyStatus.SUSPENDED,
+            tx,
+          });
+        }
+
+        await this.statusChangeService.recordPolicyChange({
+          customerId: policy.customerId,
+          policyId: policy.id,
+          fromStatus: PolicyStatus.ACTIVE,
+          toStatus: PolicyStatus.SUSPENDED,
+          reason: `Premium overdue ${overdue} days after payment detach; suspended`,
+          trigger: StatusChangeTrigger.PAYMENT_LIFECYCLE,
+          changedBy: LIFECYCLE_SYSTEM_ACTOR_ID,
+          correlationId,
+          metadata: { overdueDays: overdue, arrears, anchorDueDate: nextDue.toISOString() },
+          tx,
+        });
+
+        await tx.policy.update({
+          where: { id: policy.id },
+          data: {
+            status: PolicyStatus.SUSPENDED,
+            suspendedAt: asOfUtc,
+            inGracePeriod: false,
+            graceEnteredAt: null,
+            overdueAnchorDueDate: null,
+          },
+        });
+
+        await this.syncCustomerStatusAfterPolicyChange(
+          policy.customerId,
+          LIFECYCLE_SYSTEM_ACTOR_ID,
+          correlationId,
+          tx
+        );
+      });
+
+      this.logger.log(
+        `[${correlationId}] recalculate after paid change: policy ${policyId} suspended (overdue=${overdue})`
+      );
+      return { action: 'suspended' };
+    }
+
+    if (overdue < 1 || arrears <= 0) {
+      if (policy.inGracePeriod) {
+        await this.clearGraceOverlay(
+          policy,
+          correlationId,
+          StatusChangeTrigger.PAYMENT_LIFECYCLE,
+          LIFECYCLE_SYSTEM_ACTOR_ID
+        );
+        return { action: 'grace_cleared' };
+      }
+      return { action: 'noop' };
+    }
+
+    // Overdue 1–14 → ensure grace
+    const entered = await this.ensureGraceOverlay({
+      policy,
+      nextDue,
+      overdue,
+      arrears,
+      correlationId,
+      asOfUtc,
+    });
+    // Patch grace enter trigger to PAYMENT_LIFECYCLE when entered via detach path:
+    // ensureGraceOverlay always uses SYSTEM; for detach we already recorded via that helper.
+    // Accept SYSTEM trigger for grace enter from this path for simplicity.
+    return { action: entered ? 'grace_entered' : 'grace_updated' };
   }
 
   /** Approximate surplus after clearing post-end debt using latest confirmed payment. */
@@ -1563,6 +1718,103 @@ export class PolicyLifecycleService {
     };
   }
 
+  /**
+   * One-off remediation: change policy status without the restore payment gate
+   * (`paid >= expected + 2 weeks`). Always goes through EntityStatusChangeService → LCT.
+   * Does not enqueue reactivation SMS.
+   */
+  async remediateStatusWithoutPaymentGate(params: {
+    policyId: string;
+    toStatus: typeof PolicyStatus.ACTIVE | typeof PolicyStatus.SUSPENDED;
+    reason: string;
+    correlationId: string;
+    changedBy?: string;
+  }): Promise<{ fromStatus: PolicyStatus; toStatus: PolicyStatus }> {
+    const { policyId, toStatus, reason, correlationId } = params;
+    const changedBy = params.changedBy ?? LIFECYCLE_SYSTEM_ACTOR_ID;
+    const asOfUtc = new Date();
+
+    const policy = await this.prisma.policy.findUnique({
+      where: { id: policyId },
+      select: {
+        id: true,
+        customerId: true,
+        status: true,
+        endDate: true,
+      },
+    });
+    if (!policy) {
+      throw ValidationException.forField('policyId', 'Policy not found');
+    }
+
+    if (policy.status === toStatus) {
+      return { fromStatus: policy.status, toStatus };
+    }
+
+    if (toStatus === PolicyStatus.ACTIVE) {
+      if (policy.status !== PolicyStatus.SUSPENDED) {
+        throw ValidationException.forField(
+          'status',
+          `Remediate to ACTIVE only from SUSPENDED (was ${policy.status})`
+        );
+      }
+      assertPolicyMayBecomeActive(policy);
+    } else if (toStatus === PolicyStatus.SUSPENDED) {
+      if (policy.status !== PolicyStatus.ACTIVE) {
+        throw ValidationException.forField(
+          'status',
+          `Remediate to SUSPENDED only from ACTIVE (was ${policy.status})`
+        );
+      }
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      await this.statusChangeService.recordPolicyChange({
+        customerId: policy.customerId,
+        policyId: policy.id,
+        fromStatus: policy.status,
+        toStatus,
+        reason,
+        trigger: StatusChangeTrigger.SYSTEM,
+        changedBy,
+        correlationId,
+        metadata: { remediation: 'daily_premium_as_installment', noPaymentGate: true },
+        tx,
+      });
+
+      await tx.policy.update({
+        where: { id: policy.id },
+        data:
+          toStatus === PolicyStatus.ACTIVE
+            ? {
+                status: PolicyStatus.ACTIVE,
+                suspendedAt: null,
+                inactivatedAt: null,
+                inGracePeriod: false,
+                graceEnteredAt: null,
+                overdueAnchorDueDate: null,
+                deactivatedAt: null,
+              }
+            : {
+                status: PolicyStatus.SUSPENDED,
+                suspendedAt: asOfUtc,
+                inGracePeriod: false,
+                graceEnteredAt: null,
+                overdueAnchorDueDate: null,
+              },
+      });
+
+      await this.syncCustomerStatusAfterPolicyChange(
+        policy.customerId,
+        changedBy,
+        correlationId,
+        tx
+      );
+    });
+
+    return { fromStatus: policy.status, toStatus };
+  }
+
   async activatePolicy(
     customerId: string,
     policyId: string,
@@ -1589,7 +1841,7 @@ export class PolicyLifecycleService {
       throw ValidationException.forField('startDate', 'Policy start date is required to activate');
     }
     const payments = await this.prisma.policyPayment.findMany({
-      where: { policyId },
+      where: { policyId, ...notDetachedPaymentWhere() },
       select: { amount: true, paymentStatus: true, expectedPaymentDate: true },
     });
     const installmentAmount = Number(source.premium);
@@ -1740,7 +1992,8 @@ export class PolicyLifecycleService {
 
     if (
       policy.status !== PolicyStatus.ACTIVE &&
-      policy.status !== PolicyStatus.PENDING_ACTIVATION
+      policy.status !== PolicyStatus.PENDING_ACTIVATION &&
+      policy.status !== PolicyStatus.SUSPENDED
     ) {
       throw ValidationException.forField('status', 'Policy is not eligible for modify');
     }
@@ -1754,7 +2007,7 @@ export class PolicyLifecycleService {
     const completedPayments = await this.prisma.policyPayment.findMany({
       where: {
         policyId,
-        paymentStatus: { in: CONFIRMED_PAYMENT_STATUSES },
+        ...confirmedActivePaymentWhere(),
         actualPaymentDate: { not: null },
       },
       orderBy: { expectedPaymentDate: 'asc' },
@@ -1822,7 +2075,8 @@ export class PolicyLifecycleService {
 
     if (
       source.status !== PolicyStatus.ACTIVE &&
-      source.status !== PolicyStatus.PENDING_ACTIVATION
+      source.status !== PolicyStatus.PENDING_ACTIVATION &&
+      source.status !== PolicyStatus.SUSPENDED
     ) {
       throw ValidationException.forField('status', 'Policy is not eligible for modify');
     }
@@ -1847,7 +2101,7 @@ export class PolicyLifecycleService {
     const completedPayments = await this.prisma.policyPayment.findMany({
       where: {
         policyId,
-        paymentStatus: { in: CONFIRMED_PAYMENT_STATUSES },
+        ...confirmedActivePaymentWhere(),
         actualPaymentDate: { not: null },
       },
       orderBy: { expectedPaymentDate: 'asc' },
@@ -2035,7 +2289,7 @@ export class PolicyLifecycleService {
         await this.policyService.activatePolicy(newPolicy.id, correlationId, tx);
 
         const allPayments = await tx.policyPayment.findMany({
-          where: { policyId: newPolicy.id },
+          where: { policyId: newPolicy.id, ...notDetachedPaymentWhere() },
         });
 
         placeholdersBackfilledCount = await this.backfillOutstandingInstallments(
