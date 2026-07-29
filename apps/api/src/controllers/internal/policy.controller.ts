@@ -71,16 +71,6 @@ export class PolicyController {
     @Body() createRequest: CreatePolicyRequestDto,
     @CorrelationId() correlationId: string,
   ): Promise<CreatePolicyResponseDto> {
-    // T058: Use client-provided messagingOverride only in dev/staging (ignore in production)
-    const nodeEnv = process.env.NODE_ENV ?? 'development';
-    const messagingOverride =
-      (nodeEnv === 'development' || nodeEnv === 'staging') && createRequest.messagingOverride
-        ? {
-            email: createRequest.messagingOverride.email,
-            phone: createRequest.messagingOverride.phone,
-          }
-        : undefined;
-
     const result = await this.policyService.createPolicyWithPayment(
       {
         customerId: createRequest.customerId,
@@ -105,7 +95,6 @@ export class PolicyController {
         },
       },
       correlationId,
-      messagingOverride,
     );
 
     const policyResponse: PolicyResponseDto = {

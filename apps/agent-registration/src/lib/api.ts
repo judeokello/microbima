@@ -1991,8 +1991,6 @@ export interface CreatePolicyRequest {
     paymentMessageBlob?: string
   }
   customDays?: number
-  /** T059: Dev/staging only. When set, SMS/email go to these instead of the customer's. */
-  messagingOverride?: { email?: string; phone?: string }
 }
 
 export interface CreatePolicyResponse {

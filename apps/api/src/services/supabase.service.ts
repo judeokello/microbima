@@ -75,6 +75,27 @@ export class SupabaseService {
   }
 
   /**
+   * Contacts for non-prod messaging redirect: user_metadata.phone + auth email.
+   */
+  async getUserMessagingContacts(
+    userId: string,
+  ): Promise<{ phone: string | null; email: string | null } | null> {
+    try {
+      const { data: { user }, error } = await this.supabase.auth.admin.getUserById(userId);
+      if (error || !user) {
+        return null;
+      }
+      const meta = (user.user_metadata ?? {}) as { phone?: unknown };
+      const phone =
+        typeof meta.phone === 'string' && meta.phone.trim() ? meta.phone.trim() : null;
+      const email = user.email?.trim() ? user.email.trim() : null;
+      return { phone, email };
+    } catch {
+      return null;
+    }
+  }
+
+  /**
    * Create a user using Supabase admin client
    */
   /**
