@@ -28,11 +28,10 @@ export interface EnqueueMessageRequest {
    */
   dynamicAttachmentSpecs?: DynamicAttachmentSpec[];
   /**
-   * Optional recipient override. When provided (e.g. in dev/staging for testing), SMS/email are sent
-   * to these addresses instead of the customer's. Use only when NODE_ENV is development or staging.
+   * Optional SMS recipient for phone-only enqueue (no customerId), e.g. unmatched paybill SMS.
+   * Customer-linked non-prod redirect is handled centrally in MessagingService.
    */
   overrideRecipientPhone?: string | null;
-  overrideRecipientEmail?: string | null;
 }
 
 export interface ResendDeliveryRequest {

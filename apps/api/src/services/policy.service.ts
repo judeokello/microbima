@@ -510,7 +510,6 @@ export class PolicyService {
       customDays?: number;
     },
     correlationId: string,
-    messagingOverride?: { phone?: string; email?: string }
   ) {
     // Capitalize transaction reference to ensure consistency in database
     const capitalizedTransactionReference = data.paymentData.transactionReference.trim().toUpperCase();
@@ -993,7 +992,6 @@ export class PolicyService {
           wasPendingActivation,
           activationSucceeded,
           correlationId,
-          messagingOverride,
         });
       }
 

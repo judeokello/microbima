@@ -21,7 +21,6 @@ export interface MatchedPaymentSmsParams {
   wasPendingActivation: boolean;
   activationSucceeded: boolean;
   correlationId: string;
-  messagingOverride?: { phone?: string; email?: string };
 }
 
 export interface UnmatchedPaymentSmsParams {
@@ -170,8 +169,6 @@ export class PaymentMessagingService {
         policyId: policy.id,
         placeholderValues,
         correlationId: params.correlationId,
-        overrideRecipientPhone: params.messagingOverride?.phone ?? undefined,
-        overrideRecipientEmail: params.messagingOverride?.email ?? undefined,
       });
 
       await tx.policyPayment.update({

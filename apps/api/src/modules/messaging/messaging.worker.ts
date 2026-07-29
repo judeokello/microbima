@@ -13,6 +13,7 @@ import { MessagingAttachmentService } from './attachments/attachment.service';
 import { MessagingAttachmentTemplatesService } from './messaging-attachment-templates.service';
 import * as Sentry from '@sentry/nestjs';
 import { MessagingAttachmentTemplateType, Prisma } from '@prisma/client';
+import { applyNonProdMessagingPrefix } from './non-prod-messaging.util';
 
 /** Claimed delivery shape (includes optional dynamicAttachmentSpecs). */
 type ClaimedDelivery = Awaited<ReturnType<MessagingOutboxRepository['claimEligibleDeliveries']>>[number];
@@ -126,17 +127,25 @@ export class MessagingWorker {
           }
         }
 
-        const { rendered: renderedBody } = this.placeholderRenderer.render(template.body, placeholderValues);
-        let renderedSubject: string | null = null;
+        const { rendered: renderedBodyRaw } = this.placeholderRenderer.render(template.body, placeholderValues);
+        let renderedSubjectRaw: string | null = null;
         let renderedTextBody: string | null = null;
         if (template.subject) {
           const subj = this.placeholderRenderer.render(template.subject, placeholderValues);
-          renderedSubject = subj.rendered;
+          renderedSubjectRaw = subj.rendered;
         }
         if (template.textBody) {
           const text = this.placeholderRenderer.render(template.textBody, placeholderValues);
           renderedTextBody = text.rendered;
         }
+
+        const { renderedBody, renderedSubject } = applyNonProdMessagingPrefix({
+          nodeEnv: process.env.NODE_ENV,
+          customerPhone: delivery.customer?.phoneNumber,
+          channel: delivery.channel,
+          renderedBody: renderedBodyRaw,
+          renderedSubject: renderedSubjectRaw,
+        });
 
         await this.outbox.updateDeliveryStatus(delivery.id, {
           renderedBody,
