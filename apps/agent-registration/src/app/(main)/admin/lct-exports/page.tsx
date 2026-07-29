@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState, Fragment } from 'react'
+import { useCallback, useEffect, useMemo, useState, Fragment, type ReactNode } from 'react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -29,38 +29,120 @@ import {
   type LctPendingRow,
 } from '@/lib/api'
 import { AlertTriangle, Download, Loader2, RefreshCw, UserPlus, ArrowRightLeft, UserCog } from 'lucide-react'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
 
 type Tab = 'pending' | 'history' | 'errors'
 
+const TABLE_HEAD_CLASS =
+  'bg-slate-100 text-left text-xs uppercase tracking-wide text-slate-700 border-b border-slate-200'
+
+const REASON_LEGEND = [
+  {
+    key: 'NEW',
+    label: 'New',
+    description: 'Never sent to LCT (or first activation)',
+    icon: <UserPlus className="h-3.5 w-3.5 text-emerald-600" aria-hidden />,
+  },
+  {
+    key: 'STATUS_CHANGE',
+    label: 'Status change',
+    description: 'Policy status changed (e.g. active → suspended)',
+    icon: <ArrowRightLeft className="h-3.5 w-3.5 text-amber-600" aria-hidden />,
+  },
+  {
+    key: 'PROFILE_CHANGE',
+    label: 'Profile change',
+    description: 'Name, DOB, ID, phone, gender, or staff number changed',
+    icon: <UserCog className="h-3.5 w-3.5 text-blue-600" aria-hidden />,
+  },
+  {
+    key: 'DEPENDANT_REMOVED',
+    label: 'Dependant removed',
+    description: 'Spouse/child soft-deleted; send DEACTIVATE to LCT',
+    icon: <AlertTriangle className="h-3.5 w-3.5 text-red-600" aria-hidden />,
+  },
+  {
+    key: 'POLICY_REPLACED',
+    label: 'Policy replaced',
+    description: 'Product change with new member numbers',
+    icon: <ArrowRightLeft className="h-3.5 w-3.5 text-purple-600" aria-hidden />,
+  },
+] as const
+
+function actionBadgeClass(action: string | null | undefined): string {
+  switch (action) {
+    case 'ACTIVATE':
+      return 'border-emerald-300 bg-emerald-50 text-emerald-800'
+    case 'SUSPENDED':
+      return 'border-amber-300 bg-amber-50 text-amber-800'
+    case 'DEACTIVATE':
+      return 'border-red-300 bg-red-50 text-red-800'
+    default:
+      return ''
+  }
+}
+
+function ReasonIcon({
+  label,
+  description,
+  icon,
+}: {
+  label: string
+  description: string
+  icon: ReactNode
+}) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button
+          type="button"
+          className="inline-flex rounded p-0.5 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
+          aria-label={`${label}: ${description}`}
+        >
+          {icon}
+        </button>
+      </TooltipTrigger>
+      <TooltipContent side="top" className="max-w-xs">
+        <p className="font-medium">{label}</p>
+        <p className="text-xs opacity-90">{description}</p>
+      </TooltipContent>
+    </Tooltip>
+  )
+}
+
 function reasonIcons(reasons: string[]) {
   return (
-    <span className="inline-flex gap-1">
-      {reasons.includes('NEW') && (
-        <span title="New">
-          <UserPlus className="h-3.5 w-3.5 text-emerald-600" aria-hidden />
+    <TooltipProvider delayDuration={200}>
+      <span className="inline-flex items-center gap-0.5">
+        {REASON_LEGEND.filter((item) => reasons.includes(item.key)).map((item) => (
+          <ReasonIcon
+            key={item.key}
+            label={item.label}
+            description={item.description}
+            icon={item.icon}
+          />
+        ))}
+      </span>
+    </TooltipProvider>
+  )
+}
+
+function ReasonsLegend() {
+  return (
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">
+      <span className="font-medium text-slate-500 uppercase tracking-wide">Reasons</span>
+      {REASON_LEGEND.map((item) => (
+        <span key={item.key} className="inline-flex items-center gap-1.5" title={item.description}>
+          {item.icon}
+          <span>{item.label}</span>
         </span>
-      )}
-      {reasons.includes('STATUS_CHANGE') && (
-        <span title="Status change">
-          <ArrowRightLeft className="h-3.5 w-3.5 text-amber-600" aria-hidden />
-        </span>
-      )}
-      {reasons.includes('PROFILE_CHANGE') && (
-        <span title="Profile change">
-          <UserCog className="h-3.5 w-3.5 text-blue-600" aria-hidden />
-        </span>
-      )}
-      {reasons.includes('DEPENDANT_REMOVED') && (
-        <span title="Dependant removed">
-          <AlertTriangle className="h-3.5 w-3.5 text-red-600" aria-hidden />
-        </span>
-      )}
-      {reasons.includes('POLICY_REPLACED') && (
-        <span title="Policy replaced">
-          <ArrowRightLeft className="h-3.5 w-3.5 text-purple-600" aria-hidden />
-        </span>
-      )}
-    </span>
+      ))}
+    </div>
   )
 }
 
@@ -264,13 +346,15 @@ export default function LctExportsAdminPage() {
           disabled={!!openBatch}
         />
       </td>
-      <td className={`p-2 ${indent ? 'pl-8' : 'font-medium'}`}>{row.personName}</td>
-      <td className="p-2 font-mono text-xs">{row.memberNumber}</td>
-      <td className="p-2">{row.relationship}</td>
-      <td className="p-2">
-        <Badge variant="outline">{row.pendingAction}</Badge>
+      <td className={`p-2 whitespace-nowrap ${indent ? 'pl-8' : 'font-medium'}`}>{row.personName}</td>
+      <td className="p-2 font-mono text-xs whitespace-nowrap">{row.memberNumber}</td>
+      <td className="p-2 whitespace-nowrap">{row.relationship}</td>
+      <td className="p-2 whitespace-nowrap">
+        <Badge variant="outline" className={actionBadgeClass(row.pendingAction)}>
+          {row.pendingAction}
+        </Badge>
       </td>
-      <td className="p-2">{reasonIcons(row.pendingReasons)}</td>
+      <td className="p-2 whitespace-nowrap">{reasonIcons(row.pendingReasons)}</td>
       <td className="p-2 text-muted-foreground">{row.productName}</td>
       <td className="p-2">
         <Link
@@ -392,11 +476,23 @@ export default function LctExportsAdminPage() {
             </Button>
           </div>
 
+          <ReasonsLegend />
+
           <div className="overflow-x-auto rounded-md border">
-            <table className="w-full">
-              <thead className="bg-muted/50 text-left text-xs uppercase text-muted-foreground">
+            <table className="w-full table-fixed text-sm">
+              <colgroup>
+                <col className="w-10" />
+                <col className="w-[22%]" />
+                <col className="w-[12%]" />
+                <col className="w-[12%]" />
+                <col className="w-[12%]" />
+                <col className="w-[10%]" />
+                <col />
+                <col className="w-16" />
+              </colgroup>
+              <thead className={TABLE_HEAD_CLASS}>
                 <tr>
-                  <th className="p-2 w-8" />
+                  <th className="p-2" />
                   <th className="p-2">Name</th>
                   <th className="p-2">Member #</th>
                   <th className="p-2">Relationship</th>
@@ -438,7 +534,7 @@ export default function LctExportsAdminPage() {
         <div className="space-y-4">
           <div className="overflow-x-auto rounded-md border">
             <table className="w-full text-sm">
-              <thead className="bg-muted/50 text-left text-xs uppercase text-muted-foreground">
+              <thead className={TABLE_HEAD_CLASS}>
                 <tr>
                   <th className="p-2">Exported</th>
                   <th className="p-2">Status</th>
@@ -499,7 +595,7 @@ export default function LctExportsAdminPage() {
       {tab === 'errors' && (
         <div className="overflow-x-auto rounded-md border">
           <table className="w-full text-sm">
-            <thead className="bg-muted/50 text-left text-xs uppercase text-muted-foreground">
+            <thead className={TABLE_HEAD_CLASS}>
               <tr>
                 <th className="p-2">Error</th>
                 <th className="p-2">Member #</th>
