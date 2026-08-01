@@ -2659,6 +2659,7 @@ export interface LctPendingRow {
   pendingReasons: string[]
   pendingSince: string | null
   productName: string
+  schemeName: string
   staffNumber: string | null
   personName: string
   idNumber: string

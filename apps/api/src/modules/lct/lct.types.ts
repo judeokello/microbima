@@ -19,6 +19,11 @@ export interface LctMemberSyncIntent {
   phoneNumber: string;
   idNumber: string;
   principalMemberNumber: string;
+  /** Scheme display name for LCT CSV + admin UI */
+  schemeName: string;
+  /** Policy coverage dates — CSV only (DD-MM-YYYY) */
+  policyStartDate: string;
+  policyEndDate: string;
 }
 
 export const LCT_TEMPLATE_KEY = 'lct_customer_export';

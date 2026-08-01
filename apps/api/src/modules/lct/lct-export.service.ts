@@ -69,6 +69,8 @@ export class LctExportService {
             staffNumber: true,
             status: true,
             policyNumber: true,
+            packageId: true,
+            customerId: true,
           },
         },
       },
@@ -100,6 +102,14 @@ export class LctExportService {
     });
     const dependantMap = new Map(dependants.map((d) => [d.id, d]));
 
+    const schemeNameByPolicyId = await this.resolveSchemeNamesByPolicy(
+      targets.map((t) => ({
+        policyId: t.policyId,
+        customerId: t.policy.customerId,
+        packageId: t.policy.packageId,
+      }))
+    );
+
     const nameQ = filters.name?.trim().toLowerCase();
     const idQ = filters.idNumber?.trim().toLowerCase();
     const memberQ = filters.memberNumber?.trim().toLowerCase();
@@ -129,6 +139,7 @@ export class LctExportService {
           pendingReasons: t.pendingReasons,
           pendingSince: t.pendingSince,
           productName: t.policy.productName,
+          schemeName: schemeNameByPolicyId.get(t.policyId) ?? '',
           staffNumber: t.policy.staffNumber,
           personName,
           idNumber,
@@ -144,7 +155,13 @@ export class LctExportService {
         if (idQ && !row.idNumber.toLowerCase().includes(idQ)) return false;
         if (memberQ && !row.memberNumber.toLowerCase().includes(memberQ)) return false;
         if (phoneQ && !row.phone.includes(phoneQ)) return false;
-        if (productQ && !row.productName.toLowerCase().includes(productQ)) return false;
+        if (
+          productQ &&
+          !row.productName.toLowerCase().includes(productQ) &&
+          !row.schemeName.toLowerCase().includes(productQ)
+        ) {
+          return false;
+        }
         return true;
       });
 
@@ -527,13 +544,31 @@ export class LctExportService {
   ): Promise<Array<{ targetId: string; intent: LctMemberSyncIntent }>> {
     const intents: Array<{ targetId: string; intent: LctMemberSyncIntent }> = [];
 
+    const policyIds = [...new Set(targets.map((t) => t.policyId))];
+    const policies = await this.prisma.policy.findMany({
+      where: { id: { in: policyIds } },
+      select: {
+        id: true,
+        staffNumber: true,
+        customerId: true,
+        packageId: true,
+        startDate: true,
+        endDate: true,
+      },
+    });
+    const policyMap = new Map(policies.map((p) => [p.id, p]));
+    const schemeNameByPolicyId = await this.resolveSchemeNamesByPolicy(
+      policies.map((p) => ({
+        policyId: p.id,
+        customerId: p.customerId,
+        packageId: p.packageId,
+      }))
+    );
+
     for (const target of targets) {
       if (!target.pendingAction) continue;
 
-      const policy = await this.prisma.policy.findUnique({
-        where: { id: target.policyId },
-        select: { staffNumber: true, customerId: true },
-      });
+      const policy = policyMap.get(target.policyId);
       const customer = await this.prisma.customer.findUnique({
         where: { id: target.customerId },
       });
@@ -546,6 +581,9 @@ export class LctExportService {
       const employeeName = [customer.firstName, customer.middleName, customer.lastName]
         .filter(Boolean)
         .join(' ');
+      const schemeName = schemeNameByPolicyId.get(target.policyId) ?? '';
+      const policyStartDate = formatLctDob(policy.startDate);
+      const policyEndDate = formatLctDob(policy.endDate);
 
       if (target.subjectType === LctSubjectType.PRINCIPAL) {
         intents.push({
@@ -568,6 +606,9 @@ export class LctExportService {
             phoneNumber: customer.phoneNumber ?? '',
             idNumber: customer.idNumber ?? '',
             principalMemberNumber: '',
+            schemeName,
+            policyStartDate,
+            policyEndDate,
           },
         });
         continue;
@@ -607,10 +648,61 @@ export class LctExportService {
           phoneNumber: dependant.phoneNumber ?? '',
           idNumber: dependant.idNumber ?? '',
           principalMemberNumber,
+          schemeName,
+          policyStartDate,
+          policyEndDate,
         },
       });
     }
 
     return intents;
+  }
+
+  /**
+   * Resolve scheme name per policy via PackageSchemeCustomer for that customer + package.
+   * Same approach as customer product / member-card listing.
+   */
+  private async resolveSchemeNamesByPolicy(
+    policies: Array<{ policyId: string; customerId: string; packageId: number }>
+  ): Promise<Map<string, string>> {
+    const result = new Map<string, string>();
+    if (!policies.length) return result;
+
+    const uniqueKeys = new Map<string, { customerId: string; packageId: number; policyIds: string[] }>();
+    for (const p of policies) {
+      const key = `${p.customerId}:${p.packageId}`;
+      const existing = uniqueKeys.get(key);
+      if (existing) {
+        existing.policyIds.push(p.policyId);
+      } else {
+        uniqueKeys.set(key, {
+          customerId: p.customerId,
+          packageId: p.packageId,
+          policyIds: [p.policyId],
+        });
+      }
+    }
+
+    await Promise.all(
+      Array.from(uniqueKeys.values()).map(async (entry) => {
+        const schemeCustomer = await this.prisma.packageSchemeCustomer.findFirst({
+          where: {
+            customerId: entry.customerId,
+            packageScheme: { packageId: entry.packageId },
+          },
+          include: {
+            packageScheme: {
+              include: { scheme: { select: { schemeName: true } } },
+            },
+          },
+        });
+        const schemeName = schemeCustomer?.packageScheme?.scheme?.schemeName ?? '';
+        for (const policyId of entry.policyIds) {
+          result.set(policyId, schemeName);
+        }
+      })
+    );
+
+    return result;
   }
 }

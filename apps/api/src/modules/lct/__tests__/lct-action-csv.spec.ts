@@ -55,6 +55,9 @@ describe('LCT CSV builder', () => {
     phoneNumber: '+254700000000',
     idNumber: '12345678',
     principalMemberNumber: '',
+    schemeName: 'Maisha Poa General',
+    policyStartDate: '01-01-2026',
+    policyEndDate: '31-12-2026',
     ...overrides,
   });
 
@@ -80,12 +83,18 @@ describe('LCT CSV builder', () => {
 
     expect(rowCount).toBe(3);
     expect(csv.split('\n')[0]).toContain('REQUIRED ACTION');
+    expect(csv.split('\n')[0]).toContain('SCHEME NAME');
+    expect(csv.split('\n')[0]).toContain('START DATE');
+    expect(csv.split('\n')[0]).toContain('END DATE');
     expect(csv).toContain('ACTIVATE');
     expect(csv).toContain('SUSPENDED');
     expect(csv).toContain('DEACTIVATE');
     expect(rows[0]['PRINCIPAL MEMBER NUMBER']).toBe('');
     expect(rows[1]['PRINCIPAL MEMBER NUMBER']).toBe('MP00100');
     expect(intentToCsvRow(sampleIntent())['STAFF NUMBER']).toBe('S-1');
+    expect(rows[0]['SCHEME NAME']).toBe('Maisha Poa General');
+    expect(rows[0]['START DATE']).toBe('01-01-2026');
+    expect(rows[0]['END DATE']).toBe('31-12-2026');
   });
 
   it('formats gender and DOB helpers', () => {
