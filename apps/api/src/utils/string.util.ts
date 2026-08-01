@@ -7,3 +7,13 @@ export function trimOrNull(value: string | undefined | null): string | null {
   const t = value.trim();
   return t === '' ? null : t;
 }
+
+/** Title-case each whitespace-separated word (e.g. "gold plan" → "Gold Plan"). */
+export function toTitleCase(value: string): string {
+  return value
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(' ');
+}
