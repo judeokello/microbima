@@ -30,42 +30,31 @@ import {
   type RecoveryCustomer,
   type Plan,
 } from '@/lib/api';
-import { computeInstallmentPremium, PAYMENT_CADENCE_DAYS } from '@/lib/insurance-installment';
+import {
+  computeInstallmentPremium,
+  isFrequencySupportedByPackage,
+  isPricingSubmitBlocked,
+  productPricingPath,
+  type PricingMode,
+  type PricingRateBand,
+} from '@/lib/insurance-installment';
 import { formatTransactionReferenceForDisplay } from '@/lib/transaction-reference-display';
 import { formatDate } from '@/lib/utils';
 import { Loader2, RefreshCw, Plus } from 'lucide-react';
+import { supabase } from '@/lib/supabase';
 
 interface InsurancePricing {
-  plans: {
-    silver: {
+  packageSlug?: string;
+  pricingMode?: PricingMode;
+  plans: Record<
+    string,
+    {
       name: string;
-      categories: {
-        member_only: { display: string; daily: number; weekly: number };
-        up_to_5: { display: string; daily: number; weekly: number };
-        up_to_8: { display: string; daily: number; weekly: number };
-      };
-      additional_spouse: { daily: number; weekly: number };
-    };
-    gold: {
-      name: string;
-      categories: {
-        member_only: { display: string; daily: number; weekly: number };
-        up_to_5: { display: string; daily: number; weekly: number };
-        up_to_8: { display: string; daily: number; weekly: number };
-      };
-      additional_spouse: { daily: number; weekly: number };
-    };
-  };
+      categories: Record<string, PricingRateBand & { display: string }>;
+      additional_spouse: PricingRateBand;
+    }
+  >;
 }
-
-const FREQUENCY_OPTIONS = [
-  { value: 'DAILY', label: 'Daily (1 day)' },
-  { value: 'WEEKLY', label: 'Weekly (7 days)' },
-  { value: 'MONTHLY', label: 'Monthly (31 days)' },
-  { value: 'QUARTERLY', label: 'Quarterly (90 days)' },
-  { value: 'ANNUALLY', label: 'Annually (365 days)' },
-  { value: 'CUSTOM', label: 'Custom' },
-];
 
 export default function RecoveryPage() {
   const [customersWithPayments, setCustomersWithPayments] = useState<RecoveryCustomer[]>([]);
@@ -76,6 +65,10 @@ export default function RecoveryPage() {
   const [selectedCustomer, setSelectedCustomer] = useState<RecoveryCustomer | null>(null);
   const [plans, setPlans] = useState<Plan[]>([]);
   const [pricingData, setPricingData] = useState<InsurancePricing | null>(null);
+  const [pricingLoadError, setPricingLoadError] = useState<string | null>(null);
+  const [paymentFrequencies, setPaymentFrequencies] = useState<
+    Array<{ frequency: string; installmentCount: number }>
+  >([]);
   const [submitting, setSubmitting] = useState(false);
   const [formData, setFormData] = useState({
     selectedPlan: '',
@@ -83,7 +76,7 @@ export default function RecoveryPage() {
     additionalSpouse: false,
     packagePlanId: '',
     premium: '',
-    frequency: 'MONTHLY' as string,
+    frequency: 'DAILY' as string,
     customDays: '',
   });
 
@@ -108,13 +101,6 @@ export default function RecoveryPage() {
     loadCustomers();
   }, []);
 
-  useEffect(() => {
-    fetch('/insurance-pricing.json')
-      .then((res) => res.json())
-      .then((data) => setPricingData(data))
-      .catch(() => setPricingData(null));
-  }, []);
-
   const openCreateDialog = async (customer: RecoveryCustomer) => {
     setSelectedCustomer(customer);
     setFormData({
@@ -123,34 +109,90 @@ export default function RecoveryPage() {
       additionalSpouse: false,
       packagePlanId: '',
       premium: '',
-      frequency: 'MONTHLY',
+      frequency: 'DAILY',
       customDays: '',
     });
+    setPricingData(null);
+    setPricingLoadError(null);
+    setPaymentFrequencies([]);
     setCreateDialogOpen(true);
     try {
       const plansData = await getPackagePlans(customer.packageId);
       setPlans(plansData);
+
+      const { data: session } = await supabase.auth.getSession();
+      const token = session.session?.access_token;
+      const pkgRes = await fetch(
+        `${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/product-management/packages/${customer.packageId}/details`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'x-correlation-id': `recovery-pkg-${Date.now()}`,
+          },
+        }
+      );
+      if (!pkgRes.ok) {
+        throw new Error('Failed to load package details');
+      }
+      const pkgJson = await pkgRes.json();
+      const slug = pkgJson.data?.slug as string | undefined;
+      const freqs = (pkgJson.data?.paymentFrequencies ?? []) as Array<{
+        frequency: string;
+        installmentCount: number;
+      }>;
+      setPaymentFrequencies(freqs);
+      if (freqs[0]) {
+        setFormData((f) => ({ ...f, frequency: freqs[0].frequency }));
+      }
+      if (!slug) {
+        setPricingLoadError('Package slug is not configured.');
+      } else {
+        const pricingRes = await fetch(productPricingPath(slug));
+        if (!pricingRes.ok) {
+          setPricingLoadError(`Pricing file not found for “${slug}”.`);
+        } else {
+          setPricingData((await pricingRes.json()) as InsurancePricing);
+        }
+      }
     } catch {
       setPlans([]);
+      setPricingLoadError('Failed to load package pricing.');
     }
   };
 
+  const pricingMode: PricingMode = pricingData?.pricingMode ?? 'extrapolate';
+
   const calculatedPricing = (() => {
     if (!pricingData || !formData.selectedPlan || !formData.selectedCategory) {
-      return { daily: 0, weekly: 0, totalDaily: 0, totalWeekly: 0 };
+      return { daily: 0, weekly: 0, totalDaily: 0, totalWeekly: 0, lookupRates: null as PricingRateBand | null };
     }
-    const plan = pricingData.plans[formData.selectedPlan as keyof typeof pricingData.plans];
-    const category = plan.categories[formData.selectedCategory as keyof typeof plan.categories];
+    const plan = pricingData.plans[formData.selectedPlan];
+    if (!plan) {
+      return { daily: 0, weekly: 0, totalDaily: 0, totalWeekly: 0, lookupRates: null };
+    }
+    const category = plan.categories[formData.selectedCategory];
+    if (!category) {
+      return { daily: 0, weekly: 0, totalDaily: 0, totalWeekly: 0, lookupRates: null };
+    }
     const spousePremium = plan.additional_spouse;
-    const baseDaily = category.daily;
-    const baseWeekly = category.weekly;
-    const spouseDaily = formData.additionalSpouse ? spousePremium.daily : 0;
-    const spouseWeekly = formData.additionalSpouse ? spousePremium.weekly : 0;
+    const spouseDaily = formData.additionalSpouse ? spousePremium.daily ?? 0 : 0;
+    const spouseWeekly = formData.additionalSpouse ? spousePremium.weekly ?? 0 : 0;
+    const lookupRates: PricingRateBand = {
+      daily: (category.daily ?? 0) + spouseDaily,
+      weekly: (category.weekly ?? 0) + spouseWeekly,
+      monthly:
+        (category.monthly ?? 0) +
+        (formData.additionalSpouse ? spousePremium.monthly ?? 0 : 0),
+      annually:
+        (category.annually ?? 0) +
+        (formData.additionalSpouse ? spousePremium.annually ?? 0 : 0),
+    };
     return {
-      daily: baseDaily,
-      weekly: baseWeekly,
-      totalDaily: baseDaily + spouseDaily,
-      totalWeekly: baseWeekly + spouseWeekly,
+      daily: category.daily ?? 0,
+      weekly: category.weekly ?? 0,
+      totalDaily: (category.daily ?? 0) + spouseDaily,
+      totalWeekly: (category.weekly ?? 0) + spouseWeekly,
+      lookupRates,
     };
   })();
 
@@ -160,10 +202,8 @@ export default function RecoveryPage() {
         frequency: formData.frequency,
         daily: calculatedPricing.totalDaily,
         weekly: calculatedPricing.totalWeekly,
-        customDays:
-          formData.frequency === 'CUSTOM'
-            ? parseInt(formData.customDays, 10) || undefined
-            : undefined,
+        pricingMode,
+        lookupRates: calculatedPricing.lookupRates ?? undefined,
       });
       setFormData((f) => ({ ...f, premium: premium.toString() }));
     }
@@ -172,13 +212,18 @@ export default function RecoveryPage() {
     formData.selectedCategory,
     formData.additionalSpouse,
     formData.frequency,
-    formData.customDays,
     calculatedPricing.totalDaily,
     calculatedPricing.totalWeekly,
+    calculatedPricing.lookupRates,
+    pricingMode,
   ]);
 
   const handleSubmit = async () => {
     if (!selectedCustomer) return;
+    if (isPricingSubmitBlocked(pricingLoadError, pricingData)) {
+      setError(pricingLoadError ?? 'Missing price setup for this package');
+      return;
+    }
     let packagePlanId = parseInt(formData.packagePlanId, 10);
     if (!packagePlanId && formData.selectedPlan && plans.length > 0) {
       const matchingPlan = plans.find(
@@ -191,8 +236,8 @@ export default function RecoveryPage() {
       setError('Please select plan and category (premium will be calculated)');
       return;
     }
-    if (formData.frequency === 'CUSTOM' && !formData.customDays) {
-      setError('Custom days required for CUSTOM frequency');
+    if (!isFrequencySupportedByPackage(formData.frequency, paymentFrequencies)) {
+      setError('Selected frequency is not supported for this package');
       return;
     }
     const hasPayments = selectedCustomer.payments.length > 0;
@@ -227,10 +272,6 @@ export default function RecoveryPage() {
       setSubmitting(false);
     }
   };
-
-  const paymentCadence = formData.frequency === 'CUSTOM'
-    ? parseInt(formData.customDays, 10) || 0
-    : PAYMENT_CADENCE_DAYS[formData.frequency] ?? 0;
 
   return (
     <div className="space-y-6">
@@ -347,6 +388,11 @@ export default function RecoveryPage() {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
+            {pricingLoadError && (
+              <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+                {pricingLoadError}
+              </div>
+            )}
             <div>
               <Label>Package</Label>
               <Input value={selectedCustomer?.packageName ?? ''} disabled />
@@ -356,17 +402,18 @@ export default function RecoveryPage() {
               <Select
                 value={formData.selectedPlan}
                 onValueChange={(v) => setFormData((f) => ({ ...f, selectedPlan: v, selectedCategory: '' }))}
+                disabled={!pricingData}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Select insurance plan" />
+                  <SelectValue placeholder={pricingData ? 'Select insurance plan' : 'No pricing available'} />
                 </SelectTrigger>
                 <SelectContent>
-                  {pricingData && (
-                    <>
-                      <SelectItem value="silver">{pricingData.plans.silver.name}</SelectItem>
-                      <SelectItem value="gold">{pricingData.plans.gold.name}</SelectItem>
-                    </>
-                  )}
+                  {pricingData &&
+                    Object.entries(pricingData.plans).map(([key, plan]) => (
+                      <SelectItem key={key} value={key}>
+                        {plan.name}
+                      </SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
             </div>
@@ -375,21 +422,21 @@ export default function RecoveryPage() {
               <Select
                 value={formData.selectedCategory}
                 onValueChange={(v) => setFormData((f) => ({ ...f, selectedCategory: v }))}
-                disabled={!formData.selectedPlan}
+                disabled={!formData.selectedPlan || !pricingData}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Select family category" />
                 </SelectTrigger>
                 <SelectContent>
-                  {pricingData && formData.selectedPlan && (
+                  {pricingData && formData.selectedPlan && pricingData.plans[formData.selectedPlan] && (
                     <>
-                      {Object.entries(
-                        pricingData.plans[formData.selectedPlan as keyof typeof pricingData.plans].categories
-                      ).map(([key, category]) => (
-                        <SelectItem key={key} value={key}>
-                          {category.display} - {category.daily}d - {category.weekly}w
-                        </SelectItem>
-                      ))}
+                      {Object.entries(pricingData.plans[formData.selectedPlan].categories).map(
+                        ([key, category]) => (
+                          <SelectItem key={key} value={key}>
+                            {category.display} - {category.daily ?? 0}d - {category.weekly ?? 0}w
+                          </SelectItem>
+                        )
+                      )}
                     </>
                   )}
                 </SelectContent>
@@ -416,9 +463,6 @@ export default function RecoveryPage() {
                 onChange={(e) => setFormData((f) => ({ ...f, premium: e.target.value }))}
                 placeholder="Installment per payment period"
               />
-              <p className="text-xs text-muted-foreground mt-1">
-                Weekly uses table rate; other frequencies use daily × cadence
-              </p>
             </div>
             <div>
               <Label>Frequency</Label>
@@ -427,36 +471,23 @@ export default function RecoveryPage() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {FREQUENCY_OPTIONS.map((o) => (
-                    <SelectItem key={o.value} value={o.value}>
-                      {o.label}
+                  {paymentFrequencies.map((pf) => (
+                    <SelectItem key={pf.frequency} value={pf.frequency}>
+                      {pf.frequency} · {pf.installmentCount} installments
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-            </div>
-            {formData.frequency === 'CUSTOM' && (
-              <div>
-                <Label>Custom Days</Label>
-                <Input
-                  type="number"
-                  min={1}
-                  value={formData.customDays}
-                  onChange={(e) => setFormData((f) => ({ ...f, customDays: e.target.value }))}
-                  placeholder="Days"
-                />
-              </div>
-            )}
-            <div>
-              <Label>Cadence (days)</Label>
-              <Input value={paymentCadence} disabled />
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setCreateDialogOpen(false)} disabled={submitting}>
               Cancel
             </Button>
-            <Button onClick={handleSubmit} disabled={submitting}>
+            <Button
+              onClick={handleSubmit}
+              disabled={submitting || !!pricingLoadError || !pricingData}
+            >
               {submitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
               Create & Activate
             </Button>

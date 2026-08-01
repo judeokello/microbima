@@ -3,7 +3,7 @@ import { DependantRelationship } from '@prisma/client';
 export type InsuranceFamilyCategory = 'member_only' | 'up_to_5' | 'up_to_8';
 
 /**
- * Derive insurance-pricing.json family category from active dependants.
+ * Derive product-pricing family category from active dependants.
  * Principal + dependants: 1 → member_only, 2–5 → up_to_5, 6+ → up_to_8.
  */
 export function deriveFamilyCategoryFromDependants(

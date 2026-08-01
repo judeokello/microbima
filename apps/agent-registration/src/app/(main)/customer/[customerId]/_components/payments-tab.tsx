@@ -27,12 +27,6 @@ import { PAYMENTS_POLICY_STORAGE_KEY } from './products-tab';
 
 const ALL_POLICIES_VALUE = '__all__';
 
-function numberOfInstallments(paymentCadenceDays: number, productDurationDays: number | null): number {
-  if (paymentCadenceDays <= 0) return 0;
-  if (productDurationDays == null) return 0;
-  return Math.round(productDurationDays / paymentCadenceDays);
-}
-
 function isConfirmedPayment(p: Payment): boolean {
   return p.paymentStatus === 'COMPLETED' || p.paymentStatus === 'COMPLETED_PENDING_RECEIPT';
 }
@@ -308,7 +302,8 @@ export default function PaymentsTab({ customerId, customerPhone = '' }: Payments
     filterRanForPolicyId === selectedPolicyId &&
     !!selectedPolicyId &&
     policyDetail?.schemeBillingMode === 'prepaid' &&
-    policyDetail?.product.productDurationDays != null &&
+    policyDetail?.enrollment.expectedInstallmentCount != null &&
+    policyDetail.enrollment.expectedInstallmentCount > 0 &&
     confirmedCount > 0;
 
   return (
@@ -425,16 +420,18 @@ export default function PaymentsTab({ customerId, customerPhone = '' }: Payments
 
         {filterRanForPolicyId === selectedPolicyId &&
           policyDetail?.schemeBillingMode === 'prepaid' &&
-          policyDetail.product.productDurationDays == null && (
+          (policyDetail.enrollment.expectedInstallmentCount == null ||
+            policyDetail.enrollment.expectedInstallmentCount <= 0) && (
             <div className="rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-              Installment period helper and premium statement need the package <strong>product duration (days)</strong> to be
-              configured. Contact support or ask an admin to set it on the package.
+              Installment helper and premium statement need <strong>expected installment count</strong> on this
+              policy. Contact support if this policy was created before the latest migration.
             </div>
           )}
 
         {filterRanForPolicyId === selectedPolicyId &&
           policyDetail?.schemeBillingMode === 'prepaid' &&
-          policyDetail.product.productDurationDays != null &&
+          policyDetail.enrollment.expectedInstallmentCount != null &&
+          policyDetail.enrollment.expectedInstallmentCount > 0 &&
           confirmedCount === 0 &&
           payments.length > 0 && (
             <div className="rounded-md border bg-muted px-4 py-3 text-sm text-muted-foreground">
@@ -485,12 +482,10 @@ export default function PaymentsTab({ customerId, customerPhone = '' }: Payments
                 <div>
                   <dt className="text-sm font-medium text-muted-foreground">No. of installments</dt>
                   <dd className="mt-1 text-sm">
-                    {policyDetail.product.productDurationDays == null
-                      ? '— (product duration not configured)'
-                      : numberOfInstallments(
-                          policyDetail.enrollment.paymentCadence,
-                          policyDetail.product.productDurationDays
-                        )}
+                    {policyDetail.enrollment.expectedInstallmentCount == null ||
+                    policyDetail.enrollment.expectedInstallmentCount <= 0
+                      ? '— (expected installment count not set)'
+                      : policyDetail.enrollment.expectedInstallmentCount}
                   </dd>
                 </div>
                 <div>

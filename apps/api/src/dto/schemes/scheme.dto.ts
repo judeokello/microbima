@@ -78,6 +78,21 @@ export class SchemeDetailDto {
   packageId?: number;
 
   @ApiProperty({
+    description: 'Package slug for pricing file lookup',
+    example: 'mfanisi-go',
+    required: false,
+  })
+  packageSlug?: string;
+
+  @ApiProperty({
+    description: 'Supported payment frequencies for the package',
+    required: false,
+    type: 'array',
+    example: [{ frequency: 'DAILY', installmentCount: 276 }],
+  })
+  paymentFrequencies?: Array<{ frequency: PaymentFrequency; installmentCount: number }>;
+
+  @ApiProperty({
     description: 'User ID who created this scheme',
     example: 'uuid-here',
   })

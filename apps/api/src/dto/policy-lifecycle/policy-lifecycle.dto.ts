@@ -51,7 +51,7 @@ export class ModifyPolicyRequestDto extends PolicyLifecycleReasonDto {
   @IsEnum(PaymentFrequency)
   frequency: PaymentFrequency;
 
-  @ApiProperty({ description: 'Installment amount (KES) from insurance-pricing.json' })
+  @ApiProperty({ description: 'Installment amount (KES) from product-pricing/{slug}-pricing.json' })
   @IsNumber()
   @Min(0)
   premium: number;
@@ -138,6 +138,14 @@ export class ModifyPolicyOptionsSchemeDto {
   isPostpaid: boolean;
 }
 
+export class ModifyPolicyPaymentFrequencyDto {
+  @ApiProperty({ example: 'DAILY' })
+  frequency: string;
+
+  @ApiProperty({ example: 276 })
+  installmentCount: number;
+}
+
 export class ModifyPolicyOptionsResponseDto {
   @ApiProperty({ example: 200 })
   status: number;
@@ -153,6 +161,12 @@ export class ModifyPolicyOptionsResponseDto {
 
   @ApiProperty()
   packageName: string;
+
+  @ApiPropertyOptional({ nullable: true })
+  packageSlug: string | null;
+
+  @ApiProperty({ type: [ModifyPolicyPaymentFrequencyDto] })
+  paymentFrequencies: ModifyPolicyPaymentFrequencyDto[];
 
   @ApiProperty()
   familyCategory: string;
@@ -174,6 +188,9 @@ export class ModifyPolicyOptionsResponseDto {
 
   @ApiProperty()
   currentPaymentCadence: number;
+
+  @ApiPropertyOptional()
+  currentExpectedInstallmentCount?: number | null;
 
   @ApiPropertyOptional({ nullable: true })
   currentPackageSchemeId: number | null;

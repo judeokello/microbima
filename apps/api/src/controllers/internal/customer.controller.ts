@@ -953,6 +953,11 @@ export class InternalCustomerController {
             package: {
               select: {
                 id: true,
+                slug: true,
+                packagePaymentFrequencies: {
+                  select: { frequency: true, installmentCount: true },
+                  orderBy: { frequency: 'asc' },
+                },
               },
             },
           },
@@ -963,6 +968,8 @@ export class InternalCustomerController {
     if (!schemeCustomer) {
       throw new NotFoundException('Customer not found or not enrolled in a scheme');
     }
+
+    const pkg = schemeCustomer.packageScheme.package;
 
     return {
       status: HttpStatus.OK,
@@ -981,7 +988,12 @@ export class InternalCustomerController {
         createdAt: schemeCustomer.packageScheme.scheme.createdAt.toISOString(),
         updatedAt: schemeCustomer.packageScheme.scheme.updatedAt.toISOString(),
         packageSchemeId: schemeCustomer.packageSchemeId,
-        packageId: schemeCustomer.packageScheme.package.id,
+        packageId: pkg.id,
+        packageSlug: pkg.slug ?? undefined,
+        paymentFrequencies: pkg.packagePaymentFrequencies.map((pf) => ({
+          frequency: pf.frequency,
+          installmentCount: pf.installmentCount,
+        })),
       },
     };
   }

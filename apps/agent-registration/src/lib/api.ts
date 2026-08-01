@@ -991,14 +991,15 @@ export interface CustomerPolicyDetail {
     planName: string | null
     schemeName: string
     productName: string
-    /** Days in premium year for installment helper; null if not configured */
-    productDurationDays: number | null
+    packageSlug: string | null
   }
   enrollment: {
     startDate: string | null
     endDate: string | null
     frequency: string
     paymentCadence: number
+    expectedInstallmentCount: number | null
+    nominalPaymentPeriodEndDate: string | null
   }
   totalPremium: string
   installmentAmount: string
@@ -1737,6 +1738,8 @@ export async function processPayment(data: PaymentRequest): Promise<PaymentRespo
 export interface Package {
   id: number
   name: string
+  slug?: string | null
+  paymentFrequencies?: Array<{ frequency: string; installmentCount: number }>
 }
 
 export interface Scheme {
@@ -2404,6 +2407,8 @@ export interface ModifyPolicyOptions {
   message: string
   packageId: number
   packageName: string
+  packageSlug: string | null
+  paymentFrequencies: Array<{ frequency: string; installmentCount: number }>
   familyCategory: string
   additionalSpouse: boolean
   currentPackagePlanId: number
@@ -2411,6 +2416,7 @@ export interface ModifyPolicyOptions {
   currentPremium: number
   currentFrequency: string
   currentPaymentCadence: number
+  currentExpectedInstallmentCount?: number | null
   currentPackageSchemeId: number | null
   paymentMigrationAllowed: boolean
   eligiblePayments: ModifyPolicyOptionsPayment[]

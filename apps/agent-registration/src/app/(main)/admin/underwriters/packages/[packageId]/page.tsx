@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { RefreshCw, Edit, Save, X, Plus } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
 import { supabase } from '@/lib/supabase';
 import * as Sentry from '@sentry/nextjs';
 import Image from 'next/image';
@@ -17,20 +18,59 @@ import CreateSchemeDialog from './_components/create-scheme-dialog';
 import MemberCardWithDownload from '@/components/member-cards/MemberCardWithDownload';
 import { SAMPLE_CARD_DATA } from '@/components/member-cards/sample-card-data';
 
+const CONFIGURABLE_FREQUENCIES = [
+  { value: 'DAILY', label: 'Daily', min: 1, max: 365 },
+  { value: 'WEEKLY', label: 'Weekly', min: 1, max: 52 },
+  { value: 'MONTHLY', label: 'Monthly', min: 1, max: 12 },
+  { value: 'QUARTERLY', label: 'Quarterly', min: 1, max: 4 },
+  { value: 'ANNUALLY', label: 'Annually', min: 1, max: 1 },
+] as const;
+
+const SLUG_REGEX = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+
+interface PaymentFrequencyRow {
+  frequency: string;
+  installmentCount: number;
+}
+
 interface Package {
   id: number;
   name: string;
+  slug?: string | null;
   description: string;
   underwriterId?: number | null;
   underwriterName?: string | null;
   isActive: boolean;
   logoPath?: string | null;
   cardTemplateName?: string | null;
-  productDurationDays?: number | null;
+  paymentFrequencies?: PaymentFrequencyRow[];
   createdBy: string;
   createdByDisplayName?: string;
   createdAt: string;
   updatedAt: string;
+}
+
+function emptyFrequencyForm() {
+  return {
+    DAILY: { enabled: false, count: '276' },
+    WEEKLY: { enabled: false, count: '39' },
+    MONTHLY: { enabled: false, count: '9' },
+    QUARTERLY: { enabled: false, count: '4' },
+    ANNUALLY: { enabled: false, count: '1' },
+  } as Record<string, { enabled: boolean; count: string }>;
+}
+
+function frequenciesToForm(rows: PaymentFrequencyRow[] | undefined) {
+  const form = emptyFrequencyForm();
+  for (const row of rows ?? []) {
+    if (form[row.frequency]) {
+      form[row.frequency] = {
+        enabled: true,
+        count: String(row.installmentCount),
+      };
+    }
+  }
+  return form;
 }
 
 interface Scheme {
@@ -71,9 +111,10 @@ export default function PackageDetailPage() {
   const [createSchemeDialogOpen, setCreateSchemeDialogOpen] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
+    slug: '',
     description: '',
     isActive: true,
-    productDurationDays: '',
+    frequencies: emptyFrequencyForm(),
   });
 
   const getSupabaseToken = async () => {
@@ -102,10 +143,10 @@ export default function PackageDetailPage() {
       setPkg(data.data);
       setFormData({
         name: data.data.name,
+        slug: data.data.slug ?? '',
         description: data.data.description,
         isActive: data.data.isActive,
-        productDurationDays:
-          data.data.productDurationDays != null ? String(data.data.productDurationDays) : '',
+        frequencies: frequenciesToForm(data.data.paymentFrequencies),
       });
     } catch (err) {
       console.error('Error fetching package:', err);
@@ -269,20 +310,33 @@ export default function PackageDetailPage() {
       setError(null);
 
       const token = await getSupabaseToken();
-      const pdTrim = formData.productDurationDays.trim();
-      if (pdTrim) {
-        const pd = parseInt(pdTrim, 10);
-        if (!Number.isFinite(pd) || pd < 1 || pd > 365) {
-          throw new Error('Product duration must be a whole number between 1 and 365');
-        }
+      const slug = formData.slug.trim().toLowerCase();
+      if (!slug || !SLUG_REGEX.test(slug)) {
+        throw new Error('Slug must be lowercase letters, numbers, and hyphens only');
       }
+
+      const paymentFrequencies: PaymentFrequencyRow[] = [];
+      for (const freq of CONFIGURABLE_FREQUENCIES) {
+        const row = formData.frequencies[freq.value];
+        if (!row?.enabled) continue;
+        const count = parseInt(row.count, 10);
+        if (!Number.isInteger(count) || count < freq.min || count > freq.max) {
+          throw new Error(
+            `${freq.label} installment count must be a whole number between ${freq.min} and ${freq.max}`
+          );
+        }
+        paymentFrequencies.push({ frequency: freq.value, installmentCount: count });
+      }
+      if (paymentFrequencies.length === 0) {
+        throw new Error('Select at least one payment frequency');
+      }
+
       const payload = {
         name: formData.name.trim(),
+        slug,
         description: formData.description.trim(),
         isActive: formData.isActive,
-        ...(pdTrim
-          ? { productDurationDays: parseInt(pdTrim, 10) }
-          : { productDurationDays: null }),
+        paymentFrequencies,
       };
       const response = await fetch(`${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/product-management/packages/${packageId}`, {
         method: 'PUT',
@@ -296,6 +350,10 @@ export default function PackageDetailPage() {
 
       if (!response.ok) {
         const errorData = await response.json();
+        const details = errorData.error?.details;
+        if (details && typeof details === 'object') {
+          throw new Error(Object.values(details as Record<string, string>).join('; '));
+        }
         throw new Error(errorData.error?.message ?? `HTTP ${response.status}: ${response.statusText}`);
       }
 
@@ -303,7 +361,6 @@ export default function PackageDetailPage() {
       fetchPackage();
     } catch (err) {
       console.error('Error updating package:', err);
-      // Report error to Sentry
       if (err instanceof Error) {
         Sentry.captureException(err, {
           tags: {
@@ -326,9 +383,10 @@ export default function PackageDetailPage() {
     if (pkg) {
       setFormData({
         name: pkg.name,
+        slug: pkg.slug ?? '',
         description: pkg.description,
         isActive: pkg.isActive,
-        productDurationDays: pkg.productDurationDays != null ? String(pkg.productDurationDays) : '',
+        frequencies: frequenciesToForm(pkg.paymentFrequencies),
       });
     }
     setEditing(false);
@@ -467,26 +525,93 @@ export default function PackageDetailPage() {
             </div>
 
             <div>
-              <Label htmlFor="product-duration">Product duration (days)</Label>
+              <Label htmlFor="package-slug">Package slug</Label>
               {editing ? (
                 <Input
-                  id="product-duration"
-                  inputMode="numeric"
-                  maxLength={3}
-                  value={formData.productDurationDays}
+                  id="package-slug"
+                  value={formData.slug}
                   onChange={(e) =>
                     setFormData({
                       ...formData,
-                      productDurationDays: e.target.value.replace(/\D/g, '').slice(0, 3),
+                      slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''),
                     })
                   }
-                  placeholder="1–365"
-                  aria-label="Product duration in days"
+                  placeholder="mfanisi-go"
+                  aria-label="Package slug"
                 />
               ) : (
-                <p className="text-sm font-medium">{pkg.productDurationDays ?? '—'}</p>
+                <p className="text-sm font-medium">{pkg.slug ?? '—'}</p>
               )}
-              <p className="text-xs text-muted-foreground mt-1">1–365; leave empty when editing to clear (not recommended).</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                Lowercase letters, numbers, hyphens — maps to product-pricing file.
+              </p>
+            </div>
+
+            <div className="md:col-span-2">
+              <Label>Payment frequencies</Label>
+              {editing ? (
+                <div className="mt-2 space-y-2">
+                  {CONFIGURABLE_FREQUENCIES.map((freq) => {
+                    const row = formData.frequencies[freq.value];
+                    return (
+                      <div key={freq.value} className="flex flex-wrap items-center gap-3 rounded-md border p-3">
+                        <div className="flex items-center gap-2 min-w-[140px]">
+                          <Checkbox
+                            id={`edit-freq-${freq.value}`}
+                            checked={row.enabled}
+                            onCheckedChange={(checked) =>
+                              setFormData({
+                                ...formData,
+                                frequencies: {
+                                  ...formData.frequencies,
+                                  [freq.value]: { ...row, enabled: checked === true },
+                                },
+                              })
+                            }
+                          />
+                          <Label htmlFor={`edit-freq-${freq.value}`} className="font-normal cursor-pointer">
+                            {freq.label}
+                          </Label>
+                        </div>
+                        <Input
+                          className="w-24"
+                          inputMode="numeric"
+                          disabled={!row.enabled}
+                          value={row.count}
+                          onChange={(e) =>
+                            setFormData({
+                              ...formData,
+                              frequencies: {
+                                ...formData.frequencies,
+                                [freq.value]: {
+                                  ...row,
+                                  count: e.target.value.replace(/\D/g, '').slice(0, 3),
+                                },
+                              },
+                            })
+                          }
+                          aria-label={`${freq.label} installment count`}
+                        />
+                        <span className="text-xs text-muted-foreground">
+                          ({freq.min}–{freq.max})
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {(pkg.paymentFrequencies ?? []).length === 0 ? (
+                    <p className="text-sm text-muted-foreground">None configured</p>
+                  ) : (
+                    (pkg.paymentFrequencies ?? []).map((pf) => (
+                      <Badge key={pf.frequency} variant="outline">
+                        {pf.frequency}: {pf.installmentCount}
+                      </Badge>
+                    ))
+                  )}
+                </div>
+              )}
             </div>
 
             <div>
@@ -626,6 +751,7 @@ export default function PackageDetailPage() {
           fetchSchemes();
         }}
         packageId={packageId}
+        paymentFrequencies={pkg?.paymentFrequencies}
       />
     </div>
   );

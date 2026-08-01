@@ -21,6 +21,9 @@ import { policyDatesFromPayment, policyEndDateFromStart } from '../utils/policy-
 import { assertPolicyMayBecomeActive } from '../utils/policy-activation-gate.util';
 import { hasGlobalCustomerAccess } from '../utils/roles.util';
 import { notDetachedPaymentWhere } from '../utils/policy-payment-filters';
+import { computeNominalPaymentPeriodEndDate } from '../utils/package-payment-frequency.util';
+import { ValidationException } from '../exceptions/validation.exception';
+import { ErrorCodes } from '../enums/error-codes.enum';
 
 /**
  * Policy Service
@@ -411,6 +414,31 @@ export class PolicyService {
   }
 
   /**
+   * Resolve and validate expectedInstallmentCount for a package frequency.
+   */
+  async resolveExpectedInstallmentCount(
+    packageId: number,
+    frequency: PaymentFrequency,
+    tx?: Prisma.TransactionClient
+  ): Promise<number> {
+    const client = tx ?? this.prismaService;
+    const row = await client.packagePaymentFrequency.findUnique({
+      where: {
+        packageId_frequency: { packageId, frequency },
+      },
+      select: { installmentCount: true },
+    });
+    if (!row) {
+      throw ValidationException.forField(
+        'frequency',
+        'Payment frequency is not supported for this package',
+        ErrorCodes.VALIDATION_ERROR
+      );
+    }
+    return row.installmentCount;
+  }
+
+  /**
    * Calculate payment cadence from frequency
    * @param frequency - Payment frequency
    * @param customDays - Custom days for CUSTOM frequency
@@ -689,6 +717,12 @@ export class PolicyService {
           );
         }
 
+        const expectedInstallmentCount = await this.resolveExpectedInstallmentCount(
+          data.packageId,
+          frequency,
+          tx
+        );
+
         // For postpaid schemes: no policy number, null dates, PENDING_ACTIVATION
         // For prepaid schemes: generate policy number, set proper dates, will activate after creation
         let policyNumber: string | null;
@@ -756,6 +790,7 @@ export class PolicyService {
               premium: data.premium,
               frequency,
               paymentCadence,
+              expectedInstallmentCount,
               paymentAcNumber,
             },
           });
@@ -1406,6 +1441,25 @@ export class PolicyService {
             }
           }
 
+          const effectiveStart =
+            (updateData.startDate as Date | undefined) ?? policy.startDate ?? null;
+          const effectiveEnd =
+            (updateData.endDate as Date | undefined) ?? policy.endDate ?? null;
+          if (
+            !policy.nominalPaymentPeriodEndDate &&
+            effectiveStart &&
+            policy.expectedInstallmentCount != null &&
+            policy.expectedInstallmentCount > 0 &&
+            policy.paymentCadence > 0
+          ) {
+            updateData.nominalPaymentPeriodEndDate = computeNominalPaymentPeriodEndDate({
+              startDate: effectiveStart,
+              expectedInstallmentCount: policy.expectedInstallmentCount,
+              paymentCadence: policy.paymentCadence,
+              policyEndDate: effectiveEnd,
+            });
+          }
+
           const updatedPolicy = await txClient.policy.update({
             where: { id: policyId },
             data: updateData,
@@ -1466,6 +1520,22 @@ export class PolicyService {
           );
         }
 
+        let nominalPaymentPeriodEndDate = policy.nominalPaymentPeriodEndDate;
+        if (
+          !nominalPaymentPeriodEndDate &&
+          startDate &&
+          policy.expectedInstallmentCount != null &&
+          policy.expectedInstallmentCount > 0 &&
+          policy.paymentCadence > 0
+        ) {
+          nominalPaymentPeriodEndDate = computeNominalPaymentPeriodEndDate({
+            startDate,
+            expectedInstallmentCount: policy.expectedInstallmentCount,
+            paymentCadence: policy.paymentCadence,
+            policyEndDate: endDate,
+          });
+        }
+
         // Update policy with policy number, dates, and status
         const updatedPolicy = await txClient.policy.update({
           where: { id: policyId },
@@ -1473,6 +1543,7 @@ export class PolicyService {
             policyNumber,
             startDate,
             endDate,
+            nominalPaymentPeriodEndDate,
             status: 'ACTIVE',
           },
         });
@@ -1907,6 +1978,10 @@ export class PolicyService {
       throw new BadRequestException('Custom days must be provided when frequency is CUSTOM');
     }
     const paymentCadence = this.calculatePaymentCadence(data.frequency, data.customDays);
+    const expectedInstallmentCount = await this.resolveExpectedInstallmentCount(
+      data.packageId,
+      data.frequency
+    );
     const paymentAcNumber = customer.idNumber ?? '';
 
     const normalizedIdNumber = this.normalizeAccountNumber(customer.idNumber);
@@ -1957,6 +2032,7 @@ export class PolicyService {
           premium: data.premium,
           frequency: data.frequency,
           paymentCadence,
+          expectedInstallmentCount,
           paymentAcNumber,
           startDate: null,
           endDate: null,
@@ -2022,6 +2098,10 @@ export class PolicyService {
       throw new BadRequestException('Custom days must be provided when frequency is CUSTOM');
     }
     const paymentCadence = this.calculatePaymentCadence(data.frequency, data.customDays);
+    const expectedInstallmentCount = await this.resolveExpectedInstallmentCount(
+      data.packageId,
+      data.frequency
+    );
     const paymentAcNumber = customer.idNumber ?? null;
 
     return this.prismaService.$transaction(async (tx) => {
@@ -2039,6 +2119,7 @@ export class PolicyService {
           premium: data.premium,
           frequency: data.frequency,
           paymentCadence,
+          expectedInstallmentCount,
         },
       });
 
