@@ -5,6 +5,7 @@ import { ValidationException } from '../exceptions/validation.exception';
 import { ErrorCodes } from '../enums/error-codes.enum';
 import { PaymentAccountNumberService } from './payment-account-number.service';
 import { PaymentFrequency, Prisma } from '@prisma/client';
+import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
 import { PAYMENT_CADENCE } from '../constants/payment-cadence.constants';
 import { trimOrNull } from '../utils/string.util';
 import {
@@ -106,6 +107,44 @@ export class ProductManagementService {
       frequency: r.frequency,
       installmentCount: r.installmentCount,
     }));
+  }
+
+  /** Extract Prisma P2002 unique-constraint target field names. */
+  private getPrismaUniqueTargetFields(error: PrismaClientKnownRequestError): string[] {
+    const target = error.meta?.target;
+    if (Array.isArray(target)) {
+      return target.map(String);
+    }
+    if (typeof target === 'string' && target.length > 0) {
+      return [target];
+    }
+    return [];
+  }
+
+  private mapPackageUniqueConstraintError(error: PrismaClientKnownRequestError): never {
+    const fields = this.getPrismaUniqueTargetFields(error);
+    const blob = `${error.message} ${fields.join(' ')}`.toLowerCase();
+
+    if (fields.includes('slug') || blob.includes('slug')) {
+      throw ValidationException.forField(
+        'slug',
+        'A package with this slug already exists',
+        ErrorCodes.VALIDATION_ERROR
+      );
+    }
+    if (fields.includes('name') || /\bname\b/.test(blob)) {
+      throw ValidationException.forField(
+        'name',
+        'A package with this name already exists for this underwriter',
+        ErrorCodes.VALIDATION_ERROR
+      );
+    }
+    const label = fields.length > 0 ? fields.join(', ') : 'value';
+    throw ValidationException.forField(
+      'package',
+      `A package with this ${label} already exists`,
+      ErrorCodes.VALIDATION_ERROR
+    );
   }
 
   async getPackages(correlationId: string) {
@@ -1113,20 +1152,51 @@ export class ProductManagementService {
         error instanceof Error ? error.stack : undefined
       );
 
-      if (error instanceof Error) {
-        if (error.message.includes('Unique constraint failed')) {
-          if (error.message.includes('slug')) {
-            throw ValidationException.forField(
-              'slug',
-              'A package with this slug already exists',
-              ErrorCodes.VALIDATION_ERROR
-            );
-          }
-          throw new Error('A package with this name already exists for this underwriter');
+      if (error instanceof ValidationException) {
+        throw error;
+      }
+
+      if (error instanceof PrismaClientKnownRequestError) {
+        if (error.code === 'P2002') {
+          this.mapPackageUniqueConstraintError(error);
         }
-        if (error.message.includes('Foreign key constraint failed')) {
-          throw new Error('Invalid underwriter ID');
+        if (error.code === 'P2003') {
+          throw ValidationException.forField(
+            'underwriterId',
+            'Invalid underwriter ID',
+            ErrorCodes.VALIDATION_ERROR
+          );
         }
+      }
+
+      // Legacy string match for drivers that omit Prisma error codes
+      if (error instanceof Error && error.message.includes('Unique constraint failed')) {
+        if (error.message.toLowerCase().includes('slug')) {
+          throw ValidationException.forField(
+            'slug',
+            'A package with this slug already exists',
+            ErrorCodes.VALIDATION_ERROR
+          );
+        }
+        if (/\bname\b/i.test(error.message)) {
+          throw ValidationException.forField(
+            'name',
+            'A package with this name already exists for this underwriter',
+            ErrorCodes.VALIDATION_ERROR
+          );
+        }
+        throw ValidationException.forField(
+          'package',
+          'A package with a conflicting unique value already exists',
+          ErrorCodes.VALIDATION_ERROR
+        );
+      }
+      if (error instanceof Error && error.message.includes('Foreign key constraint failed')) {
+        throw ValidationException.forField(
+          'underwriterId',
+          'Invalid underwriter ID',
+          ErrorCodes.VALIDATION_ERROR
+        );
       }
 
       throw error;
@@ -1338,14 +1408,50 @@ export class ProductManagementService {
         extra: { schemeName: data.schemeName, isPostpaid: data.isPostpaid },
       });
 
-      // Re-throw with more context if it's a Prisma error
-      if (error instanceof Error) {
-        if (error.message.includes('Unique constraint failed')) {
-          throw new Error('A scheme with this name already exists');
+      if (error instanceof ValidationException) {
+        throw error;
+      }
+
+      if (error instanceof PrismaClientKnownRequestError) {
+        if (error.code === 'P2002') {
+          const fields = this.getPrismaUniqueTargetFields(error);
+          const blob = `${error.message} ${fields.join(' ')}`.toLowerCase();
+          if (fields.includes('schemeName') || blob.includes('schemename') || blob.includes('scheme_name')) {
+            throw ValidationException.forField(
+              'schemeName',
+              'A scheme with this name already exists',
+              ErrorCodes.VALIDATION_ERROR
+            );
+          }
+          const label = fields.length > 0 ? fields.join(', ') : 'value';
+          throw ValidationException.forField(
+            'scheme',
+            `A scheme with this ${label} already exists`,
+            ErrorCodes.VALIDATION_ERROR
+          );
         }
-        if (error.message.includes('Foreign key constraint failed')) {
-          throw new Error('Invalid package ID');
+        if (error.code === 'P2003') {
+          throw ValidationException.forField(
+            'packageId',
+            'Invalid package ID',
+            ErrorCodes.VALIDATION_ERROR
+          );
         }
+      }
+
+      if (error instanceof Error && error.message.includes('Unique constraint failed')) {
+        throw ValidationException.forField(
+          'schemeName',
+          'A scheme with this name already exists',
+          ErrorCodes.VALIDATION_ERROR
+        );
+      }
+      if (error instanceof Error && error.message.includes('Foreign key constraint failed')) {
+        throw ValidationException.forField(
+          'packageId',
+          'Invalid package ID',
+          ErrorCodes.VALIDATION_ERROR
+        );
       }
 
       throw error;

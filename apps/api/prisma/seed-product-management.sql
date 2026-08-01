@@ -186,3 +186,11 @@ INSERT INTO "package_plans" ("name", "description", "packageId", "isActive", "cr
 ON CONFLICT ("packageId", "name") DO NOTHING;
 END $$;
 
+-- Sync serial sequences after explicit-id inserts so the next create() does not
+-- collide on primary key (which was misreported as "name already exists").
+SELECT setval(pg_get_serial_sequence('underwriters', 'id'), (SELECT COALESCE(MAX(id), 1) FROM underwriters));
+SELECT setval(pg_get_serial_sequence('product_types', 'id'), (SELECT COALESCE(MAX(id), 1) FROM product_types));
+SELECT setval(pg_get_serial_sequence('products', 'id'), (SELECT COALESCE(MAX(id), 1) FROM products));
+SELECT setval(pg_get_serial_sequence('packages', 'id'), (SELECT COALESCE(MAX(id), 1) FROM packages));
+SELECT setval(pg_get_serial_sequence('schemes', 'id'), (SELECT COALESCE(MAX(id), 1) FROM schemes));
+
