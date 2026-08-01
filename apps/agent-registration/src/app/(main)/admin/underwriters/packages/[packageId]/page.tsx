@@ -543,7 +543,7 @@ export default function PackageDetailPage() {
                 <p className="text-sm font-medium">{pkg.slug ?? '—'}</p>
               )}
               <p className="text-xs text-muted-foreground mt-1">
-                Lowercase letters, numbers, hyphens — maps to product-pricing file.
+                Lowercase letters, numbers, hyphens.
               </p>
             </div>
 

@@ -27,6 +27,12 @@ ON CONFLICT ("packageId", "frequency") DO UPDATE
 SET "installmentCount" = EXCLUDED."installmentCount",
     "updatedAt" = CURRENT_TIMESTAMP;
 
+-- Keep packages id sequence ahead of MAX(id) after explicit-id seeds
+SELECT setval(
+  pg_get_serial_sequence('packages', 'id'),
+  (SELECT COALESCE(MAX(id), 1) FROM packages)
+);
+
 -- Verification
 SELECT p.id, p.name, p.slug, ppf.frequency, ppf."installmentCount"
 FROM "packages" p
