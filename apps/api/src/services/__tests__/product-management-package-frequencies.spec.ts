@@ -1,5 +1,6 @@
 /// <reference types="jest" />
 import { PaymentFrequency } from '@prisma/client';
+import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
 import { ProductManagementService } from '../product-management.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { PaymentAccountNumberService } from '../payment-account-number.service';
@@ -134,6 +135,35 @@ describe('ProductManagementService - package slug & payment frequencies', () => 
           'corr-1'
         )
       ).rejects.toBeInstanceOf(ValidationException);
+    });
+
+    it('maps primary-key unique conflicts to package field (not name)', async () => {
+      prismaMock.package.findFirst.mockResolvedValue(null);
+      const pkConflict = new PrismaClientKnownRequestError(
+        'Unique constraint failed on the fields: (`id`)',
+        { code: 'P2002', clientVersion: '6.19.0', meta: { target: ['id'] } }
+      );
+      prismaMock.$transaction.mockRejectedValue(pkConflict);
+
+      await expect(
+        service.createPackage(
+          {
+            name: 'MfanisiBoda',
+            slug: 'mfanisi-boda',
+            description: 'Boda product',
+            underwriterId: 1,
+            paymentFrequencies: [
+              { frequency: PaymentFrequency.DAILY, installmentCount: 313 },
+            ],
+          },
+          'user-1',
+          'corr-1'
+        )
+      ).rejects.toMatchObject({
+        errorDetails: {
+          package: 'A package with this id already exists',
+        },
+      });
     });
 
     it('creates package with slug and frequency rows', async () => {
