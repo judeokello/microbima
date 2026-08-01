@@ -15,29 +15,33 @@ import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
 import { usePaymentStatus, PaymentStatusUpdate } from '@/hooks/usePaymentStatus';
 import { mapStkGatewayStatusToSpecVocabulary } from '@/lib/payment-status-vocabulary';
-import { computeInstallmentPremium } from '@/lib/insurance-installment';
+import {
+  computeInstallmentPremium,
+  computeNominalHorizonFromToday,
+  productPricingPath,
+  PAYMENT_CADENCE_DAYS,
+  type PricingMode,
+  type PricingRateBand,
+} from '@/lib/insurance-installment';
+
+type PricingCategoryRates = PricingRateBand & { display: string };
 
 interface InsurancePricing {
-  plans: {
-    silver: {
+  packageSlug?: string;
+  pricingMode?: PricingMode;
+  plans: Record<
+    string,
+    {
       name: string;
-      categories: {
-        member_only: { display: string; daily: number; weekly: number };
-        up_to_5: { display: string; daily: number; weekly: number };
-        up_to_8: { display: string; daily: number; weekly: number };
-      };
-      additional_spouse: { daily: number; weekly: number };
-    };
-    gold: {
-      name: string;
-      categories: {
-        member_only: { display: string; daily: number; weekly: number };
-        up_to_5: { display: string; daily: number; weekly: number };
-        up_to_8: { display: string; daily: number; weekly: number };
-      };
-      additional_spouse: { daily: number; weekly: number };
-    };
-  };
+      categories: Record<string, PricingCategoryRates>;
+      additional_spouse: PricingRateBand;
+    }
+  >;
+}
+
+interface PackagePaymentFrequencyOption {
+  frequency: string;
+  installmentCount: number;
 }
 
 interface CustomerFormData {
@@ -133,6 +137,7 @@ export default function PaymentStep() {
 
   // Insurance pricing state
   const [pricingData, setPricingData] = useState<InsurancePricing | null>(null);
+  const [pricingLoadError, setPricingLoadError] = useState<string | null>(null);
   const [selectedPlan, setSelectedPlan] = useState<string>('');
   const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [additionalSpouse, setAdditionalSpouse] = useState(false);
@@ -140,7 +145,8 @@ export default function PaymentStep() {
     daily: 0,
     weekly: 0,
     totalDaily: 0,
-    totalWeekly: 0
+    totalWeekly: 0,
+    lookupRates: null as PricingRateBand | null,
   });
 
   // Payment frequency state
@@ -149,21 +155,16 @@ export default function PaymentStep() {
   const [isPostpaidScheme, setIsPostpaidScheme] = useState<boolean>(false);
   const [schemeFrequency, setSchemeFrequency] = useState<string | null>(null);
   const [schemeCadence, setSchemeCadence] = useState<number | null>(null);
+  const [packageSlug, setPackageSlug] = useState<string | null>(null);
+  const [paymentFrequencies, setPaymentFrequencies] = useState<PackagePaymentFrequencyOption[]>([]);
 
-  // Helper function to get days for a frequency
+  const pricingMode: PricingMode = pricingData?.pricingMode ?? 'extrapolate';
+
   const getFrequencyDays = (frequency: string, cadence?: number): number => {
-    switch (frequency) {
-      case 'DAILY': return 1;
-      case 'WEEKLY': return 7;
-      case 'MONTHLY': return 31;
-      case 'QUARTERLY': return 90;
-      case 'ANNUALLY': return 365;
-      case 'CUSTOM': return cadence ?? 0;
-      default: return 0;
-    }
+    if (frequency === 'CUSTOM') return cadence ?? 0;
+    return PAYMENT_CADENCE_DAYS[frequency] ?? 0;
   };
 
-  // Format frequency display with days
   const formatFrequencyDisplay = (frequency: string, cadence?: number): string => {
     const days = getFrequencyDays(frequency, cadence);
     switch (frequency) {
@@ -177,16 +178,45 @@ export default function PaymentStep() {
     }
   };
 
-  // Calculate payment end date (276 days from now)
+  const selectedFrequencyInstallmentCount =
+    paymentFrequencies.find((pf) => pf.frequency === selectedFrequency)?.installmentCount ?? null;
+
   const calculatePaymentEndDate = () => {
-    const currentDate = new Date();
-    const endDate = new Date(currentDate);
-    endDate.setDate(endDate.getDate() + 276);
+    if (!selectedFrequency || selectedFrequencyInstallmentCount == null) {
+      return '—';
+    }
+    const cadence =
+      selectedFrequency === 'CUSTOM'
+        ? parseInt(customCadence, 10) || 0
+        : getFrequencyDays(selectedFrequency);
+    if (cadence <= 0) return '—';
+    const endDate = computeNominalHorizonFromToday(selectedFrequencyInstallmentCount, cadence);
     return endDate.toLocaleDateString('en-GB', {
       year: 'numeric',
       month: 'long',
-      day: 'numeric'
+      day: 'numeric',
     });
+  };
+
+  const loadPricingForSlug = (slug: string) => {
+    setPricingLoadError(null);
+    setPricingData(null);
+    fetch(productPricingPath(slug))
+      .then(async (response) => {
+        if (!response.ok) {
+          throw new Error(`Pricing file not found for package "${slug}"`);
+        }
+        return response.json() as Promise<InsurancePricing>;
+      })
+      .then((data) => setPricingData(data))
+      .catch((err) => {
+        console.error('Error loading pricing data:', err);
+        setPricingLoadError(
+          err instanceof Error
+            ? err.message
+            : 'Missing price setup for this package. Contact support.'
+        );
+      });
   };
 
   useEffect(() => {
@@ -205,15 +235,8 @@ export default function PaymentStep() {
       setBeneficiaryData(JSON.parse(savedBeneficiaryData));
     }
 
-    // Load pricing data
-    fetch('/insurance-pricing.json')
-      .then(response => response.json())
-      .then(data => setPricingData(data))
-      .catch(error => console.error('Error loading pricing data:', error));
-
-    // Fetch customer's scheme information if they belong to one
+    // Fetch customer's scheme / package pricing context
     if (customerId) {
-      // Get Supabase token for authenticated request
       supabase.auth.getSession().then(({ data: { session } }) => {
         if (session?.access_token) {
           fetch(`${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/customers/${customerId}/scheme`, {
@@ -226,7 +249,6 @@ export default function PaymentStep() {
               if (response.ok) {
                 return response.json();
               }
-              // Customer may not belong to a scheme, which is fine
               return null;
             })
             .then(data => {
@@ -235,17 +257,26 @@ export default function PaymentStep() {
                 setIsPostpaidScheme(scheme.isPostpaid ?? false);
                 setSchemeFrequency(scheme.frequency);
                 setSchemeCadence(scheme.paymentCadence);
+                const freqs: PackagePaymentFrequencyOption[] = scheme.paymentFrequencies ?? [];
+                setPaymentFrequencies(freqs);
+                if (scheme.packageSlug) {
+                  setPackageSlug(scheme.packageSlug);
+                  loadPricingForSlug(scheme.packageSlug);
+                } else {
+                  setPricingLoadError('Package slug is not configured. Contact support.');
+                }
 
-                // If postpaid, set the frequency to the scheme's frequency
                 if (scheme.isPostpaid && scheme.frequency) {
                   setSelectedFrequency(scheme.frequency);
-                  if (scheme.frequency === 'CUSTOM' && scheme.paymentCadence) {
-                    setCustomCadence(scheme.paymentCadence.toString());
-                  }
                 }
+              } else {
+                setPricingLoadError('Could not load package scheme for pricing. Contact support.');
               }
             })
-            .catch(error => console.error('Error loading scheme data:', error));
+            .catch(error => {
+              console.error('Error loading scheme data:', error);
+              setPricingLoadError('Failed to load package pricing context.');
+            });
         }
       });
     }
@@ -269,26 +300,53 @@ export default function PaymentStep() {
   // Calculate pricing when selections change
   useEffect(() => {
     if (!pricingData || !selectedPlan || !selectedCategory) {
-      setCalculatedPricing({ daily: 0, weekly: 0, totalDaily: 0, totalWeekly: 0 });
+      setCalculatedPricing({
+        daily: 0,
+        weekly: 0,
+        totalDaily: 0,
+        totalWeekly: 0,
+        lookupRates: null,
+      });
       return;
     }
 
-    const plan = pricingData.plans[selectedPlan as keyof typeof pricingData.plans];
-    const category = plan.categories[selectedCategory as keyof typeof plan.categories];
+    const plan = pricingData.plans[selectedPlan];
+    if (!plan) return;
+    const category = plan.categories[selectedCategory];
     const spousePremium = plan.additional_spouse;
+    if (!category) return;
 
-    const baseDaily = category.daily;
-    const baseWeekly = category.weekly;
-    const spouseDaily = additionalSpouse ? spousePremium.daily : 0;
-    const spouseWeekly = additionalSpouse ? spousePremium.weekly : 0;
+    const baseDaily = category.daily ?? 0;
+    const baseWeekly = category.weekly ?? 0;
+    const spouseDaily = additionalSpouse ? spousePremium.daily ?? 0 : 0;
+    const spouseWeekly = additionalSpouse ? spousePremium.weekly ?? 0 : 0;
+
+    const lookupRates: PricingRateBand = {
+      daily: (category.daily ?? 0) + (additionalSpouse ? spousePremium.daily ?? 0 : 0),
+      weekly: (category.weekly ?? 0) + (additionalSpouse ? spousePremium.weekly ?? 0 : 0),
+      monthly: (category.monthly ?? 0) + (additionalSpouse ? spousePremium.monthly ?? 0 : 0),
+      annually: (category.annually ?? 0) + (additionalSpouse ? spousePremium.annually ?? 0 : 0),
+    };
 
     setCalculatedPricing({
       daily: baseDaily,
       weekly: baseWeekly,
       totalDaily: baseDaily + spouseDaily,
-      totalWeekly: baseWeekly + spouseWeekly
+      totalWeekly: baseWeekly + spouseWeekly,
+      lookupRates,
     });
   }, [pricingData, selectedPlan, selectedCategory, additionalSpouse]);
+
+  const installmentForSelection = (frequency: string) =>
+    computeInstallmentPremium({
+      frequency,
+      daily: calculatedPricing.totalDaily,
+      weekly: calculatedPricing.totalWeekly,
+      customDays:
+        frequency === 'CUSTOM' ? parseInt(customCadence, 10) || undefined : undefined,
+      pricingMode,
+      lookupRates: calculatedPricing.lookupRates ?? undefined,
+    });
 
   // Reset category when plan changes
   useEffect(() => {
@@ -367,6 +425,14 @@ export default function PaymentStep() {
       return;
     }
 
+    if (pricingLoadError || !pricingData) {
+      setError(
+        pricingLoadError ??
+          'Missing price setup for this package. Contact support before submitting payment.'
+      );
+      return;
+    }
+
     // Validate plan and category selection
     if (!selectedPlan || !selectedCategory) {
       setError('Please select an insurance plan and family category before submitting payment.');
@@ -374,14 +440,22 @@ export default function PaymentStep() {
     }
 
     // Validate premium is calculated
-    if (calculatedPricing.totalDaily === 0 && calculatedPricing.totalWeekly === 0) {
-      setError('Premium amount could not be calculated. Please select a plan and category.');
+    if (installmentForSelection(selectedFrequency || 'DAILY') <= 0) {
+      setError('Premium amount could not be calculated. Please select a plan, category, and frequency.');
       return;
     }
 
     // Validate payment frequency
     if (!selectedFrequency) {
       setError('Please select a payment frequency.');
+      return;
+    }
+
+    if (
+      !paymentFrequencies.some((pf) => pf.frequency === selectedFrequency) &&
+      !isPostpaidScheme
+    ) {
+      setError('Selected payment frequency is not supported for this package.');
       return;
     }
 
@@ -466,12 +540,7 @@ export default function PaymentStep() {
       // Use selected frequency from the dropdown
       const frequency = selectedFrequency as 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'QUARTERLY' | 'ANNUALLY' | 'CUSTOM';
 
-      const premium = computeInstallmentPremium({
-        frequency,
-        daily: calculatedPricing.totalDaily,
-        weekly: calculatedPricing.totalWeekly,
-        customDays: frequency === 'CUSTOM' ? parseInt(customCadence, 10) || undefined : undefined,
-      });
+      const premium = installmentForSelection(frequency);
 
       // Generate placeholder transaction reference for policy creation
       // The actual payment transaction reference will come from M-Pesa via IPN
@@ -590,37 +659,47 @@ export default function PaymentStep() {
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
+            {pricingLoadError && (
+              <div className="rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                Missing price setup{packageSlug ? ` for package “${packageSlug}”` : ''}.{' '}
+                {pricingLoadError} Plan selection is unavailable until this is fixed.
+              </div>
+            )}
             {/* Plan Selection */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="planSelection">Insurance Plan</Label>
-                <Select value={selectedPlan} onValueChange={setSelectedPlan}>
+                <Select
+                  value={selectedPlan}
+                  onValueChange={setSelectedPlan}
+                  disabled={!pricingData}
+                >
                   <SelectTrigger id="planSelection">
-                    <SelectValue placeholder="Select insurance plan" />
+                    <SelectValue placeholder={pricingData ? 'Select insurance plan' : 'No pricing available'} />
                   </SelectTrigger>
                   <SelectContent>
-                    {pricingData && (
-                      <>
-                        <SelectItem value="silver">{pricingData.plans.silver.name}</SelectItem>
-                        <SelectItem value="gold">{pricingData.plans.gold.name}</SelectItem>
-                      </>
-                    )}
+                    {pricingData &&
+                      Object.entries(pricingData.plans).map(([key, plan]) => (
+                        <SelectItem key={key} value={key}>
+                          {plan.name}
+                        </SelectItem>
+                      ))}
                   </SelectContent>
                 </Select>
               </div>
 
               <div>
                 <Label htmlFor="familyCategory">Family Category</Label>
-                <Select value={selectedCategory} onValueChange={setSelectedCategory} disabled={!selectedPlan}>
+                <Select value={selectedCategory} onValueChange={setSelectedCategory} disabled={!selectedPlan || !pricingData}>
                   <SelectTrigger id="familyCategory">
                     <SelectValue placeholder="Select family category" />
                   </SelectTrigger>
                   <SelectContent>
-                    {pricingData && selectedPlan && (
+                    {pricingData && selectedPlan && pricingData.plans[selectedPlan] && (
                       <>
-                        {Object.entries(pricingData.plans[selectedPlan as keyof typeof pricingData.plans].categories).map(([key, category]) => (
+                        {Object.entries(pricingData.plans[selectedPlan].categories).map(([key, category]) => (
                           <SelectItem key={key} value={key}>
-                            {category.display} - {category.daily}d - {category.weekly}w
+                            {category.display} - {category.daily ?? 0}d - {category.weekly ?? 0}w
                           </SelectItem>
                         ))}
                       </>
@@ -635,18 +714,17 @@ export default function PaymentStep() {
                 <Select
                   value={selectedFrequency}
                   onValueChange={setSelectedFrequency}
-                  disabled={isPostpaidScheme}
+                  disabled={isPostpaidScheme || paymentFrequencies.length === 0}
                 >
                   <SelectTrigger id="paymentFrequency">
                     <SelectValue placeholder="Select Frequency" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="DAILY">{formatFrequencyDisplay('DAILY')}</SelectItem>
-                    <SelectItem value="WEEKLY">{formatFrequencyDisplay('WEEKLY')}</SelectItem>
-                    <SelectItem value="MONTHLY">{formatFrequencyDisplay('MONTHLY')}</SelectItem>
-                    <SelectItem value="QUARTERLY">{formatFrequencyDisplay('QUARTERLY')}</SelectItem>
-                    <SelectItem value="ANNUALLY">{formatFrequencyDisplay('ANNUALLY')}</SelectItem>
-                    {!isPostpaidScheme && <SelectItem value="CUSTOM">Custom</SelectItem>}
+                    {paymentFrequencies.map((pf) => (
+                      <SelectItem key={pf.frequency} value={pf.frequency}>
+                        {formatFrequencyDisplay(pf.frequency)} · {pf.installmentCount} installments
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
                 {isPostpaidScheme && schemeFrequency && (
@@ -692,9 +770,9 @@ export default function PaymentStep() {
               />
               <Label htmlFor="additionalSpouse" className="text-sm">
                 Additional Spouse Premium
-                {pricingData && selectedPlan && selectedCategory !== 'member_only' && (
+                {pricingData && selectedPlan && pricingData.plans[selectedPlan] && selectedCategory !== 'member_only' && (
                   <span className="text-gray-500 ml-1">
-                    (+{pricingData.plans[selectedPlan as keyof typeof pricingData.plans].additional_spouse.daily} KES/day, +{pricingData.plans[selectedPlan as keyof typeof pricingData.plans].additional_spouse.weekly} KES/week)
+                    (+{pricingData.plans[selectedPlan].additional_spouse.daily ?? 0} KES/day, +{pricingData.plans[selectedPlan].additional_spouse.weekly ?? 0} KES/week)
                   </span>
                 )}
               </Label>
@@ -702,7 +780,9 @@ export default function PaymentStep() {
 
             <div className="flex items-center justify-between p-4 bg-blue-50 rounded-lg">
               <div>
-                <h3 className="font-semibold text-blue-900">Mfanisi GO</h3>
+                <h3 className="font-semibold text-blue-900">
+                  {packageSlug ? packageSlug.replace(/-/g, ' ') : 'Selected package'}
+                </h3>
                 <p className="text-sm text-blue-700">Comprehensive insurance coverage</p>
               </div>
               <div className="text-right">
@@ -713,15 +793,7 @@ export default function PaymentStep() {
                 </p>
                 <p className="text-lg font-bold text-blue-900">
                   {selectedFrequency
-                    ? computeInstallmentPremium({
-                        frequency: selectedFrequency,
-                        daily: calculatedPricing.totalDaily,
-                        weekly: calculatedPricing.totalWeekly,
-                        customDays:
-                          selectedFrequency === 'CUSTOM'
-                            ? parseInt(customCadence, 10) || undefined
-                            : undefined,
-                      })
+                    ? installmentForSelection(selectedFrequency)
                     : calculatedPricing.totalDaily}{' '}
                   KES
                 </p>
@@ -730,23 +802,19 @@ export default function PaymentStep() {
 
             <div className="text-sm text-gray-600">
               <p>• Daily rate: {calculatedPricing.totalDaily} KES</p>
-              <p>• Weekly installment: {calculatedPricing.totalWeekly} KES (recommended)</p>
+              <p>• Weekly installment: {calculatedPricing.totalWeekly} KES</p>
               {selectedFrequency && selectedFrequency !== 'DAILY' && selectedFrequency !== 'WEEKLY' && (
                 <p>
-                  • Selected installment:{' '}
-                  {computeInstallmentPremium({
-                    frequency: selectedFrequency,
-                    daily: calculatedPricing.totalDaily,
-                    weekly: calculatedPricing.totalWeekly,
-                    customDays:
-                      selectedFrequency === 'CUSTOM'
-                        ? parseInt(customCadence, 10) || undefined
-                        : undefined,
-                  })}{' '}
-                  KES (daily × cadence)
+                  • Selected installment: {installmentForSelection(selectedFrequency)} KES
+                  {pricingMode === 'extrapolate' ? ' (daily × cadence)' : ' (table rate)'}
                 </p>
               )}
-              <p>• Payment end date: {calculatePaymentEndDate()}</p>
+              <p>
+                • Expected payment end (if you start today): {calculatePaymentEndDate()}
+                {selectedFrequencyInstallmentCount != null
+                  ? ` (${selectedFrequencyInstallmentCount} installments)`
+                  : ''}
+              </p>
             </div>
           </div>
         </CardContent>
@@ -891,20 +959,12 @@ export default function PaymentStep() {
               <Label>Installment amount</Label>
               <div className="flex items-center h-10 px-3 py-2 border border-gray-200 rounded-md bg-gray-50 text-gray-900">
                 {selectedFrequency
-                  ? computeInstallmentPremium({
-                      frequency: selectedFrequency,
-                      daily: calculatedPricing.totalDaily,
-                      weekly: calculatedPricing.totalWeekly,
-                      customDays:
-                        selectedFrequency === 'CUSTOM'
-                          ? parseInt(customCadence, 10) || undefined
-                          : undefined,
-                    })
+                  ? installmentForSelection(selectedFrequency)
                   : calculatedPricing.totalDaily}{' '}
                 KES
               </div>
               <p className="text-xs text-gray-500 mt-1">
-                Premium per payment period (weekly from table; otherwise daily × cadence)
+                Premium per payment period ({pricingMode === 'lookup' ? 'table lookup' : 'extrapolated from daily/weekly'})
               </p>
             </div>
 
@@ -1135,7 +1195,14 @@ export default function PaymentStep() {
         </Button>
         <Button
           onClick={handleSubmit}
-          disabled={isSubmitting || !paymentPhone || authLoading || isPaymentInitiated}
+          disabled={
+            isSubmitting ||
+            !paymentPhone ||
+            authLoading ||
+            isPaymentInitiated ||
+            !!pricingLoadError ||
+            !pricingData
+          }
           className="bg-green-600 hover:bg-green-700 disabled:opacity-50"
         >
           {isSubmitting ? (

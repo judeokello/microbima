@@ -50,6 +50,7 @@ import {
   utcCalendarDaysBetween,
 } from '../utils/policy-due-date.util';
 import { assertPolicyMayBecomeActive } from '../utils/policy-activation-gate.util';
+import { computeNominalPaymentPeriodEndDate } from '../utils/package-payment-frequency.util';
 import {
   addUtcCalendarDays,
   buildOutstandingTransactionReference,
@@ -126,7 +127,17 @@ export class PolicyLifecycleService {
     const policy = await this.prisma.policy.findFirst({
       where: { id: policyId, customerId },
       include: {
-        package: { select: { id: true, name: true } },
+        package: {
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+            packagePaymentFrequencies: {
+              select: { frequency: true, installmentCount: true },
+              orderBy: { frequency: 'asc' },
+            },
+          },
+        },
         packagePlan: { select: { id: true, name: true } },
         customer: { select: { id: true, status: true, firstName: true } },
       },
@@ -914,6 +925,19 @@ export class PolicyLifecycleService {
         correlationId
       );
 
+      const expectedInstallmentCount = prior.expectedInstallmentCount;
+      const nominalPaymentPeriodEndDate =
+        expectedInstallmentCount != null &&
+        expectedInstallmentCount > 0 &&
+        prior.paymentCadence > 0
+          ? computeNominalPaymentPeriodEndDate({
+              startDate,
+              expectedInstallmentCount,
+              paymentCadence: prior.paymentCadence,
+              policyEndDate: endDate,
+            })
+          : null;
+
       const created = await tx.policy.create({
         data: {
           customerId: prior.customerId,
@@ -923,6 +947,8 @@ export class PolicyLifecycleService {
           premium: prior.premium,
           frequency: prior.frequency,
           paymentCadence: prior.paymentCadence,
+          expectedInstallmentCount,
+          nominalPaymentPeriodEndDate,
           paymentAcNumber,
           policyNumber,
           status: PolicyStatus.ACTIVE,
@@ -2036,6 +2062,11 @@ export class PolicyLifecycleService {
       message: 'Modify options retrieved successfully',
       packageId: policy.packageId,
       packageName: policy.package.name,
+      packageSlug: policy.package.slug ?? null,
+      paymentFrequencies: policy.package.packagePaymentFrequencies.map((pf) => ({
+        frequency: pf.frequency,
+        installmentCount: pf.installmentCount,
+      })),
       familyCategory,
       additionalSpouse,
       currentPackagePlanId: policy.packagePlanId ?? 0,
@@ -2043,6 +2074,7 @@ export class PolicyLifecycleService {
       currentPremium: Number(policy.premium),
       currentFrequency: policy.frequency,
       currentPaymentCadence: policy.paymentCadence,
+      currentExpectedInstallmentCount: policy.expectedInstallmentCount ?? null,
       currentPackageSchemeId: schemeCustomer?.packageSchemeId ?? null,
       paymentMigrationAllowed,
       eligiblePayments: completedPayments.map((p) => ({
@@ -2097,6 +2129,20 @@ export class PolicyLifecycleService {
     }
 
     const paymentCadence = this.calculatePaymentCadence(dto.frequency, dto.customDays);
+
+    let expectedInstallmentCount: number;
+    if (
+      dto.frequency === source.frequency &&
+      source.expectedInstallmentCount != null &&
+      source.expectedInstallmentCount > 0
+    ) {
+      expectedInstallmentCount = source.expectedInstallmentCount;
+    } else {
+      expectedInstallmentCount = await this.policyService.resolveExpectedInstallmentCount(
+        source.packageId,
+        dto.frequency
+      );
+    }
 
     const completedPayments = await this.prisma.policyPayment.findMany({
       where: {
@@ -2226,6 +2272,7 @@ export class PolicyLifecycleService {
           premium: dto.premium,
           frequency: dto.frequency,
           paymentCadence,
+          expectedInstallmentCount,
           paymentAcNumber,
           policyNumber,
           status: PolicyStatus.PENDING_ACTIVATION,

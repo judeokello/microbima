@@ -1,5 +1,42 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsString, IsBoolean, IsOptional, IsInt, MaxLength, Min, Max, ValidateIf } from 'class-validator';
+import { PaymentFrequency } from '@prisma/client';
+import {
+  IsString,
+  IsBoolean,
+  IsOptional,
+  IsInt,
+  MaxLength,
+  Min,
+  Max,
+  IsArray,
+  ValidateNested,
+  ArrayMinSize,
+  IsEnum,
+  Matches,
+} from 'class-validator';
+import { Type } from 'class-transformer';
+import { PACKAGE_SLUG_REGEX } from '../../utils/package-payment-frequency.util';
+
+export class PackagePaymentFrequencyDto {
+  @ApiProperty({
+    description: 'Payment frequency',
+    enum: PaymentFrequency,
+    example: PaymentFrequency.DAILY,
+  })
+  @IsEnum(PaymentFrequency)
+  frequency: PaymentFrequency;
+
+  @ApiProperty({
+    description: 'Number of installments for this frequency',
+    example: 276,
+    minimum: 1,
+    maximum: 365,
+  })
+  @IsInt()
+  @Min(1)
+  @Max(365)
+  installmentCount: number;
+}
 
 export class PackageDetailDto {
   @ApiProperty({
@@ -13,6 +50,14 @@ export class PackageDetailDto {
     example: 'MfanisiGo',
   })
   name: string;
+
+  @ApiProperty({
+    description: 'Unique lowercase package slug for pricing file lookup',
+    example: 'mfanisi-go',
+    required: false,
+    nullable: true,
+  })
+  slug?: string | null;
 
   @ApiProperty({
     description: 'Package description',
@@ -80,12 +125,10 @@ export class PackageDetailDto {
   updatedAt: string;
 
   @ApiProperty({
-    description: 'Days in product premium year (1–365); null if not set',
-    required: false,
-    nullable: true,
-    example: 365,
+    description: 'Supported payment frequencies and installment counts',
+    type: [PackagePaymentFrequencyDto],
   })
-  productDurationDays?: number | null;
+  paymentFrequencies: PackagePaymentFrequencyDto[];
 }
 
 export class CreatePackageRequestDto {
@@ -96,6 +139,17 @@ export class CreatePackageRequestDto {
   @IsString()
   @MaxLength(100)
   name: string;
+
+  @ApiProperty({
+    description: 'Unique lowercase slug (letters, numbers, hyphens)',
+    example: 'mfanisi-go',
+  })
+  @IsString()
+  @MaxLength(100)
+  @Matches(PACKAGE_SLUG_REGEX, {
+    message: 'slug must be lowercase letters, numbers, and hyphens only',
+  })
+  slug: string;
 
   @ApiProperty({
     description: 'Package description',
@@ -125,16 +179,14 @@ export class CreatePackageRequestDto {
   isActive?: boolean;
 
   @ApiProperty({
-    description: 'Days in product premium year (1–365). Defaults to 365 when omitted on create.',
-    required: false,
-    minimum: 1,
-    maximum: 365,
+    description: 'Supported payment frequencies (at least one; CUSTOM not allowed)',
+    type: [PackagePaymentFrequencyDto],
   })
-  @IsOptional()
-  @IsInt()
-  @Min(1)
-  @Max(365)
-  productDurationDays?: number;
+  @IsArray()
+  @ArrayMinSize(1)
+  @ValidateNested({ each: true })
+  @Type(() => PackagePaymentFrequencyDto)
+  paymentFrequencies: PackagePaymentFrequencyDto[];
 }
 
 export class UpdatePackageRequestDto {
@@ -147,6 +199,19 @@ export class UpdatePackageRequestDto {
   @IsString()
   @MaxLength(100)
   name?: string;
+
+  @ApiProperty({
+    description: 'Unique lowercase slug (letters, numbers, hyphens)',
+    example: 'mfanisi-go',
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  @Matches(PACKAGE_SLUG_REGEX, {
+    message: 'slug must be lowercase letters, numbers, and hyphens only',
+  })
+  slug?: string;
 
   @ApiProperty({
     description: 'Package description',
@@ -187,18 +252,16 @@ export class UpdatePackageRequestDto {
   logoPath?: string;
 
   @ApiProperty({
-    description: 'Days in product premium year (1–365). Set null to clear.',
+    description: 'Supported payment frequencies (at least one when provided; CUSTOM not allowed)',
+    type: [PackagePaymentFrequencyDto],
     required: false,
-    nullable: true,
-    minimum: 1,
-    maximum: 365,
   })
   @IsOptional()
-  @ValidateIf((_, v) => v !== null && v !== undefined)
-  @IsInt()
-  @Min(1)
-  @Max(365)
-  productDurationDays?: number | null;
+  @IsArray()
+  @ArrayMinSize(1)
+  @ValidateNested({ each: true })
+  @Type(() => PackagePaymentFrequencyDto)
+  paymentFrequencies?: PackagePaymentFrequencyDto[];
 }
 
 export class PackageSchemeDto {
@@ -290,4 +353,3 @@ export class PackageSchemesResponseDto {
   })
   data: PackageSchemeDto[];
 }
-

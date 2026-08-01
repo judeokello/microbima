@@ -54,13 +54,15 @@ export type PortalProductDetail = {
     planName: string | null;
     schemeName: string;
     productName: string;
-    productDurationDays: number | null;
+    packageSlug: string | null;
   };
   enrollment: {
     startDate: string | null;
     endDate: string | null;
     frequency: string;
     paymentCadence: number;
+    expectedInstallmentCount: number | null;
+    nominalPaymentPeriodEndDate: string | null;
   };
   totalPremium: string;
   installmentAmount: string;

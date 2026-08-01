@@ -468,11 +468,12 @@ export class ProductManagementController {
       packageId,
       {
         name: updateRequest.name,
+        slug: updateRequest.slug,
         description: updateRequest.description,
         underwriterId: updateRequest.underwriterId,
         isActive: updateRequest.isActive,
         logoPath: updateRequest.logoPath,
-        productDurationDays: updateRequest.productDurationDays,
+        paymentFrequencies: updateRequest.paymentFrequencies,
       },
       correlationId ?? 'unknown'
     );

@@ -1,0 +1,70 @@
+{
+  "packageSlug": "mfanisi-boda",
+  "pricingMode": "lookup",
+  "plans": {
+    "silver": {
+      "name": "Silver",
+      "categories": {
+        "member_only": {
+          "display": "M",
+          "daily": 56,
+          "weekly": 339,
+          "monthly": 1470,
+          "annually": 17645
+        },
+        "up_to_5": {
+          "display": "M(5)",
+          "daily": 100,
+          "weekly": 602,
+          "monthly": 2608,
+          "annually": 31293
+        },
+        "up_to_8": {
+          "display": "M(8)",
+          "daily": 124,
+          "weekly": 744,
+          "monthly": 3224,
+          "annually": 38686
+        }
+      },
+      "additional_spouse": {
+        "daily": 12,
+        "weekly": 73,
+        "monthly": 421,
+        "annually": 3789
+      }
+    },
+    "gold": {
+      "name": "Gold",
+      "categories": {
+        "member_only": {
+          "display": "M",
+          "daily": 76,
+          "weekly": 455,
+          "monthly": 1970,
+          "annually": 23639
+        },
+        "up_to_5": {
+          "display": "M(5)",
+          "daily": 137,
+          "weekly": 825,
+          "monthly": 3573,
+          "annually": 42875
+        },
+        "up_to_8": {
+          "display": "M(8)",
+          "daily": 171,
+          "weekly": 1026,
+          "monthly": 4448,
+          "annually": 53373
+        }
+      },
+      "additional_spouse": {
+        "daily": 17,
+        "weekly": 103,
+        "monthly": 596,
+        "annually": 5368
+      }
+    }
+  }
+}

@@ -5,9 +5,20 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Loader2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import * as Sentry from '@sentry/nextjs';
+
+const CONFIGURABLE_FREQUENCIES = [
+  { value: 'DAILY', label: 'Daily', min: 1, max: 365, defaultCount: '276' },
+  { value: 'WEEKLY', label: 'Weekly', min: 1, max: 52, defaultCount: '39' },
+  { value: 'MONTHLY', label: 'Monthly', min: 1, max: 12, defaultCount: '9' },
+  { value: 'QUARTERLY', label: 'Quarterly', min: 1, max: 4, defaultCount: '4' },
+  { value: 'ANNUALLY', label: 'Annually', min: 1, max: 1, defaultCount: '1' },
+] as const;
+
+const SLUG_REGEX = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
 interface CreatePackageDialogProps {
   open: boolean;
@@ -24,11 +35,17 @@ export default function CreatePackageDialog({
 }: CreatePackageDialogProps) {
   const [formData, setFormData] = useState({
     name: '',
+    slug: '',
     description: '',
     isActive: false,
     logo: null as File | null,
-    /** Whole days 1–365; default 365 matches API default on create */
-    productDurationDays: '365',
+    frequencies: {
+      DAILY: { enabled: true, count: '276' },
+      WEEKLY: { enabled: true, count: '39' },
+      MONTHLY: { enabled: true, count: '9' },
+      QUARTERLY: { enabled: false, count: '4' },
+      ANNUALLY: { enabled: false, count: '1' },
+    } as Record<string, { enabled: boolean; count: string }>,
   });
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -46,28 +63,45 @@ export default function CreatePackageDialog({
     }
   };
 
+  const buildPaymentFrequencies = () => {
+    const rows: { frequency: string; installmentCount: number }[] = [];
+    for (const freq of CONFIGURABLE_FREQUENCIES) {
+      const row = formData.frequencies[freq.value];
+      if (!row?.enabled) continue;
+      const count = parseInt(row.count, 10);
+      if (!Number.isInteger(count) || count < freq.min || count > freq.max) {
+        throw new Error(
+          `${freq.label} installment count must be a whole number between ${freq.min} and ${freq.max}`
+        );
+      }
+      rows.push({ frequency: freq.value, installmentCount: count });
+    }
+    if (rows.length === 0) {
+      throw new Error('Select at least one payment frequency');
+    }
+    return rows;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setLoading(true);
 
     try {
-      // Trim and validate required fields
       const name = formData.name.trim();
       const description = formData.description.trim();
-      if (!name || !description) {
-        throw new Error('All fields are required');
+      const slug = formData.slug.trim().toLowerCase();
+      if (!name || !description || !slug) {
+        throw new Error('Name, slug, and description are required');
+      }
+      if (!SLUG_REGEX.test(slug)) {
+        throw new Error('Slug must be lowercase letters, numbers, and hyphens only');
       }
 
-      const pd = parseInt(formData.productDurationDays, 10);
-      if (!Number.isFinite(pd) || pd < 1 || pd > 365) {
-        throw new Error('Product duration must be a whole number between 1 and 365');
-      }
-
+      const paymentFrequencies = buildPaymentFrequencies();
       const token = await getSupabaseToken();
       let logoPath: string | undefined;
 
-      // Create package first (without logoPath - it will be added after logo upload)
       const response = await fetch(`${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/product-management/packages`, {
         method: 'POST',
         headers: {
@@ -77,10 +111,11 @@ export default function CreatePackageDialog({
         },
         body: JSON.stringify({
           name,
+          slug,
           description,
           underwriterId: underwriterId,
           isActive: formData.isActive,
-          productDurationDays: pd,
+          paymentFrequencies,
         }),
       });
 
@@ -88,32 +123,24 @@ export default function CreatePackageDialog({
         let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
         try {
           const errorData = await response.json();
-          console.error('Package creation error response:', errorData);
-          // Handle different error response formats
           if (errorData.error) {
-            // Standard error format: { error: { message: "...", code: "...", ... } }
             errorMessage = errorData.error.message ?? errorData.error ?? errorMessage;
+            if (errorData.error.details && typeof errorData.error.details === 'object') {
+              const detailMsgs = Object.values(errorData.error.details as Record<string, string>);
+              if (detailMsgs.length) errorMessage = detailMsgs.join('; ');
+            }
           } else if (errorData.message) {
-            // Direct message format: { message: "..." }
             errorMessage = errorData.message;
-          } else if (typeof errorData === 'string') {
-            // Plain string response
-            errorMessage = errorData;
           }
-        } catch (e) {
-          // If response is not JSON, use status text
-          console.error('Error parsing error response:', e);
+        } catch {
           const text = await response.text().catch(() => '');
-          if (text) {
-            errorMessage = text;
-          }
+          if (text) errorMessage = text;
         }
         throw new Error(errorMessage);
       }
 
       const createdPackage = await response.json();
 
-      // Upload logo if provided (now that we have the package ID)
       if (formData.logo && createdPackage.data?.id) {
         setUploading(true);
         const uploadFormData = new FormData();
@@ -130,16 +157,11 @@ export default function CreatePackageDialog({
           body: uploadFormData,
         });
 
-        if (!uploadResponse.ok) {
-          const errorData = await uploadResponse.json().catch(() => ({ error: 'Unknown error' }));
-          console.error('Logo upload failed:', errorData);
-          // Don't throw error - package was created successfully, logo can be added later
-        } else {
+        if (uploadResponse.ok) {
           const uploadResult = await uploadResponse.json();
           logoPath = uploadResult.path;
 
-          // Update package with logo path
-          const updateResponse = await fetch(`${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/product-management/packages/${createdPackage.data.id}`, {
+          await fetch(`${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/product-management/packages/${createdPackage.data.id}`, {
             method: 'PUT',
             headers: {
               'Content-Type': 'application/json',
@@ -150,27 +172,28 @@ export default function CreatePackageDialog({
               logoPath: logoPath,
             }),
           });
-
-          if (!updateResponse.ok) {
-            console.error('Failed to update package with logo path');
-          }
         }
         setUploading(false);
       }
 
-      // Reset form
       setFormData({
         name: '',
+        slug: '',
         description: '',
         isActive: false,
         logo: null,
-        productDurationDays: '365',
+        frequencies: {
+          DAILY: { enabled: true, count: '276' },
+          WEEKLY: { enabled: true, count: '39' },
+          MONTHLY: { enabled: true, count: '9' },
+          QUARTERLY: { enabled: false, count: '4' },
+          ANNUALLY: { enabled: false, count: '1' },
+        },
       });
 
       onSuccess();
     } catch (err) {
       console.error('Error creating package:', err);
-      // Report error to Sentry
       if (err instanceof Error) {
         Sentry.captureException(err, {
           tags: {
@@ -181,6 +204,7 @@ export default function CreatePackageDialog({
             underwriterId,
             formData: {
               name: formData.name,
+              slug: formData.slug,
               description: formData.description,
               isActive: formData.isActive,
             },
@@ -200,7 +224,7 @@ export default function CreatePackageDialog({
         <DialogHeader>
           <DialogTitle>Create Package</DialogTitle>
           <DialogDescription>
-            Create a new package for this underwriter. All fields are required.
+            Create a new package for this underwriter. Slug and at least one payment frequency are required.
           </DialogDescription>
         </DialogHeader>
 
@@ -215,6 +239,26 @@ export default function CreatePackageDialog({
                 required
                 maxLength={100}
               />
+            </div>
+
+            <div>
+              <Label htmlFor="slug">Package slug *</Label>
+              <Input
+                id="slug"
+                value={formData.slug}
+                onChange={(e) =>
+                  setFormData({
+                    ...formData,
+                    slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''),
+                  })
+                }
+                required
+                maxLength={100}
+                placeholder="mfanisi-boda"
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Lowercase letters, numbers, and hyphens. Used for pricing file lookup.
+              </p>
             </div>
 
             <div>
@@ -244,18 +288,63 @@ export default function CreatePackageDialog({
               </div>
             </div>
 
-            <div>
-              <Label htmlFor="productDurationDays">Product duration (days) *</Label>
-              <Input
-                id="productDurationDays"
-                inputMode="numeric"
-                maxLength={3}
-                value={formData.productDurationDays}
-                onChange={(e) => setFormData({ ...formData, productDurationDays: e.target.value.replace(/\D/g, '').slice(0, 3) })}
-                required
-                placeholder="365"
-              />
-              <p className="text-xs text-muted-foreground mt-1">Whole number 1–365 (premium year length for installment helpers).</p>
+            <div className="space-y-3">
+              <Label>Supported payment frequencies *</Label>
+              <p className="text-xs text-muted-foreground">
+                Enable frequencies and set installment counts (daily = days, weekly = weeks, monthly = months).
+              </p>
+              {CONFIGURABLE_FREQUENCIES.map((freq) => {
+                const row = formData.frequencies[freq.value];
+                return (
+                  <div key={freq.value} className="flex flex-wrap items-center gap-3 rounded-md border p-3">
+                    <div className="flex items-center gap-2 min-w-[140px]">
+                      <Checkbox
+                        id={`freq-${freq.value}`}
+                        checked={row.enabled}
+                        onCheckedChange={(checked) =>
+                          setFormData({
+                            ...formData,
+                            frequencies: {
+                              ...formData.frequencies,
+                              [freq.value]: { ...row, enabled: checked === true },
+                            },
+                          })
+                        }
+                      />
+                      <Label htmlFor={`freq-${freq.value}`} className="font-normal cursor-pointer">
+                        {freq.label}
+                      </Label>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Label htmlFor={`count-${freq.value}`} className="text-sm text-muted-foreground whitespace-nowrap">
+                        Installments
+                      </Label>
+                      <Input
+                        id={`count-${freq.value}`}
+                        className="w-24"
+                        inputMode="numeric"
+                        disabled={!row.enabled}
+                        value={row.count}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            frequencies: {
+                              ...formData.frequencies,
+                              [freq.value]: {
+                                ...row,
+                                count: e.target.value.replace(/\D/g, '').slice(0, 3),
+                              },
+                            },
+                          })
+                        }
+                      />
+                      <span className="text-xs text-muted-foreground">
+                        ({freq.min}–{freq.max})
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
 
             <div>
@@ -304,4 +393,3 @@ export default function CreatePackageDialog({
     </Dialog>
   );
 }
-

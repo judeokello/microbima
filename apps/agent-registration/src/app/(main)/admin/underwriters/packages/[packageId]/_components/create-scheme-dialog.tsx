@@ -10,11 +10,21 @@ import { Loader2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import * as Sentry from '@sentry/nextjs';
 
+const FREQUENCY_LABELS: Record<string, string> = {
+  DAILY: 'Daily',
+  WEEKLY: 'Weekly',
+  MONTHLY: 'Monthly',
+  QUARTERLY: 'Quarterly',
+  ANNUALLY: 'Yearly',
+};
+
 interface CreateSchemeDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSuccess: () => void;
   packageId: number;
+  /** Package-supported frequencies (no CUSTOM). */
+  paymentFrequencies?: Array<{ frequency: string; installmentCount: number }>;
 }
 
 export default function CreateSchemeDialog({
@@ -22,6 +32,7 @@ export default function CreateSchemeDialog({
   onOpenChange,
   onSuccess,
   packageId,
+  paymentFrequencies = [],
 }: CreateSchemeDialogProps) {
   const [formData, setFormData] = useState({
     schemeName: '',
@@ -35,14 +46,10 @@ export default function CreateSchemeDialog({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const frequencyOptions = [
-    { value: 'DAILY', label: 'Daily', days: 1 },
-    { value: 'WEEKLY', label: 'Weekly', days: 7 },
-    { value: 'MONTHLY', label: 'Monthly', days: 31 },
-    { value: 'QUARTERLY', label: 'Quarterly', days: 90 },
-    { value: 'ANNUALLY', label: 'Yearly', days: 365 },
-    { value: 'CUSTOM', label: 'Custom', days: null },
-  ];
+  const frequencyOptions = paymentFrequencies.map((pf) => ({
+    value: pf.frequency,
+    label: FREQUENCY_LABELS[pf.frequency] ?? pf.frequency,
+  }));
 
   const getSupabaseToken = async () => {
     const { data: session } = await supabase.auth.getSession();
@@ -67,16 +74,12 @@ export default function CreateSchemeDialog({
         throw new Error('Waiting period must be a number between 0 and 9999');
       }
 
-      // Validate postpaid requirements
       if (formData.isPostpaid) {
         if (!formData.frequency) {
           throw new Error('Payment frequency is required for postpaid schemes');
         }
-        if (formData.frequency === 'CUSTOM' && !formData.paymentCadence) {
-          throw new Error('Payment cadence is required when frequency is Custom');
-        }
-        if (formData.frequency === 'CUSTOM' && parseInt(formData.paymentCadence) > 999) {
-          throw new Error('Payment cadence cannot exceed 999 days');
+        if (!paymentFrequencies.some((pf) => pf.frequency === formData.frequency)) {
+          throw new Error('Selected frequency is not supported for this package');
         }
       }
 
@@ -100,13 +103,9 @@ export default function CreateSchemeDialog({
         generalSchemeWaitingPeriod,
       };
 
-      // Add postpaid fields if checked
       if (formData.isPostpaid) {
         payload.isPostpaid = true;
         payload.frequency = formData.frequency;
-        if (formData.frequency === 'CUSTOM') {
-          payload.paymentCadence = parseInt(formData.paymentCadence);
-        }
       }
 
       const response = await fetch(`${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/product-management/schemes`, {
@@ -263,12 +262,16 @@ export default function CreateSchemeDialog({
             </div>
 
             {formData.isPostpaid && (
-              <>
-                <div>
-                  <Label htmlFor="frequency">Payment Frequency *</Label>
+              <div>
+                <Label htmlFor="frequency">Payment Frequency *</Label>
+                {frequencyOptions.length === 0 ? (
+                  <p className="text-sm text-amber-800 mt-1">
+                    This package has no supported payment frequencies. Configure them on the package first.
+                  </p>
+                ) : (
                   <Select
                     value={formData.frequency}
-                    onValueChange={(value) => setFormData({ ...formData, frequency: value, paymentCadence: value !== 'CUSTOM' ? '' : formData.paymentCadence })}
+                    onValueChange={(value) => setFormData({ ...formData, frequency: value })}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Select frequency" />
@@ -276,33 +279,13 @@ export default function CreateSchemeDialog({
                     <SelectContent>
                       {frequencyOptions.map((option) => (
                         <SelectItem key={option.value} value={option.value}>
-                          {option.label}{option.days !== null ? ` (${option.days} day${option.days !== 1 ? 's' : ''})` : ''}
+                          {option.label}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
-                </div>
-
-                {formData.frequency === 'CUSTOM' && (
-                  <div>
-                    <Label htmlFor="paymentCadence">Payment Cadence (days) *</Label>
-                    <Input
-                      id="paymentCadence"
-                      type="number"
-                      value={formData.paymentCadence}
-                      onChange={(e) => setFormData({ ...formData, paymentCadence: e.target.value })}
-                      placeholder="Enter number of days"
-                      min={1}
-                      max={999}
-                      maxLength={3}
-                      required={formData.frequency === 'CUSTOM'}
-                    />
-                    <p className="text-xs text-gray-500 mt-1">
-                      Enter the number of days between payments (max 999)
-                    </p>
-                  </div>
                 )}
-              </>
+              </div>
             )}
           </div>
 

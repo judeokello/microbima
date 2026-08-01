@@ -1,4 +1,6 @@
 {
+  "packageSlug": "mfanisi-go",
+  "pricingMode": "extrapolate",
   "plans": {
     "silver": {
       "name": "Silver",
