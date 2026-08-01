@@ -273,7 +273,7 @@ export default function LctExportsAdminPage() {
       setCcEmails((cfg.data.ccEmails ?? []).join(', '))
       setBccEmails((cfg.data.bccEmails ?? []).join(', '))
       setBodyHtml(
-        `<p>Dear LCT Africa,</p><p>Please find attached the Maisha Poa customer export file.</p><p>Row count: <strong>${openBatch.rowCount}</strong></p>`
+        `<p>Dear LCT Africa,</p><p>Please find attached the Maisha Poa customer export file.</p><p>Customer count: <strong>${openBatch.rowCount}</strong></p>`
       )
       setSubjectPreview('Maisha Poa Customer Export - (set on send)')
       setSendOpen(true)
