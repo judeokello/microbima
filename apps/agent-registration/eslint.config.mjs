@@ -20,7 +20,10 @@ export default [
       ".github/**",
       ".husky/**",
       "sentry.*.config.ts",
-      "instrumentation.ts"
+      "instrumentation.ts",
+      // Jest specs sit outside the Next app graph; keep them out of typed lint.
+      "tests/**",
+      "jest.config.cjs",
     ]
   },
   { 

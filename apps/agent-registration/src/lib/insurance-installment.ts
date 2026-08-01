@@ -99,3 +99,60 @@ export function computeNominalHorizonFromToday(
   end.setUTCDate(end.getUTCDate() + steps * paymentCadence);
   return end;
 }
+
+export type PackagePaymentFrequencyOption = {
+  frequency: string;
+  installmentCount: number;
+};
+
+/** True when submit must be blocked due to missing pricing setup. */
+export function isPricingSubmitBlocked(
+  pricingLoadError: string | null | undefined,
+  pricingData: unknown
+): boolean {
+  return Boolean(pricingLoadError) || pricingData == null;
+}
+
+/** Frequency options for dropdowns driven by package config (no hardcoded CUSTOM). */
+export function packageFrequencySelectOptions(
+  paymentFrequencies: PackagePaymentFrequencyOption[] | null | undefined
+): PackagePaymentFrequencyOption[] {
+  return [...(paymentFrequencies ?? [])];
+}
+
+/**
+ * Modify-product installment count rule:
+ * - same frequency + prior count → copy prior
+ * - otherwise → use package row for the new frequency
+ */
+export function resolveModifyExpectedInstallmentCount(params: {
+  selectedFrequency: string;
+  priorFrequency: string;
+  priorExpectedInstallmentCount: number | null | undefined;
+  packageFrequencies: PackagePaymentFrequencyOption[];
+}): number | null {
+  const {
+    selectedFrequency,
+    priorFrequency,
+    priorExpectedInstallmentCount,
+    packageFrequencies,
+  } = params;
+
+  if (
+    selectedFrequency === priorFrequency &&
+    priorExpectedInstallmentCount != null &&
+    priorExpectedInstallmentCount > 0
+  ) {
+    return priorExpectedInstallmentCount;
+  }
+
+  const row = packageFrequencies.find((pf) => pf.frequency === selectedFrequency);
+  return row?.installmentCount ?? null;
+}
+
+export function isFrequencySupportedByPackage(
+  frequency: string,
+  paymentFrequencies: PackagePaymentFrequencyOption[] | null | undefined
+): boolean {
+  return (paymentFrequencies ?? []).some((pf) => pf.frequency === frequency);
+}

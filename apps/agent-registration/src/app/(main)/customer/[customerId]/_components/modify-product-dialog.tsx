@@ -36,6 +36,8 @@ import {
 } from '@/lib/api';
 import {
   computeInstallmentPremium,
+  isFrequencySupportedByPackage,
+  isPricingSubmitBlocked,
   productPricingPath,
   type PricingMode,
   type PricingRateBand,
@@ -161,7 +163,7 @@ export default function ModifyProductDialog({
 
   const handleSubmit = async () => {
     setError(null);
-    if (pricingLoadError || !pricing) {
+    if (isPricingSubmitBlocked(pricingLoadError, pricing)) {
       setError(pricingLoadError ?? 'Missing price setup for this package.');
       return;
     }
@@ -177,7 +179,7 @@ export default function ModifyProductDialog({
       setError('Select Keep Existing or Generate New policy number');
       return;
     }
-    if (!options?.paymentFrequencies.some((pf) => pf.frequency === frequency)) {
+    if (!isFrequencySupportedByPackage(frequency, options?.paymentFrequencies)) {
       setError('Selected frequency is not supported for this package');
       return;
     }

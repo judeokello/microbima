@@ -32,6 +32,8 @@ import {
 } from '@/lib/api';
 import {
   computeInstallmentPremium,
+  isFrequencySupportedByPackage,
+  isPricingSubmitBlocked,
   productPricingPath,
   type PricingMode,
   type PricingRateBand,
@@ -218,7 +220,7 @@ export default function RecoveryPage() {
 
   const handleSubmit = async () => {
     if (!selectedCustomer) return;
-    if (pricingLoadError || !pricingData) {
+    if (isPricingSubmitBlocked(pricingLoadError, pricingData)) {
       setError(pricingLoadError ?? 'Missing price setup for this package');
       return;
     }
@@ -234,7 +236,7 @@ export default function RecoveryPage() {
       setError('Please select plan and category (premium will be calculated)');
       return;
     }
-    if (!paymentFrequencies.some((pf) => pf.frequency === formData.frequency)) {
+    if (!isFrequencySupportedByPackage(formData.frequency, paymentFrequencies)) {
       setError('Selected frequency is not supported for this package');
       return;
     }

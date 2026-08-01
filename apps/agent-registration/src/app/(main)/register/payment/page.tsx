@@ -18,8 +18,11 @@ import { mapStkGatewayStatusToSpecVocabulary } from '@/lib/payment-status-vocabu
 import {
   computeInstallmentPremium,
   computeNominalHorizonFromToday,
+  isFrequencySupportedByPackage,
+  isPricingSubmitBlocked,
   productPricingPath,
   PAYMENT_CADENCE_DAYS,
+  type PackagePaymentFrequencyOption,
   type PricingMode,
   type PricingRateBand,
 } from '@/lib/insurance-installment';
@@ -37,11 +40,6 @@ interface InsurancePricing {
       additional_spouse: PricingRateBand;
     }
   >;
-}
-
-interface PackagePaymentFrequencyOption {
-  frequency: string;
-  installmentCount: number;
 }
 
 interface CustomerFormData {
@@ -425,7 +423,7 @@ export default function PaymentStep() {
       return;
     }
 
-    if (pricingLoadError || !pricingData) {
+    if (isPricingSubmitBlocked(pricingLoadError, pricingData)) {
       setError(
         pricingLoadError ??
           'Missing price setup for this package. Contact support before submitting payment.'
@@ -452,7 +450,7 @@ export default function PaymentStep() {
     }
 
     if (
-      !paymentFrequencies.some((pf) => pf.frequency === selectedFrequency) &&
+      !isFrequencySupportedByPackage(selectedFrequency, paymentFrequencies) &&
       !isPostpaidScheme
     ) {
       setError('Selected payment frequency is not supported for this package.');
