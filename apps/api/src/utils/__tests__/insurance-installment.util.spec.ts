@@ -1,8 +1,5 @@
 /// <reference types="jest" />
-import {
-  computeInstallmentPremium,
-  productPricingPath,
-} from '../insurance-installment';
+import { computeInstallmentPremium } from '../insurance-installment.util';
 
 describe('computeInstallmentPremium', () => {
   it('extrapolates non-weekly from daily × cadence', () => {
@@ -59,11 +56,5 @@ describe('computeInstallmentPremium', () => {
         lookupRates: { daily: 56, weekly: 339, monthly: 1470, annually: 17645 },
       })
     ).toBe(0);
-  });
-});
-
-describe('productPricingPath', () => {
-  it('builds the public path', () => {
-    expect(productPricingPath('mfanisi-boda')).toBe('/product-pricing/mfanisi-boda-pricing.json');
   });
 });
