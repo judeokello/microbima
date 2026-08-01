@@ -71,12 +71,13 @@ Do **not** generate PDF when any of the above holds.
 
 ---
 
-## 6. Package: `productDurationDays`
+## 6. Package payment frequencies / policy `expectedInstallmentCount`
 
-- **Column**: `Package.productDurationDays` — integer, **nullable** in first migration; **backfill** (e.g. 276) then **NOT NULL** in a follow-up migration.
-- **Create/update package** (admin API + UI): numeric control **1–365**, **max length 3** characters, **no** letters; **default when omitted on create**: **365**.
-- **Statement / payments tab**: **no silent fallback** in business logic once packages are expected to be populated; if null at runtime during transition, treat as data defect (block statement + Sentry **or** explicit team choice).
-- **Payments tab** “installments in premium period”: replace hardcoded **`PREMIUM_DAYS_PER_YEAR = 276`** with **`package.productDurationDays`** when loading policy/package context.
+- **Entity**: `package_payment_frequencies` — per package `frequency` + `installmentCount` (replaces deprecated `productDurationDays`).
+- **Policy snapshot**: `Policy.expectedInstallmentCount` set at create/modify; statement generation **blocks** if missing/≤0.
+- **Nominal payment end**: `Policy.nominalPaymentPeriodEndDate` set at activation (capped by policy `endDate`).
+- **Payments tab** “No. of installments”: use `expectedInstallmentCount` (not duration÷cadence).
+- **Pricing files**: `public/product-pricing/{packageSlug}-pricing.json`.
 
 ---
 

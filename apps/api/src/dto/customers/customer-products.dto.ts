@@ -106,8 +106,8 @@ export class CustomerPolicyDetailDto {
     planName: string | null;
     schemeName: string;
     productName: string;
-    /** Days in premium year for installment helpers; null until configured */
-    productDurationDays: number | null;
+    /** Package slug for pricing file lookup */
+    packageSlug: string | null;
   };
 
   enrollment: {
@@ -115,6 +115,10 @@ export class CustomerPolicyDetailDto {
     endDate: string | null;
     frequency: string;
     paymentCadence: number;
+    /** Snapshot of expected installments for this policy's frequency */
+    expectedInstallmentCount: number | null;
+    /** Nominal last installment date (set at activation) */
+    nominalPaymentPeriodEndDate: string | null;
   };
 
   /** Total premium (from package) */

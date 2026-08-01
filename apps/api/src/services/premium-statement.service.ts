@@ -110,7 +110,7 @@ export class PremiumStatementService {
       include: {
         customer: { select: { firstName: true, middleName: true, lastName: true } },
         package: {
-          select: { name: true, totalPremium: true, productDurationDays: true },
+          select: { name: true, totalPremium: true },
         },
         packagePlan: { select: { name: true } },
       },
@@ -170,11 +170,15 @@ export class PremiumStatementService {
       );
     }
 
-    if (policy.package.productDurationDays == null) {
-      this.warnSentry('missing_product_duration', { customerId, policyId, correlationId });
+    if (policy.expectedInstallmentCount == null || policy.expectedInstallmentCount <= 0) {
+      this.warnSentry('missing_expected_installment_count', {
+        customerId,
+        policyId,
+        correlationId,
+      });
       throw ValidationException.forField(
-        'productDurationDays',
-        'Product duration is not configured for this package. Please contact support.',
+        'expectedInstallmentCount',
+        'Expected installment count is not set on this policy. Please contact support.',
         ErrorCodes.VALIDATION_ERROR
       );
     }

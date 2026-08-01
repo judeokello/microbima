@@ -303,6 +303,10 @@ model Policy {
   premium        Decimal          @db.Decimal(10, 2)
   frequency      PaymentFrequency
   paymentCadence Int // Number of days between premium payments
+  /// Snapshot of package payment-frequency installment count at create/modify
+  expectedInstallmentCount Int?
+  /// Nominal last installment date (set at activation); capped by endDate
+  nominalPaymentPeriodEndDate DateTime?
 
   /// Denormalized; source of truth is EntityStatusChange
   deactivatedAt DateTime?
@@ -688,6 +692,8 @@ model Underwriter {
 model Package {
   id                 Int      @id @default(autoincrement())
   name               String   @db.VarChar(100)
+  /// Unique lowercase slug for pricing file lookup (e.g. mfanisi-go)
+  slug               String?  @unique @db.VarChar(100)
   description        String   @db.VarChar(500)
   underwriterId      Int?
   isActive           Boolean  @default(true)
@@ -696,16 +702,15 @@ model Package {
   logoPath           String?  @db.VarChar(200)
   cardTemplateName   String?  @db.VarChar(100)
   totalPremium       Decimal? @db.Decimal(10, 2) // Total premium for package (same type as Policy.premium)
-  /// Days in product “premium year” for installment helpers (1–365); nullable until backfill
-  productDurationDays Int?    @db.SmallInt
 
   // Relations
-  underwriter          Underwriter?           @relation(fields: [underwriterId], references: [id])
-  packageProducts      PackageProduct[]
-  packageSchemes       PackageScheme[]
-  packagePlans         PackagePlan[]
-  policies             Policy[]
-  policyNumberSequence PolicyNumberSequence?
+  underwriter                Underwriter?               @relation(fields: [underwriterId], references: [id])
+  packageProducts            PackageProduct[]
+  packageSchemes             PackageScheme[]
+  packagePlans               PackagePlan[]
+  packagePaymentFrequencies  PackagePaymentFrequency[]
+  policies                   Policy[]
+  policyNumberSequence       PolicyNumberSequence?
 
   // Audit fields
   createdAt DateTime @default(now())
@@ -713,6 +718,22 @@ model Package {
   createdBy String // User ID who created
 
   @@map("packages")
+}
+
+/// Supported payment frequencies and installment counts for a package
+model PackagePaymentFrequency {
+  id               Int              @id @default(autoincrement())
+  packageId        Int
+  frequency        PaymentFrequency
+  installmentCount Int
+
+  package Package @relation(fields: [packageId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([packageId, frequency])
+  @@map("package_payment_frequencies")
 }
 
 model PolicyNumberSequence {
