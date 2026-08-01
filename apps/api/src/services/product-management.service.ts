@@ -7,7 +7,7 @@ import { PaymentAccountNumberService } from './payment-account-number.service';
 import { PaymentFrequency, Prisma } from '@prisma/client';
 import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
 import { PAYMENT_CADENCE } from '../constants/payment-cadence.constants';
-import { trimOrNull } from '../utils/string.util';
+import { trimOrNull, toTitleCase } from '../utils/string.util';
 import {
   isValidPackageSlug,
   normalizePackageSlug,
@@ -248,13 +248,19 @@ export class ProductManagementService {
   }
 
   /**
-   * Get active plans for a package
+   * Get plans for a package
    * @param packageId - Package ID
    * @param correlationId - Correlation ID for tracing
-   * @returns List of active plans for the package
+   * @param includeInactive - When true, include inactive plans (admin); default active-only
    */
-  async getPackagePlans(packageId: number, correlationId: string) {
-    this.logger.log(`[${correlationId}] Getting plans for package ${packageId}`);
+  async getPackagePlans(
+    packageId: number,
+    correlationId: string,
+    includeInactive = false
+  ) {
+    this.logger.log(
+      `[${correlationId}] Getting plans for package ${packageId} (includeInactive=${includeInactive})`
+    );
 
     try {
       // Verify package exists
@@ -270,26 +276,27 @@ export class ProductManagementService {
       const plans = await this.prismaService.packagePlan.findMany({
         where: {
           packageId: packageId,
-          isActive: true,
+          ...(includeInactive ? {} : { isActive: true }),
         },
         select: {
           id: true,
           name: true,
           description: true,
+          isActive: true,
         },
         orderBy: {
           name: 'asc',
         },
       });
 
-      // Map null to undefined for DTO compatibility
       const plansDto = plans.map((plan) => ({
         id: plan.id,
         name: plan.name,
         description: plan.description ?? undefined,
+        isActive: plan.isActive,
       }));
 
-      this.logger.log(`[${correlationId}] Found ${plans.length} active plans for package ${packageId}`);
+      this.logger.log(`[${correlationId}] Found ${plans.length} plans for package ${packageId}`);
       return plansDto;
     } catch (error) {
       this.logger.error(
@@ -298,6 +305,123 @@ export class ProductManagementService {
       );
       throw error;
     }
+  }
+
+  async createPackagePlan(
+    packageId: number,
+    data: { name: string; description?: string; isActive?: boolean },
+    userId: string,
+    correlationId: string
+  ) {
+    this.logger.log(`[${correlationId}] Creating plan for package ${packageId}`);
+
+    const packageExists = await this.prismaService.package.findUnique({
+      where: { id: packageId },
+      select: { id: true },
+    });
+    if (!packageExists) {
+      throw new NotFoundException(`Package with ID ${packageId} not found`);
+    }
+
+    const name = toTitleCase(data.name);
+    if (!name) {
+      throw ValidationException.forField('name', 'Plan name is required', ErrorCodes.VALIDATION_ERROR);
+    }
+
+    const duplicate = await this.prismaService.packagePlan.findFirst({
+      where: {
+        packageId,
+        name: { equals: name, mode: 'insensitive' },
+      },
+      select: { id: true },
+    });
+    if (duplicate) {
+      throw ValidationException.forField(
+        'name',
+        'A plan with this name already exists for this package',
+        ErrorCodes.VALIDATION_ERROR
+      );
+    }
+
+    try {
+      const plan = await this.prismaService.packagePlan.create({
+        data: {
+          packageId,
+          name,
+          description: trimOrNull(data.description ?? null),
+          isActive: data.isActive ?? true,
+          createdBy: userId,
+          updatedBy: userId,
+        },
+      });
+
+      return {
+        id: plan.id,
+        name: plan.name,
+        description: plan.description ?? undefined,
+        isActive: plan.isActive,
+      };
+    } catch (error) {
+      if (error instanceof PrismaClientKnownRequestError && error.code === 'P2002') {
+        throw ValidationException.forField(
+          'name',
+          'A plan with this name already exists for this package',
+          ErrorCodes.VALIDATION_ERROR
+        );
+      }
+      throw error;
+    }
+  }
+
+  async updatePackagePlan(
+    packageId: number,
+    planId: number,
+    data: { description?: string; isActive?: boolean },
+    userId: string,
+    correlationId: string
+  ) {
+    this.logger.log(`[${correlationId}] Updating plan ${planId} for package ${packageId}`);
+
+    const plan = await this.prismaService.packagePlan.findFirst({
+      where: { id: planId, packageId },
+      include: { package: { select: { id: true, isActive: true } } },
+    });
+    if (!plan) {
+      throw new NotFoundException(`Plan with ID ${planId} not found for package ${packageId}`);
+    }
+
+    if (data.isActive === false && plan.isActive && plan.package.isActive) {
+      const otherActive = await this.prismaService.packagePlan.count({
+        where: {
+          packageId,
+          isActive: true,
+          NOT: { id: planId },
+        },
+      });
+      if (otherActive < 1) {
+        throw ValidationException.forField(
+          'isActive',
+          'Cannot deactivate the last active plan while the package is active',
+          ErrorCodes.VALIDATION_ERROR
+        );
+      }
+    }
+
+    const updated = await this.prismaService.packagePlan.update({
+      where: { id: planId },
+      data: {
+        ...(data.description !== undefined && { description: trimOrNull(data.description) }),
+        ...(data.isActive !== undefined && { isActive: data.isActive }),
+        updatedBy: userId,
+      },
+    });
+
+    return {
+      id: updated.id,
+      name: updated.name,
+      description: updated.description ?? undefined,
+      isActive: updated.isActive,
+    };
   }
 
   /**
@@ -578,6 +702,19 @@ export class ProductManagementService {
         data.paymentFrequencies !== undefined
           ? this.validatePaymentFrequenciesInput(data.paymentFrequencies)
           : undefined;
+
+      if (data.isActive === true && !existing.isActive) {
+        const activePlanCount = await this.prismaService.packagePlan.count({
+          where: { packageId, isActive: true },
+        });
+        if (activePlanCount < 1) {
+          throw ValidationException.forField(
+            'isActive',
+            'Package cannot be set to active without at least one active plan',
+            ErrorCodes.VALIDATION_ERROR
+          );
+        }
+      }
 
       const pkg = await this.prismaService.$transaction(async (tx) => {
         const updated = await tx.package.update({

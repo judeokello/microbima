@@ -1,5 +1,14 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsString, IsOptional, IsInt, MinLength, Max, Min } from 'class-validator';
+import {
+  IsString,
+  IsOptional,
+  IsInt,
+  IsBoolean,
+  MinLength,
+  MaxLength,
+  Max,
+  Min,
+} from 'class-validator';
 
 export class PackageDto {
   @ApiProperty({
@@ -57,6 +66,60 @@ export class PlanDto {
   })
   @IsOptional()
   description?: string;
+
+  @ApiProperty({
+    description: 'Whether the plan is active',
+    example: true,
+    required: false,
+  })
+  @IsOptional()
+  isActive?: boolean;
+}
+
+export class CreatePackagePlanRequestDto {
+  @ApiProperty({ description: 'Plan name (stored as title case)', example: 'Silver' })
+  @IsString()
+  @MinLength(1)
+  @MaxLength(200)
+  name: string;
+
+  @ApiProperty({ description: 'Plan description', example: 'Silver coverage tier', required: false })
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  description?: string;
+
+  @ApiProperty({ description: 'Whether the plan is active', example: true, required: false, default: true })
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
+}
+
+export class UpdatePackagePlanRequestDto {
+  @ApiProperty({ description: 'Plan description', example: 'Updated description', required: false })
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  description?: string;
+
+  @ApiProperty({ description: 'Whether the plan is active', example: true, required: false })
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
+}
+
+export class PackagePlanDetailResponseDto {
+  @ApiProperty({ example: 201 })
+  status: number;
+
+  @ApiProperty({ example: 'req-plan-12345' })
+  correlationId: string;
+
+  @ApiProperty({ example: 'Plan created successfully' })
+  message: string;
+
+  @ApiProperty({ type: PlanDto })
+  data: PlanDto;
 }
 
 export class TagDto {
