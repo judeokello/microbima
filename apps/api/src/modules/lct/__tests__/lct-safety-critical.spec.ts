@@ -162,6 +162,9 @@ describe('LCT safety — CSV action fidelity', () => {
     phoneNumber: '+254711000000',
     idNumber: '11111111',
     principalMemberNumber: '',
+    schemeName: 'Test Scheme',
+    policyStartDate: '01-06-2026',
+    policyEndDate: '31-05-2027',
     ...overrides,
   });
 

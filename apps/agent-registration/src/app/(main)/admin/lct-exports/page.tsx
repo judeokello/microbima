@@ -355,6 +355,7 @@ export default function LctExportsAdminPage() {
         </Badge>
       </td>
       <td className="p-2 whitespace-nowrap">{reasonIcons(row.pendingReasons)}</td>
+      <td className="p-2 text-muted-foreground">{row.schemeName || '—'}</td>
       <td className="p-2 text-muted-foreground">{row.productName}</td>
       <td className="p-2">
         <Link
@@ -482,13 +483,14 @@ export default function LctExportsAdminPage() {
             <table className="w-full table-fixed text-sm">
               <colgroup>
                 <col className="w-10" />
-                <col className="w-[22%]" />
-                <col className="w-[12%]" />
-                <col className="w-[12%]" />
-                <col className="w-[12%]" />
+                <col className="w-[18%]" />
+                <col className="w-[11%]" />
                 <col className="w-[10%]" />
+                <col className="w-[11%]" />
+                <col className="w-[9%]" />
+                <col className="w-[12%]" />
                 <col />
-                <col className="w-16" />
+                <col className="w-14" />
               </colgroup>
               <thead className={TABLE_HEAD_CLASS}>
                 <tr>
@@ -498,6 +500,7 @@ export default function LctExportsAdminPage() {
                   <th className="p-2">Relationship</th>
                   <th className="p-2">Action</th>
                   <th className="p-2">Reasons</th>
+                  <th className="p-2">Scheme</th>
                   <th className="p-2">Product</th>
                   <th className="p-2" />
                 </tr>
@@ -505,14 +508,14 @@ export default function LctExportsAdminPage() {
               <tbody>
                 {loading && !groups.length ? (
                   <tr>
-                    <td colSpan={8} className="p-6 text-center text-muted-foreground">
+                    <td colSpan={9} className="p-6 text-center text-muted-foreground">
                       <Loader2 className="h-5 w-5 animate-spin inline mr-2" />
                       Loading…
                     </td>
                   </tr>
                 ) : !groups.length ? (
                   <tr>
-                    <td colSpan={8} className="p-6 text-center text-muted-foreground">
+                    <td colSpan={9} className="p-6 text-center text-muted-foreground">
                       No pending LCT changes
                     </td>
                   </tr>
