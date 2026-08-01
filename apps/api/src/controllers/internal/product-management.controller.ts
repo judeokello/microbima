@@ -32,6 +32,9 @@ import {
   TagsResponseDto,
   CreateTagRequestDto,
   CreateTagResponseDto,
+  CreatePackagePlanRequestDto,
+  UpdatePackagePlanRequestDto,
+  PackagePlanDetailResponseDto,
 } from '../../dto/product-management/product-management.dto';
 import {
   PackageDetailResponseDto,
@@ -204,19 +207,26 @@ export class ProductManagementController {
   }
 
   /**
-   * Get active plans for a package
+   * Get plans for a package (active-only by default; admin can include inactive)
    */
   @Get('packages/:packageId/plans')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Get plans for a package',
-    description: 'Retrieve a list of active plans associated with a specific package.',
+    description:
+      'Retrieve plans for a package. Defaults to active plans only; pass includeInactive=true for admin.',
   })
   @ApiParam({
     name: 'packageId',
     description: 'Package ID',
     type: Number,
     example: 1,
+  })
+  @ApiQuery({
+    name: 'includeInactive',
+    required: false,
+    type: Boolean,
+    description: 'When true, include inactive plans',
   })
   @ApiResponse({
     status: 200,
@@ -233,15 +243,82 @@ export class ProductManagementController {
   })
   async getPackagePlans(
     @Param('packageId', ParseIntPipe) packageId: number,
+    @Query('includeInactive') includeInactive: string | undefined,
     @CorrelationId() correlationId: string
   ): Promise<PlansResponseDto> {
-    const plans = await this.productManagementService.getPackagePlans(packageId, correlationId);
+    const plans = await this.productManagementService.getPackagePlans(
+      packageId,
+      correlationId,
+      includeInactive === 'true' || includeInactive === '1'
+    );
 
     return {
       status: HttpStatus.OK,
       correlationId,
       message: 'Plans retrieved successfully',
       data: plans,
+    };
+  }
+
+  @Post('packages/:packageId/plans')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'Create a plan for a package' })
+  @ApiParam({ name: 'packageId', type: Number })
+  @ApiResponse({ status: 201, type: PackagePlanDetailResponseDto })
+  async createPackagePlan(
+    @Param('packageId', ParseIntPipe) packageId: number,
+    @Body() body: CreatePackagePlanRequestDto,
+    @UserId() userId: string,
+    @CorrelationId() correlationId: string
+  ): Promise<PackagePlanDetailResponseDto> {
+    if (!userId) {
+      throw new Error('User ID not found in request');
+    }
+    const plan = await this.productManagementService.createPackagePlan(
+      packageId,
+      body,
+      userId,
+      correlationId
+    );
+    return {
+      status: HttpStatus.CREATED,
+      correlationId,
+      message: 'Plan created successfully',
+      data: plan,
+    };
+  }
+
+  @Put('packages/:packageId/plans/:planId')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Update a package plan',
+    description: 'Update description and/or active status. Plan name cannot be changed.',
+  })
+  @ApiParam({ name: 'packageId', type: Number })
+  @ApiParam({ name: 'planId', type: Number })
+  @ApiResponse({ status: 200, type: PackagePlanDetailResponseDto })
+  async updatePackagePlan(
+    @Param('packageId', ParseIntPipe) packageId: number,
+    @Param('planId', ParseIntPipe) planId: number,
+    @Body() body: UpdatePackagePlanRequestDto,
+    @UserId() userId: string,
+    @CorrelationId() correlationId: string
+  ): Promise<PackagePlanDetailResponseDto> {
+    if (!userId) {
+      throw new Error('User ID not found in request');
+    }
+    const plan = await this.productManagementService.updatePackagePlan(
+      packageId,
+      planId,
+      body,
+      userId,
+      correlationId
+    );
+    return {
+      status: HttpStatus.OK,
+      correlationId,
+      message: 'Plan updated successfully',
+      data: plan,
     };
   }
 
