@@ -314,7 +314,7 @@ As a System Administrator, I want to ensure all customers are assigned to a pack
   - [ ] Loads schemes when package selected
   - [ ] Placeholder: "Select scheme" or "Loading..." while fetching
   - [ ] Marked as required (*)
-  - [ ] Shows error "This package has no schemes. Please select another package." if empty
+  - [ ] Shows error "This package has no schemes." if empty
 - [ ] Last selected package and scheme persisted in `localStorage`
 - [ ] On page load: Restore last selections from `localStorage`
 - [ ] Validation on form submission:
@@ -775,7 +775,7 @@ Individual Plan                      Active    View | Edit
 - [ ] Right column: "Scheme *" dropdown
   - Disabled when no package selected
   - Placeholder: "Select scheme" or "Loading..." while fetching
-  - Error message: "This package has no schemes. Please select another package."
+  - Error message: "This package has no schemes."
 - [ ] Asterisks indicate required fields
 
 **Validation Messages:**
