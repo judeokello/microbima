@@ -10,11 +10,39 @@ import { PolicyLifecycleService } from './policy-lifecycle.service';
 import { PaymentMessagingService } from '../modules/messaging/payment-messaging.service';
 import { SupabaseService } from './supabase.service';
 import { PaymentType } from '@prisma/client';
-import type { PostpaidSchemePaymentCsvRow } from '../dto/postpaid-scheme-payments/postpaid-scheme-payment.dto';
+import type {
+  PostpaidMpesaLookupDto,
+  PostpaidSchemePaymentCsvRow,
+} from '../dto/postpaid-scheme-payments/postpaid-scheme-payment.dto';
 
 const BUCKET = 'postpaid-scheme-payments';
 const CSV_REF_PREFIX = 'postpaid-';
 const POLICY_PAYMENT_REF_MAX_LEN = 50;
+
+function formatMpesaPayerName(parts: {
+  firstName?: string | null;
+  middleName?: string | null;
+  lastName?: string | null;
+}): string {
+  return [parts.firstName, parts.middleName, parts.lastName]
+    .map((p) => (p ?? '').trim())
+    .filter(Boolean)
+    .join(' ');
+}
+
+/** Display completion time in Africa/Nairobi with date and time. */
+function formatMpesaCompletionTime(completionTime: Date): string {
+  return new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Africa/Nairobi',
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  }).format(completionTime);
+}
 
 /**
  * Parse CSV text. Columns: Name, phone number, amount, id number, paid date (optional).
@@ -60,12 +88,9 @@ export class PostpaidSchemePaymentService {
   ) {}
 
   /**
-   * List postpaid scheme payments for a scheme.
+   * Ensure scheme exists and is postpaid.
    */
-  async listByScheme(
-    schemeId: number,
-    _correlationId: string
-  ): Promise<{ id: number; schemeId: number; amount: string; paymentType: PaymentType; transactionReference: string; createdBy: string; createdAt: string; updatedAt: string }[]> {
+  async assertSchemeIsPostpaid(schemeId: number): Promise<void> {
     const scheme = await this.prisma.scheme.findUnique({
       where: { id: schemeId },
       select: { id: true, isPostpaid: true },
@@ -76,6 +101,16 @@ export class PostpaidSchemePaymentService {
     if (!scheme.isPostpaid) {
       throw new BadRequestException('Scheme is not a postpaid scheme');
     }
+  }
+
+  /**
+   * List postpaid scheme payments for a scheme.
+   */
+  async listByScheme(
+    schemeId: number,
+    _correlationId: string
+  ): Promise<{ id: number; schemeId: number; amount: string; paymentType: PaymentType; transactionReference: string; createdBy: string; createdAt: string; updatedAt: string }[]> {
+    await this.assertSchemeIsPostpaid(schemeId);
 
     const payments = await this.prisma.postpaidSchemePayment.findMany({
       where: { schemeId },
@@ -94,14 +129,100 @@ export class PostpaidSchemePaymentService {
   }
 
   /**
+   * Look up an M-Pesa transaction reference in mpesa_payment_report_items for postpaid MPESA batches.
+   * Rejects missing refs and refs already marked isMapped.
+   */
+  async lookupMpesaTransactionReference(
+    transactionReference: string,
+    _correlationId: string
+  ): Promise<PostpaidMpesaLookupDto> {
+    const ref = transactionReference.trim();
+    if (!ref) {
+      return {
+        valid: false,
+        displayLabel: null,
+        transactionReference: null,
+        payerName: null,
+        completionTime: null,
+        error: 'Transaction reference is required',
+      };
+    }
+
+    const item = await this.prisma.mpesaPaymentReportItem.findFirst({
+      where: { transactionReference: ref },
+      orderBy: { completionTime: 'asc' },
+      select: {
+        id: true,
+        transactionReference: true,
+        firstName: true,
+        middleName: true,
+        lastName: true,
+        completionTime: true,
+        isMapped: true,
+      },
+    });
+
+    if (!item) {
+      return {
+        valid: false,
+        displayLabel: null,
+        transactionReference: ref,
+        payerName: null,
+        completionTime: null,
+        error: `No M-Pesa payment found for transaction reference "${ref}"`,
+      };
+    }
+
+    if (item.isMapped) {
+      return {
+        valid: false,
+        displayLabel: null,
+        transactionReference: ref,
+        payerName: formatMpesaPayerName(item) || null,
+        completionTime: item.completionTime?.toISOString() ?? null,
+        error: `M-Pesa transaction reference "${ref}" is already mapped and cannot be used for a postpaid payment`,
+      };
+    }
+
+    if (!item.completionTime) {
+      return {
+        valid: false,
+        displayLabel: null,
+        transactionReference: ref,
+        payerName: formatMpesaPayerName(item) || null,
+        completionTime: null,
+        error: `M-Pesa transaction reference "${ref}" has no completion time`,
+      };
+    }
+
+    const payerName = formatMpesaPayerName(item);
+    const when = formatMpesaCompletionTime(item.completionTime);
+    const namePart = payerName || '(name not available)';
+    const displayLabel = `Valid M-Pesa payment: ${namePart} — ${when}`;
+
+    return {
+      valid: true,
+      displayLabel,
+      transactionReference: ref,
+      payerName: payerName || null,
+      completionTime: item.completionTime.toISOString(),
+      error: null,
+    };
+  }
+
+  /**
    * Validate CSV and body: scheme exists and is postpaid; each id number in scheme; sum matches amount.
-   * Returns validation errors or null if valid.
+   * For MPESA, also requires an unmapped mpesa_payment_report_items row for the batch transaction reference.
    */
   async validateCsvAndAmount(
     schemeId: number,
-    body: { amount: number; transactionReference: string },
+    body: {
+      amount: number;
+      transactionReference: string;
+      paymentType?: PaymentType;
+    },
     csvRows: PostpaidSchemePaymentCsvRow[],
-    _correlationId: string
+    correlationId: string
   ): Promise<{ valid: true } | { valid: false; errors: string[] }> {
     const errors: string[] = [];
 
@@ -116,6 +237,16 @@ export class PostpaidSchemePaymentService {
     }
     if (!scheme.isPostpaid) {
       return { valid: false, errors: ['Scheme is not a postpaid scheme'] };
+    }
+
+    if (body.paymentType === PaymentType.MPESA) {
+      const lookup = await this.lookupMpesaTransactionReference(
+        body.transactionReference,
+        correlationId
+      );
+      if (!lookup.valid) {
+        errors.push(lookup.error ?? 'Invalid M-Pesa transaction reference');
+      }
     }
 
     const packageSchemeIds = scheme.packageSchemes.map((ps) => ps.id);
@@ -221,7 +352,11 @@ export class PostpaidSchemePaymentService {
 
     const validation = await this.validateCsvAndAmount(
       schemeId,
-      { amount: body.amount, transactionReference: body.transactionReference },
+      {
+        amount: body.amount,
+        transactionReference: body.transactionReference,
+        paymentType: body.paymentType,
+      },
       csvRows,
       correlationId
     );
@@ -364,6 +499,13 @@ export class PostpaidSchemePaymentService {
           policyId: policy.id,
           wasPendingActivation,
           activationSucceeded,
+        });
+      }
+
+      if (body.paymentType === PaymentType.MPESA) {
+        await tx.mpesaPaymentReportItem.updateMany({
+          where: { transactionReference: body.transactionReference.trim() },
+          data: { isMapped: true, isProcessed: true },
         });
       }
 
