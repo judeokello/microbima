@@ -519,6 +519,101 @@ describe('MpesaIpnService', () => {
         })
       );
     });
+
+    it('should accept Organization-to-Organization IPN with empty MSISDN and mark processed', async () => {
+      prismaService.policyPayment.findFirst.mockResolvedValue(null);
+      prismaService.mpesaPaymentReportItem.findFirst.mockResolvedValue(null);
+      prismaService.mpesaStkPushRequest.findMany.mockResolvedValue([]);
+      prismaService.policy.findFirst.mockResolvedValue({
+        id: 1,
+        status: 'ACTIVE',
+        customerId: 'cust-1',
+        customer: { idNumber: '22841047' },
+      });
+      prismaService.mpesaPaymentReportItem.create.mockResolvedValue({
+        id: 'ipn-b2b-id',
+        transactionReference: 'UH4SP1L7W6',
+      });
+      prismaService.mpesaPaymentReportItem.update.mockResolvedValue({});
+      prismaService.mpesaPaymentReportItem.findUniqueOrThrow.mockResolvedValue({
+        id: 'ipn-b2b-id',
+        transactionReference: 'UH4SP1L7W6',
+      });
+      prismaService.policyPayment.create.mockResolvedValue({
+        id: 99,
+        transactionReference: 'UH4SP1L7W6',
+      });
+
+      const b2bPayload: MpesaIpnPayloadDto = {
+        TransactionType: 'Organization To Organization Transfer',
+        TransID: 'UH4SP1L7W6',
+        TransTime: '20260804091330',
+        TransAmount: '152.00',
+        BusinessShortCode: '4125223',
+        BillRefNumber: '22841047',
+        InvoiceNumber: 'OK',
+        OrgAccountBalance: '155599.00',
+        ThirdPartyTransID: '',
+        MSISDN: '',
+        FirstName: 'SITI MOBILITY TECHNOLOGIES LIMITED B2C',
+      };
+
+      const result = await service.processIpnNotification(b2bPayload, correlationId);
+
+      expect(result).toEqual({ ResultCode: 0, ResultDesc: 'Accepted' });
+      expect(prismaService.mpesaPaymentReportItem.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            msisdn: null,
+            isProcessed: true,
+            paidIn: 152,
+            accountNumber: '22841047',
+          }),
+        })
+      );
+      // Empty MSISDN must not attempt STK phone matching
+      expect(prismaService.mpesaStkPushRequest.findMany).not.toHaveBeenCalled();
+    });
+
+    it('should store masked MSISDN as-is without failing IPN processing', async () => {
+      prismaService.policyPayment.findFirst.mockResolvedValue(null);
+      prismaService.mpesaPaymentReportItem.findFirst.mockResolvedValue(null);
+      prismaService.mpesaStkPushRequest.findMany.mockResolvedValue([]);
+      prismaService.policy.findFirst.mockResolvedValue({
+        id: 1,
+        status: 'ACTIVE',
+        customerId: 'cust-1',
+        customer: { idNumber: '12345678' },
+      });
+      prismaService.mpesaPaymentReportItem.create.mockResolvedValue({
+        id: 'ipn-masked-id',
+        transactionReference: 'RKTQDM7W6S',
+      });
+      prismaService.mpesaPaymentReportItem.update.mockResolvedValue({});
+      prismaService.mpesaPaymentReportItem.findUniqueOrThrow.mockResolvedValue({
+        id: 'ipn-masked-id',
+        transactionReference: 'RKTQDM7W6S',
+      });
+      prismaService.policyPayment.create.mockResolvedValue({
+        id: 1,
+        transactionReference: 'RKTQDM7W6S',
+      });
+
+      await service.processIpnNotification(
+        { ...validPayload, MSISDN: '2547****0000' },
+        correlationId
+      );
+
+      expect(prismaService.mpesaPaymentReportItem.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            msisdn: '2547****0000',
+            isProcessed: true,
+          }),
+        })
+      );
+      expect(prismaService.mpesaStkPushRequest.findMany).not.toHaveBeenCalled();
+    });
   });
 });
 
