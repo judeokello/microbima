@@ -775,7 +775,7 @@ export default function CustomerStep() {
                 </SelectContent>
               </Select>
               {selectedPackageId && schemes.length === 0 && !loadingSchemes && (
-                <p className="text-sm text-red-500 mt-1">This package has no schemes. Please select another package.</p>
+                <p className="text-sm text-red-500 mt-1">This package has no schemes.</p>
               )}
             </div>
           </div>

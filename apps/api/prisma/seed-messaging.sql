@@ -532,7 +532,7 @@ VALUES (
 
 Please find attached the Maisha Poa customer export file.
 
-Row count: {row_count}
+Customer count: {row_count}
 Exported at: {exported_at}
 
 Regards,
