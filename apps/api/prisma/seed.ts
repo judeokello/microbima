@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js'
 import * as fs from 'fs'
 import * as path from 'path'
 import { seedAgentRegistrationData } from './seed-agent-registration'
+import { seedHealthcareProviders } from './seed-healthcare-providers'
 
 const prisma = new PrismaClient()
 
@@ -205,6 +206,10 @@ async function main() {
     // Step 7: Seed agent registration data (deferred requirements)
     console.log('📝 Seeding agent registration data...')
     await seedAgentRegistrationData(prisma)
+
+    // Step 8: Seed counties, sub-counties, and package provider panels
+    console.log('📝 Seeding healthcare providers...')
+    await seedHealthcareProviders(prisma)
 
     console.log('')
     console.log('=' .repeat(60))

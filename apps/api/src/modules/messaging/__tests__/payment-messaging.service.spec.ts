@@ -192,4 +192,30 @@ describe('PaymentMessagingService', () => {
     });
     expect(messagingService.enqueue).not.toHaveBeenCalled();
   });
+
+  it('skips unmatched SMS for empty MSISDN', async () => {
+    await service.tryEnqueueUnmatchedPaymentSms({
+      firstName: 'SITI MOBILITY',
+      lastName: '',
+      phone: '',
+      amount: 152,
+      paymentType: 'MPESA',
+      paymentReference: 'UH4SP1L7W6',
+      correlationId: 'cid-empty',
+    });
+    expect(messagingService.enqueue).not.toHaveBeenCalled();
+  });
+
+  it('skips unmatched SMS for masked MSISDN', async () => {
+    await service.tryEnqueueUnmatchedPaymentSms({
+      firstName: 'X',
+      lastName: 'Y',
+      phone: '2547****0000',
+      amount: 500,
+      paymentType: 'MPESA',
+      paymentReference: 'TX-MASK',
+      correlationId: 'cid-mask',
+    });
+    expect(messagingService.enqueue).not.toHaveBeenCalled();
+  });
 });

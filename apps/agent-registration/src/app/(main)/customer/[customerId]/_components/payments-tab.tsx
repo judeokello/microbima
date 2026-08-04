@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Loader2 } from 'lucide-react';
+import { Info, Loader2 } from 'lucide-react';
 import {
   getCustomerPolicies,
   getCustomerPayments,
@@ -20,6 +20,15 @@ import {
   type CustomerPolicyDetail,
   type MissedPaymentsAmountSide,
 } from '@/lib/api';
+import {
+  formatInstallmentsPaidDisplay,
+  formatPolicyDateTimeParts,
+} from '@/lib/policy-display';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import * as Sentry from '@sentry/nextjs';
 import { formatTransactionReferenceForDisplay } from '@/lib/transaction-reference-display';
 import RequestPaymentDialog from './request-payment-dialog';
@@ -268,19 +277,6 @@ export default function PaymentsTab({ customerId, customerPhone = '' }: Payments
     }
   };
 
-  const formatDateOnly = (dateString: string | null) => {
-    if (!dateString) return '—';
-    try {
-      return new Date(dateString).toLocaleDateString('en-US', {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric',
-      });
-    } catch {
-      return dateString;
-    }
-  };
-
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-KE', {
       style: 'currency',
@@ -481,11 +477,35 @@ export default function PaymentsTab({ customerId, customerPhone = '' }: Payments
                 </div>
                 <div>
                   <dt className="text-sm font-medium text-muted-foreground">No. of installments</dt>
-                  <dd className="mt-1 text-sm">
+                  <dd className="mt-1 text-sm inline-flex items-center gap-1">
                     {policyDetail.enrollment.expectedInstallmentCount == null ||
-                    policyDetail.enrollment.expectedInstallmentCount <= 0
-                      ? '— (expected installment count not set)'
-                      : policyDetail.enrollment.expectedInstallmentCount}
+                    policyDetail.enrollment.expectedInstallmentCount <= 0 ? (
+                      '— (expected installment count not set)'
+                    ) : (
+                      <>
+                        {formatInstallmentsPaidDisplay(
+                          policyDetail.installmentsPaid,
+                          policyDetail.installmentsPaidApproximate
+                        )}
+                        {' / '}
+                        {policyDetail.enrollment.expectedInstallmentCount}
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <button
+                              type="button"
+                              className="text-muted-foreground hover:text-foreground"
+                              aria-label="Payments made"
+                            >
+                              <Info className="h-3.5 w-3.5" />
+                            </button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            {policyDetail.paymentsMadeCount ?? 0} payment
+                            {(policyDetail.paymentsMadeCount ?? 0) === 1 ? '' : 's'} made
+                          </TooltipContent>
+                        </Tooltip>
+                      </>
+                    )}
                   </dd>
                 </div>
                 <div>
@@ -518,15 +538,50 @@ export default function PaymentsTab({ customerId, customerPhone = '' }: Payments
                   </dd>
                 </div>
                 <div>
-                  <dt className="text-sm font-medium text-muted-foreground">Policy start date</dt>
+                  <dt className="text-sm font-medium text-muted-foreground">Policy started</dt>
                   <dd className="mt-1 text-sm">
-                    {formatDateOnly(policyDetail.enrollment.startDate)}
+                    {(() => {
+                      const parts = formatPolicyDateTimeParts(policyDetail.enrollment.startDate);
+                      if (!parts) return '—';
+                      return (
+                        <>
+                          <span className="block">{parts.date}</span>
+                          <span className="block text-xs text-muted-foreground">{parts.time}</span>
+                        </>
+                      );
+                    })()}
                   </dd>
                 </div>
                 <div>
-                  <dt className="text-sm font-medium text-muted-foreground">Policy end date</dt>
+                  <dt className="text-sm font-medium text-muted-foreground">Policy ending</dt>
                   <dd className="mt-1 text-sm">
-                    {formatDateOnly(policyDetail.enrollment.endDate)}
+                    {(() => {
+                      const parts = formatPolicyDateTimeParts(policyDetail.enrollment.endDate);
+                      if (!parts) return '—';
+                      return (
+                        <>
+                          <span className="block">{parts.date}</span>
+                          <span className="block text-xs text-muted-foreground">{parts.time}</span>
+                        </>
+                      );
+                    })()}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-sm font-medium text-muted-foreground">Expected payment end date</dt>
+                  <dd className="mt-1 text-sm">
+                    {(() => {
+                      const parts = formatPolicyDateTimeParts(
+                        policyDetail.enrollment.nominalPaymentPeriodEndDate
+                      );
+                      if (!parts) return '—';
+                      return (
+                        <>
+                          <span className="block">{parts.date}</span>
+                          <span className="block text-xs text-muted-foreground">{parts.time}</span>
+                        </>
+                      );
+                    })()}
                   </dd>
                 </div>
               </dl>

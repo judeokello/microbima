@@ -59,6 +59,12 @@ export const BAAuth = (options?: {
 export const AdminOnly = () => BAAuth({ roles: ['registration_admin', 'system_admin'] });
 
 /**
+ * Decorator for registration admin or customer care (care-ops queues).
+ */
+export const AdminOrCustomerCare = () =>
+  BAAuth({ roles: ['registration_admin', 'system_admin', 'customer_care'] });
+
+/**
  * Decorator for BA-only endpoints (with ownership requirement)
  */
 export const BAOnly = () => BAAuth({ allowBA: true, requireOwnership: true });

@@ -78,6 +78,13 @@ export class SchemeDetailDto {
   packageId?: number;
 
   @ApiProperty({
+    description: 'Package name associated with this scheme',
+    example: 'Mfanisi Go',
+    required: false,
+  })
+  packageName?: string;
+
+  @ApiProperty({
     description: 'Package slug for pricing file lookup',
     example: 'mfanisi-go',
     required: false,

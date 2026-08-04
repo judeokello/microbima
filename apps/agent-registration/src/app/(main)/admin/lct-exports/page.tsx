@@ -28,7 +28,7 @@ import {
   type LctPendingGroup,
   type LctPendingRow,
 } from '@/lib/api'
-import { AlertTriangle, Download, Loader2, RefreshCw, UserPlus, ArrowRightLeft, UserCog } from 'lucide-react'
+import { AlertTriangle, Download, Loader2, RefreshCw, UserPlus, ArrowRightLeft, UserCog, CircleAlert } from 'lucide-react'
 import {
   Tooltip,
   TooltipContent,
@@ -71,6 +71,12 @@ const REASON_LEGEND = [
     label: 'Policy replaced',
     description: 'Product change with new member numbers',
     icon: <ArrowRightLeft className="h-3.5 w-3.5 text-purple-600" aria-hidden />,
+  },
+  {
+    key: 'MISSING_INFO',
+    label: 'Missing information',
+    description: 'Required spouse/child fields incomplete — not selectable until care-ops updates the record',
+    icon: <CircleAlert className="h-3.5 w-3.5 text-rose-600" aria-hidden />,
   },
 ] as const
 
@@ -163,6 +169,7 @@ export default function LctExportsAdminPage() {
     memberNumber: '',
     phone: '',
     product: '',
+    scheme: '',
   })
   const [batches, setBatches] = useState<LctOpenBatch[]>([])
   const [errors, setErrors] = useState<Array<Record<string, unknown>>>([])
@@ -186,6 +193,7 @@ export default function LctExportsAdminPage() {
         memberNumber: filters.memberNumber || undefined,
         phone: filters.phone || undefined,
         product: filters.product || undefined,
+        scheme: filters.scheme || undefined,
       })
       setGroups(res.data.groups)
       setOpenBatch(res.data.openBatch)
@@ -228,17 +236,19 @@ export default function LctExportsAdminPage() {
     if (tab === 'errors') void loadErrors()
   }, [tab, loadPending, loadHistory, loadErrors])
 
-  const allPendingIds = useMemo(() => {
+  const selectablePendingIds = useMemo(() => {
     const ids: string[] = []
     for (const g of groups) {
-      if (g.principal) ids.push(g.principal.id)
-      for (const d of g.dependants) ids.push(d.id)
+      if (g.principal && g.principal.exportEligible !== false) ids.push(g.principal.id)
+      for (const d of g.dependants) {
+        if (d.exportEligible !== false) ids.push(d.id)
+      }
     }
     return ids
   }, [groups])
 
   const toggleAll = (checked: boolean) => {
-    setSelected(checked ? new Set(allPendingIds) : new Set())
+    setSelected(checked ? new Set(selectablePendingIds) : new Set())
   }
 
   const toggleOne = (id: string, checked: boolean) => {
@@ -336,37 +346,45 @@ export default function LctExportsAdminPage() {
     }
   }
 
-  const renderRow = (row: LctPendingRow, indent = false) => (
-    <tr key={row.id} className="border-b text-sm">
-      <td className="p-2">
-        <input
-          type="checkbox"
-          checked={selected.has(rowCheckboxId(row))}
-          onChange={(e) => toggleOne(row.id, e.target.checked)}
-          disabled={!!openBatch}
-        />
-      </td>
-      <td className={`p-2 whitespace-nowrap ${indent ? 'pl-8' : 'font-medium'}`}>{row.personName}</td>
-      <td className="p-2 font-mono text-xs whitespace-nowrap">{row.memberNumber}</td>
-      <td className="p-2 whitespace-nowrap">{row.relationship}</td>
-      <td className="p-2 whitespace-nowrap">
-        <Badge variant="outline" className={actionBadgeClass(row.pendingAction)}>
-          {row.pendingAction}
-        </Badge>
-      </td>
-      <td className="p-2 whitespace-nowrap">{reasonIcons(row.pendingReasons)}</td>
-      <td className="p-2 text-muted-foreground">{row.schemeName || '—'}</td>
-      <td className="p-2 text-muted-foreground">{row.productName}</td>
-      <td className="p-2">
-        <Link
-          href={`/admin/customer/${row.customerId}`}
-          className="text-blue-600 hover:underline text-xs"
-        >
-          View
-        </Link>
-      </td>
-    </tr>
-  )
+  const renderRow = (row: LctPendingRow, indent = false) => {
+    const incomplete = row.exportEligible === false
+    const checkboxDisabled = !!openBatch || incomplete
+    return (
+      <tr
+        key={row.id}
+        className={`border-b text-sm ${incomplete ? 'bg-rose-50/60 text-muted-foreground' : ''}`}
+      >
+        <td className="p-2">
+          <input
+            type="checkbox"
+            checked={selected.has(rowCheckboxId(row))}
+            onChange={(e) => toggleOne(row.id, e.target.checked)}
+            disabled={checkboxDisabled}
+            title={incomplete ? 'Missing required information' : undefined}
+          />
+        </td>
+        <td className={`p-2 whitespace-nowrap ${indent ? 'pl-8' : 'font-medium'}`}>{row.personName}</td>
+        <td className="p-2 font-mono text-xs whitespace-nowrap">{row.memberNumber}</td>
+        <td className="p-2 whitespace-nowrap">{row.relationship}</td>
+        <td className="p-2 whitespace-nowrap">
+          <Badge variant="outline" className={actionBadgeClass(row.pendingAction)}>
+            {row.pendingAction}
+          </Badge>
+        </td>
+        <td className="p-2 whitespace-nowrap">{reasonIcons(row.pendingReasons)}</td>
+        <td className="p-2 text-muted-foreground">{row.schemeName || '—'}</td>
+        <td className="p-2 text-muted-foreground">{row.productName}</td>
+        <td className="p-2">
+          <Link
+            href={`/admin/customer/${row.customerId}`}
+            className="text-blue-600 hover:underline text-xs"
+          >
+            View
+          </Link>
+        </td>
+      </tr>
+    )
+  }
 
   return (
     <div className="space-y-6 p-4 md:p-6">
@@ -434,13 +452,14 @@ export default function LctExportsAdminPage() {
             </div>
           )}
 
-          <div className="grid gap-2 md:grid-cols-5">
+          <div className="grid gap-2 md:grid-cols-3 lg:grid-cols-6">
             {(
               [
                 ['name', 'Name'],
                 ['idNumber', 'ID number'],
                 ['memberNumber', 'Member #'],
                 ['phone', 'Phone'],
+                ['scheme', 'Scheme'],
                 ['product', 'Product'],
               ] as const
             ).map(([key, label]) => (
@@ -462,11 +481,13 @@ export default function LctExportsAdminPage() {
             <label className="flex items-center gap-2 text-sm">
               <input
                 type="checkbox"
-                checked={allPendingIds.length > 0 && selected.size === allPendingIds.length}
+                checked={
+                  selectablePendingIds.length > 0 && selected.size === selectablePendingIds.length
+                }
                 onChange={(e) => toggleAll(e.target.checked)}
-                disabled={!!openBatch || !allPendingIds.length}
+                disabled={!!openBatch || !selectablePendingIds.length}
               />
-              Select all ({selected.size})
+              Select all eligible ({selected.size})
             </label>
             <Button
               onClick={() => void handleExport()}

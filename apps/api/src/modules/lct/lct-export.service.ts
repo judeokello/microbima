@@ -24,6 +24,7 @@ import {
   formatLctDob,
   formatLctGender,
   formatLctPhone,
+  LCT_PENDING_REASONS,
   LCT_TEMPLATE_KEY,
   LctMemberSyncIntent,
   normalizeEmailList,
@@ -31,6 +32,12 @@ import {
   sortLctPendingDependants,
   toTitleCase,
 } from './lct.types';
+import {
+  formatLctIdNumber,
+  getMissingRequiredFields,
+  isLctDependantExportEligible,
+  relationshipToEntityKind,
+} from '../missing-requirements/completeness.util';
 
 const ADMIN_ROLE = 'registration_admin';
 
@@ -57,13 +64,14 @@ export class LctExportService {
     memberNumber?: string;
     phone?: string;
     product?: string;
+    scheme?: string;
   }) {
     const targets = await this.prisma.lctMemberSyncTarget.findMany({
       where: {
         pendingAction: { not: null },
         openBatchId: null,
-        errorCode: null,
         customer: { isTestUser: false },
+        OR: [{ errorCode: null }, { errorCode: 'MISSING_SPOUSE_ID' }],
       },
       include: {
         policy: {
@@ -119,6 +127,7 @@ export class LctExportService {
     const memberQ = filters.memberNumber?.trim().toLowerCase();
     const phoneQ = filters.phone?.trim();
     const productQ = filters.product?.trim().toLowerCase();
+    const schemeQ = filters.scheme?.trim().toLowerCase();
 
     const enriched = targets
       .map((t) => {
@@ -129,7 +138,8 @@ export class LctExportService {
           : customer
             ? [customer.firstName, customer.middleName, customer.lastName].filter(Boolean).join(' ')
             : '';
-        const idNumber = dependant?.idNumber ?? customer?.idNumber ?? '';
+        const rawId = dependant?.idNumber ?? customer?.idNumber ?? '';
+        const idNumber = formatLctIdNumber(rawId);
         const principalPhone = formatLctPhone(customer?.phoneNumber);
         const relationship =
           t.subjectType === LctSubjectType.PRINCIPAL
@@ -146,6 +156,19 @@ export class LctExportService {
           phone = principalPhone;
         }
 
+        let exportEligible = true;
+        let missingFields: string[] = [];
+        if (t.subjectType === LctSubjectType.DEPENDANT && dependant) {
+          const kind = relationshipToEntityKind(dependant.relationship);
+          missingFields = kind ? getMissingRequiredFields(kind, dependant) : [];
+          exportEligible = isLctDependantExportEligible(dependant.relationship, dependant);
+        }
+
+        const pendingReasons = [...(t.pendingReasons ?? [])];
+        if (!exportEligible && !pendingReasons.includes(LCT_PENDING_REASONS.MISSING_INFO)) {
+          pendingReasons.push(LCT_PENDING_REASONS.MISSING_INFO);
+        }
+
         return {
           id: t.id,
           policyId: t.policyId,
@@ -154,7 +177,7 @@ export class LctExportService {
           customerId: t.customerId,
           dependantId: t.dependantId,
           pendingAction: t.pendingAction,
-          pendingReasons: t.pendingReasons,
+          pendingReasons,
           pendingSince: t.pendingSince,
           productName: t.policy.productName,
           schemeName: schemeNameByPolicyId.get(t.policyId) ?? '',
@@ -163,6 +186,8 @@ export class LctExportService {
           idNumber,
           phone,
           relationship,
+          exportEligible,
+          missingFields,
         };
       })
       .filter((row) => {
@@ -170,13 +195,8 @@ export class LctExportService {
         if (idQ && !row.idNumber.toLowerCase().includes(idQ)) return false;
         if (memberQ && !row.memberNumber.toLowerCase().includes(memberQ)) return false;
         if (phoneQ && !row.phone.includes(phoneQ)) return false;
-        if (
-          productQ &&
-          !row.productName.toLowerCase().includes(productQ) &&
-          !row.schemeName.toLowerCase().includes(productQ)
-        ) {
-          return false;
-        }
+        if (productQ && !row.productName.toLowerCase().includes(productQ)) return false;
+        if (schemeQ && !row.schemeName.toLowerCase().includes(schemeQ)) return false;
         return true;
       });
 
@@ -222,7 +242,7 @@ export class LctExportService {
   async getErrors() {
     return this.prisma.lctMemberSyncTarget.findMany({
       where: {
-        errorCode: { not: null },
+        AND: [{ errorCode: { not: null } }, { NOT: { errorCode: 'MISSING_SPOUSE_ID' } }],
         customer: { isTestUser: false },
       },
       include: {
@@ -283,7 +303,7 @@ export class LctExportService {
         id: { in: syncTargetIds },
         pendingAction: { not: null },
         openBatchId: null,
-        errorCode: null,
+        OR: [{ errorCode: null }, { errorCode: 'MISSING_SPOUSE_ID' }],
       },
     });
 
@@ -295,6 +315,12 @@ export class LctExportService {
     }
 
     const intentsWithTargets = sortLctExportIntents(await this.buildIntents(targets));
+    const incomplete = intentsWithTargets.filter((x) => x.incomplete);
+    if (incomplete.length > 0) {
+      throw ValidationException.withMultipleErrors({
+        syncTargetIds: `${incomplete.length} selected member(s) have missing required information and cannot be exported`,
+      });
+    }
     const intents = intentsWithTargets.map((x) => x.intent);
     const { csv, rows, rowCount } = buildLctCsv(intents);
     const batchId = randomUUID();
@@ -560,8 +586,8 @@ export class LctExportService {
       pendingAction: LctPendingAction | null;
       pendingReasons: string[];
     }>
-  ): Promise<Array<{ targetId: string; intent: LctMemberSyncIntent }>> {
-    const intents: Array<{ targetId: string; intent: LctMemberSyncIntent }> = [];
+  ): Promise<Array<{ targetId: string; intent: LctMemberSyncIntent; incomplete: boolean }>> {
+    const intents: Array<{ targetId: string; intent: LctMemberSyncIntent; incomplete: boolean }> = [];
 
     const policyIds = [...new Set(targets.map((t) => t.policyId))];
     const policies = await this.prisma.policy.findMany({
@@ -612,6 +638,7 @@ export class LctExportService {
       if (target.subjectType === LctSubjectType.PRINCIPAL) {
         intents.push({
           targetId: target.id,
+          incomplete: false,
           intent: {
             memberNumber: target.memberNumber,
             action: target.pendingAction,
@@ -628,7 +655,7 @@ export class LctExportService {
             relationship: 'PRINCIPAL',
             email: customer.email ?? '',
             phoneNumber: principalPhone,
-            idNumber: customer.idNumber ?? '',
+            idNumber: formatLctIdNumber(customer.idNumber),
             principalMemberNumber: principalMemberNumber || target.memberNumber,
             schemeName,
             policyStartDate,
@@ -657,8 +684,11 @@ export class LctExportService {
           ? formatLctPhone(dependant.phoneNumber) || principalPhone
           : principalPhone;
 
+      const incomplete = !isLctDependantExportEligible(dependant.relationship, dependant);
+
       intents.push({
         targetId: target.id,
+        incomplete,
         intent: {
           memberNumber: target.memberNumber,
           action: target.pendingAction,
@@ -677,7 +707,7 @@ export class LctExportService {
           relationship,
           email: dependant.email ?? '',
           phoneNumber,
-          idNumber: dependant.idNumber ?? '',
+          idNumber: formatLctIdNumber(dependant.idNumber),
           principalMemberNumber,
           schemeName,
           policyStartDate,

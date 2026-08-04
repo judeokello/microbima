@@ -80,11 +80,14 @@ export class MpesaIpnPayloadDto {
   ThirdPartyTransID?: string;
 
   @ApiProperty({
-    description: 'Customer phone number in international format',
+    description:
+      'Customer phone number in international format. May be empty for Organization-to-Organization / B2B transfers, hashed (SHA-256), or privacy-masked with asterisks.',
     example: '254722000000',
+    required: false,
   })
+  @IsOptional()
   @IsString()
-  MSISDN: string;
+  MSISDN?: string;
 
   @ApiProperty({
     description: 'Customer first name',

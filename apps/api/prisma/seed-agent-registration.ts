@@ -2,53 +2,69 @@ import { PrismaClient } from '@prisma/client'
 
 /**
  * Seed Agent Registration Data
- * 
- * This function seeds deferred requirement defaults for agent registration.
- * It can be called standalone or as part of the master seed process.
- * 
+ *
+ * Seeds deferred requirement defaults aligned with care-ops / LCT completeness:
+ * - Spouse: firstName, lastName, idNumber, gender, dateOfBirth
+ * - Child: firstName, lastName, dateOfBirth, gender
+ * - Beneficiary: firstName, lastName, idType, idNumber (care-ops only; never sent to LCT)
+ *
  * @param prisma - PrismaClient instance (optional, creates new if not provided)
  */
 export async function seedAgentRegistrationData(prismaInstance?: PrismaClient) {
   const prisma = prismaInstance || new PrismaClient()
-  const shouldDisconnect = !prismaInstance // Only disconnect if we created the instance
+  const shouldDisconnect = !prismaInstance
 
   try {
     console.log('🌱 Starting Agent Registration seed data...')
 
-    // Seed DeferredRequirementDefault data
     const deferredRequirements = [
-      // Spouse requirements
-      { entityKind: 'SPOUSE', fieldPath: 'gender', isRequired: true },
-      { entityKind: 'SPOUSE', fieldPath: 'idType', isRequired: true },
+      { entityKind: 'SPOUSE', fieldPath: 'firstName', isRequired: true },
+      { entityKind: 'SPOUSE', fieldPath: 'lastName', isRequired: true },
       { entityKind: 'SPOUSE', fieldPath: 'idNumber', isRequired: true },
-      
-      // Child requirements  
+      { entityKind: 'SPOUSE', fieldPath: 'gender', isRequired: true },
+      { entityKind: 'SPOUSE', fieldPath: 'dateOfBirth', isRequired: true },
+
+      { entityKind: 'CHILD', fieldPath: 'firstName', isRequired: true },
+      { entityKind: 'CHILD', fieldPath: 'lastName', isRequired: true },
+      { entityKind: 'CHILD', fieldPath: 'dateOfBirth', isRequired: true },
       { entityKind: 'CHILD', fieldPath: 'gender', isRequired: true },
-      { entityKind: 'CHILD', fieldPath: 'idType', isRequired: true },
-      { entityKind: 'CHILD', fieldPath: 'idNumber', isRequired: true },
-      
-      // Beneficiary requirements
+
       { entityKind: 'BENEFICIARY', fieldPath: 'firstName', isRequired: true },
       { entityKind: 'BENEFICIARY', fieldPath: 'lastName', isRequired: true },
       { entityKind: 'BENEFICIARY', fieldPath: 'idType', isRequired: true },
       { entityKind: 'BENEFICIARY', fieldPath: 'idNumber', isRequired: true },
     ]
 
-    // Upsert each requirement
+    // Retire legacy spouse/child idType-only deferrals that are no longer required
+    const retired = [
+      { entityKind: 'SPOUSE', fieldPath: 'idType' },
+      { entityKind: 'CHILD', fieldPath: 'idType' },
+      { entityKind: 'CHILD', fieldPath: 'idNumber' },
+    ] as const
+
+    for (const req of retired) {
+      await prisma.deferredRequirementDefault.deleteMany({
+        where: {
+          entityKind: req.entityKind as never,
+          fieldPath: req.fieldPath,
+        },
+      })
+    }
+
     for (const req of deferredRequirements) {
       await prisma.deferredRequirementDefault.upsert({
         where: {
           entityKind_fieldPath: {
-            entityKind: req.entityKind as any,
-            fieldPath: req.fieldPath
-          }
+            entityKind: req.entityKind as never,
+            fieldPath: req.fieldPath,
+          },
         },
-        update: {},
+        update: { isRequired: req.isRequired },
         create: {
-          entityKind: req.entityKind as any,
+          entityKind: req.entityKind as never,
           fieldPath: req.fieldPath,
-          isRequired: req.isRequired
-        }
+          isRequired: req.isRequired,
+        },
       })
       console.log(`✅ Upserted requirement: ${req.entityKind}.${req.fieldPath}`)
     }
@@ -61,10 +77,6 @@ export async function seedAgentRegistrationData(prismaInstance?: PrismaClient) {
   }
 }
 
-/**
- * Standalone execution (for backward compatibility)
- * This allows the file to still be run directly: ts-node seed-agent-registration.ts
- */
 async function main() {
   try {
     await seedAgentRegistrationData()
@@ -74,7 +86,6 @@ async function main() {
   }
 }
 
-// Only run main if this file is executed directly (not imported)
 if (require.main === module) {
   main()
     .catch((e) => {

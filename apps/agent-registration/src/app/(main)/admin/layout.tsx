@@ -9,7 +9,7 @@ import { useBAStatusCheck } from '@/hooks/useBAStatusCheck';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { LogOut, User, LayoutDashboard, Search, Home, Users, UsersRound, Menu, Building2, Wallet, MessageSquare, FileCheck, FileSpreadsheet, Layers } from 'lucide-react';
+import { LogOut, User, LayoutDashboard, Search, Home, Users, UsersRound, Menu, Building2, Wallet, MessageSquare, FileCheck, FileSpreadsheet, Layers, ClipboardPen } from 'lucide-react';
 
 export default function AdminLayout({
   children,
@@ -156,6 +156,16 @@ export default function AdminLayout({
         >
           <FileSpreadsheet className="h-4 w-4 mr-2" />
           LCT Exports
+        </Link>
+        <Link
+          href="/dashboard/missing-information"
+          className={`flex items-center px-3 py-2 rounded-md hover:bg-white/10 transition-colors ${
+            pathname === '/dashboard/missing-information' ? 'bg-white/10' : ''
+          }`}
+          onClick={() => isMobile && setSidebarOpen(false)}
+        >
+          <ClipboardPen className="h-4 w-4 mr-2" />
+          Missing Information
         </Link>
         <Link
           href="/dashboard/search"

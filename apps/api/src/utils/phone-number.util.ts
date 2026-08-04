@@ -104,16 +104,59 @@ export function isHashedMsisdn(value: string | null | undefined): boolean {
 }
 
 /**
+ * Returns true if MSISDN is privacy-masked (contains asterisks), e.g. "2547****123".
+ * M-Pesa may send masked values; they cannot be normalized or used as SMS recipients.
+ */
+export function isMaskedMsisdn(value: string | null | undefined): boolean {
+  if (!value || typeof value !== 'string') return false;
+  return value.includes('*');
+}
+
+/**
+ * Returns true when the value can be used as an SMS / STK phone recipient
+ * (present, not hashed, not masked). Empty B2B/org-transfer MSISDNs are not usable.
+ */
+export function isUsableMpesaPhone(value: string | null | undefined): boolean {
+  if (value == null || typeof value !== 'string') return false;
+  const trimmed = value.trim();
+  if (trimmed === '') return false;
+  if (isHashedMsisdn(trimmed) || isMaskedMsisdn(trimmed)) return false;
+  return true;
+}
+
+/**
  * Returns normalized phone (254XXXXXXXXX) or raw value for storage.
- * If value is a hashed MSISDN (64 hex chars), returns { normalized: false, value: raw } and caller should store as-is.
- * Otherwise normalizes and returns { normalized: true, value: normalizedPhone }; throws if invalid phone.
+ *
+ * M-Pesa IPN may send:
+ * - a real MSISDN (normalize to 254…)
+ * - a SHA-256 hashed MSISDN (store as-is; cannot SMS / customer-match)
+ * - a masked MSISDN with asterisks (store as-is)
+ * - empty / missing MSISDN for Organization-to-Organization / B2B transfers (store null)
+ *
+ * Empty/null/whitespace returns { normalized: false, value: null }.
+ * Hashed/masked returns { normalized: false, value: raw }.
+ * Otherwise normalizes; throws if the value looks like a phone but is invalid.
  */
 export function normalizeMsisdnOrReturnRaw(
-  value: string
-): { normalized: true; value: string } | { normalized: false; value: string } {
-  if (isHashedMsisdn(value)) {
-    return { normalized: false, value: value.trim() };
+  value: string | null | undefined
+): { normalized: true; value: string } | { normalized: false; value: string | null } {
+  if (value == null || typeof value !== 'string') {
+    return { normalized: false, value: null };
   }
-  return { normalized: true, value: normalizePhoneNumber(value) };
+
+  const trimmed = value.trim();
+  if (trimmed === '') {
+    return { normalized: false, value: null };
+  }
+
+  if (isHashedMsisdn(trimmed)) {
+    return { normalized: false, value: trimmed };
+  }
+
+  if (isMaskedMsisdn(trimmed)) {
+    return { normalized: false, value: trimmed };
+  }
+
+  return { normalized: true, value: normalizePhoneNumber(trimmed) };
 }
 

@@ -45,6 +45,7 @@ import {
   PaymentDto,
 } from '../dto/customers/customer-payments-filter.dto';
 import {
+  CompletePostpaidEnrollmentDto,
   CustomerPolicyListResponseDto,
   CustomerPolicyDetailResponseDto,
   MissedPaymentsAmountDto,
@@ -55,6 +56,12 @@ import {
   isUtcCalendarDayBefore,
   parseYmdToUtcStart,
 } from '../utils/premium-statement-math';
+import {
+  computeMissedInstallments,
+  computePaidInstallments,
+  countConfirmedPayments,
+  sumConfirmedPaymentAmounts,
+} from '../utils/installment-count.util';
 import { buildPolicyDisplayText } from '../utils/policy-display.util';
 import { OndemandStkMode, OndemandStkPaymentDto } from '../dto/customers/ondemand-stk-payment.dto';
 import { InitiateStkPushDto, StkPushRequestResponseDto } from '../dto/mpesa-stk-push/mpesa-stk-push.dto';
@@ -64,6 +71,7 @@ import { ConfigurationService } from '../config/configuration.service';
 import { PolicyService } from './policy.service';
 import { UpdateCustomerDto } from '../dto/customers/update-customer.dto';
 import { LctSyncService } from '../modules/lct/lct-sync.service';
+import { MissingRequirementService } from './missing-requirement.service';
 import { UpdateDependantDto } from '../dto/dependants/update-dependant.dto';
 import { UpdateBeneficiaryDto } from '../dto/beneficiaries/update-beneficiary.dto';
 import {
@@ -125,6 +133,7 @@ export class CustomerService {
     private readonly policyService: PolicyService,
     @Inject(forwardRef(() => LctSyncService))
     private readonly lctSyncService: LctSyncService,
+    private readonly missingRequirementService: MissingRequirementService,
   ) {}
 
   /**
@@ -341,6 +350,17 @@ export class CustomerService {
           const scheme = packageScheme.scheme;
           const frequency = scheme.frequency ?? PaymentFrequency.MONTHLY;
           const paymentCadence = scheme.paymentCadence ?? 30;
+          let expectedInstallmentCount: number | null = null;
+          try {
+            expectedInstallmentCount = await this.policyService.resolveExpectedInstallmentCount(
+              packageScheme.package.id,
+              frequency
+            );
+          } catch {
+            this.logger.warn(
+              `[${correlationId}] Could not resolve expectedInstallmentCount for postpaid package ${packageScheme.package.id} frequency ${frequency}`
+            );
+          }
           const postpaidPolicy = await this.prismaService.policy.create({
             data: {
               customerId: createdCustomer.id,
@@ -350,6 +370,7 @@ export class CustomerService {
               premium: 0,
               frequency,
               paymentCadence,
+              expectedInstallmentCount,
               paymentAcNumber: createdCustomer.idNumber,
               policyNumber: null,
               startDate: null,
@@ -2576,7 +2597,6 @@ export class CustomerService {
         package: {
           select: {
             name: true,
-            totalPremium: true,
             underwriter: { select: { name: true } },
           },
         },
@@ -2587,6 +2607,7 @@ export class CustomerService {
             expectedPaymentDate: true,
             actualPaymentDate: true,
             amount: true,
+            paymentStatus: true,
           },
         },
       },
@@ -2608,10 +2629,19 @@ export class CustomerService {
         },
       });
       const schemeName = schemeCustomer?.packageScheme?.scheme?.schemeName ?? '—';
-      const installmentsPaid = p.policyPayments.filter((pm) => pm.actualPaymentDate != null).length;
-      const missedPayments = p.policyPayments.filter(
-        (pm) => pm.expectedPaymentDate < now && pm.actualPaymentDate == null
-      ).length;
+      const premiumNum = Number(p.premium);
+      const confirmedPaidTotal = sumConfirmedPaymentAmounts(p.policyPayments);
+      const paid = computePaidInstallments({
+        installmentAmount: premiumNum,
+        confirmedPaidTotal,
+      });
+      const missed = computeMissedInstallments({
+        policyStart: p.startDate,
+        asOfUtc: now,
+        paymentCadenceDays: p.paymentCadence,
+        installmentAmount: premiumNum,
+        paidExact: paid.exact,
+      });
 
       list.push({
         id: p.id,
@@ -2621,10 +2651,14 @@ export class CustomerService {
         schemeName,
         underwriterName: p.package.underwriter?.name ?? null,
         status: p.status,
-        totalPremium: p.package.totalPremium != null ? p.package.totalPremium.toString() : '—',
+        totalPremium: p.annualPremium != null ? p.annualPremium.toString() : '—',
         installment: p.premium.toString(),
-        installmentsPaid,
-        missedPayments,
+        installmentsPaid: paid.value,
+        installmentsPaidApproximate: paid.approximate,
+        missedPayments: missed.value,
+        missedPaymentsApproximate: missed.approximate,
+        paymentsMadeCount: countConfirmedPayments(p.policyPayments),
+        expectedInstallmentCount: p.expectedInstallmentCount ?? null,
       });
     }
 
@@ -2660,7 +2694,6 @@ export class CustomerService {
           select: {
             name: true,
             slug: true,
-            totalPremium: true,
             underwriter: { select: { name: true } },
           },
         },
@@ -2717,12 +2750,18 @@ export class CustomerService {
     }
     const confirmedStatuses = CONFIRMED_PAYMENT_STATUSES;
     const now = new Date();
-    const missedPayments = policy.policyPayments.filter(
-      (pm) => pm.expectedPaymentDate < now && pm.actualPaymentDate == null
-    ).length;
-    const totalPaid = policy.policyPayments
-      .filter((pm) => confirmedStatuses.includes(pm.paymentStatus))
-      .reduce((sum, pm) => sum + Number(pm.amount), 0);
+    const totalPaid = sumConfirmedPaymentAmounts(policy.policyPayments);
+    const paid = computePaidInstallments({
+      installmentAmount: premiumNum,
+      confirmedPaidTotal: totalPaid,
+    });
+    const missed = computeMissedInstallments({
+      policyStart: policy.startDate,
+      asOfUtc: now,
+      paymentCadenceDays: policy.paymentCadence,
+      installmentAmount: premiumNum,
+      paidExact: paid.exact,
+    });
 
     const missedPaymentsAmount = this.buildMissedPaymentsAmount(
       policy,
@@ -2758,15 +2797,110 @@ export class CustomerService {
           nominalPaymentPeriodEndDate:
             policy.nominalPaymentPeriodEndDate?.toISOString() ?? null,
         },
-        totalPremium: policy.package.totalPremium != null ? policy.package.totalPremium.toString() : '—',
+        totalPremium: policy.annualPremium != null ? policy.annualPremium.toString() : '—',
         installmentAmount: policy.premium.toString(),
         totalPaidToDate: totalPaid.toFixed(2),
-        installmentsPaid: policy.policyPayments.filter((pm) => confirmedStatuses.includes(pm.paymentStatus))
-          .length,
-        missedPayments,
+        installmentsPaid: paid.value,
+        installmentsPaidApproximate: paid.approximate,
+        missedPayments: missed.value,
+        missedPaymentsApproximate: missed.approximate,
+        paymentsMadeCount: countConfirmedPayments(policy.policyPayments),
         missedPaymentsAmount,
         schemeBillingMode,
       },
+    };
+  }
+
+  /**
+   * Complete postpaid shell-policy pricing at registration payment step (no STK).
+   * Finds the customer's postpaid policy for their scheme package and sets plan/premium fields.
+   */
+  async completePostpaidEnrollment(
+    customerId: string,
+    dto: CompletePostpaidEnrollmentDto,
+    userId: string,
+    userRoles: string[],
+    correlationId: string
+  ): Promise<{ status: number; correlationId: string; message: string; data: { policyId: string } }> {
+    this.logger.log(`[${correlationId}] Completing postpaid enrollment pricing for customer ${customerId}`);
+    const canAccess = await this.canUserAccessCustomer(customerId, userId, userRoles);
+    if (!canAccess) {
+      throw new NotFoundException('Customer not found or not accessible');
+    }
+
+    const schemeCustomer = await this.prismaService.packageSchemeCustomer.findFirst({
+      where: { customerId },
+      include: {
+        packageScheme: {
+          include: {
+            scheme: { select: { isPostpaid: true, frequency: true, paymentCadence: true } },
+            package: { select: { id: true } },
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    if (!schemeCustomer?.packageScheme?.scheme?.isPostpaid) {
+      throw ValidationException.forField(
+        'customerId',
+        'Customer is not enrolled in a postpaid scheme',
+        ErrorCodes.VALIDATION_ERROR
+      );
+    }
+
+    const packageId = schemeCustomer.packageScheme.package.id;
+    const plan = await this.prismaService.packagePlan.findFirst({
+      where: { id: dto.packagePlanId, packageId },
+      select: { id: true },
+    });
+    if (!plan) {
+      throw ValidationException.forField(
+        'packagePlanId',
+        'Plan not found for this package',
+        ErrorCodes.VALIDATION_ERROR
+      );
+    }
+
+    const policy = await this.prismaService.policy.findFirst({
+      where: {
+        customerId,
+        packageId,
+        status: { not: 'DEACTIVATED' },
+        supersededByPolicyId: null,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (!policy) {
+      throw new NotFoundException('No postpaid policy found for this customer');
+    }
+
+    const frequency = policy.frequency;
+    const expectedInstallmentCount = await this.policyService.resolveExpectedInstallmentCount(
+      packageId,
+      frequency
+    );
+
+    await this.prismaService.policy.update({
+      where: { id: policy.id },
+      data: {
+        packagePlanId: dto.packagePlanId,
+        premium: dto.premium,
+        annualPremium: dto.annualPremium,
+        productName: dto.productName,
+        expectedInstallmentCount,
+      },
+    });
+
+    this.logger.log(
+      `[${correlationId}] Updated postpaid policy ${policy.id} with plan=${dto.packagePlanId} premium=${dto.premium} annualPremium=${dto.annualPremium}`
+    );
+
+    return {
+      status: 200,
+      correlationId,
+      message: 'Postpaid policy enrollment pricing completed',
+      data: { policyId: policy.id },
     };
   }
 
@@ -3436,6 +3570,11 @@ export class CustomerService {
         correlationId,
       });
 
+      await this.missingRequirementService.syncCustomerFromLiveData(
+        dependant.customerId,
+        userId
+      );
+
       return {
         id: updated.id,
         firstName: updated.firstName,
@@ -3446,6 +3585,7 @@ export class CustomerService {
         idType: updated.idType ?? undefined,
         idNumber: updated.idNumber ?? undefined,
         relationship: updated.relationship,
+        gender: updated.gender ?? undefined,
       };
     } catch (error) {
       this.logger.error(`[${correlationId}] Error updating dependant: ${error instanceof Error ? error.message : 'Unknown error'}`, error instanceof Error ? error.stack : undefined);
@@ -3522,6 +3662,8 @@ export class CustomerService {
         where: { id: beneficiaryId },
         data: updatePayload,
       });
+
+      await this.missingRequirementService.syncCustomerFromLiveData(customerId, userId);
 
       return {
         id: updated.id,

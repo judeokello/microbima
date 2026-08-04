@@ -9,7 +9,12 @@ import {
   formatSmsAmount,
   formatSmsDate,
 } from '../../utils/sms-format.util';
-import { isHashedMsisdn, normalizeMsisdnOrReturnRaw } from '../../utils/phone-number.util';
+import {
+  isHashedMsisdn,
+  isMaskedMsisdn,
+  isUsableMpesaPhone,
+  normalizeMsisdnOrReturnRaw,
+} from '../../utils/phone-number.util';
 
 const SMS_ELIGIBLE_STATUSES: PaymentStatus[] = [
   PaymentStatus.COMPLETED,
@@ -26,7 +31,8 @@ export interface MatchedPaymentSmsParams {
 export interface UnmatchedPaymentSmsParams {
   firstName: string;
   lastName: string;
-  phone: string;
+  /** May be empty/hashed/masked for B2B IPN; SMS is skipped in those cases. */
+  phone: string | null | undefined;
   amount: number;
   paymentType: PaymentType;
   paymentReference: string;
@@ -183,9 +189,14 @@ export class PaymentMessagingService {
   }
 
   async tryEnqueueUnmatchedPaymentSms(params: UnmatchedPaymentSmsParams): Promise<void> {
-    if (isHashedMsisdn(params.phone)) {
+    if (!isUsableMpesaPhone(params.phone)) {
+      const reason = isHashedMsisdn(params.phone)
+        ? 'hashed MSISDN cannot be used as recipient'
+        : isMaskedMsisdn(params.phone)
+          ? 'masked MSISDN cannot be used as recipient'
+          : 'empty or missing MSISDN cannot be used as recipient';
       this.logger.warn(
-        `[${params.correlationId}] Unmatched payment SMS skipped: hashed MSISDN cannot be used as recipient`,
+        `[${params.correlationId}] Unmatched payment SMS skipped: ${reason}`,
       );
       return;
     }
@@ -193,7 +204,7 @@ export class PaymentMessagingService {
     let normalizedPhone: string;
     try {
       const msisdn = normalizeMsisdnOrReturnRaw(params.phone);
-      if (!msisdn.normalized) {
+      if (!msisdn.normalized || !msisdn.value) {
         this.logger.warn(
           `[${params.correlationId}] Unmatched payment SMS skipped: non-normalizable phone`,
         );

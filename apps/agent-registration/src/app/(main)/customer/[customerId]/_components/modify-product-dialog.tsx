@@ -35,6 +35,7 @@ import {
   type Plan,
 } from '@/lib/api';
 import {
+  computeAnnualPremium,
   computeInstallmentPremium,
   isFrequencySupportedByPackage,
   isPricingSubmitBlocked,
@@ -131,12 +132,12 @@ export default function ModifyProductDialog({
 
   const pricingMode: PricingMode = pricing?.pricingMode ?? 'extrapolate';
 
-  const installmentAmount = useMemo(() => {
-    if (!pricing || !options || !selectedPlan) return 0;
+  const pricingRates = useMemo(() => {
+    if (!pricing || !options || !selectedPlan) return null;
     const plan = pricing.plans[selectedPlan];
-    if (!plan) return 0;
+    if (!plan) return null;
     const cat = plan.categories[options.familyCategory];
-    if (!cat) return 0;
+    if (!cat) return null;
     const spouse = options.additionalSpouse;
     const daily = (cat.daily ?? 0) + (spouse ? plan.additional_spouse.daily ?? 0 : 0);
     const weekly = (cat.weekly ?? 0) + (spouse ? plan.additional_spouse.weekly ?? 0 : 0);
@@ -146,14 +147,28 @@ export default function ModifyProductDialog({
       monthly: (cat.monthly ?? 0) + (spouse ? plan.additional_spouse.monthly ?? 0 : 0),
       annually: (cat.annually ?? 0) + (spouse ? plan.additional_spouse.annually ?? 0 : 0),
     };
+    return { daily, weekly, lookupRates };
+  }, [pricing, options, selectedPlan]);
+
+  const installmentAmount = useMemo(() => {
+    if (!pricingRates) return 0;
     return computeInstallmentPremium({
       frequency,
-      daily,
-      weekly,
+      daily: pricingRates.daily,
+      weekly: pricingRates.weekly,
       pricingMode,
-      lookupRates,
+      lookupRates: pricingRates.lookupRates,
     });
-  }, [pricing, options, selectedPlan, frequency, pricingMode]);
+  }, [pricingRates, frequency, pricingMode]);
+
+  const annualPremium = useMemo(() => {
+    if (!pricingRates) return 0;
+    return computeAnnualPremium({
+      daily: pricingRates.daily,
+      pricingMode,
+      lookupRates: pricingRates.lookupRates,
+    });
+  }, [pricingRates, pricingMode]);
 
   const packagePlanId = useMemo(() => {
     if (!selectedPlan || plans.length === 0) return 0;
@@ -195,6 +210,7 @@ export default function ModifyProductDialog({
         packagePlanId,
         frequency: frequency as ModifyPolicyRequest['frequency'],
         premium: installmentAmount,
+        annualPremium,
         policyNumberChoice,
         ...(packageSchemeId ? { packageSchemeId: parseInt(packageSchemeId, 10) } : {}),
         ...(firstPaymentId ? { firstPaymentId: parseInt(firstPaymentId, 10) } : {}),

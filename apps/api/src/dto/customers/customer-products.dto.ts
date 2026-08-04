@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsInt, Min } from 'class-validator';
+import { IsInt, IsNumber, IsString, Min, MinLength } from 'class-validator';
 
 /** Request body for PATCH .../customers/:customerId/policies/:policyId/scheme */
 export class UpdateCustomerPolicySchemeDto {
@@ -7,6 +7,32 @@ export class UpdateCustomerPolicySchemeDto {
   @IsInt()
   @Min(1)
   packageSchemeId: number;
+}
+
+/**
+ * Complete postpaid shell-policy pricing at registration payment step (no STK).
+ * PATCH .../customers/:customerId/policies/postpaid-enrollment
+ */
+export class CompletePostpaidEnrollmentDto {
+  @ApiProperty({ description: 'Package plan ID' })
+  @IsInt()
+  @Min(1)
+  packagePlanId: number;
+
+  @ApiProperty({ description: 'Installment premium amount' })
+  @IsNumber()
+  @Min(0)
+  premium: number;
+
+  @ApiProperty({ description: 'Annual premium from pricing JSON' })
+  @IsNumber()
+  @Min(0)
+  annualPremium: number;
+
+  @ApiProperty({ description: 'Product display name', example: 'Mfanisi Go Gold' })
+  @IsString()
+  @MinLength(1)
+  productName: string;
 }
 
 /**
@@ -34,17 +60,29 @@ export class CustomerPolicyListItemDto {
   @ApiProperty({ description: 'Policy status' })
   status: string;
 
-  @ApiProperty({ description: 'Total premium (from package)' })
+  @ApiProperty({ description: 'Total / annual premium (from policy.annualPremium)' })
   totalPremium: string;
 
-  @ApiProperty({ description: 'Installment amount (from policy)' })
+  @ApiProperty({ description: 'Installment amount (from policy.premium)' })
   installment: string;
 
-  @ApiProperty({ description: 'Number of installments paid (actualPaymentDate set)' })
+  @ApiProperty({ description: 'Installments paid (ceil of confirmed amount / premium)' })
   installmentsPaid: number;
 
-  @ApiProperty({ description: 'Number of missed payments (expected in past, no actual)' })
+  @ApiProperty({ description: 'True when installments paid is approximate (show ~)' })
+  installmentsPaidApproximate: boolean;
+
+  @ApiProperty({ description: 'Missed installments past due as of today' })
   missedPayments: number;
+
+  @ApiProperty({ description: 'True when missed count is approximate (show ~)' })
+  missedPaymentsApproximate: boolean;
+
+  @ApiProperty({ description: 'Count of confirmed payment transactions (tooltip)' })
+  paymentsMadeCount: number;
+
+  @ApiProperty({ description: 'Expected installment count for this policy frequency', nullable: true })
+  expectedInstallmentCount: number | null;
 }
 
 export class CustomerPolicyListResponseDto {
@@ -121,13 +159,17 @@ export class CustomerPolicyDetailDto {
     nominalPaymentPeriodEndDate: string | null;
   };
 
-  /** Total premium (from package) */
+  /** Total / annual premium (from policy.annualPremium) */
   totalPremium: string;
   /** Installment amount (from policy) */
   installmentAmount: string;
   totalPaidToDate: string;
   installmentsPaid: number;
+  installmentsPaidApproximate: boolean;
   missedPayments: number;
+  missedPaymentsApproximate: boolean;
+  /** Confirmed payment transaction count (info tooltip) */
+  paymentsMadeCount: number;
 
   @ApiProperty({ type: MissedPaymentsAmountDto })
   missedPaymentsAmount: MissedPaymentsAmountDto;
