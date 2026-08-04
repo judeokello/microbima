@@ -83,6 +83,29 @@ export function computeInstallmentPremium(params: {
   return Math.round(daily * cadence * 100) / 100;
 }
 
+/**
+ * Annual premium for Products / Payment summary (not the selected-frequency installment).
+ * Prefers pricing `annually` band; extrapolate fallback is daily × 365.
+ */
+export function computeAnnualPremium(params: {
+  daily: number;
+  pricingMode?: PricingMode;
+  lookupRates?: PricingRateBand;
+}): number {
+  const { daily, pricingMode = 'extrapolate', lookupRates } = params;
+  const annuallyFromBand = lookupRates?.annually;
+  if (annuallyFromBand != null && annuallyFromBand > 0) {
+    return Math.round(annuallyFromBand * 100) / 100;
+  }
+  if (pricingMode === 'lookup') {
+    return 0;
+  }
+  if (daily <= 0) {
+    return 0;
+  }
+  return Math.round(daily * 365 * 100) / 100;
+}
+
 /** Path to package pricing JSON under public/. */
 export function productPricingPath(packageSlug: string): string {
   return `/product-pricing/${packageSlug}-pricing.json`;

@@ -43,6 +43,7 @@ import { CustomerDetailResponseDto } from '../../dto/customers/customer-detail.d
 import { MemberCardsResponseDto } from '../../dto/customers/member-cards.dto';
 import { CustomerPoliciesResponseDto, CustomerPaymentsResponseDto, CustomerPaymentsFilterDto } from '../../dto/customers/customer-payments-filter.dto';
 import {
+  CompletePostpaidEnrollmentDto,
   CustomerPolicyListResponseDto,
   CustomerPolicyDetailResponseDto,
   UpdateCustomerPolicySchemeDto,
@@ -717,6 +718,37 @@ export class InternalCustomerController {
   }
 
   /**
+   * Complete postpaid enrollment pricing (plan/premium/annual) without STK.
+   * Must be registered before :policyId routes.
+   */
+  @Patch(':customerId/policies/postpaid-enrollment')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Complete postpaid policy enrollment pricing (Internal)',
+    description:
+      'Updates the shell postpaid policy created at registration with plan, installment premium, annual premium, and expected installment count. Does not initiate STK.',
+  })
+  @ApiParam({ name: 'customerId', description: 'Customer ID' })
+  @ApiResponse({ status: 200, description: 'Postpaid enrollment pricing completed' })
+  @ApiResponse({ status: 404, description: 'Customer or policy not found' })
+  async completePostpaidEnrollment(
+    @Param('customerId') customerId: string,
+    @Body() dto: CompletePostpaidEnrollmentDto,
+    @CorrelationId() correlationId: string,
+    @Req() req: Request,
+  ) {
+    const userId = req.user?.id ?? 'system';
+    const userRoles = req.user?.roles ?? [];
+    return this.customerService.completePostpaidEnrollment(
+      customerId,
+      dto,
+      userId,
+      userRoles,
+      correlationId
+    );
+  }
+
+  /**
    * Get single policy detail for customer (customerId validated)
    */
   @Get(':customerId/policies/:policyId')
@@ -989,6 +1021,7 @@ export class InternalCustomerController {
         updatedAt: schemeCustomer.packageScheme.scheme.updatedAt.toISOString(),
         packageSchemeId: schemeCustomer.packageSchemeId,
         packageId: pkg.id,
+        packageName: pkg.name,
         packageSlug: pkg.slug ?? undefined,
         paymentFrequencies: pkg.packagePaymentFrequencies.map((pf) => ({
           frequency: pf.frequency,

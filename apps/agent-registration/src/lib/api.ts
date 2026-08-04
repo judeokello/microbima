@@ -955,7 +955,11 @@ export interface CustomerPolicyListItem {
   totalPremium: string
   installment: string
   installmentsPaid: number
+  installmentsPaidApproximate?: boolean
   missedPayments: number
+  missedPaymentsApproximate?: boolean
+  paymentsMadeCount?: number
+  expectedInstallmentCount?: number | null
 }
 
 export interface CustomerPolicyListResponse {
@@ -1005,7 +1009,10 @@ export interface CustomerPolicyDetail {
   installmentAmount: string
   totalPaidToDate: string
   installmentsPaid: number
+  installmentsPaidApproximate?: boolean
   missedPayments: number
+  missedPaymentsApproximate?: boolean
+  paymentsMadeCount?: number
   missedPaymentsAmount: MissedPaymentsAmount
 }
 
@@ -1981,6 +1988,7 @@ export interface CreatePolicyRequest {
   packagePlanId: number
   frequency: 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'QUARTERLY' | 'ANNUALLY' | 'CUSTOM'
   premium: number
+  annualPremium?: number
   productName: string
   tags?: Array<{ id?: number; name: string }>
   paymentData: {
@@ -1994,6 +2002,13 @@ export interface CreatePolicyRequest {
     paymentMessageBlob?: string
   }
   customDays?: number
+}
+
+export interface CompletePostpaidEnrollmentRequest {
+  packagePlanId: number
+  premium: number
+  annualPremium: number
+  productName: string
 }
 
 export interface CreatePolicyResponse {
@@ -2047,6 +2062,33 @@ export async function createPolicy(data: CreatePolicyRequest): Promise<CreatePol
     console.error('Error creating policy:', error)
     throw error
   }
+}
+
+/** Update postpaid shell policy with plan/premium at registration payment step (no STK). */
+export async function completePostpaidEnrollment(
+  customerId: string,
+  data: CompletePostpaidEnrollmentRequest
+): Promise<{ status: number; correlationId: string; message: string; data: { policyId: string } }> {
+  const token = await getSupabaseToken()
+  const response = await fetch(
+    `${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/customers/${customerId}/policies/postpaid-enrollment`,
+    {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+        'x-correlation-id': `postpaid-enrollment-${Date.now()}`,
+      },
+      body: JSON.stringify(data),
+    }
+  )
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}))
+    throw new Error(
+      errorData.error?.message ?? `Failed to complete postpaid enrollment: ${response.statusText}`
+    )
+  }
+  return await response.json()
 }
 
 /**
@@ -2111,6 +2153,7 @@ export interface CreatePolicyFromRecoveryRequest {
   packageId: number
   packagePlanId: number
   premium: number
+  annualPremium?: number
   frequency: 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'QUARTERLY' | 'ANNUALLY' | 'CUSTOM'
   customDays?: number
 }
@@ -2430,6 +2473,7 @@ export interface ModifyPolicyRequest {
   packagePlanId: number
   frequency: 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'QUARTERLY' | 'ANNUALLY' | 'CUSTOM'
   premium: number
+  annualPremium?: number
   customDays?: number
   packageSchemeId?: number
   policyNumberChoice: PolicyNumberChoice

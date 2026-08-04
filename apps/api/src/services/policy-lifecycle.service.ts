@@ -2270,6 +2270,7 @@ export class PolicyLifecycleService {
           packagePlanId: dto.packagePlanId,
           productName,
           premium: dto.premium,
+          annualPremium: dto.annualPremium ?? null,
           frequency: dto.frequency,
           paymentCadence,
           expectedInstallmentCount,

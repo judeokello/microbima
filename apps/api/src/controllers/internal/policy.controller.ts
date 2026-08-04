@@ -78,6 +78,7 @@ export class PolicyController {
         packagePlanId: createRequest.packagePlanId,
         frequency: createRequest.frequency,
         premium: createRequest.premium,
+        annualPremium: createRequest.annualPremium,
         productName: createRequest.productName,
         tags: createRequest.tags,
         customDays: createRequest.customDays,

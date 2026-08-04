@@ -10,12 +10,22 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Checkbox } from '@/components/ui/checkbox';
 // import { Separator } from '@/components/ui/separator';
 import { CheckCircle, CreditCard, Users, User, Loader2, XCircle, Clock, LayoutDashboard } from 'lucide-react';
-import { createPolicy, CreatePolicyRequest, getPackagePlans, Plan, initiateStkPush, InitiateStkPushRequest, getInternalConfig } from '@/lib/api';
+import {
+  createPolicy,
+  CreatePolicyRequest,
+  completePostpaidEnrollment,
+  getPackagePlans,
+  Plan,
+  initiateStkPush,
+  InitiateStkPushRequest,
+  getInternalConfig,
+} from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
 import { usePaymentStatus, PaymentStatusUpdate } from '@/hooks/usePaymentStatus';
 import { mapStkGatewayStatusToSpecVocabulary } from '@/lib/payment-status-vocabulary';
 import {
+  computeAnnualPremium,
   computeInstallmentPremium,
   computeNominalHorizonFromToday,
   isFrequencySupportedByPackage,
@@ -467,20 +477,10 @@ export default function PaymentStep() {
     setIsSubmitting(true);
 
     try {
-      // Postpaid: policy was already created at customer registration (Option A). Skip policy creation and STK push.
-      if (isPostpaidScheme) {
-        setSuccessMessage(
-          'Registration complete. The policy is set up for this postpaid scheme. Payment will be recorded when your scheme administrator uploads the payment batch (e.g. bank transfer or cheque).'
-        );
-        setIsPaymentInitiated(true);
-        return;
-      }
-
-      // Step 1: Create policy (prepaid only)
-      // Get customer's packageId from their package scheme
+      // Resolve package + plan (needed for both prepaid create and postpaid enrollment update)
       let packageId: number;
+      let packageName = 'MfanisiGo';
       try {
-        // Get Supabase token for authenticated request
         const { data: { session } } = await supabase.auth.getSession();
         if (!session?.access_token) {
           throw new Error('No valid session found');
@@ -499,12 +499,13 @@ export default function PaymentStep() {
         if (schemeResponse.ok) {
           const schemeData = await schemeResponse.json();
           packageId = schemeData.data?.packageId;
+          if (schemeData.data?.packageName) {
+            packageName = schemeData.data.packageName;
+          }
 
           if (!packageId) {
             throw new Error('PackageId not found in scheme data');
           }
-
-          console.log(`Retrieved packageId ${packageId} from customer's scheme`);
         } else {
           throw new Error(`Failed to fetch customer scheme: ${schemeResponse.status}`);
         }
@@ -515,11 +516,10 @@ export default function PaymentStep() {
         return;
       }
 
-      // Fetch plans for the package to get the correct packagePlanId
       let packagePlanId: number;
       try {
         const plans = await getPackagePlans(packageId);
-        const selectedPlanName = selectedPlan.charAt(0).toUpperCase() + selectedPlan.slice(1); // "silver" -> "Silver"
+        const selectedPlanName = selectedPlan.charAt(0).toUpperCase() + selectedPlan.slice(1);
         const matchingPlan = plans.find((plan: Plan) => plan.name.toLowerCase() === selectedPlan.toLowerCase());
 
         if (!matchingPlan) {
@@ -527,7 +527,6 @@ export default function PaymentStep() {
         }
 
         packagePlanId = matchingPlan.id;
-        console.log(`Mapped plan "${selectedPlan}" to packagePlanId: ${packagePlanId}`);
       } catch (planError) {
         console.error('Failed to fetch plans:', planError);
         setError(`Failed to fetch plans for package ${packageId}. Please try again.`);
@@ -535,10 +534,34 @@ export default function PaymentStep() {
         return;
       }
 
-      // Use selected frequency from the dropdown
       const frequency = selectedFrequency as 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'QUARTERLY' | 'ANNUALLY' | 'CUSTOM';
-
       const premium = installmentForSelection(frequency);
+      const annualPremium = computeAnnualPremium({
+        daily: calculatedPricing.totalDaily,
+        pricingMode,
+        lookupRates: calculatedPricing.lookupRates ?? undefined,
+      });
+      const productName = `${packageName} ${selectedPlan.charAt(0).toUpperCase() + selectedPlan.slice(1)}`;
+
+      // Postpaid: update shell policy created at registration; skip STK.
+      if (isPostpaidScheme) {
+        if (annualPremium <= 0) {
+          setError('Annual premium could not be calculated. Please select a plan and category.');
+          setIsSubmitting(false);
+          return;
+        }
+        await completePostpaidEnrollment(customerId, {
+          packagePlanId,
+          premium,
+          annualPremium,
+          productName,
+        });
+        setSuccessMessage(
+          'Registration complete. The policy is set up for this postpaid scheme. Payment will be recorded when your scheme administrator uploads the payment batch (e.g. bank transfer or cheque).'
+        );
+        setIsPaymentInitiated(true);
+        return;
+      }
 
       // Generate placeholder transaction reference for policy creation
       // The actual payment transaction reference will come from M-Pesa via IPN
@@ -561,7 +584,8 @@ export default function PaymentStep() {
         packagePlanId,
         frequency,
         premium,
-        productName: `MfanisiGo ${selectedPlan.charAt(0).toUpperCase() + selectedPlan.slice(1)}`,
+        annualPremium,
+        productName,
         paymentData: {
           paymentType: paymentType as 'MPESA' | 'SASAPAY',
           transactionReference: placeholderTransactionRef, // Placeholder - real ref will come from IPN

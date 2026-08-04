@@ -136,12 +136,22 @@ export class CreatePolicyRequestDto {
   frequency: PaymentFrequency;
 
   @ApiProperty({
-    description: 'Premium amount',
+    description: 'Installment premium amount',
     example: 5000.00,
   })
   @IsNumber()
   @Min(0)
   premium: number;
+
+  @ApiProperty({
+    description: 'Annual premium from pricing JSON (plan/category ± spouse)',
+    example: 30660.0,
+    required: false,
+  })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  annualPremium?: number;
 
   @ApiProperty({
     description: 'Product name (format: "Package Name - Plan Name")',

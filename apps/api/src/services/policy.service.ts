@@ -523,6 +523,7 @@ export class PolicyService {
       packagePlanId: number;
       frequency: PaymentFrequency;
       premium: number;
+      annualPremium?: number;
       productName: string;
       tags?: Array<{ id?: number; name: string }>;
       paymentData: {
@@ -788,6 +789,7 @@ export class PolicyService {
               startDate: startDate ?? null,
               endDate: endDate ?? null,
               premium: data.premium,
+              annualPremium: data.annualPremium ?? null,
               frequency,
               paymentCadence,
               expectedInstallmentCount,
@@ -915,8 +917,10 @@ export class PolicyService {
                   startDate: startDate ?? null,
                   endDate: endDate ?? null,
                   premium: data.premium,
+                  annualPremium: data.annualPremium ?? null,
                   frequency,
                   paymentCadence,
+                  expectedInstallmentCount,
                   paymentAcNumber,
                 },
               });
@@ -1949,6 +1953,7 @@ export class PolicyService {
       packageId: number;
       packagePlanId: number;
       premium: number;
+      annualPremium?: number;
       frequency: PaymentFrequency;
       customDays?: number;
     },
@@ -2030,6 +2035,7 @@ export class PolicyService {
           packagePlanId: data.packagePlanId,
           productName,
           premium: data.premium,
+          annualPremium: data.annualPremium ?? null,
           frequency: data.frequency,
           paymentCadence,
           expectedInstallmentCount,
@@ -2067,6 +2073,7 @@ export class PolicyService {
       packageId: number;
       packagePlanId: number;
       premium: number;
+      annualPremium?: number;
       frequency: PaymentFrequency;
       customDays?: number;
     },
@@ -2117,6 +2124,7 @@ export class PolicyService {
           startDate: null,
           endDate: null,
           premium: data.premium,
+          annualPremium: data.annualPremium ?? null,
           frequency: data.frequency,
           paymentCadence,
           expectedInstallmentCount,
