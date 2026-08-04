@@ -8,29 +8,29 @@
         "member_only": {
           "display": "M",
           "daily": 56,
-          "weekly": 339,
-          "monthly": 1470,
+          "weekly": 392,
+          "monthly": 1765,
           "annually": 17645
         },
         "up_to_5": {
           "display": "M(5)",
-          "daily": 100,
-          "weekly": 602,
-          "monthly": 2608,
+          "daily": 99,
+          "weekly": 695,
+          "monthly": 3129,
           "annually": 31293
         },
         "up_to_8": {
           "display": "M(8)",
-          "daily": 124,
-          "weekly": 744,
-          "monthly": 3224,
+          "daily": 123,
+          "weekly": 861,
+          "monthly": 3869,
           "annually": 38686
         }
       },
       "additional_spouse": {
         "daily": 12,
-        "weekly": 73,
-        "monthly": 421,
+        "weekly": 84,
+        "monthly": 379,
         "annually": 3789
       }
     },
@@ -39,30 +39,30 @@
       "categories": {
         "member_only": {
           "display": "M",
-          "daily": 76,
-          "weekly": 455,
-          "monthly": 1970,
+          "daily": 75,
+          "weekly": 525,
+          "monthly": 2364,
           "annually": 23639
         },
         "up_to_5": {
           "display": "M(5)",
-          "daily": 137,
-          "weekly": 825,
-          "monthly": 3573,
+          "daily": 136,
+          "weekly": 953,
+          "monthly": 4287,
           "annually": 42875
         },
         "up_to_8": {
           "display": "M(8)",
-          "daily": 171,
-          "weekly": 1026,
-          "monthly": 4448,
+          "daily": 169,
+          "weekly": 1186,
+          "monthly": 5337,
           "annually": 53373
         }
       },
       "additional_spouse": {
         "daily": 17,
-        "weekly": 103,
-        "monthly": 596,
+        "weekly": 119,
+        "monthly": 537,
         "annually": 5368
       }
     }

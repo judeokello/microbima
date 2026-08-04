@@ -158,6 +158,17 @@ export default function SchemeDetailPage() {
   const [paymentLoading, setPaymentLoading] = useState(false);
   const [paymentError, setPaymentError] = useState<string | null>(null);
   const [validationErrors, setValidationErrors] = useState<string[] | null>(null);
+  const [mpesaLookupStatus, setMpesaLookupStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
+  const [mpesaLookupLabel, setMpesaLookupLabel] = useState<string | null>(null);
+  const [mpesaLookupError, setMpesaLookupError] = useState<string | null>(null);
+  const [mpesaVerifiedRef, setMpesaVerifiedRef] = useState<string | null>(null);
+
+  const clearMpesaLookupState = () => {
+    setMpesaLookupStatus('idle');
+    setMpesaLookupLabel(null);
+    setMpesaLookupError(null);
+    setMpesaVerifiedRef(null);
+  };
 
   const getSupabaseToken = async () => {
     const { data: session } = await supabase.auth.getSession();
@@ -398,6 +409,7 @@ export default function SchemeDetailPage() {
     setPaymentDialogOpen(true);
     setPaymentError(null);
     setValidationErrors(null);
+    clearMpesaLookupState();
     setPaymentFormData({ amount: '', paymentType: 'BANK_TRANSFER', transactionReference: '', transactionDate: '' });
     setPaymentFile(null);
   };
@@ -408,16 +420,80 @@ export default function SchemeDetailPage() {
     setValidationErrors(null);
   };
 
+  const lookupMpesaTransactionReference = async (rawRef: string) => {
+    const ref = rawRef.trim();
+    if (!ref) {
+      clearMpesaLookupState();
+      return;
+    }
+    setMpesaLookupStatus('loading');
+    setMpesaLookupLabel(null);
+    setMpesaLookupError(null);
+    setMpesaVerifiedRef(null);
+    try {
+      const token = await getSupabaseToken();
+      const params = new URLSearchParams({ transactionReference: ref });
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/product-management/schemes/${schemeId}/postpaid-payments/mpesa-lookup?${params.toString()}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'x-correlation-id': `req-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          },
+        }
+      );
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const msg = json.error?.message ?? json.message ?? `HTTP ${res.status}`;
+        setMpesaLookupStatus('error');
+        setMpesaLookupError(typeof msg === 'string' ? msg : 'Lookup failed');
+        return;
+      }
+      const data = json.data as {
+        valid?: boolean;
+        displayLabel?: string | null;
+        error?: string | null;
+        transactionReference?: string | null;
+      } | undefined;
+      if (data?.valid && data.displayLabel) {
+        setMpesaLookupStatus('success');
+        setMpesaLookupLabel(data.displayLabel);
+        setMpesaLookupError(null);
+        setMpesaVerifiedRef((data.transactionReference ?? ref).trim());
+      } else {
+        setMpesaLookupStatus('error');
+        setMpesaLookupLabel(null);
+        setMpesaLookupError(data?.error ?? 'Invalid M-Pesa transaction reference');
+        setMpesaVerifiedRef(null);
+      }
+    } catch {
+      setMpesaLookupStatus('error');
+      setMpesaLookupLabel(null);
+      setMpesaLookupError('Lookup request failed');
+      setMpesaVerifiedRef(null);
+    }
+  };
+
   const runValidatePayment = async () => {
     if (!paymentFile || !paymentFormData.amount.trim()) return;
     const amount = parseFloat(paymentFormData.amount);
     if (Number.isNaN(amount) || amount < 0) return;
+    if (paymentFormData.paymentType === 'MPESA') {
+      const ref = paymentFormData.transactionReference.trim();
+      if (!ref || mpesaVerifiedRef !== ref || mpesaLookupStatus !== 'success') {
+        setValidationErrors([
+          'Verify the M-Pesa transaction reference first (leave the field to look it up).',
+        ]);
+        return;
+      }
+    }
     try {
       const token = await getSupabaseToken();
       const form = new FormData();
       form.append('file', paymentFile);
       form.append('amount', paymentFormData.amount);
       form.append('transactionReference', paymentFormData.transactionReference);
+      form.append('paymentType', paymentFormData.paymentType);
       const res = await fetch(`${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/product-management/schemes/${schemeId}/postpaid-payments/validate`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}` },
@@ -443,6 +519,13 @@ export default function SchemeDetailPage() {
     if (Number.isNaN(amount) || amount < 0 || amount > 9999999.99) {
       setPaymentError('Amount must be between 0 and 9,999,999.99');
       return;
+    }
+    if (paymentFormData.paymentType === 'MPESA') {
+      const ref = paymentFormData.transactionReference.trim();
+      if (!ref || mpesaVerifiedRef !== ref || mpesaLookupStatus !== 'success') {
+        setPaymentError('Verify the M-Pesa transaction reference first (leave the field to look it up).');
+        return;
+      }
     }
     setPaymentLoading(true);
     setPaymentError(null);
@@ -1294,7 +1377,11 @@ export default function SchemeDetailPage() {
               <select
                 className="w-full h-10 px-3 border rounded-md"
                 value={paymentFormData.paymentType}
-                onChange={(e) => setPaymentFormData({ ...paymentFormData, paymentType: e.target.value })}
+                onChange={(e) => {
+                  const nextType = e.target.value;
+                  setPaymentFormData({ ...paymentFormData, paymentType: nextType });
+                  clearMpesaLookupState();
+                }}
               >
                 <option value="MPESA">MPESA</option>
                 <option value="SASAPAY">SasaPay</option>
@@ -1303,13 +1390,48 @@ export default function SchemeDetailPage() {
               </select>
             </div>
             <div>
-              <Label>Transaction reference * (max 35 characters)</Label>
+              <Label>
+                {paymentFormData.paymentType === 'MPESA'
+                  ? 'M-Pesa transaction reference * (max 35 characters)'
+                  : 'Transaction reference * (max 35 characters)'}
+              </Label>
               <Input
                 value={paymentFormData.transactionReference}
-                onChange={(e) => setPaymentFormData({ ...paymentFormData, transactionReference: e.target.value.slice(0, 35) })}
-                placeholder="e.g. BATCH-JAN-2025-001"
+                onChange={(e) => {
+                  const next = e.target.value.slice(0, 35);
+                  setPaymentFormData({ ...paymentFormData, transactionReference: next });
+                  if (paymentFormData.paymentType === 'MPESA') {
+                    setMpesaLookupStatus('idle');
+                    setMpesaLookupLabel(null);
+                    setMpesaLookupError(null);
+                    setMpesaVerifiedRef(null);
+                  }
+                }}
+                onBlur={() => {
+                  if (paymentFormData.paymentType === 'MPESA') {
+                    void lookupMpesaTransactionReference(paymentFormData.transactionReference);
+                  }
+                }}
+                placeholder={
+                  paymentFormData.paymentType === 'MPESA'
+                    ? 'e.g. UGTPM18EP7'
+                    : 'e.g. BATCH-JAN-2025-001'
+                }
                 maxLength={35}
               />
+              {paymentFormData.paymentType === 'MPESA' && (
+                <div className="mt-1.5 text-sm">
+                  {mpesaLookupStatus === 'loading' && (
+                    <p className="text-muted-foreground">Looking up M-Pesa payment…</p>
+                  )}
+                  {mpesaLookupStatus === 'success' && mpesaLookupLabel && (
+                    <p className="text-green-700">{mpesaLookupLabel}</p>
+                  )}
+                  {mpesaLookupStatus === 'error' && mpesaLookupError && (
+                    <p className="text-red-600">{mpesaLookupError}</p>
+                  )}
+                </div>
+              )}
             </div>
             <div>
               <Label>Payment made date * (e.g. cheque date or bank transfer date)</Label>

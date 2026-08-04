@@ -9,7 +9,7 @@ import { useBAStatusCheck } from '@/hooks/useBAStatusCheck';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { LogOut, User, LayoutDashboard, Search, Home, Users, UsersRound, Menu, Building2, Wallet, MessageSquare, FileCheck, FileSpreadsheet } from 'lucide-react';
+import { LogOut, User, LayoutDashboard, Search, Home, Users, UsersRound, Menu, Building2, Wallet, MessageSquare, FileCheck, FileSpreadsheet, Layers } from 'lucide-react';
 
 export default function AdminLayout({
   children,
@@ -106,6 +106,16 @@ export default function AdminLayout({
         >
           <Building2 className="h-4 w-4 mr-2" />
           Underwriters
+        </Link>
+        <Link
+          href="/admin/schemes"
+          className={`flex items-center px-3 py-2 rounded-md hover:bg-white/10 transition-colors ${
+            pathname?.startsWith('/admin/schemes') ? 'bg-white/10' : ''
+          }`}
+          onClick={() => isMobile && setSidebarOpen(false)}
+        >
+          <Layers className="h-4 w-4 mr-2" />
+          Schemes
         </Link>
         <Link
           href="/admin/messages"
