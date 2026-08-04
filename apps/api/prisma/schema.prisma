@@ -301,6 +301,8 @@ model Policy {
   startDate      DateTime?
   endDate        DateTime?
   premium        Decimal          @db.Decimal(10, 2)
+  /// Annual premium for plan/category (from pricing JSON); set with premium
+  annualPremium  Decimal?         @db.Decimal(10, 2)
   frequency      PaymentFrequency
   paymentCadence Int // Number of days between premium payments
   /// Snapshot of package payment-frequency installment count at create/modify

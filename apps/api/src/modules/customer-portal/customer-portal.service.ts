@@ -7,6 +7,12 @@ import { MessagingService } from '../messaging/messaging.service';
 import { ValidationException } from '../../exceptions/validation.exception';
 import { notDetachedPaymentWhere } from '../../utils/policy-payment-filters';
 import {
+  computeMissedInstallments,
+  computePaidInstallments,
+  countConfirmedPayments,
+  sumConfirmedPaymentAmounts,
+} from '../../utils/installment-count.util';
+import {
   international254ToNational07,
   maskNationalPhoneForPortal,
 } from '../../utils/customer-portal-auth.util';
@@ -160,12 +166,17 @@ export class CustomerPortalService {
       where: { customerId },
       include: {
         package: {
-          select: { name: true, totalPremium: true, underwriter: { select: { name: true } } },
+          select: { name: true, underwriter: { select: { name: true } } },
         },
         packagePlan: { select: { name: true } },
         policyPayments: {
           where: notDetachedPaymentWhere(),
-          select: { expectedPaymentDate: true, actualPaymentDate: true, amount: true },
+          select: {
+            expectedPaymentDate: true,
+            actualPaymentDate: true,
+            amount: true,
+            paymentStatus: true,
+          },
         },
       },
     });
@@ -180,10 +191,19 @@ export class CustomerPortalService {
           },
         });
         const schemeName = schemeCustomer?.packageScheme?.scheme?.schemeName ?? '—';
-        const installmentsPaid = p.policyPayments.filter((pm) => pm.actualPaymentDate != null).length;
-        const missedPayments = p.policyPayments.filter(
-          (pm) => pm.expectedPaymentDate < now && pm.actualPaymentDate == null,
-        ).length;
+        const premiumNum = Number(p.premium);
+        const confirmedPaidTotal = sumConfirmedPaymentAmounts(p.policyPayments);
+        const paid = computePaidInstallments({
+          installmentAmount: premiumNum,
+          confirmedPaidTotal,
+        });
+        const missed = computeMissedInstallments({
+          policyStart: p.startDate,
+          asOfUtc: now,
+          paymentCadenceDays: p.paymentCadence,
+          installmentAmount: premiumNum,
+          paidExact: paid.exact,
+        });
         return {
           id: p.id,
           productName: p.productName,
@@ -192,10 +212,14 @@ export class CustomerPortalService {
           schemeName,
           underwriterName: p.package.underwriter?.name ?? null,
           status: p.status,
-          totalPremium: p.package.totalPremium != null ? p.package.totalPremium.toString() : '—',
+          totalPremium: p.annualPremium != null ? p.annualPremium.toString() : '—',
           installment: p.premium.toString(),
-          installmentsPaid,
-          missedPayments,
+          installmentsPaid: paid.value,
+          installmentsPaidApproximate: paid.approximate,
+          missedPayments: missed.value,
+          missedPaymentsApproximate: missed.approximate,
+          paymentsMadeCount: countConfirmedPayments(p.policyPayments),
+          expectedInstallmentCount: p.expectedInstallmentCount ?? null,
         };
       }),
     );
@@ -215,7 +239,6 @@ export class CustomerPortalService {
           select: {
             name: true,
             slug: true,
-            totalPremium: true,
             underwriter: { select: { name: true } },
           },
         },
@@ -249,14 +272,20 @@ export class CustomerPortalService {
     const isPostpaid = schemeCustomer?.packageScheme?.scheme?.isPostpaid === true;
     const schemeBillingMode: 'prepaid' | 'postpaid' = isPostpaid ? 'postpaid' : 'prepaid';
 
-    const installmentsPaid = policy.policyPayments.filter((pm) => pm.actualPaymentDate != null).length;
     const now = new Date();
-    const missedPayments = policy.policyPayments.filter(
-      (pm) => pm.expectedPaymentDate < now && pm.actualPaymentDate == null,
-    ).length;
-    const totalPaidToDate = policy.policyPayments
-      .filter((pm) => pm.actualPaymentDate != null)
-      .reduce((sum, pm) => sum + Number(pm.amount), 0);
+    const premiumNum = Number(policy.premium);
+    const totalPaidToDate = sumConfirmedPaymentAmounts(policy.policyPayments);
+    const paid = computePaidInstallments({
+      installmentAmount: premiumNum,
+      confirmedPaidTotal: totalPaidToDate,
+    });
+    const missed = computeMissedInstallments({
+      policyStart: policy.startDate,
+      asOfUtc: now,
+      paymentCadenceDays: policy.paymentCadence,
+      installmentAmount: premiumNum,
+      paidExact: paid.exact,
+    });
 
     return {
       status: 200,
@@ -286,11 +315,14 @@ export class CustomerPortalService {
           nominalPaymentPeriodEndDate:
             policy.nominalPaymentPeriodEndDate?.toISOString() ?? null,
         },
-        totalPremium: policy.package.totalPremium?.toString() ?? '—',
+        totalPremium: policy.annualPremium != null ? policy.annualPremium.toString() : '—',
         installmentAmount: policy.premium.toString(),
         totalPaidToDate: totalPaidToDate.toString(),
-        installmentsPaid,
-        missedPayments,
+        installmentsPaid: paid.value,
+        installmentsPaidApproximate: paid.approximate,
+        missedPayments: missed.value,
+        missedPaymentsApproximate: missed.approximate,
+        paymentsMadeCount: countConfirmedPayments(policy.policyPayments),
       },
     };
   }

@@ -12,7 +12,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
-import { ArrowLeft, Loader2 } from 'lucide-react';
+import { ArrowLeft, Info, Loader2 } from 'lucide-react';
 import {
   type CustomerPolicyDetail,
   type Scheme,
@@ -20,8 +20,28 @@ import {
   updateCustomerPolicyScheme,
   updatePolicyStaffNumber,
 } from '@/lib/api';
+import {
+  formatInstallmentsPaidDisplay,
+  formatPolicyDateTimeParts,
+} from '@/lib/policy-display';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+
+function DateTimeValue({ iso }: { iso: string | null | undefined }) {
+  const parts = formatPolicyDateTimeParts(iso);
+  if (!parts) return <span>—</span>;
+  return (
+    <span className="text-right">
+      <span className="block">{parts.date}</span>
+      <span className="block text-xs text-muted-foreground">{parts.time}</span>
+    </span>
+  );
+}
 
 interface PolicyDetailViewProps {
   data: CustomerPolicyDetail;
@@ -213,13 +233,17 @@ export default function PolicyDetailView({
             <CardDescription>Cover period and payment schedule</CardDescription>
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Start date</span>
-              <span>{e.startDate ?? '—'}</span>
+            <div className="flex justify-between gap-4">
+              <span className="text-muted-foreground">Policy started</span>
+              <DateTimeValue iso={e.startDate} />
             </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">End date</span>
-              <span>{e.endDate ?? '—'}</span>
+            <div className="flex justify-between gap-4">
+              <span className="text-muted-foreground">Policy ending</span>
+              <DateTimeValue iso={e.endDate} />
+            </div>
+            <div className="flex justify-between gap-4">
+              <span className="text-muted-foreground">Expected payment end date</span>
+              <DateTimeValue iso={e.nominalPaymentPeriodEndDate} />
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">Frequency</span>
@@ -250,13 +274,42 @@ export default function PolicyDetailView({
               <span className="text-muted-foreground">Total paid to date</span>
               <span>{data.totalPaidToDate}</span>
             </div>
-            <div className="flex justify-between">
+            <div className="flex justify-between items-center gap-2">
               <span className="text-muted-foreground">Installments paid</span>
-              <span>{data.installmentsPaid}</span>
+              <span className="inline-flex items-center gap-1">
+                {formatInstallmentsPaidDisplay(
+                  data.installmentsPaid,
+                  data.installmentsPaidApproximate
+                )}
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      type="button"
+                      className="text-muted-foreground hover:text-foreground"
+                      aria-label="Payments made"
+                    >
+                      <Info className="h-3.5 w-3.5" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    {data.paymentsMadeCount ?? 0} payment
+                    {(data.paymentsMadeCount ?? 0) === 1 ? '' : 's'} made
+                  </TooltipContent>
+                </Tooltip>
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Expected installments</span>
+              <span>{e.expectedInstallmentCount ?? '—'}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">Missed payments</span>
-              <span>{data.missedPayments}</span>
+              <span>
+                {formatInstallmentsPaidDisplay(
+                  data.missedPayments,
+                  data.missedPaymentsApproximate
+                )}
+              </span>
             </div>
           </CardContent>
         </Card>

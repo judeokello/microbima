@@ -1,5 +1,5 @@
 /// <reference types="jest" />
-import { computeInstallmentPremium } from '../insurance-installment.util';
+import { computeAnnualPremium, computeInstallmentPremium } from '../insurance-installment.util';
 
 describe('computeInstallmentPremium', () => {
   it('extrapolates non-weekly from daily × cadence', () => {
@@ -56,5 +56,26 @@ describe('computeInstallmentPremium', () => {
         lookupRates: { daily: 56, weekly: 339, monthly: 1470, annually: 17645 },
       })
     ).toBe(0);
+  });
+});
+
+describe('computeAnnualPremium', () => {
+  it('prefers annually band from lookup rates', () => {
+    expect(
+      computeAnnualPremium({
+        daily: 84,
+        pricingMode: 'extrapolate',
+        lookupRates: { daily: 84, weekly: 586, annually: 30660 },
+      })
+    ).toBe(30660);
+  });
+
+  it('falls back to daily × 365 in extrapolate mode', () => {
+    expect(
+      computeAnnualPremium({
+        daily: 63,
+        pricingMode: 'extrapolate',
+      })
+    ).toBe(22995);
   });
 });

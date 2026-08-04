@@ -80,10 +80,20 @@ export class CreatePolicyFromRecoveryRequestDto {
   @Min(1)
   packagePlanId: number;
 
-  @ApiProperty({ description: 'Premium amount', example: 500 })
+  @ApiProperty({ description: 'Installment premium amount', example: 500 })
   @IsNumber()
   @Min(0)
   premium: number;
+
+  @ApiProperty({
+    description: 'Annual premium from pricing JSON (plan/category ± spouse)',
+    example: 30660,
+    required: false,
+  })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  annualPremium?: number;
 
   @ApiProperty({ description: 'Payment frequency', enum: PaymentFrequency })
   @IsEnum(PaymentFrequency)
