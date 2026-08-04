@@ -39,6 +39,7 @@ import {
 import {
   PackageDetailResponseDto,
   PackageSchemesResponseDto,
+  GlobalSchemesListResponseDto,
   UpdatePackageRequestDto,
 } from '../../dto/packages/package.dto';
 import {
@@ -646,6 +647,61 @@ export class ProductManagementController {
       correlationId,
       message: 'Scheme created successfully',
       data: scheme,
+    };
+  }
+
+  /**
+   * Get all schemes with customer counts (paginated)
+   */
+  @Get('schemes-with-counts')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Get all schemes with customer counts',
+    description:
+      'Retrieve a paginated list of all package-scheme assignments with underwriter, package, and customer counts.',
+  })
+  @ApiQuery({
+    name: 'page',
+    description: 'Page number (default: 1)',
+    required: false,
+    type: Number,
+    example: 1,
+  })
+  @ApiQuery({
+    name: 'pageSize',
+    description: 'Items per page (default: 20, max: 100)',
+    required: false,
+    type: Number,
+    example: 20,
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Schemes retrieved successfully',
+    type: GlobalSchemesListResponseDto,
+  })
+  @ApiResponse({
+    status: 500,
+    description: 'Internal server error',
+  })
+  async getAllSchemesWithCounts(
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+    @CorrelationId() correlationId?: string
+  ): Promise<GlobalSchemesListResponseDto> {
+    const pageNum = page ? parseInt(page, 10) : 1;
+    const pageSizeNum = pageSize ? parseInt(pageSize, 10) : 20;
+
+    const result = await this.productManagementService.getAllSchemesWithCounts(
+      pageNum,
+      pageSizeNum,
+      correlationId ?? 'unknown'
+    );
+
+    return {
+      status: HttpStatus.OK,
+      correlationId: correlationId ?? 'unknown',
+      message: 'Schemes retrieved successfully',
+      ...result,
     };
   }
 

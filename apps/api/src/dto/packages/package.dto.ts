@@ -353,3 +353,118 @@ export class PackageSchemesResponseDto {
   })
   data: PackageSchemeDto[];
 }
+
+export class GlobalSchemeListItemDto {
+  @ApiProperty({
+    description: 'Scheme ID',
+    example: 1,
+  })
+  id: number;
+
+  @ApiProperty({
+    description: 'PackageScheme junction ID',
+    example: 10,
+  })
+  packageSchemeId: number;
+
+  @ApiProperty({
+    description: 'Scheme name',
+    example: 'Corporate Scheme',
+  })
+  schemeName: string;
+
+  @ApiProperty({
+    description: 'Scheme description',
+    example: 'Corporate insurance scheme for employees',
+  })
+  description: string;
+
+  @ApiProperty({
+    description: 'Whether the scheme is active',
+    example: true,
+  })
+  isActive: boolean;
+
+  @ApiProperty({
+    description: 'Whether the scheme is postpaid',
+    example: false,
+  })
+  isPostpaid: boolean;
+
+  @ApiProperty({
+    description: 'General scheme waiting period in days',
+    example: 30,
+    nullable: true,
+  })
+  generalSchemeWaitingPeriod: number | null;
+
+  @ApiProperty({
+    description: 'Number of customers in this package-scheme',
+    example: 50,
+  })
+  customersCount: number;
+
+  @ApiProperty({
+    description: 'Package ID',
+    example: 1,
+  })
+  packageId: number;
+
+  @ApiProperty({
+    description: 'Package name',
+    example: 'Mfanisi Go',
+  })
+  packageName: string;
+
+  @ApiProperty({
+    description: 'Underwriter ID',
+    example: 1,
+    nullable: true,
+  })
+  underwriterId: number | null;
+
+  @ApiProperty({
+    description: 'Underwriter name',
+    example: 'Jubilee Insurance',
+    nullable: true,
+  })
+  underwriterName: string | null;
+}
+
+export class GlobalSchemesListResponseDto {
+  @ApiProperty({
+    description: 'HTTP status code',
+    example: 200,
+  })
+  status: number;
+
+  @ApiProperty({
+    description: 'Correlation ID from request',
+    example: 'req-schemes-list-12345',
+  })
+  correlationId: string;
+
+  @ApiProperty({
+    description: 'Response message',
+    example: 'Schemes retrieved successfully',
+  })
+  message: string;
+
+  @ApiProperty({
+    description: 'Schemes data',
+    type: [GlobalSchemeListItemDto],
+  })
+  data: GlobalSchemeListItemDto[];
+
+  @ApiProperty({
+    description: 'Pagination information',
+  })
+  pagination: {
+    page: number;
+    pageSize: number;
+    totalItems: number;
+    totalPages: number;
+    hasNextPage: boolean;
+    hasPreviousPage: boolean;
+  };
+}

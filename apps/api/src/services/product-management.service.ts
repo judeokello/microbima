@@ -784,6 +784,102 @@ export class ProductManagementService {
   }
 
   /**
+   * Get all package-schemes with customer counts, package, and underwriter context
+   * @param page - Page number (1-based)
+   * @param pageSize - Items per page
+   * @param correlationId - Correlation ID for tracing
+   * @returns Paginated list of schemes with package/underwriter context
+   */
+  async getAllSchemesWithCounts(page: number, pageSize: number, correlationId: string) {
+    this.logger.log(`[${correlationId}] Getting all schemes with counts (page=${page}, pageSize=${pageSize})`);
+
+    try {
+      const validatedPage = Math.max(1, page);
+      const validatedPageSize = Math.min(100, Math.max(1, pageSize));
+      const skip = (validatedPage - 1) * validatedPageSize;
+
+      const [packageSchemes, totalCount] = await Promise.all([
+        this.prismaService.packageScheme.findMany({
+          skip,
+          take: validatedPageSize,
+          include: {
+            scheme: {
+              select: {
+                id: true,
+                schemeName: true,
+                description: true,
+                isActive: true,
+                isPostpaid: true,
+              },
+            },
+            package: {
+              select: {
+                id: true,
+                name: true,
+                underwriterId: true,
+                underwriter: {
+                  select: {
+                    id: true,
+                    name: true,
+                  },
+                },
+              },
+            },
+            _count: {
+              select: {
+                packageSchemeCustomers: true,
+              },
+            },
+          },
+          orderBy: {
+            scheme: {
+              schemeName: 'asc',
+            },
+          },
+        }),
+        this.prismaService.packageScheme.count(),
+      ]);
+
+      const totalPages = Math.ceil(totalCount / validatedPageSize);
+
+      const schemes = packageSchemes.map((ps) => ({
+        id: ps.scheme.id,
+        packageSchemeId: ps.id,
+        schemeName: ps.scheme.schemeName,
+        description: ps.scheme.description,
+        isActive: ps.scheme.isActive,
+        isPostpaid: ps.scheme.isPostpaid,
+        generalSchemeWaitingPeriod: ps.generalSchemeWaitingPeriod,
+        customersCount: ps._count.packageSchemeCustomers,
+        packageId: ps.package.id,
+        packageName: ps.package.name,
+        underwriterId: ps.package.underwriterId ?? ps.package.underwriter?.id ?? null,
+        underwriterName: ps.package.underwriter?.name ?? null,
+      }));
+
+      this.logger.log(`[${correlationId}] Found ${schemes.length} of ${totalCount} schemes`);
+
+      return {
+        data: schemes,
+        pagination: {
+          page: validatedPage,
+          pageSize: validatedPageSize,
+          totalItems: totalCount,
+          totalPages,
+          hasNextPage: validatedPage < totalPages,
+          hasPreviousPage: validatedPage > 1,
+        },
+      };
+    } catch (error) {
+      this.logger.error(
+        `[${correlationId}] Error getting all schemes with counts: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        error instanceof Error ? error.stack : undefined
+      );
+      throw error;
+    }
+  }
+
+  /**
    * Get schemes for a package with customer counts
    * @param packageId - Package ID
    * @param correlationId - Correlation ID for tracing
