@@ -275,7 +275,7 @@ export default function MissingInformationPage() {
                         {item.customerName}
                       </Link>
                     </TableCell>
-                    <TableCell className="whitespace-nowrap">{item.customerPhone || '—'}</TableCell>
+                    <TableCell className="whitespace-nowrap">{item.customerPhone ?? '—'}</TableCell>
                     <TableCell>{item.entityName}</TableCell>
                     <TableCell>
                       <Badge variant="outline">{item.entityKind}</Badge>

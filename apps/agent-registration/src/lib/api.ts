@@ -2826,7 +2826,7 @@ export async function getCareOpsMissingQueue(params?: {
   )
   if (!response.ok) {
     const err = await response.json().catch(() => ({}))
-    throw new Error(err.message || `Failed to load care-ops queue (${response.status})`)
+    throw new Error(err.message ?? `Failed to load care-ops queue (${response.status})`)
   }
   return response.json()
 }
