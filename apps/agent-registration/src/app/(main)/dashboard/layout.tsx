@@ -9,14 +9,14 @@ import { useBAStatusCheck } from '@/hooks/useBAStatusCheck';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { LogOut, User, Settings, Search, Home, UserPlus, ClipboardList, Menu, RefreshCw, Hospital } from 'lucide-react';
+import { LogOut, User, Settings, Search, Home, UserPlus, ClipboardList, Menu, RefreshCw, Hospital, ClipboardPen } from 'lucide-react';
 
 export default function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const { user, userMetadata, isBrandAmbassador, isAdmin, signOut, loading } = useAuth();
+  const { user, userMetadata, isBrandAmbassador, isAdmin, isCustomerCare, isRegistrationAdmin, signOut, loading } = useAuth();
   const pathname = usePathname();
   const isMobile = useIsMobile();
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -41,8 +41,9 @@ export default function DashboardLayout({
     return null;
   }
 
-  // If user is authenticated but not authorized for dashboard
-  if (!isBrandAmbassador) {
+  // Agents, customer care, and registration admins can use the dashboard
+  const canAccessDashboard = isBrandAmbassador || isCustomerCare || isRegistrationAdmin
+  if (!canAccessDashboard) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
@@ -129,6 +130,19 @@ export default function DashboardLayout({
           <Hospital className="h-4 w-4 mr-2" />
           Providers
         </Link>
+
+        {(isCustomerCare || isRegistrationAdmin) && (
+          <Link
+            href="/dashboard/missing-information"
+            className={`flex items-center px-3 py-2 rounded-md hover:bg-white/10 transition-colors ${
+              pathname === '/dashboard/missing-information' ? 'bg-white/10' : ''
+            }`}
+            onClick={() => isMobile && setSidebarOpen(false)}
+          >
+            <ClipboardPen className="h-4 w-4 mr-2" />
+            Missing Information
+          </Link>
+        )}
 
         {/* Admin link - only visible if user has registration_admin role */}
         {isAdmin && (
