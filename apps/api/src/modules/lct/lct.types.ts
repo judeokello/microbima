@@ -1,4 +1,5 @@
 import { LctPendingAction, PolicyStatus } from '@prisma/client';
+import { normalizePhoneNumber } from '../../utils/phone-number.util';
 
 /** Shared domain intent for CSV (and future LCT HTTP) adapters */
 export interface LctMemberSyncIntent {
@@ -24,6 +25,10 @@ export interface LctMemberSyncIntent {
   /** Policy coverage dates — CSV only (DD-MM-YYYY) */
   policyStartDate: string;
   policyEndDate: string;
+  /** Package name only — CSV PRODUCT column */
+  productName: string;
+  /** Package plan name (title case) — CSV PLAN column */
+  planName: string;
 }
 
 export const LCT_TEMPLATE_KEY = 'lct_customer_export';
@@ -128,6 +133,92 @@ export function formatLctGender(gender: string | null | undefined): string {
   if (gender === 'MALE') return 'Male';
   if (gender === 'FEMALE') return 'Female';
   return '';
+}
+
+/** Title-case words for LCT PLAN column (e.g. gold → Gold). */
+export function toTitleCase(value: string | null | undefined): string {
+  if (!value?.trim()) return '';
+  return value
+    .trim()
+    .split(/\s+/)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(' ');
+}
+
+/**
+ * Normalize phone for LCT CSV: 254XXXXXXXXX without "+".
+ * Invalid / blank → '' so callers can apply spouse/child fallback.
+ */
+export function formatLctPhone(raw: string | null | undefined): string {
+  if (!raw?.trim()) return '';
+  try {
+    return normalizePhoneNumber(raw.trim());
+  } catch {
+    return '';
+  }
+}
+
+const RELATIONSHIP_SORT_ORDER: Record<string, number> = {
+  PRINCIPAL: 0,
+  SPOUSE: 1,
+  CHILD: 2,
+};
+
+function relationshipSortRank(relationship: string): number {
+  return RELATIONSHIP_SORT_ORDER[relationship] ?? 99;
+}
+
+/**
+ * Sort export rows: families by principal memberNumber, within family
+ * Principal → Spouse → Children → other, then memberNumber ascending.
+ */
+export function sortLctExportIntents<T extends { intent: LctMemberSyncIntent }>(
+  items: T[]
+): T[] {
+  const byPolicy = new Map<string, T[]>();
+  for (const item of items) {
+    const key = item.intent.policyId;
+    const list = byPolicy.get(key);
+    if (list) list.push(item);
+    else byPolicy.set(key, [item]);
+  }
+
+  const familyKeys = Array.from(byPolicy.keys()).sort((a, b) => {
+    const aPrincipal =
+      byPolicy.get(a)?.find((x) => x.intent.relationship === 'PRINCIPAL')?.intent
+        .memberNumber ??
+      byPolicy.get(a)?.[0]?.intent.memberNumber ??
+      '';
+    const bPrincipal =
+      byPolicy.get(b)?.find((x) => x.intent.relationship === 'PRINCIPAL')?.intent
+        .memberNumber ??
+      byPolicy.get(b)?.[0]?.intent.memberNumber ??
+      '';
+    return aPrincipal.localeCompare(bPrincipal);
+  });
+
+  const sorted: T[] = [];
+  for (const key of familyKeys) {
+    const family = byPolicy.get(key)!;
+    family.sort((a, b) => {
+      const rel = relationshipSortRank(a.intent.relationship) - relationshipSortRank(b.intent.relationship);
+      if (rel !== 0) return rel;
+      return a.intent.memberNumber.localeCompare(b.intent.memberNumber);
+    });
+    sorted.push(...family);
+  }
+  return sorted;
+}
+
+/** Sort pending UI dependants: Spouse → Children → other, then memberNumber. */
+export function sortLctPendingDependants<
+  T extends { relationship: string; memberNumber: string },
+>(dependants: T[]): T[] {
+  return [...dependants].sort((a, b) => {
+    const rel = relationshipSortRank(a.relationship) - relationshipSortRank(b.relationship);
+    if (rel !== 0) return rel;
+    return a.memberNumber.localeCompare(b.memberNumber);
+  });
 }
 
 /**

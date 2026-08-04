@@ -3,9 +3,12 @@ import {
   buildLctExportSubject,
   formatLctDob,
   formatLctGender,
+  formatLctPhone,
   mapPolicyStatusToLctAction,
   normalizeEmailList,
   shouldEnqueueStatusChange,
+  sortLctExportIntents,
+  toTitleCase,
 } from '../lct.types';
 import { buildLctCsv, intentToCsvRow } from '../lct-csv.builder';
 import type { LctMemberSyncIntent } from '../lct.types';
@@ -52,12 +55,14 @@ describe('LCT CSV builder', () => {
     dateOfBirth: '15-01-1990',
     relationship: 'PRINCIPAL',
     email: 'jane@example.com',
-    phoneNumber: '+254700000000',
+    phoneNumber: '254700000000',
     idNumber: '12345678',
-    principalMemberNumber: '',
+    principalMemberNumber: 'MP00100',
     schemeName: 'Maisha Poa General',
     policyStartDate: '01-01-2026',
     policyEndDate: '31-12-2026',
+    productName: 'Maisha Poa',
+    planName: 'Gold',
     ...overrides,
   });
 
@@ -81,20 +86,70 @@ describe('LCT CSV builder', () => {
       }),
     ]);
 
+    const header = csv.split('\n')[0];
     expect(rowCount).toBe(3);
-    expect(csv.split('\n')[0]).toContain('REQUIRED ACTION');
-    expect(csv.split('\n')[0]).toContain('SCHEME NAME');
-    expect(csv.split('\n')[0]).toContain('START DATE');
-    expect(csv.split('\n')[0]).toContain('END DATE');
+    expect(header).toContain('REQUIRED ACTION');
+    expect(header).toContain('SCHEME NAME');
+    expect(header).toContain('START DATE');
+    expect(header).toContain('END DATE');
+    expect(header.endsWith('PRODUCT,PLAN')).toBe(true);
     expect(csv).toContain('ACTIVATE');
     expect(csv).toContain('SUSPENDED');
     expect(csv).toContain('DEACTIVATE');
-    expect(rows[0]['PRINCIPAL MEMBER NUMBER']).toBe('');
+    expect(rows[0]['PRINCIPAL MEMBER NUMBER']).toBe('MP00100');
     expect(rows[1]['PRINCIPAL MEMBER NUMBER']).toBe('MP00100');
     expect(intentToCsvRow(sampleIntent())['STAFF NUMBER']).toBe('S-1');
     expect(rows[0]['SCHEME NAME']).toBe('Maisha Poa General');
     expect(rows[0]['START DATE']).toBe('01-01-2026');
     expect(rows[0]['END DATE']).toBe('31-12-2026');
+    expect(rows[0].PRODUCT).toBe('Maisha Poa');
+    expect(rows[0].PLAN).toBe('Gold');
+  });
+
+  it('title-cases PLAN and normalizes phone without +', () => {
+    expect(toTitleCase('gold')).toBe('Gold');
+    expect(toTitleCase('SILVER PLAN')).toBe('Silver Plan');
+    expect(formatLctPhone('0722000000')).toBe('254722000000');
+    expect(formatLctPhone('+254722000000')).toBe('254722000000');
+    expect(formatLctPhone('')).toBe('');
+    expect(formatLctPhone('not-a-phone')).toBe('');
+  });
+
+  it('sorts export intents Principal → Spouse → Children by family', () => {
+    const mixed = [
+      { intent: sampleIntent({ policyId: 'p2', memberNumber: 'B-00', relationship: 'PRINCIPAL' }) },
+      {
+        intent: sampleIntent({
+          policyId: 'p1',
+          memberNumber: 'A-02',
+          subjectType: 'DEPENDANT',
+          relationship: 'CHILD',
+          principalMemberNumber: 'A-00',
+        }),
+      },
+      {
+        intent: sampleIntent({
+          policyId: 'p1',
+          memberNumber: 'A-01',
+          subjectType: 'DEPENDANT',
+          relationship: 'SPOUSE',
+          principalMemberNumber: 'A-00',
+        }),
+      },
+      { intent: sampleIntent({ policyId: 'p1', memberNumber: 'A-00', relationship: 'PRINCIPAL' }) },
+      {
+        intent: sampleIntent({
+          policyId: 'p1',
+          memberNumber: 'A-03',
+          subjectType: 'DEPENDANT',
+          relationship: 'CHILD',
+          principalMemberNumber: 'A-00',
+        }),
+      },
+    ];
+
+    const sorted = sortLctExportIntents(mixed).map((x) => x.intent.memberNumber);
+    expect(sorted).toEqual(['A-00', 'A-01', 'A-02', 'A-03', 'B-00']);
   });
 
   it('formats gender and DOB helpers', () => {
