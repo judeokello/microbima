@@ -17,6 +17,8 @@ export const LCT_CSV_HEADERS = [
   'SCHEME NAME',
   'START DATE',
   'END DATE',
+  'PRODUCT',
+  'PLAN',
 ] as const;
 
 export type LctCsvRow = Record<(typeof LCT_CSV_HEADERS)[number], string>;
@@ -38,6 +40,8 @@ export function intentToCsvRow(intent: LctMemberSyncIntent): LctCsvRow {
     'SCHEME NAME': intent.schemeName,
     'START DATE': intent.policyStartDate,
     'END DATE': intent.policyEndDate,
+    PRODUCT: intent.productName,
+    PLAN: intent.planName,
   };
 }
 
