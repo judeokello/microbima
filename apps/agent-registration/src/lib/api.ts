@@ -2851,3 +2851,102 @@ export async function updatePolicyStaffNumber(
     body: JSON.stringify({ staffNumber }),
   })
 }
+
+// ---------- Healthcare Provider Panels (agent) ----------
+
+export interface PackageProviderPanelSummary {
+  packageId: number
+  packageName: string
+  packageSlug: string | null
+  providerCount: number
+}
+
+export interface HealthcareProviderListItem {
+  id: number
+  name: string
+  countyId: number
+  countyName: string
+  subCountyId: number | null
+  subCountyName: string | null
+  latitude: number | null
+  longitude: number | null
+  sourceName: string
+  isActive: boolean
+}
+
+export interface HealthcareProviderPagination {
+  page: number
+  pageSize: number
+  totalItems: number
+  totalPages: number
+  hasNextPage: boolean
+  hasPreviousPage: boolean
+}
+
+function healthcareProvidersBaseUrl(): string {
+  return `${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/healthcare-providers`
+}
+
+export async function getPackageProviderPanels(): Promise<PackageProviderPanelSummary[]> {
+  const token = await getSupabaseToken()
+  const response = await fetch(`${healthcareProvidersBaseUrl()}/packages`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'x-correlation-id': `hp-packages-${Date.now()}`,
+    },
+  })
+  if (!response.ok) {
+    throw new Error(`Failed to load provider panels: HTTP ${response.status}`)
+  }
+  const json = (await response.json()) as { data: PackageProviderPanelSummary[] }
+  return json.data
+}
+
+export async function getPackageProviders(
+  packageId: number,
+  options: { page?: number; pageSize?: number; search?: string } = {}
+): Promise<{ data: HealthcareProviderListItem[]; pagination: HealthcareProviderPagination }> {
+  const token = await getSupabaseToken()
+  const params = new URLSearchParams({
+    page: String(options.page ?? 1),
+    pageSize: String(options.pageSize ?? 20),
+  })
+  if (options.search?.trim()) {
+    params.set('search', options.search.trim())
+  }
+
+  const response = await fetch(
+    `${healthcareProvidersBaseUrl()}/packages/${packageId}/providers?${params}`,
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'x-correlation-id': `hp-providers-${Date.now()}`,
+      },
+    }
+  )
+  if (!response.ok) {
+    throw new Error(`Failed to load providers: HTTP ${response.status}`)
+  }
+  const json = (await response.json()) as {
+    data: HealthcareProviderListItem[]
+    pagination: HealthcareProviderPagination
+  }
+  return { data: json.data, pagination: json.pagination }
+}
+
+export async function downloadPackageProvidersCsv(packageId: number): Promise<Blob> {
+  const token = await getSupabaseToken()
+  const response = await fetch(
+    `${healthcareProvidersBaseUrl()}/packages/${packageId}/providers/export`,
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'x-correlation-id': `hp-export-${Date.now()}`,
+      },
+    }
+  )
+  if (!response.ok) {
+    throw new Error(`Download failed: HTTP ${response.status}`)
+  }
+  return response.blob()
+}

@@ -236,6 +236,11 @@ jobs:
           flyctl ssh console -a maishapoa-staging-internal-api -C "sh -c 'cd /app/apps/api && npx prisma db execute --file prisma/seed-messaging.sql --schema prisma/schema.prisma'"
           echo "✅ Messaging routes and templates seeded"
 
+          # Seed healthcare provider panels (counties, sub-counties, LCT panel)
+          echo "🏥 Seeding healthcare provider panels..."
+          flyctl ssh console -a maishapoa-staging-internal-api -C "sh -c 'cd /app/apps/api && npx prisma db execute --file prisma/seed-healthcare-providers.sql --schema prisma/schema.prisma'"
+          echo "✅ Healthcare provider panels seeded"
+
       - name: Deploy Agent Registration to Staging
         if: env.DEPLOY_AGENT_REGISTRATION != 'false'
         run: |
@@ -584,6 +589,11 @@ jobs:
           echo "📬 Seeding messaging routes and templates..."
           flyctl ssh console -a maishapoa-production-internal-api -C "sh -c 'cd /app/apps/api && npx prisma db execute --file prisma/seed-messaging.sql --schema prisma/schema.prisma'"
           echo "✅ Messaging routes and templates seeded"
+
+          # Seed healthcare provider panels (counties, sub-counties, LCT panel)
+          echo "🏥 Seeding healthcare provider panels..."
+          flyctl ssh console -a maishapoa-production-internal-api -C "sh -c 'cd /app/apps/api && npx prisma db execute --file prisma/seed-healthcare-providers.sql --schema prisma/schema.prisma'"
+          echo "✅ Healthcare provider panels seeded"
 
       - name: Deploy Agent Registration to Production
         if: env.DEPLOY_AGENT_REGISTRATION != 'false'

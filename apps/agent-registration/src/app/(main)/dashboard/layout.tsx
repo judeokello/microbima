@@ -9,7 +9,7 @@ import { useBAStatusCheck } from '@/hooks/useBAStatusCheck';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { LogOut, User, Settings, Search, Home, UserPlus, ClipboardList, Menu, RefreshCw } from 'lucide-react';
+import { LogOut, User, Settings, Search, Home, UserPlus, ClipboardList, Menu, RefreshCw, Hospital } from 'lucide-react';
 
 export default function DashboardLayout({
   children,
@@ -118,6 +118,16 @@ export default function DashboardLayout({
         >
           <Search className="h-4 w-4 mr-2" />
           Find Customer
+        </Link>
+        <Link
+          href="/dashboard/providers"
+          className={`flex items-center px-3 py-2 rounded-md hover:bg-white/10 transition-colors ${
+            pathname?.startsWith('/dashboard/providers') ? 'bg-white/10' : ''
+          }`}
+          onClick={() => isMobile && setSidebarOpen(false)}
+        >
+          <Hospital className="h-4 w-4 mr-2" />
+          Providers
         </Link>
 
         {/* Admin link - only visible if user has registration_admin role */}

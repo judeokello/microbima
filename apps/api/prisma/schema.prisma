@@ -711,6 +711,7 @@ model Package {
   packageSchemes             PackageScheme[]
   packagePlans               PackagePlan[]
   packagePaymentFrequencies  PackagePaymentFrequency[]
+  packageProviders           PackageProvider[]
   policies                   Policy[]
   policyNumberSequence       PolicyNumberSequence?
 
@@ -1531,4 +1532,108 @@ model LctExportBatchRow {
   @@index([batchId])
   @@index([memberNumber])
   @@map("lct_export_batch_rows")
+}
+
+// ---------------------------------------------------------------------------
+// Healthcare provider panels (master list + per-package panels)
+// ---------------------------------------------------------------------------
+
+model County {
+  id       Int     @id
+  code     Int     @unique
+  name     String  @db.VarChar(100)
+  isActive Boolean @default(true)
+
+  subCounties          SubCounty[]
+  healthcareProviders  HealthcareProvider[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("counties")
+}
+
+model SubCounty {
+  id       Int     @id @default(autoincrement())
+  countyId Int
+  name     String  @db.VarChar(150)
+  /// Stable external code (e.g. KE027144 from Open Admin Data)
+  code     String  @unique @db.VarChar(32)
+  isActive Boolean @default(true)
+
+  county              County               @relation(fields: [countyId], references: [id], onDelete: Restrict)
+  healthcareProviders HealthcareProvider[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([countyId, name])
+  @@index([countyId])
+  @@map("sub_counties")
+}
+
+model ProviderSource {
+  id          Int     @id @default(autoincrement())
+  name        String  @db.VarChar(150)
+  code        String  @unique @db.VarChar(50)
+  description String? @db.VarChar(500)
+  isActive    Boolean @default(true)
+
+  healthcareProviders HealthcareProvider[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String?
+
+  @@map("provider_sources")
+}
+
+model HealthcareProvider {
+  id          Int      @id @default(autoincrement())
+  name        String   @db.VarChar(300)
+  countyId    Int
+  subCountyId Int?
+  latitude    Decimal? @db.Decimal(10, 7)
+  longitude   Decimal? @db.Decimal(10, 7)
+  sourceId    Int
+  phone       String?  @db.VarChar(50)
+  email       String?  @db.VarChar(200)
+  address     String?  @db.VarChar(500)
+  notes       String?  @db.VarChar(1000)
+  isActive    Boolean  @default(true)
+
+  county    County         @relation(fields: [countyId], references: [id], onDelete: Restrict)
+  subCounty SubCounty?     @relation(fields: [subCountyId], references: [id], onDelete: SetNull)
+  source    ProviderSource @relation(fields: [sourceId], references: [id], onDelete: Restrict)
+  packages  PackageProvider[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String?
+
+  @@unique([name, countyId, sourceId])
+  @@index([name])
+  @@index([countyId])
+  @@index([sourceId])
+  @@index([isActive])
+  @@map("healthcare_providers")
+}
+
+/// Joiner: package-specific provider panel (subset of master list)
+model PackageProvider {
+  id                   Int     @id @default(autoincrement())
+  packageId            Int
+  healthcareProviderId Int
+  isActive             Boolean @default(true)
+
+  package            Package            @relation(fields: [packageId], references: [id], onDelete: Cascade)
+  healthcareProvider HealthcareProvider @relation(fields: [healthcareProviderId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  createdBy String?
+
+  @@unique([packageId, healthcareProviderId])
+  @@index([packageId])
+  @@index([healthcareProviderId])
+  @@map("package_providers")
 }
