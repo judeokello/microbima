@@ -985,6 +985,7 @@ export class InternalCustomerController {
             package: {
               select: {
                 id: true,
+                name: true,
                 slug: true,
                 packagePaymentFrequencies: {
                   select: { frequency: true, installmentCount: true },
