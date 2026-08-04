@@ -159,12 +159,14 @@ describe('LCT safety — CSV action fidelity', () => {
     dateOfBirth: '01-01-1980',
     relationship: 'PRINCIPAL',
     email: '',
-    phoneNumber: '+254711000000',
+    phoneNumber: '254711000000',
     idNumber: '11111111',
-    principalMemberNumber: '',
+    principalMemberNumber: 'MFG100-00',
     schemeName: 'Test Scheme',
     policyStartDate: '01-06-2026',
     policyEndDate: '31-05-2027',
+    productName: 'Maisha Poa',
+    planName: 'Gold',
     ...overrides,
   });
 
@@ -194,11 +196,15 @@ describe('LCT safety — CSV action fidelity', () => {
         memberName: 'Spouse',
       }),
     ];
-    const { csv, rowCount } = buildLctCsv(intents);
+    const { csv, rowCount, rows } = buildLctCsv(intents);
     const dataLines = csv.trimEnd().split('\n').slice(1);
     expect(rowCount).toBe(2);
     expect(dataLines).toHaveLength(2);
     expect(dataLines[1]).toContain('SUSPENDED');
+    expect(csv.split('\n')[0].endsWith('PRODUCT,PLAN')).toBe(true);
+    expect(rows[0]['PRINCIPAL MEMBER NUMBER']).toBe('MFG100-00');
+    expect(rows[0].PRODUCT).toBe('Maisha Poa');
+    expect(rows[0].PLAN).toBe('Gold');
   });
 
   it('rejects unknown REQUIRED ACTION values', () => {
