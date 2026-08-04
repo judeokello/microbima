@@ -23,9 +23,13 @@ import {
   buildLctExportSubject,
   formatLctDob,
   formatLctGender,
+  formatLctPhone,
   LCT_TEMPLATE_KEY,
   LctMemberSyncIntent,
   normalizeEmailList,
+  sortLctExportIntents,
+  sortLctPendingDependants,
+  toTitleCase,
 } from './lct.types';
 
 const ADMIN_ROLE = 'registration_admin';
@@ -126,7 +130,21 @@ export class LctExportService {
             ? [customer.firstName, customer.middleName, customer.lastName].filter(Boolean).join(' ')
             : '';
         const idNumber = dependant?.idNumber ?? customer?.idNumber ?? '';
-        const phone = dependant?.phoneNumber ?? customer?.phoneNumber ?? '';
+        const principalPhone = formatLctPhone(customer?.phoneNumber);
+        const relationship =
+          t.subjectType === LctSubjectType.PRINCIPAL
+            ? 'PRINCIPAL'
+            : dependant?.relationship === DependantRelationship.SPOUSE
+              ? 'SPOUSE'
+              : dependant?.relationship === DependantRelationship.CHILD
+                ? 'CHILD'
+                : (dependant?.relationship ?? 'DEPENDANT');
+        let phone = principalPhone;
+        if (relationship === 'SPOUSE') {
+          phone = formatLctPhone(dependant?.phoneNumber) || principalPhone;
+        } else if (relationship === 'CHILD') {
+          phone = principalPhone;
+        }
 
         return {
           id: t.id,
@@ -144,10 +162,7 @@ export class LctExportService {
           personName,
           idNumber,
           phone,
-          relationship:
-            t.subjectType === LctSubjectType.PRINCIPAL
-              ? 'PRINCIPAL'
-              : (dependant?.relationship ?? 'DEPENDANT'),
+          relationship,
         };
       })
       .filter((row) => {
@@ -187,6 +202,10 @@ export class LctExportService {
       } else {
         g.dependants.push(row);
       }
+    }
+
+    for (const g of groups.values()) {
+      g.dependants = sortLctPendingDependants(g.dependants);
     }
 
     const openBatch = await this.prisma.lctExportBatch.findFirst({
@@ -275,7 +294,7 @@ export class LctExportService {
       );
     }
 
-    const intentsWithTargets = await this.buildIntents(targets);
+    const intentsWithTargets = sortLctExportIntents(await this.buildIntents(targets));
     const intents = intentsWithTargets.map((x) => x.intent);
     const { csv, rows, rowCount } = buildLctCsv(intents);
     const batchId = randomUUID();
@@ -554,6 +573,8 @@ export class LctExportService {
         packageId: true,
         startDate: true,
         endDate: true,
+        package: { select: { name: true } },
+        packagePlan: { select: { name: true } },
       },
     });
     const policyMap = new Map(policies.map((p) => [p.id, p]));
@@ -584,6 +605,9 @@ export class LctExportService {
       const schemeName = schemeNameByPolicyId.get(target.policyId) ?? '';
       const policyStartDate = formatLctDob(policy.startDate);
       const policyEndDate = formatLctDob(policy.endDate);
+      const productName = policy.package?.name ?? '';
+      const planName = toTitleCase(policy.packagePlan?.name);
+      const principalPhone = formatLctPhone(customer.phoneNumber);
 
       if (target.subjectType === LctSubjectType.PRINCIPAL) {
         intents.push({
@@ -603,12 +627,14 @@ export class LctExportService {
             dateOfBirth: formatLctDob(customer.dateOfBirth),
             relationship: 'PRINCIPAL',
             email: customer.email ?? '',
-            phoneNumber: customer.phoneNumber ?? '',
+            phoneNumber: principalPhone,
             idNumber: customer.idNumber ?? '',
-            principalMemberNumber: '',
+            principalMemberNumber: principalMemberNumber || target.memberNumber,
             schemeName,
             policyStartDate,
             policyEndDate,
+            productName,
+            planName,
           },
         });
         continue;
@@ -625,6 +651,11 @@ export class LctExportService {
           : dependant.relationship === DependantRelationship.CHILD
             ? 'CHILD'
             : dependant.relationship;
+
+      const phoneNumber =
+        relationship === 'SPOUSE'
+          ? formatLctPhone(dependant.phoneNumber) || principalPhone
+          : principalPhone;
 
       intents.push({
         targetId: target.id,
@@ -645,12 +676,14 @@ export class LctExportService {
           dateOfBirth: formatLctDob(dependant.dateOfBirth),
           relationship,
           email: dependant.email ?? '',
-          phoneNumber: dependant.phoneNumber ?? '',
+          phoneNumber,
           idNumber: dependant.idNumber ?? '',
           principalMemberNumber,
           schemeName,
           policyStartDate,
           policyEndDate,
+          productName,
+          planName,
         },
       });
     }
