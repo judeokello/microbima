@@ -35,7 +35,8 @@ export class InternalLctExportsController {
     @Query('idNumber') idNumber?: string,
     @Query('memberNumber') memberNumber?: string,
     @Query('phone') phone?: string,
-    @Query('product') product?: string
+    @Query('product') product?: string,
+    @Query('scheme') scheme?: string
   ) {
     this.lctExportService.assertAdmin(user.roles ?? []);
     const data = await this.lctExportService.getPending({
@@ -44,6 +45,7 @@ export class InternalLctExportsController {
       memberNumber,
       phone,
       product,
+      scheme,
     });
     return {
       status: HttpStatus.OK,

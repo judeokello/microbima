@@ -39,6 +39,8 @@ export const LCT_PENDING_REASONS = {
   PROFILE_CHANGE: 'PROFILE_CHANGE',
   DEPENDANT_REMOVED: 'DEPENDANT_REMOVED',
   POLICY_REPLACED: 'POLICY_REPLACED',
+  /** UI-only reason when spouse/child required fields are incomplete */
+  MISSING_INFO: 'MISSING_INFO',
 } as const;
 
 export const LCT_ERROR_CODES = {

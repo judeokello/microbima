@@ -333,8 +333,9 @@ export class MpesaIpnService {
       const amount = parseFloat(payload.TransAmount);
       const transactionTime = this.parseTransactionTime(payload.TransTime);
       const reasonType = this.mapTransactionTypeToReasonType(payload.TransactionType);
+      // Empty/hashed/masked MSISDN is valid for B2B / org transfers — store null or raw, do not fail
       const msisdnResult = normalizeMsisdnOrReturnRaw(payload.MSISDN);
-      const msisdnForStorage = msisdnResult.value; // normalized phone or raw hash
+      const msisdnForStorage = msisdnResult.value; // normalized phone, raw hash/mask, or null
 
       // 3. Update row with parsed fields and set isProcessed = true
       await this.prismaService.mpesaPaymentReportItem.update({
@@ -368,9 +369,9 @@ export class MpesaIpnService {
         where: { id: ipnRecord.id },
       });
 
-      // 4. Attempt to link to STK Push request (msisdnForStorage may be phone or hash; match may fail when hash)
+      // 4. Attempt to link to STK Push only when MSISDN is a real phone (not empty/hash/mask)
       let stkPushRequest: MpesaStkPushRequest | null = null;
-      if (payload.BillRefNumber) {
+      if (payload.BillRefNumber && msisdnResult.normalized && msisdnForStorage) {
         stkPushRequest = await this.linkToStkPushRequest(
           updatedRecord,
           payload.BillRefNumber,
@@ -883,7 +884,7 @@ export class MpesaIpnService {
     ipnRecordId: string,
     policyPaymentId: number,
     payload: MpesaIpnPayloadDto,
-    msisdnForStorage: string,
+    msisdnForStorage: string | null,
     amount: number,
     transactionTime: Date,
     _reasonType: MpesaStatementReasonType,

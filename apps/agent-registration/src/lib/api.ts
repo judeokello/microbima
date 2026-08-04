@@ -955,7 +955,11 @@ export interface CustomerPolicyListItem {
   totalPremium: string
   installment: string
   installmentsPaid: number
+  installmentsPaidApproximate?: boolean
   missedPayments: number
+  missedPaymentsApproximate?: boolean
+  paymentsMadeCount?: number
+  expectedInstallmentCount?: number | null
 }
 
 export interface CustomerPolicyListResponse {
@@ -1005,7 +1009,10 @@ export interface CustomerPolicyDetail {
   installmentAmount: string
   totalPaidToDate: string
   installmentsPaid: number
+  installmentsPaidApproximate?: boolean
   missedPayments: number
+  missedPaymentsApproximate?: boolean
+  paymentsMadeCount?: number
   missedPaymentsAmount: MissedPaymentsAmount
 }
 
@@ -1981,6 +1988,7 @@ export interface CreatePolicyRequest {
   packagePlanId: number
   frequency: 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'QUARTERLY' | 'ANNUALLY' | 'CUSTOM'
   premium: number
+  annualPremium?: number
   productName: string
   tags?: Array<{ id?: number; name: string }>
   paymentData: {
@@ -1994,6 +2002,13 @@ export interface CreatePolicyRequest {
     paymentMessageBlob?: string
   }
   customDays?: number
+}
+
+export interface CompletePostpaidEnrollmentRequest {
+  packagePlanId: number
+  premium: number
+  annualPremium: number
+  productName: string
 }
 
 export interface CreatePolicyResponse {
@@ -2047,6 +2062,33 @@ export async function createPolicy(data: CreatePolicyRequest): Promise<CreatePol
     console.error('Error creating policy:', error)
     throw error
   }
+}
+
+/** Update postpaid shell policy with plan/premium at registration payment step (no STK). */
+export async function completePostpaidEnrollment(
+  customerId: string,
+  data: CompletePostpaidEnrollmentRequest
+): Promise<{ status: number; correlationId: string; message: string; data: { policyId: string } }> {
+  const token = await getSupabaseToken()
+  const response = await fetch(
+    `${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/customers/${customerId}/policies/postpaid-enrollment`,
+    {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+        'x-correlation-id': `postpaid-enrollment-${Date.now()}`,
+      },
+      body: JSON.stringify(data),
+    }
+  )
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}))
+    throw new Error(
+      errorData.error?.message ?? `Failed to complete postpaid enrollment: ${response.statusText}`
+    )
+  }
+  return await response.json()
 }
 
 /**
@@ -2111,6 +2153,7 @@ export interface CreatePolicyFromRecoveryRequest {
   packageId: number
   packagePlanId: number
   premium: number
+  annualPremium?: number
   frequency: 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'QUARTERLY' | 'ANNUALLY' | 'CUSTOM'
   customDays?: number
 }
@@ -2430,6 +2473,7 @@ export interface ModifyPolicyRequest {
   packagePlanId: number
   frequency: 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'QUARTERLY' | 'ANNUALLY' | 'CUSTOM'
   premium: number
+  annualPremium?: number
   customDays?: number
   packageSchemeId?: number
   policyNumberChoice: PolicyNumberChoice
@@ -2671,6 +2715,8 @@ export interface LctPendingRow {
   idNumber: string
   phone: string
   relationship: string
+  exportEligible?: boolean
+  missingFields?: string[]
 }
 
 export interface LctPendingGroup {
@@ -2721,6 +2767,7 @@ export async function getLctPending(filters?: {
   memberNumber?: string
   phone?: string
   product?: string
+  scheme?: string
 }): Promise<{
   status: number
   data: { groups: LctPendingGroup[]; openBatch: LctOpenBatch | null }
@@ -2731,8 +2778,57 @@ export async function getLctPending(filters?: {
   if (filters?.memberNumber) params.set('memberNumber', filters.memberNumber)
   if (filters?.phone) params.set('phone', filters.phone)
   if (filters?.product) params.set('product', filters.product)
+  if (filters?.scheme) params.set('scheme', filters.scheme)
   const q = params.toString()
   return lctFetch(`/internal/lct-exports/pending${q ? `?${q}` : ''}`)
+}
+
+export interface CareOpsQueueItem {
+  customerId: string
+  customerName: string
+  customerPhone?: string | null
+  registrationId?: string | null
+  partnerId?: number | null
+  entityKind: 'SPOUSE' | 'CHILD' | 'BENEFICIARY' | 'CUSTOMER'
+  entityId?: string | null
+  entityName: string
+  missingFields: string[]
+  missingFieldLabels: string[]
+  firstName?: string | null
+  middleName?: string | null
+  lastName?: string | null
+  gender?: string | null
+  idType?: string | null
+  idNumber?: string | null
+  dateOfBirth?: string | null
+}
+
+export async function getCareOpsMissingQueue(params?: {
+  limit?: number
+  offset?: number
+  partnerId?: number
+}): Promise<{ items: CareOpsQueueItem[]; total: number }> {
+  const search = new URLSearchParams()
+  if (params?.limit != null) search.set('limit', String(params.limit))
+  if (params?.offset != null) search.set('offset', String(params.offset))
+  if (params?.partnerId != null) search.set('partnerId', String(params.partnerId))
+  const q = search.toString()
+  const token = await getSupabaseToken()
+  const response = await fetch(
+    `${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/agent-registrations/missing-requirements/queue${q ? `?${q}` : ''}`,
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+        'x-correlation-id': `care-ops-${Date.now()}`,
+      },
+    }
+  )
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}))
+    throw new Error(err.message ?? `Failed to load care-ops queue (${response.status})`)
+  }
+  return response.json()
 }
 
 export async function getLctErrors(): Promise<{ status: number; data: unknown[] }> {
@@ -2806,4 +2902,103 @@ export async function updatePolicyStaffNumber(
     method: 'PATCH',
     body: JSON.stringify({ staffNumber }),
   })
+}
+
+// ---------- Healthcare Provider Panels (agent) ----------
+
+export interface PackageProviderPanelSummary {
+  packageId: number
+  packageName: string
+  packageSlug: string | null
+  providerCount: number
+}
+
+export interface HealthcareProviderListItem {
+  id: number
+  name: string
+  countyId: number
+  countyName: string
+  subCountyId: number | null
+  subCountyName: string | null
+  latitude: number | null
+  longitude: number | null
+  sourceName: string
+  isActive: boolean
+}
+
+export interface HealthcareProviderPagination {
+  page: number
+  pageSize: number
+  totalItems: number
+  totalPages: number
+  hasNextPage: boolean
+  hasPreviousPage: boolean
+}
+
+function healthcareProvidersBaseUrl(): string {
+  return `${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/healthcare-providers`
+}
+
+export async function getPackageProviderPanels(): Promise<PackageProviderPanelSummary[]> {
+  const token = await getSupabaseToken()
+  const response = await fetch(`${healthcareProvidersBaseUrl()}/packages`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'x-correlation-id': `hp-packages-${Date.now()}`,
+    },
+  })
+  if (!response.ok) {
+    throw new Error(`Failed to load provider panels: HTTP ${response.status}`)
+  }
+  const json = (await response.json()) as { data: PackageProviderPanelSummary[] }
+  return json.data
+}
+
+export async function getPackageProviders(
+  packageId: number,
+  options: { page?: number; pageSize?: number; search?: string } = {}
+): Promise<{ data: HealthcareProviderListItem[]; pagination: HealthcareProviderPagination }> {
+  const token = await getSupabaseToken()
+  const params = new URLSearchParams({
+    page: String(options.page ?? 1),
+    pageSize: String(options.pageSize ?? 20),
+  })
+  if (options.search?.trim()) {
+    params.set('search', options.search.trim())
+  }
+
+  const response = await fetch(
+    `${healthcareProvidersBaseUrl()}/packages/${packageId}/providers?${params}`,
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'x-correlation-id': `hp-providers-${Date.now()}`,
+      },
+    }
+  )
+  if (!response.ok) {
+    throw new Error(`Failed to load providers: HTTP ${response.status}`)
+  }
+  const json = (await response.json()) as {
+    data: HealthcareProviderListItem[]
+    pagination: HealthcareProviderPagination
+  }
+  return { data: json.data, pagination: json.pagination }
+}
+
+export async function downloadPackageProvidersCsv(packageId: number): Promise<Blob> {
+  const token = await getSupabaseToken()
+  const response = await fetch(
+    `${healthcareProvidersBaseUrl()}/packages/${packageId}/providers/export`,
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'x-correlation-id': `hp-export-${Date.now()}`,
+      },
+    }
+  )
+  if (!response.ok) {
+    throw new Error(`Download failed: HTTP ${response.status}`)
+  }
+  return response.blob()
 }

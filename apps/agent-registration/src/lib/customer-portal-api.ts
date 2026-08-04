@@ -31,7 +31,11 @@ export type PortalProductListItem = {
   totalPremium: string;
   installment: string;
   installmentsPaid: number;
+  installmentsPaidApproximate?: boolean;
   missedPayments: number;
+  missedPaymentsApproximate?: boolean;
+  paymentsMadeCount?: number;
+  expectedInstallmentCount?: number | null;
 };
 
 export type PortalProductsListResponse = {
@@ -68,7 +72,10 @@ export type PortalProductDetail = {
   installmentAmount: string;
   totalPaidToDate: string;
   installmentsPaid: number;
+  installmentsPaidApproximate?: boolean;
   missedPayments: number;
+  missedPaymentsApproximate?: boolean;
+  paymentsMadeCount?: number;
 };
 
 export type PortalProductDetailResponse = {

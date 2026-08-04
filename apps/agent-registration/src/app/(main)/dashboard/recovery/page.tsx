@@ -31,6 +31,7 @@ import {
   type Plan,
 } from '@/lib/api';
 import {
+  computeAnnualPremium,
   computeInstallmentPremium,
   isFrequencySupportedByPackage,
   isPricingSubmitBlocked,
@@ -240,6 +241,11 @@ export default function RecoveryPage() {
       setError('Selected frequency is not supported for this package');
       return;
     }
+    const annualPremium = computeAnnualPremium({
+      daily: calculatedPricing.totalDaily,
+      pricingMode,
+      lookupRates: calculatedPricing.lookupRates ?? undefined,
+    });
     const hasPayments = selectedCustomer.payments.length > 0;
     try {
       setSubmitting(true);
@@ -250,6 +256,7 @@ export default function RecoveryPage() {
           packageId: selectedCustomer.packageId,
           packagePlanId,
           premium,
+          annualPremium,
           frequency: formData.frequency as 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'QUARTERLY' | 'ANNUALLY' | 'CUSTOM',
           customDays: formData.frequency === 'CUSTOM' ? parseInt(formData.customDays, 10) : undefined,
         });
@@ -259,6 +266,7 @@ export default function RecoveryPage() {
           packageId: selectedCustomer.packageId,
           packagePlanId,
           premium,
+          annualPremium,
           frequency: formData.frequency as 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'QUARTERLY' | 'ANNUALLY' | 'CUSTOM',
           customDays: formData.frequency === 'CUSTOM' ? parseInt(formData.customDays, 10) : undefined,
         });

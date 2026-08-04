@@ -56,6 +56,15 @@ export class ModifyPolicyRequestDto extends PolicyLifecycleReasonDto {
   @Min(0)
   premium: number;
 
+  @ApiPropertyOptional({
+    description: 'Annual premium from pricing JSON (plan/category ± spouse)',
+    example: 30660,
+  })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  annualPremium?: number;
+
   @ApiPropertyOptional({ description: 'Required when frequency is CUSTOM' })
   @ValidateIf((o) => o.frequency === PaymentFrequency.CUSTOM)
   @IsInt()

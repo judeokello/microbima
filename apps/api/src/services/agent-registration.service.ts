@@ -3,10 +3,14 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateAgentRegistrationDto, UpdateAgentRegistrationDto, AgentRegistrationResponseDto } from '../dto/agent-registration';
 import { RegistrationStatus, RegistrationMissingStatus, Prisma } from '@prisma/client';
 import * as Sentry from '@sentry/nestjs';
+import { MissingRequirementService } from './missing-requirement.service';
 
 @Injectable()
 export class AgentRegistrationService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly missingRequirementService: MissingRequirementService
+  ) {}
 
   /**
    * Create a new agent registration
@@ -96,8 +100,12 @@ export class AgentRegistrationService {
         },
       });
 
-      // Create missing requirements based on deferred requirements
-      await this.createMissingRequirements(registration.id, dto.customerId, partnerId);
+      // Seed missing requirements from live dependant/beneficiary fields
+      await this.missingRequirementService.seedFromRegistration(
+        registration.id,
+        dto.customerId,
+        partnerId
+      );
 
       return this.mapToResponseDto(registration);
     } catch (error) {
@@ -306,69 +314,6 @@ export class AgentRegistrationService {
           operation: 'getRegistrationsByBA',
           userId,
           baId,
-        },
-      });
-      throw error;
-    }
-  }
-
-  /**
-   * Create missing requirements for a registration
-   */
-  private async createMissingRequirements(
-    registrationId: string,
-    customerId: string,
-    partnerId: number
-  ): Promise<void> {
-    try {
-      // Get deferred requirements for the partner (or default if none exist)
-      const partnerRequirements = await this.prisma.deferredRequirementPartner.findMany({
-        where: { partnerId },
-      });
-
-      let requirements = partnerRequirements;
-
-      // If no partner-specific requirements, use defaults
-      if (requirements.length === 0) {
-        const defaultRequirements = await this.prisma.deferredRequirementDefault.findMany();
-        // Map default requirements to include partnerId
-        requirements = defaultRequirements.map(req => ({
-          ...req,
-          partnerId,
-        }));
-      }
-
-      // Create missing requirements for required fields
-      const missingRequirements = requirements
-        .filter(req => req.isRequired)
-        .map(req => ({
-          registrationId,
-          customerId,
-          partnerId,
-          entityKind: req.entityKind,
-          entityId: null, // Will be set when specific entities are created
-          fieldPath: req.fieldPath,
-          status: RegistrationMissingStatus.PENDING,
-        }));
-
-      if (missingRequirements.length > 0) {
-        await this.prisma.missingRequirement.createMany({
-          data: missingRequirements,
-        });
-      }
-
-      // Update customer's hasMissingRequirements flag
-      await this.prisma.customer.update({
-        where: { id: customerId },
-        data: { hasMissingRequirements: missingRequirements.length > 0 },
-      });
-    } catch (error) {
-      Sentry.captureException(error, {
-        tags: {
-          operation: 'createMissingRequirements',
-          registrationId,
-          customerId,
-          partnerId,
         },
       });
       throw error;

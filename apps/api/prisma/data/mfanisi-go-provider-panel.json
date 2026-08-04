@@ -1,0 +1,3166 @@
+{
+  "source": {
+    "code": "lct-africa",
+    "name": "LCT Africa",
+    "description": "Provider panel supplied by LCT Africa"
+  },
+  "packageSlug": "mfanisi-go",
+  "providers": [
+    {
+      "name": "BLISS GVS HEALTHCARE - ELDAMA RAVINE",
+      "countyId": 30
+    },
+    {
+      "name": "BLISS GVS HEALTHCARE - KABARNET",
+      "countyId": 30
+    },
+    {
+      "name": "EQUITY AFIA MEDICAL CENTRE - BARINGO",
+      "countyId": 30
+    },
+    {
+      "name": "EQUITY AFIA MEDICAL CENTRE - KABARNET",
+      "countyId": 30
+    },
+    {
+      "name": "REALE HOSPITAL  - KABARNET CLINIC",
+      "countyId": 30
+    },
+    {
+      "name": "EQUITY AFIA MEDICAL CENTRE - ELDAMA RAVINE",
+      "countyId": 30
+    },
+    {
+      "name": "EQUITY AFIA MEDICAL CENTRE - BOMET",
+      "countyId": 36
+    },
+    {
+      "name": "AMARAY DENTAL AND EYECARE SPECIALISTS HOSPITALS  - KANDUYI",
+      "countyId": 39
+    },
+    {
+      "name": "BLISS GVS HEALTHCARE - KIMILILI",
+      "countyId": 39
+    },
+    {
+      "name": "BLISS GVS HEALTHCARE - WEBUYE",
+      "countyId": 39
+    },
+    {
+      "name": "EQUITY AFIA MEDICAL CENTRE - BUNGOMA",
+      "countyId": 39
+    },
+    {
+      "name": "HOPKINS CRESENT HOSPITAL - BUNGOMA",
+      "countyId": 39
+    },
+    {
+      "name": "ZION MEDICAL CENTRE - BUNGOMA",
+      "countyId": 39
+    },
+    {
+      "name": "BUNGOMA CHILDREN'S CLINIC",
+      "countyId": 39
+    },
+    {
+      "name": "BUNGOMA WEST MEDICAL SERVICES",
+      "countyId": 39
+    },
+    {
+      "name": "KORY FAMILY HOSPITAL - KIMILILI",
+      "countyId": 39
+    },
+    {
+      "name": "ELGON VIEW MEDICAL COTTAGE HOSPITAL",
+      "countyId": 39
+    },
+    {
+      "name": "ST. DAMIANO MISSION HOSPITAL - BUNGOMA",
+      "countyId": 39
+    },
+    {
+      "name": "ST. JAMES OPTICALS - BUNGOMA",
+      "countyId": 39
+    },
+    {
+      "name": "FOUNTAIN HEALTHCARE - BUNGOMA",
+      "countyId": 39
+    },
+    {
+      "name": "KAPSOKWONY FAMILY CARE AND MEDICAL CENTRE - MT.ELGON",
+      "countyId": 39
+    },
+    {
+      "name": "TRINITY OPTICALS - BUNGOMA",
+      "countyId": 39
+    },
+    {
+      "name": "TRINITY OPTICALS - WEBUYE",
+      "countyId": 39
+    },
+    {
+      "name": "GRASSROOT COMMUNITY SERVICES - KAMUKUYWA MARKET",
+      "countyId": 39
+    },
+    {
+      "name": "CALVARY HOPE MEDICAL CENTRE - WEBUYE TOWN",
+      "countyId": 39
+    },
+    {
+      "name": "BUNGOMA COUNTY REFERRAL HOSPITAL",
+      "countyId": 39
+    },
+    {
+      "name": "BUMULA SUB COUNTY HOSPITAL",
+      "countyId": 39
+    },
+    {
+      "name": "SIRISIA SUB COUNTY HOSPITAL",
+      "countyId": 39
+    },
+    {
+      "name": "KIMILILI SUB COUNTY HOSPITAL",
+      "countyId": 39
+    },
+    {
+      "name": "WEBUYE COUNTY HOSPITAL",
+      "countyId": 39
+    },
+    {
+      "name": "KAPSOKWONY SUB COUNTY HOSPITAL",
+      "countyId": 39
+    },
+    {
+      "name": "CHEPTAIS SUB COUNTY HOSPITAL",
+      "countyId": 39
+    },
+    {
+      "name": "KABUCHAI SUB COUNTY HOSPITAL",
+      "countyId": 39
+    },
+    {
+      "name": "NAITIRI SUB COUNTY HOSPITAL",
+      "countyId": 39
+    },
+    {
+      "name": "SINOKO SUB COUNTY HOSPITAL (WEBUYE EAST)",
+      "countyId": 39
+    },
+    {
+      "name": "LUGULU MISSION",
+      "countyId": 39
+    },
+    {
+      "name": "BUNGOMA DENTAL AND EYECARE CENTRE",
+      "countyId": 39
+    },
+    {
+      "name": "NABUALA MEDICAL CENTRE - BUNGOMA",
+      "countyId": 39
+    },
+    {
+      "name": "SOLOH   HOSPITALS LIMITED",
+      "countyId": 39
+    },
+    {
+      "name": "BUNGOMA WEST HOSPITAL ANNEX",
+      "countyId": 39
+    },
+    {
+      "name": "NAITIRI JAMBO MEDICAL CLINIC",
+      "countyId": 39
+    },
+    {
+      "name": "ALMER MEDICAL SERVICES",
+      "countyId": 39
+    },
+    {
+      "name": "KIMWANGA MEDICAL CENTRE",
+      "countyId": 39
+    },
+    {
+      "name": "BLISS GVS HEALTHCARE - BUSIA",
+      "countyId": 40
+    },
+    {
+      "name": "EQUITY AFIA MEDICAL CENTRE - BUSIA",
+      "countyId": 40
+    },
+    {
+      "name": "APEX HOSPITAL - MALABA",
+      "countyId": 40
+    },
+    {
+      "name": "PESI MEDICAL CENTRE - BUSIA",
+      "countyId": 40
+    },
+    {
+      "name": "OPTEX OPTICIANS - BUSIA",
+      "countyId": 40
+    },
+    {
+      "name": "TANAKA NURSING HOME - BUSIA",
+      "countyId": 40
+    },
+    {
+      "name": "BLISS GVS HEALTHCARE - ITEN",
+      "countyId": 28
+    },
+    {
+      "name": "EQUITY AFIA MEDICAL CENTRE - ITEN",
+      "countyId": 28
+    },
+    {
+      "name": "PALMCARE SINAI HOSPITAL - ITEN",
+      "countyId": 28
+    },
+    {
+      "name": "ACEF ENA HOSPITAL - RUNYENJES",
+      "countyId": 14
+    },
+    {
+      "name": "BLISS MEDICAL CENTRE - EMBU",
+      "countyId": 14
+    },
+    {
+      "name": "EASTEND DENTAL CLINIC - EMBU",
+      "countyId": 14
+    },
+    {
+      "name": "EMBU CHILDRENS CLINIC - EMBU TOWN",
+      "countyId": 14
+    },
+    {
+      "name": "EMBU CHILDRENS CLINIC - ENA",
+      "countyId": 14
+    },
+    {
+      "name": "EMBU CHILDRENS CLINIC - MAJIMBO",
+      "countyId": 14
+    },
+    {
+      "name": "EMBU LEVEL 5 TEACHING AND REFERRAL HOSPITAL",
+      "countyId": 14
+    },
+    {
+      "name": "EQUITY AFIA MEDICAL CENTRE - EMBU",
+      "countyId": 14
+    },
+    {
+      "name": "FOCUS CLINICAL AND DIAGNOSTICS CENTRE - EMBU TOWN",
+      "countyId": 14
+    },
+    {
+      "name": "FOCUS CLINICAL AND DIAGNOSTICS CENTRE - ISHIARA",
+      "countyId": 14
+    },
+    {
+      "name": "IMARA HOSPITAL LIMITED - RWIKA",
+      "countyId": 14
+    },
+    {
+      "name": "IMARA MEDIPLUS - TOWN CLINIC",
+      "countyId": 14
+    },
+    {
+      "name": "IMARA MEDIPLUS LIMITED - MANYATTA",
+      "countyId": 14
+    },
+    {
+      "name": "KIRITIRI MEDICAL CENTRE",
+      "countyId": 14
+    },
+    {
+      "name": "NEEMA OPTICIANS - EMBU",
+      "countyId": 14
+    },
+    {
+      "name": "NEEMA OPTICIANS - NKUBU",
+      "countyId": 14
+    },
+    {
+      "name": "NEEMA UNIVERSAL HEALTHCARE LIMITED HOSPITAL",
+      "countyId": 14
+    },
+    {
+      "name": "QUEENS AND KINGS HOSPITAL - SIAKAGO, EMBU",
+      "countyId": 14
+    },
+    {
+      "name": "CHINA OPTICAL AND DENTAL SERVICES CLINIC LIMITED",
+      "countyId": 14
+    },
+    {
+      "name": "ABRAAR HOSPITAL LIMITED",
+      "countyId": 7
+    },
+    {
+      "name": "AFNAAN HEALTHCARE SERVICES",
+      "countyId": 7
+    },
+    {
+      "name": "ALMAQDIS MEDICAL CENTRE",
+      "countyId": 7
+    },
+    {
+      "name": "AMANSAN HOSPITAL LIMITED",
+      "countyId": 7
+    },
+    {
+      "name": "AN NAJAH MEDICAL CARE LIMITED",
+      "countyId": 7
+    },
+    {
+      "name": "BALAMBALA SUB-COUNTY HOSPITAL",
+      "countyId": 7
+    },
+    {
+      "name": "BLISS MEDICAL CENTRE - GARISSA",
+      "countyId": 7
+    },
+    {
+      "name": "BURA SUB-COUNTY HOSPITAL",
+      "countyId": 7
+    },
+    {
+      "name": "COUNT MEDICAL AND DIAGNOSTIC LIMITED",
+      "countyId": 7
+    },
+    {
+      "name": "DADAAB SUB-COUNTY HOSPITAL",
+      "countyId": 7
+    },
+    {
+      "name": "DEQ RABI HEALTH CARE LIMITED",
+      "countyId": 7
+    },
+    {
+      "name": "EXCEL HEALTH SERVICES",
+      "countyId": 7
+    },
+    {
+      "name": "FAMILYFIRST MEDICAL CENTRE LIMITED",
+      "countyId": 7
+    },
+    {
+      "name": "GARISSA ENT",
+      "countyId": 7
+    },
+    {
+      "name": "GARISSA LEVEL 5 HOSPITAL",
+      "countyId": 7
+    },
+    {
+      "name": "HULUGHO SUB-COUNTY HOSPITAL",
+      "countyId": 7
+    },
+    {
+      "name": "IFTIN SUB-COUNTY HOSPITAL",
+      "countyId": 7
+    },
+    {
+      "name": "IJARA SUB-COUNTY HOSPITAL",
+      "countyId": 7
+    },
+    {
+      "name": "MASALANI DIAGNOSTIC LIMITED",
+      "countyId": 7
+    },
+    {
+      "name": "MEDINA DIAGNOSTIC - GARISSA",
+      "countyId": 7
+    },
+    {
+      "name": "MODOGASHE SUB-COUNTY HOSPITAL",
+      "countyId": 7
+    },
+    {
+      "name": "NORTHGATE NURSING HOME - GARISSA",
+      "countyId": 7
+    },
+    {
+      "name": "RIVERGULF NURSING HOME",
+      "countyId": 7
+    },
+    {
+      "name": "THE SALWA HOSPITAL LTD",
+      "countyId": 7
+    },
+    {
+      "name": "TOP CARE ORTHOPAEDIC AND TRAUMA CENTRE LIMITED",
+      "countyId": 7
+    },
+    {
+      "name": "SAVANNAH ROYAL HOSPITAL - GARISSA",
+      "countyId": 7
+    },
+    {
+      "name": "BLISS GVS HEALTHCARE - HOMABAY",
+      "countyId": 43
+    },
+    {
+      "name": "KATITO MEDICAL CENTRE - MBITA",
+      "countyId": 43
+    },
+    {
+      "name": "EQUITY AFIA MEDICAL CENTRE - HOMEBAY",
+      "countyId": 43
+    },
+    {
+      "name": "INUKA HOSPITAL-UGUNJA",
+      "countyId": 43
+    },
+    {
+      "name": "ROYAL MEDICAL CLINIC AND MATERNITY HOME - RONGO",
+      "countyId": 43
+    },
+    {
+      "name": "HEXAGON NURSING HOME - ISIOLO",
+      "countyId": 11
+    },
+    {
+      "name": "EQUITY AFIA MEDICAL CENTRE - ISIOLO",
+      "countyId": 11
+    },
+    {
+      "name": "GALAXY HOSPITAL - ISIOLO",
+      "countyId": 11
+    },
+    {
+      "name": "BAUS OPTICAL - KITENGELA BRANCH",
+      "countyId": 34
+    },
+    {
+      "name": "BAUS OPTICAL - RONGAI",
+      "countyId": 34
+    },
+    {
+      "name": "EQUITY AFIA MEDICAL CENTRE - JOSKA",
+      "countyId": 34
+    },
+    {
+      "name": "EQUITY AFIA MEDICAL CENTRE - KISERIAN",
+      "countyId": 34
+    },
+    {
+      "name": "EQUITY AFIA MEDICAL CENTRE - KITENGELA",
+      "countyId": 34
+    },
+    {
+      "name": "EQUITY AFIA MEDICAL CENTRE - NGONG",
+      "countyId": 34
+    },
+    {
+      "name": "EQUITY AFIA MEDICAL CENTRE - RONGAI",
+      "countyId": 34
+    },
+    {
+      "name": "EQUITY AFIA MEDICAL CENTRE - SIGNATURE MALL, ATHI RIVER",
+      "countyId": 34
+    },
+    {
+      "name": "KITENGELA MEDICAL SERVICES",
+      "countyId": 34
+    },
+    {
+      "name": "KITENGELA MEDICAL SERVICES - KAJIADO",
+      "countyId": 34
+    },
+    {
+      "name": "OMEGA OPTICIANS - MAIYAN MALL RONGAI",
+      "countyId": 34
+    },
+    {
+      "name": "OMEGA OPTICIANS - RONGAI",
+      "countyId": 34
+    },
+    {
+      "name": "RYATTAH MEDICAL CENTRE - OLOITOKTOK",
+      "countyId": 34
+    },
+    {
+      "name": "BLISS GVS HEALTHCARE - KAKAMEGA",
+      "countyId": 37
+    },
+    {
+      "name": "DELIGHT DENTAL LIMITED- KAKAMEGA",
+      "countyId": 37
+    },
+    {
+      "name": "DELIGHT OPTICS - KAKAMEGA",
+      "countyId": 37
+    },
+    {
+      "name": "EQUITY AFIA MEDICAL CENTRE - CHAVAKALI",
+      "countyId": 37
+    },
+    {
+      "name": "EQUITY AFIA MEDICAL CENTRE - KAKAMEGA",
+      "countyId": 37
+    },
+    {
+      "name": "MEDICROSS - MUMIAS",
+      "countyId": 37
+    },
+    {
+      "name": "ST. MARYS HOSPITAL -  MUMIAS",
+      "countyId": 37
+    },
+    {
+      "name": "ALPHOND MEDICAL CENTRE",
+      "countyId": 37
+    },
+    {
+      "name": "DR HEZRON WASONGA ODONGO",
+      "countyId": 37
+    },
+    {
+      "name": "LUPE MEDICAL AND DENTAL CLINIC - KAKAMEGA",
+      "countyId": 37
+    },
+    {
+      "name": "NALA MATERNITY AND NURSING HOME - KAKAMEGA",
+      "countyId": 37
+    },
+    {
+      "name": "ST. ELIZABETH MISSION HOSPITAL - MUKUMU",
+      "countyId": 37
+    },
+    {
+      "name": "SHEYWE COMMUNITY HOSPITAL - KAKAMEGA",
+      "countyId": 37
+    },
+    {
+      "name": "KK OPTICS - KAKAMEGA",
+      "countyId": 37
+    },
+    {
+      "name": "BAUS OPTICAL - KAKAMEGA CATHEDRAL MALL",
+      "countyId": 37
+    },
+    {
+      "name": "BLISS GVS HEALTHCARE - KERICHO",
+      "countyId": 35
+    },
+    {
+      "name": "DELIGHT DENTAL LIMITED- KERICHO",
+      "countyId": 35
+    },
+    {
+      "name": "DELIGHT OPTICS - KERICHO",
+      "countyId": 35
+    },
+    {
+      "name": "BAUS OPTICAL - KERICHO",
+      "countyId": 35
+    },
+    {
+      "name": "AIC KIJABE - MARIRA BRANCH",
+      "countyId": 22
+    },
+    {
+      "name": "AIC KIJABE HOSPITAL",
+      "countyId": 22
+    },
+    {
+      "name": "APEX SPECIALIST AND DIAGNOSTIC CENTER - THIKA",
+      "countyId": 22
+    },
+    {
+      "name": "BAUS OPTICAL - THIKA BRANCH",
+      "countyId": 22
+    },
+    {
+      "name": "BLISS GVS HEALTHCARE - KAHAWA WENDANI",
+      "countyId": 22
+    },
+    {
+      "name": "BLISS GVS HEALTHCARE - THIKA",
+      "countyId": 22
+    },
+    {
+      "name": "BLISS MEDICAL CENTRE - KIAMBU",
+      "countyId": 22
+    },
+    {
+      "name": "EQUITY AFIA MEDICAL CENTRE - BANANA",
+      "countyId": 22
+    },
+    {
+      "name": "EQUITY AFIA MEDICAL CENTRE - GITHUNGURI",
+      "countyId": 22
+    },
+    {
+      "name": "EQUITY AFIA MEDICAL CENTRE - JUJA",
+      "countyId": 22
+    },
+    {
+      "name": "EQUITY AFIA MEDICAL CENTRE - KENYATTA ROAD",
+      "countyId": 22
+    },
+    {
+      "name": "EQUITY AFIA MEDICAL CENTRE - KHAMAKIS",
+      "countyId": 22
+    },
+    {
+      "name": "EQUITY AFIA MEDICAL CENTRE - KIKUYU",
+      "countyId": 22
+    },
+    {
+      "name": "EQUITY AFIA MEDICAL CENTRE - KIMBO",
+      "countyId": 22
+    },
+    {
+      "name": "EQUITY AFIA MEDICAL CENTRE - KINOO",
+      "countyId": 22
+    },
+    {
+      "name": "EQUITY AFIA MEDICAL CENTRE - LIMURU",
+      "countyId": 22
+    },
+    {
+      "name": "EQUITY AFIA MEDICAL CENTRE - RUAKA",
+      "countyId": 22
+    },
+    {
+      "name": "EQUITY AFIA MEDICAL CENTRE - RUIRU",
+      "countyId": 22
+    },
+    {
+      "name": "EQUITY AFIA MEDICAL CENTRE - THIKA",
+      "countyId": 22
+    },
+    {
+      "name": "EQUITY AFIA MEDICAL CENTRE - WANGIGE",
+      "countyId": 22
+    },
+    {
+      "name": "MARYHELP OF THE SICK HOSPITAL - THIKA",
+      "countyId": 22
+    },
+    {
+      "name": "MEDICROSS - ANANAS THIKA",
+      "countyId": 22
+    },
+    {
+      "name": "MEDICROSS - JUJA",
+      "countyId": 22
+    },
+    {
+      "name": "NEEMA OPTICIANS - THIKA",
+      "countyId": 22
+    },
+    {
+      "name": "OMEGA OPTICIANS - KIAMBU",
+      "countyId": 22
+    },
+    {
+      "name": "PANAFRIC UNIVERSAL HOSPITAL LTD",
+      "countyId": 22
+    },
+    {
+      "name": "RADIANT GROUP OF HOSPITALS - KIAMBU",
+      "countyId": 22
+    },
+    {
+      "name": "THIKA NURSING HOME",
+      "countyId": 22
+    },
+    {
+      "name": "BAUS OPTICAL - FOURWAYS",
+      "countyId": 22
+    },
+    {
+      "name": "EQUITY AFIA  MEDICAL CENTRE - THINDIGUA",
+      "countyId": 22
+    },
+    {
+      "name": "EQUITY AFIA MEDICAL CENTRE - RUIRU 2",
+      "countyId": 22
+    },
+    {
+      "name": "EQUITY AFIA MEDICAL CENTRE - RUIRU 2, AIPCEA",
+      "countyId": 22
+    },
+    {
+      "name": "AIC KIJABE HOSPITAL - MAIN",
+      "countyId": 22
+    },
+    {
+      "name": "NAZARETH HOSPITAL - KIAMBU",
+      "countyId": 22
+    },
+    {
+      "name": "NAZARETH RUIRU HOSPITAL",
+      "countyId": 22
+    },
+    {
+      "name": "ROYAL SMILES DENTAL CLINIC - RUAKA",
+      "countyId": 22
+    },
+    {
+      "name": "RUAI FAMILY HOSPITAL - RUIRU",
+      "countyId": 22
+    },
+    {
+      "name": "RUAI FAMILY HOSPITAL - THINDIGUA",
+      "countyId": 22
+    },
+    {
+      "name": "BLISS GVS HEALTHCARE - MTWAPA",
+      "countyId": 3
+    },
+    {
+      "name": "BLISS GVS HEALTHCARE LIMITED - MALINDI",
+      "countyId": 3
+    },
+    {
+      "name": "BLISS MEDICAL CENTRE - KILIFI",
+      "countyId": 3
+    },
+    {
+      "name": "EQUITY AFIA MEDICAL CENTRE - MALINDI, BLUE MARLIN BUILDING",
+      "countyId": 3
+    },
+    {
+      "name": "MEDICROSS - KILIFI",
+      "countyId": 3
+    },
+    {
+      "name": "MEDICROSS - MALINDI",
+      "countyId": 3
+    },
+    {
+      "name": "TUDOR HEALTHCARE - MTWAPA",
+      "countyId": 3
+    },
+    {
+      "name": "TAWFIQ HOSPITAL - MALINDI",
+      "countyId": 3
+    },
+    {
+      "name": "STAR HOSPITAL - MALINDI",
+      "countyId": 3
+    },
+    {
+      "name": "BLISS GVS HEALTHCARE - KERUGOYA",
+      "countyId": 20
+    },
+    {
+      "name": "EASTEND DENTAL CLINIC - MWEA",
+      "countyId": 20
+    },
+    {
+      "name": "EQUITY AFIA MEDICAL CENTRE - KERUGOYA",
+      "countyId": 20
+    },
+    {
+      "name": "EQUITY AFIA MEDICAL CENTRE - KUTUS",
+      "countyId": 20
+    },
+    {
+      "name": "FOCUS CLINICAL AND DIAGNOSTICS CENTRE - FAMILY BANK KERUGOYA",
+      "countyId": 20
+    },
+    {
+      "name": "FOCUS CLINICAL AND DIAGNOSTICS CENTRE - MWEA",
+      "countyId": 20
+    },
+    {
+      "name": "FOCUS CLINICAL AND DIAGNOSTICS CENTRE - SOKO BRANCH  KERUGOYA",
+      "countyId": 20
+    },
+    {
+      "name": "NEEMA OPTICIANS - KERUGOYA",
+      "countyId": 20
+    },
+    {
+      "name": "NEEMA OPTICIANS - MWEA",
+      "countyId": 20
+    },
+    {
+      "name": "QUEENS AND KINGS HOSPITAL - KERUGOYA",
+      "countyId": 20
+    },
+    {
+      "name": "SAGANA COTTAGE HOSPITAL",
+      "countyId": 20
+    },
+    {
+      "name": "BAUS OPTICAL - KISII",
+      "countyId": 45
+    },
+    {
+      "name": "BLISS GVS HEALTHCARE - KISII 1- MAGOMA PLAZA KISII TOWN",
+      "countyId": 45
+    },
+    {
+      "name": "BLISS GVS HEALTHCARE - KISII 2 - FORMERLY UCHUMI SUPER MARKET",
+      "countyId": 45
+    },
+    {
+      "name": "BLISS GVS HEALTHCARE - OLD UCHAMI KISII",
+      "countyId": 45
+    },
+    {
+      "name": "BOSONGO MEDICAL CENTRE - KISII",
+      "countyId": 45
+    },
+    {
+      "name": "CHIRON HOSPITAL",
+      "countyId": 45
+    },
+    {
+      "name": "DELIGHT DENTAL LIMITED- KISII",
+      "countyId": 45
+    },
+    {
+      "name": "DELIGHT OPTICS - KISII",
+      "countyId": 45
+    },
+    {
+      "name": "EQUITY AFIA MEDICAL CENTRE - KISII",
+      "countyId": 45
+    },
+    {
+      "name": "HEMA HOSPITAL - KISII",
+      "countyId": 45
+    },
+    {
+      "name": "HOLSOMS ANNEX KEUMBU",
+      "countyId": 45
+    },
+    {
+      "name": "ITIERIO MATERNITY AND NURSING HOME",
+      "countyId": 45
+    },
+    {
+      "name": "KISII DENTAL CENTER",
+      "countyId": 45
+    },
+    {
+      "name": "KISII FAMILY MEDICAL CENTRE",
+      "countyId": 45
+    },
+    {
+      "name": "KISII GALAXY MEDICAL CENTRE",
+      "countyId": 45
+    },
+    {
+      "name": "KISII SPECIALIST HOSPITAL",
+      "countyId": 45
+    },
+    {
+      "name": "KISII TEACHING AND REFERRAL HOSPITAL- KTRH",
+      "countyId": 45
+    },
+    {
+      "name": "LAMHEAL MATERNITY AND NURSING HOME - KEROKA",
+      "countyId": 45
+    },
+    {
+      "name": "MAMA BIRITA HOSPITAL LTD",
+      "countyId": 45
+    },
+    {
+      "name": "MEDIFORTE HOSPITAL",
+      "countyId": 45
+    },
+    {
+      "name": "MEDIFORTE HOSPITAL - KISII",
+      "countyId": 45
+    },
+    {
+      "name": "MEDSTOPS HEALTHCARE KENYA",
+      "countyId": 45
+    },
+    {
+      "name": "METABURO HEALTH CENTRE",
+      "countyId": 45
+    },
+    {
+      "name": "NYAMACHE SUB-COUNTY REFERRAL HOSPITAL",
+      "countyId": 45
+    },
+    {
+      "name": "NYANCHWA MISSION HOSPITAL - KISII",
+      "countyId": 45
+    },
+    {
+      "name": "NYANGENA HOSPITAL - KISII",
+      "countyId": 45
+    },
+    {
+      "name": "NYANSINGO MATERNITY AND NURSING HOME - NYANSIONGO",
+      "countyId": 45
+    },
+    {
+      "name": "OMEGA OPTICIANS - KISII",
+      "countyId": 45
+    },
+    {
+      "name": "OPTEX OPTICIANS - KISII",
+      "countyId": 45
+    },
+    {
+      "name": "PALMCARE SINAI HOSPITAL - KISII",
+      "countyId": 45
+    },
+    {
+      "name": "RAM HOSPITAL - KISII",
+      "countyId": 45
+    },
+    {
+      "name": "RIOKINDO HEALTH CENTRE",
+      "countyId": 45
+    },
+    {
+      "name": "ST CATHERINE'S ICHUNI MISSION HOSPITAL",
+      "countyId": 45
+    },
+    {
+      "name": "TABAKA MISSION HOSPITAL",
+      "countyId": 45
+    },
+    {
+      "name": "KK OPTICS - KISII",
+      "countyId": 45
+    },
+    {
+      "name": "AFRICA INUKA HOSPITAL LTD - KISUMU MILIMANI",
+      "countyId": 42
+    },
+    {
+      "name": "BAUS OPTICAL - KISUMU MEGA PLAZA",
+      "countyId": 42
+    },
+    {
+      "name": "BLISS GVS HEALTHCARE LIMITED - AL IMRAN - KISUMU 1",
+      "countyId": 42
+    },
+    {
+      "name": "BLISS GVS HEALTHCARE LIMITED - MEGA PLAZA - KISUMU 2",
+      "countyId": 42
+    },
+    {
+      "name": "BLISS MEDICAL CENTRE - KISUMU MEGA PLAZA",
+      "countyId": 42
+    },
+    {
+      "name": "DELIGHT DENTAL LIMITED- KISUMU",
+      "countyId": 42
+    },
+    {
+      "name": "DELIGHT OPTICS - KISUMU TOWN CLINIC",
+      "countyId": 42
+    },
+    {
+      "name": "DELIGHT OPTICS UNITED MALL - KISUMU",
+      "countyId": 42
+    },
+    {
+      "name": "EQUITY AFIA MEDICAL CENTRE - KISUMU",
+      "countyId": 42
+    },
+    {
+      "name": "EQUITY AFIA MEDICAL CENTRE - KISUMU CBD CLINIC",
+      "countyId": 42
+    },
+    {
+      "name": "EQUITY AFIA MEDICAL CENTRE - SIAYA",
+      "countyId": 42
+    },
+    {
+      "name": "MEDICROSS -  KISUMU MEGA CITY",
+      "countyId": 42
+    },
+    {
+      "name": "OMEGA OPTICIANS - KISUMU",
+      "countyId": 42
+    },
+    {
+      "name": "KK OPTICS - KISUMU",
+      "countyId": 42
+    },
+    {
+      "name": "BAUS OPTICAL - KISUMU MEGA CITY",
+      "countyId": 42
+    },
+    {
+      "name": "TITAN OPTICS - MEGA CITY",
+      "countyId": 42
+    },
+    {
+      "name": "BLISS MEDICAL CENTRE - KITUI",
+      "countyId": 15
+    },
+    {
+      "name": "EQUITY AFIA MEDICAL CENTRE - KITUI",
+      "countyId": 15
+    },
+    {
+      "name": "EQUITY AFIA MEDICAL CENTRE - MWINGI",
+      "countyId": 15
+    },
+    {
+      "name": "MWINGI FAMILY NURSING LIMITED",
+      "countyId": 15
+    },
+    {
+      "name": "NEEMA OPTICIANS - KITUI",
+      "countyId": 15
+    },
+    {
+      "name": "NEEMA OPTICIANS - MWINGI",
+      "countyId": 15
+    },
+    {
+      "name": "MWINGI FAMILY NURSING HOME",
+      "countyId": 15
+    },
+    {
+      "name": "BLISS GVS HEALTHCARE LIMITED - DIANI",
+      "countyId": 2
+    },
+    {
+      "name": "EQUITY AFIA MEDICAL CENTRE - KWALE",
+      "countyId": 2
+    },
+    {
+      "name": "PALM BEACH HOSPITAL - UKUNDA",
+      "countyId": 2
+    },
+    {
+      "name": "TUDOR HEALTHCARE - LIKONI",
+      "countyId": 2
+    },
+    {
+      "name": "BAUS OPTICAL - NANYUKI",
+      "countyId": 31
+    },
+    {
+      "name": "BLISS GVS HEALTHCARE - NANYUKI",
+      "countyId": 31
+    },
+    {
+      "name": "EQUITY AFIA MEDICAL CENTRE - NANYUKI",
+      "countyId": 31
+    },
+    {
+      "name": "EQUITY AFIA MEDICAL CENTRE - NYAHURURU",
+      "countyId": 31
+    },
+    {
+      "name": "NEEMA OPTICIANS - NANYUKI",
+      "countyId": 31
+    },
+    {
+      "name": "NEEMA OPTICIANS - NYAHURURU",
+      "countyId": 31
+    },
+    {
+      "name": "UNISON MEDICAL CENTRE - RUMURUTI",
+      "countyId": 31
+    },
+    {
+      "name": "BLISS GVS  HEALTHCARE - LAMU",
+      "countyId": 5
+    },
+    {
+      "name": "EQUITY AFIA MEDICAL CENTRE - MPEKETONI",
+      "countyId": 5
+    },
+    {
+      "name": "LANGONI NURSING HOME",
+      "countyId": 5
+    },
+    {
+      "name": "ATHICHEM MODERN MEDICAL CENTRE LIMITED",
+      "countyId": 16
+    },
+    {
+      "name": "BAHATI HOSPITAL - JOSKA",
+      "countyId": 16
+    },
+    {
+      "name": "BAHATI HOSPITAL - TALA",
+      "countyId": 16
+    },
+    {
+      "name": "BAUS OPTICAL - MACHAKOS BRANCH",
+      "countyId": 16
+    },
+    {
+      "name": "BAUS OPTICAL - SYOKIMAU",
+      "countyId": 16
+    },
+    {
+      "name": "BISHOP KIOKO CATHOLIC HOSPITAL",
+      "countyId": 16
+    },
+    {
+      "name": "BLISS GVS HEALTHCARE - MACHAKOS",
+      "countyId": 16
+    },
+    {
+      "name": "BRISTOL PARK HOSPITAL - MACHAKOS",
+      "countyId": 16
+    },
+    {
+      "name": "EQUITY AFIA MEDICAL CENTRE - DAYSTAR",
+      "countyId": 16
+    },
+    {
+      "name": "EQUITY AFIA MEDICAL CENTRE - GREATWALL GARDENS,ATHI RIVER",
+      "countyId": 16
+    },
+    {
+      "name": "EQUITY AFIA MEDICAL CENTRE - KATANI ROAD",
+      "countyId": 16
+    },
+    {
+      "name": "EQUITY AFIA MEDICAL CENTRE - MACHAKOS",
+      "countyId": 16
+    },
+    {
+      "name": "EQUITY AFIA MEDICAL CENTRE - MATUU",
+      "countyId": 16
+    },
+    {
+      "name": "EQUITY AFIA MEDICAL CENTRE - SYOKIMAU",
+      "countyId": 16
+    },
+    {
+      "name": "INOVA HEALTHCARE",
+      "countyId": 16
+    },
+    {
+      "name": "MACHAKOS DOCTORS PLAZA",
+      "countyId": 16
+    },
+    {
+      "name": "MACHAKOS DOCTORS PLAZA - MATUU",
+      "countyId": 16
+    },
+    {
+      "name": "MATUNGULU MEDICAL CENTRE",
+      "countyId": 16
+    },
+    {
+      "name": "NEEMA OPTICIANS - MACHAKOS",
+      "countyId": 16
+    },
+    {
+      "name": "NEEMA OPTICIANS - MATUU",
+      "countyId": 16
+    },
+    {
+      "name": "OPTIC STUDIO - MACHAKOS",
+      "countyId": 16
+    },
+    {
+      "name": "PLAZA SPECIALIST HOSPITAL - MACHAKOS",
+      "countyId": 16
+    },
+    {
+      "name": "ROYAL SMILES DENTAL CLINIC - MACHAKOS",
+      "countyId": 16
+    },
+    {
+      "name": "RUAI FAMILY HOSPITAL - TALA",
+      "countyId": 16
+    },
+    {
+      "name": "BLISS GVS HEALTHCARE - EMALI",
+      "countyId": 17
+    },
+    {
+      "name": "BLISS GVS HEALTHCARE - WOTE",
+      "countyId": 17
+    },
+    {
+      "name": "EQUITY AFIA MEDICAL CENTRE - EMALI",
+      "countyId": 17
+    },
+    {
+      "name": "EQUITY AFIA MEDICAL CENTRE - WOTE",
+      "countyId": 17
+    },
+    {
+      "name": "OPTIC STUDIO - MAKUENI",
+      "countyId": 17
+    },
+    {
+      "name": "ELWAK COTTAGE NURSING HOME",
+      "countyId": 9
+    },
+    {
+      "name": "LADNAN HOSPITAL - ELWAK MANDERA",
+      "countyId": 9
+    },
+    {
+      "name": "MANDERA COUNTY REFERRAL - MANDERA",
+      "countyId": 9
+    },
+    {
+      "name": "MANDERA NURSING HOME",
+      "countyId": 9
+    },
+    {
+      "name": "SHAMAAL HOSPITAL - BANISA",
+      "countyId": 9
+    },
+    {
+      "name": "SHAMAAL HOSPITAL - MANDERA EAST",
+      "countyId": 9
+    },
+    {
+      "name": "SHAMAAL HOSPITAL -TAKABA",
+      "countyId": 9
+    },
+    {
+      "name": "SOUTH GATE HOSPITAL - ELWAK",
+      "countyId": 9
+    },
+    {
+      "name": "THE RHAMU HOSPITAL - MANDERA RHAMU",
+      "countyId": 9
+    },
+    {
+      "name": "BLUE LIGHT HOSPITAL - MANDERA",
+      "countyId": 9
+    },
+    {
+      "name": "FAMZAHARA MATERNITY AND NURSING HOME",
+      "countyId": 9
+    },
+    {
+      "name": "THE MANDERA HOSPITAL",
+      "countyId": 9
+    },
+    {
+      "name": "BARIO MEDICAL CENTRE",
+      "countyId": 9
+    },
+    {
+      "name": "DAY 2 DAY NURSING HOME - MANDERA",
+      "countyId": 9
+    },
+    {
+      "name": "EQUITY AFIA MEDICAL CENTRE - MANDERA, OPPOSITE MANDERA D.E.B PRIMARY",
+      "countyId": 9
+    },
+    {
+      "name": "MANDERA COUNTY REFERRAL HOSPITAL - MANDERA",
+      "countyId": 9
+    },
+    {
+      "name": "WARGADUD MEDICAL CENTRE - WARGADUD",
+      "countyId": 9
+    },
+    {
+      "name": "WAQILA NURSING HOME",
+      "countyId": 9
+    },
+    {
+      "name": "HILLVIEW NURSING HOME",
+      "countyId": 9
+    },
+    {
+      "name": "ALHAMDU DENTAL SERVICES",
+      "countyId": 9
+    },
+    {
+      "name": "SHIMBIR MILANO NURSING HOME",
+      "countyId": 9
+    },
+    {
+      "name": "TAHRIR HEALTHCARE",
+      "countyId": 9
+    },
+    {
+      "name": "KOTULO MEDICARE",
+      "countyId": 9
+    },
+    {
+      "name": "ALMISBAH MEDICAL CENTER",
+      "countyId": 9
+    },
+    {
+      "name": "NORTHLIFE HEALTHCARE SERVICES LTD",
+      "countyId": 9
+    },
+    {
+      "name": "MANDERA DENTAL SERVICE",
+      "countyId": 9
+    },
+    {
+      "name": "BURGUBUD NURSING HOME",
+      "countyId": 9
+    },
+    {
+      "name": "BEEHIVE MEDICAL SERVICES - MARSABIT",
+      "countyId": 10
+    },
+    {
+      "name": "BLISS GVS HEALTHCARE - MARSABIT",
+      "countyId": 10
+    },
+    {
+      "name": "EQUITY AFIA MEDICAL CENTRE - MARSABIT",
+      "countyId": 10
+    },
+    {
+      "name": "HAVANA HOSPITAL LIMITED - MARSABIT",
+      "countyId": 10
+    },
+    {
+      "name": "TAZLIM HOSPITAL LIMITED - MOYALE",
+      "countyId": 10
+    },
+    {
+      "name": "BAUS OPTICAL - MERU",
+      "countyId": 12
+    },
+    {
+      "name": "BLISS GVS HEALTHCARE - MAUA",
+      "countyId": 12
+    },
+    {
+      "name": "BLISS GVS HEALTHCARE - MERU",
+      "countyId": 12
+    },
+    {
+      "name": "BLISS GVS HEALTHCARE - NKUBU",
+      "countyId": 12
+    },
+    {
+      "name": "EQUITY AFIA MEDICAL CENTRE - MERU",
+      "countyId": 12
+    },
+    {
+      "name": "EQUITY AFIA MEDICAL CENTRE - NKUBU",
+      "countyId": 12
+    },
+    {
+      "name": "MEDICROSS - MERU",
+      "countyId": 12
+    },
+    {
+      "name": "NEEMA OPTICIANS - CHUKA",
+      "countyId": 12
+    },
+    {
+      "name": "NEEMA OPTICIANS - MAUA",
+      "countyId": 12
+    },
+    {
+      "name": "NEEMA OPTICIANS - MERU",
+      "countyId": 12
+    },
+    {
+      "name": "OMEGA OPTICIANS - MERU",
+      "countyId": 12
+    },
+    {
+      "name": "ROBINS HEALTHCARE - MAUA",
+      "countyId": 12
+    },
+    {
+      "name": "SIHA NJEMA HOSPITAL",
+      "countyId": 12
+    },
+    {
+      "name": "BLISS GVS HEALTHCARE LTD - MIGORI",
+      "countyId": 44
+    },
+    {
+      "name": "EQUITY AFIA MEDICAL CENTRE - MIGORI",
+      "countyId": 44
+    },
+    {
+      "name": "OPTEX OPTICIANS - MIGORI",
+      "countyId": 44
+    },
+    {
+      "name": "RONGO ROYAL MEDICAL CLINIC AND MATERNITY HOME - RONGO",
+      "countyId": 44
+    },
+    {
+      "name": "KK OPTICS - MIGORI",
+      "countyId": 44
+    },
+    {
+      "name": "BAUS OPTICAL - MOMBASA",
+      "countyId": 1
+    },
+    {
+      "name": "BAUS OPTICAL - NYALI",
+      "countyId": 1
+    },
+    {
+      "name": "BAYLEAF HOSPITAL",
+      "countyId": 1
+    },
+    {
+      "name": "BLISS GVS HEALTHCARE - MOMBASA",
+      "countyId": 1
+    },
+    {
+      "name": "EQUITY AFIA MEDICAL CENTRE - BAMBURI",
+      "countyId": 1
+    },
+    {
+      "name": "EQUITY AFIA MEDICAL CENTRE - CHANGAMWE",
+      "countyId": 1
+    },
+    {
+      "name": "EQUITY AFIA MEDICAL CENTRE - MOMBASA",
+      "countyId": 1
+    },
+    {
+      "name": "GANJONI HOSPITAL MOMBASA",
+      "countyId": 1
+    },
+    {
+      "name": "MZEDU DAWIDA MEDICAL SERVICES",
+      "countyId": 1
+    },
+    {
+      "name": "OMEGA OPTICIANS - MOI AVENUE MOMBASA",
+      "countyId": 1
+    },
+    {
+      "name": "OMEGA OPTICIANS - MOMBASA",
+      "countyId": 1
+    },
+    {
+      "name": "SANN OPTICALS - MOMBASA",
+      "countyId": 1
+    },
+    {
+      "name": "TUDOR HEALTHCARE - BAMBURI",
+      "countyId": 1
+    },
+    {
+      "name": "TUDOR HEALTHCARE - MOMBASA",
+      "countyId": 1
+    },
+    {
+      "name": "EQUITY AFIA MEDICAL CENTRE - KENOL",
+      "countyId": 21
+    },
+    {
+      "name": "EQUITY AFIA MEDICAL CENTRE - MURANG'A",
+      "countyId": 21
+    },
+    {
+      "name": "FOCUS CLINICAL AND DIAGNOSTICS CENTRE - MURANGA",
+      "countyId": 21
+    },
+    {
+      "name": "IMELLA MEDICAL CLINIC",
+      "countyId": 21
+    },
+    {
+      "name": "KANDARA SUB-COUNTY HOSPITAL",
+      "countyId": 21
+    },
+    {
+      "name": "KANGEMA \u00a0MEDICAL SERVICES (DR. C. WAHOME)",
+      "countyId": 21
+    },
+    {
+      "name": "KANGEMA SUB-COUNTY HOSPITAL",
+      "countyId": 21
+    },
+    {
+      "name": "KENNETH MATIBA HOSPITAL",
+      "countyId": 21
+    },
+    {
+      "name": "KENOL HOSPITAL",
+      "countyId": 21
+    },
+    {
+      "name": "KIGUMO SUB-COUNTY HOSPITAL",
+      "countyId": 21
+    },
+    {
+      "name": "KIRIAINI MISSION HOSPITAL - KIRIAINI",
+      "countyId": 21
+    },
+    {
+      "name": "KIRWARA\u00a0SUB-COUNTY HOSPITAL",
+      "countyId": 21
+    },
+    {
+      "name": "MARAGUA SUB-COUNTY HOSPITAL",
+      "countyId": 21
+    },
+    {
+      "name": "MODERN ABERDARE VIEW HOSPITAL",
+      "countyId": 21
+    },
+    {
+      "name": "MT. KENYA KANGEMA HOSPITAL - KANGEMA",
+      "countyId": 21
+    },
+    {
+      "name": "MURANG'A HEALTHCARE SERVICES",
+      "countyId": 21
+    },
+    {
+      "name": "MURANGA\u00a0LEVEL 5 HOSPITAL",
+      "countyId": 21
+    },
+    {
+      "name": "MURIRANJAS\u00a0SUB-COUNTY HOSPITAL",
+      "countyId": 21
+    },
+    {
+      "name": "NEEMA OPTICIANS - MURANG'A",
+      "countyId": 21
+    },
+    {
+      "name": "AIC KIJABE HOSPITAL - WESTLANDS MEDICAL CENTER",
+      "countyId": 47
+    },
+    {
+      "name": "ALIBRAR MEDICAL CENTRE LTD",
+      "countyId": 47
+    },
+    {
+      "name": "ARABIAN DENTAL CARE - NAIROBI",
+      "countyId": 47
+    },
+    {
+      "name": "BALOZI HOSPITAL",
+      "countyId": 47
+    },
+    {
+      "name": "BAUS OPTICAL - 680 BRANCH",
+      "countyId": 47
+    },
+    {
+      "name": "BAUS OPTICAL - BURUBURU",
+      "countyId": 47
+    },
+    {
+      "name": "BAUS OPTICAL - CHINA CENTRE",
+      "countyId": 47
+    },
+    {
+      "name": "BAUS OPTICAL - EMBAKASI",
+      "countyId": 47
+    },
+    {
+      "name": "BAUS OPTICAL - HILTON",
+      "countyId": 47
+    },
+    {
+      "name": "BAUS OPTICAL - HILTON EXECUTIVE CLINIC",
+      "countyId": 47
+    },
+    {
+      "name": "BAUS OPTICAL - LAVINGTON BRANCH",
+      "countyId": 47
+    },
+    {
+      "name": "BAUS OPTICAL - TWIGA BRANCH NAIROBI",
+      "countyId": 47
+    },
+    {
+      "name": "BAUS OPTICAL - WESTLANDS",
+      "countyId": 47
+    },
+    {
+      "name": "BLISS GVS HEALTHCARE - BURUBURU",
+      "countyId": 47
+    },
+    {
+      "name": "BLISS GVS HEALTHCARE - EMBAKASI",
+      "countyId": 47
+    },
+    {
+      "name": "BLISS GVS HEALTHCARE - GITHURAI",
+      "countyId": 47
+    },
+    {
+      "name": "BLISS GVS HEALTHCARE - HAILE SELASSIE",
+      "countyId": 47
+    },
+    {
+      "name": "BLISS GVS HEALTHCARE - KIBERA",
+      "countyId": 47
+    },
+    {
+      "name": "BLISS GVS HEALTHCARE - MOI AVENUE",
+      "countyId": 47
+    },
+    {
+      "name": "BLISS GVS HEALTHCARE - NAIROBI WEST",
+      "countyId": 47
+    },
+    {
+      "name": "BLISS GVS HEALTHCARE - PANGANI",
+      "countyId": 47
+    },
+    {
+      "name": "BLISS GVS HEALTHCARE - PIPELINE",
+      "countyId": 47
+    },
+    {
+      "name": "BLISS GVS HEALTHCARE - SOUTH C",
+      "countyId": 47
+    },
+    {
+      "name": "BLISS GVS HEALTHCARE - TELEPOSTA",
+      "countyId": 47
+    },
+    {
+      "name": "BLISS GVS HEALTHCARE - WESTLANDS",
+      "countyId": 47
+    },
+    {
+      "name": "BLISS GVS HEALTHCARE LIMITED - ENTERPRISE ROAD",
+      "countyId": 47
+    },
+    {
+      "name": "BLISS GVS HEALTHCARE LIMITED - UMOJA",
+      "countyId": 47
+    },
+    {
+      "name": "BLISS MEDICAL CENTRE - COLLEGE HOUSE",
+      "countyId": 47
+    },
+    {
+      "name": "BLISS MEDICAL CENTRE - EASTLEIGH",
+      "countyId": 47
+    },
+    {
+      "name": "BLISS MEDICAL CENTRE - JOGOO ROAD",
+      "countyId": 47
+    },
+    {
+      "name": "BLISS MEDICAL CENTRE - MURANGA",
+      "countyId": 47
+    },
+    {
+      "name": "BLISS MEDICAL CENTRE - PANGANI",
+      "countyId": 47
+    },
+    {
+      "name": "BODYKRAFT HEALTHCARE LTD - PARLANDS",
+      "countyId": 47
+    },
+    {
+      "name": "CARE HOSPITAL - EASTLEIGH",
+      "countyId": 47
+    },
+    {
+      "name": "DELIGHT OPTICS - KENYATTA AVENUE",
+      "countyId": 47
+    },
+    {
+      "name": "EQUITY AFIA MEDICAL CENTRE  - NGONG ROAD",
+      "countyId": 47
+    },
+    {
+      "name": "EQUITY AFIA MEDICAL CENTRE - BIASHARA STREET",
+      "countyId": 47
+    },
+    {
+      "name": "EQUITY AFIA MEDICAL CENTRE - BURUBURU",
+      "countyId": 47
+    },
+    {
+      "name": "EQUITY AFIA MEDICAL CENTRE - CHOKAA, HURLINGHAM",
+      "countyId": 47
+    },
+    {
+      "name": "EQUITY AFIA MEDICAL CENTRE - DONHOLM",
+      "countyId": 47
+    },
+    {
+      "name": "EQUITY AFIA MEDICAL CENTRE - EASTLEIGH",
+      "countyId": 47
+    },
+    {
+      "name": "EQUITY AFIA MEDICAL CENTRE - EMBAKASI",
+      "countyId": 47
+    },
+    {
+      "name": "EQUITY AFIA MEDICAL CENTRE - EMBAKASI VILLAGE",
+      "countyId": 47
+    },
+    {
+      "name": "EQUITY AFIA MEDICAL CENTRE - GITHURAI",
+      "countyId": 47
+    },
+    {
+      "name": "EQUITY AFIA MEDICAL CENTRE - IMARA DAIMA",
+      "countyId": 47
+    },
+    {
+      "name": "EQUITY AFIA MEDICAL CENTRE - KAHAWA SUKARI",
+      "countyId": 47
+    },
+    {
+      "name": "EQUITY AFIA MEDICAL CENTRE - KAHAWA WEST",
+      "countyId": 47
+    },
+    {
+      "name": "EQUITY AFIA MEDICAL CENTRE - KANGEMI",
+      "countyId": 47
+    },
+    {
+      "name": "EQUITY AFIA MEDICAL CENTRE - KARIOBANGI",
+      "countyId": 47
+    },
+    {
+      "name": "EQUITY AFIA MEDICAL CENTRE - KASARANI",
+      "countyId": 47
+    },
+    {
+      "name": "EQUITY AFIA MEDICAL CENTRE - KAWANGWARE",
+      "countyId": 47
+    },
+    {
+      "name": "EQUITY AFIA MEDICAL CENTRE - KAYOLE",
+      "countyId": 47
+    },
+    {
+      "name": "EQUITY AFIA MEDICAL CENTRE - KIAMBU",
+      "countyId": 47
+    },
+    {
+      "name": "EQUITY AFIA MEDICAL CENTRE - LANGATA",
+      "countyId": 47
+    },
+    {
+      "name": "EQUITY AFIA MEDICAL CENTRE - LANG'ATA",
+      "countyId": 47
+    },
+    {
+      "name": "EQUITY AFIA MEDICAL CENTRE - LAVINGTON MALL",
+      "countyId": 47
+    },
+    {
+      "name": "EQUITY AFIA MEDICAL CENTRE - MAKONGENI",
+      "countyId": 47
+    },
+    {
+      "name": "EQUITY AFIA MEDICAL CENTRE - MAUA",
+      "countyId": 47
+    },
+    {
+      "name": "EQUITY AFIA MEDICAL CENTRE - MOI AVENUE",
+      "countyId": 47
+    },
+    {
+      "name": "EQUITY AFIA MEDICAL CENTRE - MOUNTAIN MALL",
+      "countyId": 47
+    },
+    {
+      "name": "EQUITY AFIA MEDICAL CENTRE - MWIKI",
+      "countyId": 47
+    },
+    {
+      "name": "EQUITY AFIA MEDICAL CENTRE - NAIROBI WEST",
+      "countyId": 47
+    },
+    {
+      "name": "EQUITY AFIA MEDICAL CENTRE - PANGANI",
+      "countyId": 47
+    },
+    {
+      "name": "EQUITY AFIA MEDICAL CENTRE - ROYSAMBU",
+      "countyId": 47
+    },
+    {
+      "name": "EQUITY AFIA MEDICAL CENTRE - RUAI",
+      "countyId": 47
+    },
+    {
+      "name": "EQUITY AFIA MEDICAL CENTRE - SOUTH B",
+      "countyId": 47
+    },
+    {
+      "name": "EQUITY AFIA MEDICAL CENTRE - UMOJA",
+      "countyId": 47
+    },
+    {
+      "name": "EQUITY AFIA MEDICAL CENTRE - UPPERHILL",
+      "countyId": 47
+    },
+    {
+      "name": "EQUITY AFIA MEDICAL CENTRE - UTAWALA",
+      "countyId": 47
+    },
+    {
+      "name": "EQUITY AFIA MEDICAL CENTRE - VOI",
+      "countyId": 47
+    },
+    {
+      "name": "EQUITY AFIA MEDICAL CENTRE - WESTLANDS",
+      "countyId": 47
+    },
+    {
+      "name": "INUKA HOSPITAL DOWNTOWN - KISUMU",
+      "countyId": 47
+    },
+    {
+      "name": "JACARANDA MATERNITY - KAHAWA WEST",
+      "countyId": 47
+    },
+    {
+      "name": "JACARANDA MATERNITY - NGONG ROAD",
+      "countyId": 47
+    },
+    {
+      "name": "JACARANDA MATERNITY - RUAKA",
+      "countyId": 47
+    },
+    {
+      "name": "JACARANDA MATERNITY - UMOJA BRANCH",
+      "countyId": 47
+    },
+    {
+      "name": "KENYATTA\u00a0NATIONAL\u00a0HOSPITAL - GENERAL WING",
+      "countyId": 47
+    },
+    {
+      "name": "KENYATTA\u00a0NATIONAL\u00a0HOSPITAL - NAIROBI",
+      "countyId": 47
+    },
+    {
+      "name": "LADNAN HOSPITAL - PANGANI",
+      "countyId": 47
+    },
+    {
+      "name": "LIONS SIGHTFIRST EYE HOSPITAL",
+      "countyId": 47
+    },
+    {
+      "name": "LIONS SIGHTFIRST EYE HOSPITAL - MP SHAH CLINIC",
+      "countyId": 47
+    },
+    {
+      "name": "LIONS SIGHTFIRST EYE HOSPITAL - NAIROBI CBD CLINIC",
+      "countyId": 47
+    },
+    {
+      "name": "LIONS SIGHTFIRST EYE HOSPITAL - SOUTHFFIELD MALL",
+      "countyId": 47
+    },
+    {
+      "name": "LIONS SIGHTFIRST EYE HOSPITAL - VILLAGE MARKET CLINIC",
+      "countyId": 47
+    },
+    {
+      "name": "MEDICROSS - NGONG ROAD",
+      "countyId": 47
+    },
+    {
+      "name": "MEDITEST DIAGNOSTIC SERVICES",
+      "countyId": 47
+    },
+    {
+      "name": "MEDITEST DIAGNOSTIC SERVICES - UPPERHILL",
+      "countyId": 47
+    },
+    {
+      "name": "MEDITEST PARK MEDICAL CENTRE",
+      "countyId": 47
+    },
+    {
+      "name": "MOTHER AND CHILD HOSPITAL - EASTLEIGH",
+      "countyId": 47
+    },
+    {
+      "name": "MOTHERSMILE DENTAL CARE",
+      "countyId": 47
+    },
+    {
+      "name": "MYER KIDNEY AND HEALTH SPECIALTIES HOSPITAL",
+      "countyId": 47
+    },
+    {
+      "name": "NEEMA OPTICIANS - RONALD NGALA",
+      "countyId": 47
+    },
+    {
+      "name": "OMEGA OPTICIANS - 20TH CENTURY",
+      "countyId": 47
+    },
+    {
+      "name": "OMEGA OPTICIANS - 5TH AVENUE",
+      "countyId": 47
+    },
+    {
+      "name": "OMEGA OPTICIANS - AGHRO HOUSE",
+      "countyId": 47
+    },
+    {
+      "name": "OMEGA OPTICIANS - AVENUE",
+      "countyId": 47
+    },
+    {
+      "name": "OMEGA OPTICIANS - EASTLEIGH",
+      "countyId": 47
+    },
+    {
+      "name": "OMEGA OPTICIANS - EMPEROR PLAZA",
+      "countyId": 47
+    },
+    {
+      "name": "OMEGA OPTICIANS - HURLINGHAM",
+      "countyId": 47
+    },
+    {
+      "name": "OMEGA OPTICIANS - JEEVANJEE",
+      "countyId": 47
+    },
+    {
+      "name": "OMEGA OPTICIANS - KAREN",
+      "countyId": 47
+    },
+    {
+      "name": "OMEGA OPTICIANS - KAREN SQUARE",
+      "countyId": 47
+    },
+    {
+      "name": "OMEGA OPTICIANS - MOMBASA ROAD",
+      "countyId": 47
+    },
+    {
+      "name": "OMEGA OPTICIANS - MONROVIA",
+      "countyId": 47
+    },
+    {
+      "name": "OMEGA OPTICIANS - PARKLANDS",
+      "countyId": 47
+    },
+    {
+      "name": "OMEGA OPTICIANS - RNG PLAZA",
+      "countyId": 47
+    },
+    {
+      "name": "OMEGA OPTICIANS - ROYSAMBU",
+      "countyId": 47
+    },
+    {
+      "name": "OMEGA OPTICIANS - THE MALL WESTLANDS",
+      "countyId": 47
+    },
+    {
+      "name": "OMEGA OPTICIANS - THE WELL KAREN",
+      "countyId": 47
+    },
+    {
+      "name": "OMEGA OPTICIANS - THIKA RD BRANCH",
+      "countyId": 47
+    },
+    {
+      "name": "OMEGA OPTICIANS - TOM MBOYA STREET",
+      "countyId": 47
+    },
+    {
+      "name": "PANAMED PHARMACEUTICALS",
+      "countyId": 47
+    },
+    {
+      "name": "PENDA HEALTH MEDICAL CENTRE - KIMATHI STREET",
+      "countyId": 47
+    },
+    {
+      "name": "PENDA HEALTHCARE",
+      "countyId": 47
+    },
+    {
+      "name": "PENDA MEDICAL CENTRE - EASTLEIGH",
+      "countyId": 47
+    },
+    {
+      "name": "PENDA MEDICAL CENTRE - EMBAKASI",
+      "countyId": 47
+    },
+    {
+      "name": "PENDA MEDICAL CENTRE - GITHURAI 45",
+      "countyId": 47
+    },
+    {
+      "name": "PENDA MEDICAL CENTRE - KAHAWA WERNDANI",
+      "countyId": 47
+    },
+    {
+      "name": "PENDA MEDICAL CENTRE - KAHAWA WEST",
+      "countyId": 47
+    },
+    {
+      "name": "PENDA MEDICAL CENTRE - KANGEMI",
+      "countyId": 47
+    },
+    {
+      "name": "PENDA MEDICAL CENTRE - KASARANI",
+      "countyId": 47
+    },
+    {
+      "name": "PENDA MEDICAL CENTRE - KAWANGWARE",
+      "countyId": 47
+    },
+    {
+      "name": "PENDA MEDICAL CENTRE - KAYOLE",
+      "countyId": 47
+    },
+    {
+      "name": "PENDA MEDICAL CENTRE - LANGATA",
+      "countyId": 47
+    },
+    {
+      "name": "PENDA MEDICAL CENTRE - LUCKY SUMMER",
+      "countyId": 47
+    },
+    {
+      "name": "PENDA MEDICAL CENTRE - MATHARE NORTH",
+      "countyId": 47
+    },
+    {
+      "name": "PENDA MEDICAL CENTRE - NGONG",
+      "countyId": 47
+    },
+    {
+      "name": "PENDA MEDICAL CENTRE - PIPELINE",
+      "countyId": 47
+    },
+    {
+      "name": "PENDA MEDICAL CENTRE - RONGAI",
+      "countyId": 47
+    },
+    {
+      "name": "PENDA MEDICAL CENTRE - SUTON",
+      "countyId": 47
+    },
+    {
+      "name": "PENDA MEDICAL CENTRE - TASSIA",
+      "countyId": 47
+    },
+    {
+      "name": "PENDA MEDICAL CENTRE - TRANSNAMI",
+      "countyId": 47
+    },
+    {
+      "name": "PENDA MEDICAL CENTRE - UMOJA 1",
+      "countyId": 47
+    },
+    {
+      "name": "PENDA MEDICAL CENTRE - UMOJA 2",
+      "countyId": 47
+    },
+    {
+      "name": "PENDA MEDICAL CENTRE - ZIMMERMAN",
+      "countyId": 47
+    },
+    {
+      "name": "RADIANT GROUP OF HOSPITALS - PANGANI",
+      "countyId": 47
+    },
+    {
+      "name": "RADIANT GROUP OF HOSPITALS - SEASONS",
+      "countyId": 47
+    },
+    {
+      "name": "RADIANT GROUP OF HOSPITALS - SPORTSVIEW",
+      "countyId": 47
+    },
+    {
+      "name": "RADIANT GROUP OF HOSPITALS - UMOJA",
+      "countyId": 47
+    },
+    {
+      "name": "REALE HOSPITAL - UTAWALA CLINIC",
+      "countyId": 47
+    },
+    {
+      "name": "SANTAMORE SPECIALISED SURGICAL HOSPITAL",
+      "countyId": 47
+    },
+    {
+      "name": "USHIRIKA ELITE HOSPITAL - EASTLEIGH",
+      "countyId": 47
+    },
+    {
+      "name": "METROPOLITAN HOSPITAL",
+      "countyId": 47
+    },
+    {
+      "name": "THE NAIROBI WEST HOSPITAL",
+      "countyId": 47
+    },
+    {
+      "name": "MY DAWA ONLINE PHARMACY",
+      "countyId": 47
+    },
+    {
+      "name": "ST PAUL'S HOSPITAL - KITENGELA",
+      "countyId": 47
+    },
+    {
+      "name": "EQUITY AFIA MEDICAL CENTRE - NGONG ROAD",
+      "countyId": 47
+    },
+    {
+      "name": "ST. SCHOLASTICA UZIMA HOSPITAL - MWIKI",
+      "countyId": 47
+    },
+    {
+      "name": "BAUS OPTICAL - LAVINGTON",
+      "countyId": 47
+    },
+    {
+      "name": "BAUS OPTICAL - MOUNTAIN VIEW MALL",
+      "countyId": 47
+    },
+    {
+      "name": "BAUS OPTICAL - ROSE AVENUE",
+      "countyId": 47
+    },
+    {
+      "name": "BAUS OPTICAL - GTC",
+      "countyId": 47
+    },
+    {
+      "name": "BAUS OPTICAL - KASARANI",
+      "countyId": 47
+    },
+    {
+      "name": "ALHAMDU DENTAL SERVICES - NAIROBI",
+      "countyId": 47
+    },
+    {
+      "name": "THOMSON AND THOMSON PHARMACY LIMITED",
+      "countyId": 47
+    },
+    {
+      "name": "BAUS OPTICAL - THE NAIROBI HOSPITAL",
+      "countyId": 47
+    },
+    {
+      "name": "BAUS OPTICAL - JAMES GICHURU",
+      "countyId": 47
+    },
+    {
+      "name": "EQUITY AFIA MEDICAL CENTRE - LUCKY SUMMER",
+      "countyId": 47
+    },
+    {
+      "name": "EQUITY AFIA MEDICAL CENTRE - KINKA",
+      "countyId": 47
+    },
+    {
+      "name": "EQUITY AFIA MEDICAL CENTRE - UMOJA 3",
+      "countyId": 47
+    },
+    {
+      "name": "EQUITY AFIA MEDICAL CENTRE - DANDORA",
+      "countyId": 47
+    },
+    {
+      "name": "EQUITY AFIA MEDICAL CENTRE - MARURUI",
+      "countyId": 47
+    },
+    {
+      "name": "EQUITY AFIA MEDICAL CENTRE - LOKICHAR",
+      "countyId": 47
+    },
+    {
+      "name": "IRAN MEDICAL CLINIC- NGARA",
+      "countyId": 47
+    },
+    {
+      "name": "AIC KIJABE HOSPITAL - WESTLANDS",
+      "countyId": 47
+    },
+    {
+      "name": "HEALTH GATE HOSPITAL LTD",
+      "countyId": 47
+    },
+    {
+      "name": "EQUITY AFIA MEDICAL CENTRE - PIPELINE",
+      "countyId": 47
+    },
+    {
+      "name": "RUAI FAMILY HOSPITAL",
+      "countyId": 47
+    },
+    {
+      "name": "RUAI FAMILY HOSPITAL - EMBAKASI",
+      "countyId": 47
+    },
+    {
+      "name": "RUAI FAMILY HOSPITAL - IMAARA MALL",
+      "countyId": 47
+    },
+    {
+      "name": "RUAI FAMILY HOSPITAL - JACARANDA GARDENS",
+      "countyId": 47
+    },
+    {
+      "name": "RUAI FAMILY HOSPITAL - KOMAROCK",
+      "countyId": 47
+    },
+    {
+      "name": "RUAI FAMILY HOSPITAL - RUAKA",
+      "countyId": 47
+    },
+    {
+      "name": "RUAI FAMILY HOSPITAL - SPECIALIST ANNEX",
+      "countyId": 47
+    },
+    {
+      "name": "RUAI FAMILY HOSPITAL - SYOKIMAU",
+      "countyId": 47
+    },
+    {
+      "name": "KENYATTA UNIVERSITY TEACHING, REFERRAL AND RESEARCH HOSPITAL",
+      "countyId": 47
+    },
+    {
+      "name": "THE NAIROBI WEST HOSPITAL",
+      "countyId": 47
+    },
+    {
+      "name": "AIC KIJABE HOSPITAL - NAIVASHA MEDICAL CENTRE",
+      "countyId": 32
+    },
+    {
+      "name": "BAUS OPTICAL - NAKURU",
+      "countyId": 32
+    },
+    {
+      "name": "BLISS GVS HEALTHCARE - NAKURU TOWN",
+      "countyId": 32
+    },
+    {
+      "name": "BLISS GVS HEALTHCARE LIMITED - NAIVASHA",
+      "countyId": 32
+    },
+    {
+      "name": "DELIGHT DENTAL LIMITED- NAKURU",
+      "countyId": 32
+    },
+    {
+      "name": "DELIGHT OPTICS - NAKURU",
+      "countyId": 32
+    },
+    {
+      "name": "EQUITY AFIA MEDICAL CENTRE - NAIVASHA",
+      "countyId": 32
+    },
+    {
+      "name": "EQUITY AFIA MEDICAL CENTRE - NAKURU",
+      "countyId": 32
+    },
+    {
+      "name": "EQUITY AFIA MEDICAL CENTRE - SECTION 58 NAKURU",
+      "countyId": 32
+    },
+    {
+      "name": "MEDICROSS MEDICAL CENTRE - NAKURU",
+      "countyId": 32
+    },
+    {
+      "name": "NEEMA OPTICIANS - NAIVASHA",
+      "countyId": 32
+    },
+    {
+      "name": "NEEMA OPTICIANS - NAKURU",
+      "countyId": 32
+    },
+    {
+      "name": "OMEGA OPTICIANS - NAKURU",
+      "countyId": 32
+    },
+    {
+      "name": "OMEGA OPTICIANS - NAKURU MERICA",
+      "countyId": 32
+    },
+    {
+      "name": "OPTIMUM CURRENT HEALTH CARE HOSPITAL - SECTION 58 NAKURU",
+      "countyId": 32
+    },
+    {
+      "name": "EQUITY AFIA MEDICAL CENTRE - MOLO",
+      "countyId": 32
+    },
+    {
+      "name": "BLOOM HOSPITAL NAKURU",
+      "countyId": 32
+    },
+    {
+      "name": "VALLEY HOSPITAL - NAKURU",
+      "countyId": 32
+    },
+    {
+      "name": "THE NAKURU SPECIALIST HOSPITAL",
+      "countyId": 32
+    },
+    {
+      "name": "ST. JOSEPHS NURSING AND MATERNITY HOME- MOLO",
+      "countyId": 32
+    },
+    {
+      "name": "NDONYO HEALTHCARE - NAIVASHA",
+      "countyId": 32
+    },
+    {
+      "name": "AIC KIJABE HOSPITAL - NAIVASHA",
+      "countyId": 32
+    },
+    {
+      "name": "NDONYO HEALTHCARE - GILGIL",
+      "countyId": 32
+    },
+    {
+      "name": "NDONYO HEALTHCARE - KWA MUHIA",
+      "countyId": 32
+    },
+    {
+      "name": "AIC KIJABE HOSPITAL - MARIRA",
+      "countyId": 32
+    },
+    {
+      "name": "ST MARYS MISSION HOSPITAL- ELEMENTAITA",
+      "countyId": 32
+    },
+    {
+      "name": "TITAN OPTICS LIMITED NAIVASHA",
+      "countyId": 32
+    },
+    {
+      "name": "MERCYLINE CARE HOSPITAL",
+      "countyId": 32
+    },
+    {
+      "name": "OUR LADY OF MERCY MISSION HOSPITAL - NAKURU",
+      "countyId": 32
+    },
+    {
+      "name": "ROYAL SMILES DENTAL CLINIC - NAKURU",
+      "countyId": 32
+    },
+    {
+      "name": "ALPHA HILL MEDICAL CENTRE - MOSORIOT",
+      "countyId": 29
+    },
+    {
+      "name": "BLISS GVS HEALTHCARE - KAPSABET",
+      "countyId": 29
+    },
+    {
+      "name": "EQUITY AFIA MEDICAL CENTRE - KAPSABET",
+      "countyId": 29
+    },
+    {
+      "name": "REALE HOSPITAL - KAPSABET CLINIC",
+      "countyId": 29
+    },
+    {
+      "name": "EQUITY AFIA MEDICAL CENTRE - NAROK",
+      "countyId": 33
+    },
+    {
+      "name": "MEDICROSS - NAROK",
+      "countyId": 33
+    },
+    {
+      "name": "MEDICROSS MEDICAL CENTER-NAROK",
+      "countyId": 33
+    },
+    {
+      "name": "BAUS OPTICAL - NAROK",
+      "countyId": 33
+    },
+    {
+      "name": "BLISS GVS HEALTHCARE - NYAMIRA",
+      "countyId": 46
+    },
+    {
+      "name": "EQUITY AFIA MEDICAL CENTRE - NYAMIRA",
+      "countyId": 46
+    },
+    {
+      "name": "GEKANO HEALTH CENTRE",
+      "countyId": 46
+    },
+    {
+      "name": "HOLSOMS HOSPITAL KEMERA",
+      "countyId": 46
+    },
+    {
+      "name": "HOLSOMS MATERNITY AND NURSING HOME",
+      "countyId": 46
+    },
+    {
+      "name": "IBARA HEALTH CENTRE",
+      "countyId": 46
+    },
+    {
+      "name": "MEDSTOPS HEALTHCARE KENYA-IKONGE",
+      "countyId": 46
+    },
+    {
+      "name": "NEPTUNE HEALTHCARE - NYANZA",
+      "countyId": 46
+    },
+    {
+      "name": "NYAMIRA COUNTY REFERRAL HOSPITAL",
+      "countyId": 46
+    },
+    {
+      "name": "NYAMIRA MATERNITY AND NURSING HOME - NYAMIRA",
+      "countyId": 46
+    },
+    {
+      "name": "ST JOSEPH\u2019S NYANSIONGO HEALTH CENTRE",
+      "countyId": 46
+    },
+    {
+      "name": "BLISS GVS HEALTHCARE - OLKALOU",
+      "countyId": 18
+    },
+    {
+      "name": "EQUITY AFIA MEDICAL CENTRE - OLKALAU",
+      "countyId": 18
+    },
+    {
+      "name": "BAUS OPTICAL - NYERI",
+      "countyId": 19
+    },
+    {
+      "name": "BLISS GVS HEALTHCARE - JENKIM PLAZA NYERI 1",
+      "countyId": 19
+    },
+    {
+      "name": "BLISS GVS HEALTHCARE - SUNGUEST NYERI 2",
+      "countyId": 19
+    },
+    {
+      "name": "CONSOLATA HOSPITAL - MATHARI",
+      "countyId": 19
+    },
+    {
+      "name": "EQUITY AFIA MEDICAL CENTRE - KARATINA",
+      "countyId": 19
+    },
+    {
+      "name": "EQUITY AFIA MEDICAL CENTRE - NYERI",
+      "countyId": 19
+    },
+    {
+      "name": "FOCUS CLINICAL AND DIAGNOSTICS CENTRE - KERUGOYA",
+      "countyId": 19
+    },
+    {
+      "name": "LIONS SIGHTFIRST EYE HOSPITAL - NYERI CLINIC",
+      "countyId": 19
+    },
+    {
+      "name": "NEEMA OPTICIANS - KARATINA",
+      "countyId": 19
+    },
+    {
+      "name": "NEEMA OPTICIANS - NYERI",
+      "countyId": 19
+    },
+    {
+      "name": "BLISS GVS HEALTHCARE - MARALAL",
+      "countyId": 25
+    },
+    {
+      "name": "EQUITY AFIA MEDICAL CENTRE - MARALAL",
+      "countyId": 25
+    },
+    {
+      "name": "SAMBURU DOCTORS' PLAZA MARALAL",
+      "countyId": 25
+    },
+    {
+      "name": "GLOFEM MEDICAL CENTER MARALAL",
+      "countyId": 25
+    },
+    {
+      "name": "FAWZ HOSPITAL MARALAL",
+      "countyId": 25
+    },
+    {
+      "name": "AL ABRAR NURSING HOME - MARALAL",
+      "countyId": 25
+    },
+    {
+      "name": "COMMUNITY MEDICAL AND LAB SERVICES - MARALAL",
+      "countyId": 25
+    },
+    {
+      "name": "GLOFEM MEDICAL CENTRE - MARALAL",
+      "countyId": 25
+    },
+    {
+      "name": "SAMBURU DOCTORS PLAZA - MARALAL",
+      "countyId": 25
+    },
+    {
+      "name": "SANOPTICS EYE CARE  - MARALAL",
+      "countyId": 25
+    },
+    {
+      "name": "FAWZ HOSPITAL",
+      "countyId": 25
+    },
+    {
+      "name": "PULPODENT ORALCARE CENTER-MARALAL",
+      "countyId": 25
+    },
+    {
+      "name": "ARCHER'S POST CATHOLIC HEALTH CENTRE",
+      "countyId": 25
+    },
+    {
+      "name": "THE GOD'S FAVOUR MEDICAL CLINIC",
+      "countyId": 25
+    },
+    {
+      "name": "CLACE LA VARDE MEDICAL CLINIC",
+      "countyId": 25
+    },
+    {
+      "name": "AFRICA INUKA HOSPITAL - MADEYA",
+      "countyId": 41
+    },
+    {
+      "name": "AFRICA INUKA HOSPITAL - UGUNJA",
+      "countyId": 41
+    },
+    {
+      "name": "BLISS GVS MEDICAL CENTER - BONDO",
+      "countyId": 41
+    },
+    {
+      "name": "BLISS GVS MEDICAL CENTER - SIAYA",
+      "countyId": 41
+    },
+    {
+      "name": "BLISS GVS HEALTHCARE - VOI",
+      "countyId": 6
+    },
+    {
+      "name": "DAWIDA MATERNITY AND NURSING HOME - WUNDANYI",
+      "countyId": 6
+    },
+    {
+      "name": "DAWIDA MEDICAL CENTRE - TAVETA",
+      "countyId": 6
+    },
+    {
+      "name": "DAWIDA MEDICAL CENTRE - VOI",
+      "countyId": 6
+    },
+    {
+      "name": "EQUITY AFIA MEDICAL CENTRE - TAVETA",
+      "countyId": 6
+    },
+    {
+      "name": "MOI COUNTY REFERRAL HOSPITAL",
+      "countyId": 6
+    },
+    {
+      "name": "MT. VIEW MATERNITY AND NURSING HOME - VOI",
+      "countyId": 6
+    },
+    {
+      "name": "MWATATE SUB COUNTY HOSPITAL",
+      "countyId": 6
+    },
+    {
+      "name": "RYATTAH MEDICAL CENTRE - TAVETA",
+      "countyId": 6
+    },
+    {
+      "name": "SANN OPTICALS - VOI",
+      "countyId": 6
+    },
+    {
+      "name": "SPIRE-ORTHO PHYSIO AND REHABILITATION CLINIC",
+      "countyId": 6
+    },
+    {
+      "name": "ST JOSEPH SHELTER OF HOPE - VOI",
+      "countyId": 6
+    },
+    {
+      "name": "ST. JOSEPH SHELTER OF HOPE OUTREACH CLINIC",
+      "countyId": 6
+    },
+    {
+      "name": "ST. LUKES AFYA CLINIC - WUNDANYI",
+      "countyId": 6
+    },
+    {
+      "name": "ST.JOSEPH SHELTER OF HOPE - VOI",
+      "countyId": 6
+    },
+    {
+      "name": "TAVETA SUB COUNTY HOSPITAL",
+      "countyId": 6
+    },
+    {
+      "name": "THE RIVER JORDAN MEDICAL CENTRE - VOI",
+      "countyId": 6
+    },
+    {
+      "name": "TSAVO COMPREHENSIVE MEDICAL ANNEX",
+      "countyId": 6
+    },
+    {
+      "name": "VOI COMMUNITY CLINIC",
+      "countyId": 6
+    },
+    {
+      "name": "VOI EYE CARE - TAITA TAVETA",
+      "countyId": 6
+    },
+    {
+      "name": "VOI EYE CARE - VOI",
+      "countyId": 6
+    },
+    {
+      "name": "VOI MEDICAL CENTRE",
+      "countyId": 6
+    },
+    {
+      "name": "WESU SUB COUNTY HOSPITAL",
+      "countyId": 6
+    },
+    {
+      "name": "MEDINA DIAGNOSTIC AND NURSING HOME - HOLA",
+      "countyId": 6
+    },
+    {
+      "name": "EQUITY AFIA MEDICAL CENTRE - GARISSA",
+      "countyId": 6
+    },
+    {
+      "name": "EQUITY AFIA MEDICAL CENTRE - HOLA",
+      "countyId": 4
+    },
+    {
+      "name": "MEDINA DIAGNOSTIC - HAGADERA",
+      "countyId": 4
+    },
+    {
+      "name": "BUSHRAA MEDICAL CENTRE",
+      "countyId": 4
+    },
+    {
+      "name": "SANN OPTICALS - HOLA",
+      "countyId": 4
+    },
+    {
+      "name": "SUHEYLA PHARMACEUTICAL AND MEDICAL CENTRE - GARSEN",
+      "countyId": 4
+    },
+    {
+      "name": "SIHA MEDICAL HOME - HOLA",
+      "countyId": 4
+    },
+    {
+      "name": "SIHA MEDICAL HOME - MPEKETONI",
+      "countyId": 4
+    },
+    {
+      "name": "SAZAN MEDICAL CENTRE",
+      "countyId": 4
+    },
+    {
+      "name": "RENAUTS EYE AND OPTICAL CLINIC",
+      "countyId": 4
+    },
+    {
+      "name": "BISHARO NURSING HOME",
+      "countyId": 4
+    },
+    {
+      "name": "NAADHA DIAGNOSTIC CENTRE LTD",
+      "countyId": 4
+    },
+    {
+      "name": "BURA CARE AND CURE MEDICAL CENTER",
+      "countyId": 4
+    },
+    {
+      "name": "EQUITY AFIA MEDICAL CENTRE - CHUKA",
+      "countyId": 13
+    },
+    {
+      "name": "AMARAY DENTAL AND EYECARE SPECIALISTS HOSPITALS  - SABOTI",
+      "countyId": 26
+    },
+    {
+      "name": "AMARAY DENTAL AND EYECARE SPECIALISTS HOSPITALS - SABOTI",
+      "countyId": 26
+    },
+    {
+      "name": "BAUS OPTICAL - KITALE",
+      "countyId": 26
+    },
+    {
+      "name": "BLISS GVS HEALTHCARE - KITALE",
+      "countyId": 26
+    },
+    {
+      "name": "BRANTLY MEDICAL CENTRE",
+      "countyId": 26
+    },
+    {
+      "name": "CHERANGANY NURSING HOME",
+      "countyId": 26
+    },
+    {
+      "name": "CHERANGANY NURSING HOME OUTPATIENT CLINIC - KITALE",
+      "countyId": 26
+    },
+    {
+      "name": "CRYSTAL COTTAGE HOSPITAL",
+      "countyId": 26
+    },
+    {
+      "name": "CRYSTAL COTTAGE MEDICAL CLINIC - KITALE TOWN",
+      "countyId": 26
+    },
+    {
+      "name": "DALSAN MEDICAL CENTRE",
+      "countyId": 26
+    },
+    {
+      "name": "DEANESH HOSPITAL",
+      "countyId": 26
+    },
+    {
+      "name": "DELIGHT DENTAL LIMITED - KITALE",
+      "countyId": 26
+    },
+    {
+      "name": "DELIGHT OPTICS LIMITED - KITALE",
+      "countyId": 26
+    },
+    {
+      "name": "DR. DIANA AND ASSOCIATES DENTAL CLINIC - ELDORET",
+      "countyId": 26
+    },
+    {
+      "name": "EQUITY AFIA MEDICAL CENTRE - KITALE",
+      "countyId": 26
+    },
+    {
+      "name": "KIMININI COTTAGE MISSION HOSPITAL - KIMININI",
+      "countyId": 26
+    },
+    {
+      "name": "KIMININI COTTAGE MISSION HOSPITAL - KITALE TOWN",
+      "countyId": 26
+    },
+    {
+      "name": "KITALE HOSPITAL",
+      "countyId": 26
+    },
+    {
+      "name": "REALE HOSPITAL - KITALE CLINIC",
+      "countyId": 26
+    },
+    {
+      "name": "ST JOHNS MISSION HOSPITAL - SIRENDE",
+      "countyId": 26
+    },
+    {
+      "name": "THE GALILEE HOSPITAL - KITALE",
+      "countyId": 26
+    },
+    {
+      "name": "DR DIANA AND ASSOCIATES DENTAL CLINIC - TRANS NZOIA",
+      "countyId": 26
+    },
+    {
+      "name": "BETHSAIDA EYE CENTRE - KITALE",
+      "countyId": 26
+    },
+    {
+      "name": "BUNGOMA DENTAL AND EYECARE CENTRE - KITALE",
+      "countyId": 26
+    },
+    {
+      "name": "ST JUDE THADDEUS CENTRE KAMUNGEI",
+      "countyId": 26
+    },
+    {
+      "name": "ST SHEMUS PARK MEDICAL CENTRE",
+      "countyId": 26
+    },
+    {
+      "name": "REALE HOSPITAL - KITALE KEPHIS",
+      "countyId": 26
+    },
+    {
+      "name": "BLISS GVS HEALTHCARE LIMITED - KAKUMA",
+      "countyId": 23
+    },
+    {
+      "name": "CANAAN MEDICAL CLINIC - LOKICHAR",
+      "countyId": 23
+    },
+    {
+      "name": "EQUITY AFIA MEDICAL CENTRE - KAKUMA",
+      "countyId": 23
+    },
+    {
+      "name": "EQUITY AFIA MEDICAL CENTRE - LODWAR",
+      "countyId": 23
+    },
+    {
+      "name": "KAKUMA MISSION HOSPITAL",
+      "countyId": 23
+    },
+    {
+      "name": "LODWAR HILLS HOSPITAL",
+      "countyId": 23
+    },
+    {
+      "name": "LODWAR TUMAINI MEDICAL SERVICES",
+      "countyId": 23
+    },
+    {
+      "name": "NAMO HOSPITAL - LODWAR",
+      "countyId": 23
+    },
+    {
+      "name": "NOVAS SPECIALIST HOSPITAL - LODWAR",
+      "countyId": 23
+    },
+    {
+      "name": "THE GUARDIAN PHARMACEUTICAL - KAKUMA",
+      "countyId": 23
+    },
+    {
+      "name": "THE GUARDIAN PHARMACEUTICAL AND NURSING HOME - KAKUMA",
+      "countyId": 23
+    },
+    {
+      "name": "MEDAN MEDICAL CENTRE",
+      "countyId": 23
+    },
+    {
+      "name": "KK OPTICS - LODWAR",
+      "countyId": 23
+    },
+    {
+      "name": "AFRICANA MALL HEALTHCARE - LODWAR",
+      "countyId": 23
+    },
+    {
+      "name": "KALOKOL MEDICAL SERVICES",
+      "countyId": 23
+    },
+    {
+      "name": "ST. MARY'S KALOKOL PRIMARY HEALTHCARE PROGRAMME",
+      "countyId": 23
+    },
+    {
+      "name": "ST. DANIEL COMBONI LOKORI PHC HEALTH CENTRE",
+      "countyId": 23
+    },
+    {
+      "name": "LODWAR COUNTY REFERRAL HOSPITAL",
+      "countyId": 23
+    },
+    {
+      "name": "AFYA BORA MEDICAL CLINIC - LODWAR",
+      "countyId": 23
+    },
+    {
+      "name": "BLUE-IVORY HEALTHCARE LTD LODWAR",
+      "countyId": 23
+    },
+    {
+      "name": "DELIGHT DENTAL LIMITED- ELDORET",
+      "countyId": 27
+    },
+    {
+      "name": "REALE HOSPITAL - ELDORET TOWN CLINIC",
+      "countyId": 27
+    },
+    {
+      "name": "BAUS OPTICAL - ELDORET",
+      "countyId": 27
+    },
+    {
+      "name": "BLISS GVS HEALTHCARE - ELDORET WEST",
+      "countyId": 27
+    },
+    {
+      "name": "BLISS GVS HEALTHCARE - ZION MALL",
+      "countyId": 27
+    },
+    {
+      "name": "DELIGHT OPTICS - ELDORET",
+      "countyId": 27
+    },
+    {
+      "name": "DELIGHT OPTICS - NANDI ARCADE",
+      "countyId": 27
+    },
+    {
+      "name": "EQUITY AFIA MEDICAL CENTRE - ELDORET",
+      "countyId": 27
+    },
+    {
+      "name": "EQUITY AFIA MEDICAL CENTRE - KIMUMU",
+      "countyId": 27
+    },
+    {
+      "name": "LIVING ROOM INTERNATIONAL HOSPITAL - ELDORET",
+      "countyId": 27
+    },
+    {
+      "name": "OMEGA OPTICIANS - ELDORET",
+      "countyId": 27
+    },
+    {
+      "name": "PALMCARE SINAI HOSPITAL - ELDORET",
+      "countyId": 27
+    },
+    {
+      "name": "PALMCARE SINAI HOSPITAL - ELDORET TOWN CLINIC",
+      "countyId": 27
+    },
+    {
+      "name": "REALE HOSPITAL",
+      "countyId": 27
+    },
+    {
+      "name": "TERGODENT DENTAL CENTRE - ELDORET",
+      "countyId": 27
+    },
+    {
+      "name": "ELDORET MEDICAL SPECIALIST CENTRE",
+      "countyId": 27
+    },
+    {
+      "name": "KK OPTICS - ELDORET",
+      "countyId": 27
+    },
+    {
+      "name": "SILOAM EYE CLINIC",
+      "countyId": 27
+    },
+    {
+      "name": "SISIT MEDICAL SERVICES",
+      "countyId": 27
+    },
+    {
+      "name": "TITAN OPTICS - ELDORET",
+      "countyId": 27
+    },
+    {
+      "name": "BLISS GVS HEALTHCARE - MBALE",
+      "countyId": 38
+    },
+    {
+      "name": "COPTIC HOSPITAL - VIHIGA",
+      "countyId": 38
+    },
+    {
+      "name": "ITANDO MISSION HOSPITAL - VIHIGA",
+      "countyId": 38
+    },
+    {
+      "name": "REMNANT HOSPITAL - VIHIGA",
+      "countyId": 38
+    },
+    {
+      "name": "AFYA MEDICAL CLINIC AND NURSING HOME",
+      "countyId": 8
+    },
+    {
+      "name": "AL MAARAAJ MEDICAL CENTRE",
+      "countyId": 8
+    },
+    {
+      "name": "AL NAIM MEDICAL",
+      "countyId": 8
+    },
+    {
+      "name": "AL-BUSHRA MEDICAL CENTRE AND NURSING HOME",
+      "countyId": 8
+    },
+    {
+      "name": "ALHAYAT NURSING HOME \u2013 WAJIR",
+      "countyId": 8
+    },
+    {
+      "name": "BULSHO HEALTHCARE LTD",
+      "countyId": 8
+    },
+    {
+      "name": "BUNA SUB-COUNTY HOSPITAL",
+      "countyId": 8
+    },
+    {
+      "name": "BURDER NURSING HOME",
+      "countyId": 8
+    },
+    {
+      "name": "BUTE NURSING HOME",
+      "countyId": 8
+    },
+    {
+      "name": "BUTE SUB COUNTY HOSPITAL",
+      "countyId": 8
+    },
+    {
+      "name": "CAMEL HOSPITAL - WAJIR",
+      "countyId": 8
+    },
+    {
+      "name": "ELDAS SUB COUNTY HOSPITAL",
+      "countyId": 8
+    },
+    {
+      "name": "GRIFTU NURSING HOME",
+      "countyId": 8
+    },
+    {
+      "name": "GRIFTU SUBCOUNTY HOSPITAL",
+      "countyId": 8
+    },
+    {
+      "name": "HABASWEIN SUB COUNTY HOSPITAL",
+      "countyId": 8
+    },
+    {
+      "name": "KALKAAL MEDICAL CENTRE",
+      "countyId": 8
+    },
+    {
+      "name": "LADNAN HOSPITAL - WAJIR",
+      "countyId": 8
+    },
+    {
+      "name": "MUNTASIR NURSING HOME - WAJIR",
+      "countyId": 8
+    },
+    {
+      "name": "NAJRAN MEDICAL CENTRE",
+      "countyId": 8
+    },
+    {
+      "name": "RAMAAZI NURSING HOME",
+      "countyId": 8
+    },
+    {
+      "name": "RIYAD MEDICAL CENTRE",
+      "countyId": 8
+    },
+    {
+      "name": "SAFA NURSING HOME LIMITED",
+      "countyId": 8
+    },
+    {
+      "name": "SAMAAD HOSPITAL - WAJIR",
+      "countyId": 8
+    },
+    {
+      "name": "SHAFIN MEDICAL CENTRE",
+      "countyId": 8
+    },
+    {
+      "name": "SHELETEY NURSING HOME",
+      "countyId": 8
+    },
+    {
+      "name": "SIRIBA NURSING HOME",
+      "countyId": 8
+    },
+    {
+      "name": "TARBAJ SUB COUNTY HOSPITAL",
+      "countyId": 8
+    },
+    {
+      "name": "TIMES COTTAGE HOSPITAL",
+      "countyId": 8
+    },
+    {
+      "name": "WAJIR CENTRAL NURSING HOME",
+      "countyId": 8
+    },
+    {
+      "name": "WAJIR COUNTY REFERRAL HOSPITAL",
+      "countyId": 8
+    },
+    {
+      "name": "WAJIR FOKAS NURSING HOME",
+      "countyId": 8
+    },
+    {
+      "name": "WAJIR MATERNITY AND NURSING HOME",
+      "countyId": 8
+    },
+    {
+      "name": "WAJIR WEST ROADSIDE MEDICAL",
+      "countyId": 8
+    },
+    {
+      "name": "MEDINA MEDICARE HOSPITAL - WAJIR",
+      "countyId": 8
+    },
+    {
+      "name": "EQUITY AFIA MEDICAL CENTRE - WAJIR",
+      "countyId": 8
+    },
+    {
+      "name": "ALKAWTHAR ANNEX",
+      "countyId": 8
+    },
+    {
+      "name": "JEDDAH HOSPITAL",
+      "countyId": 8
+    },
+    {
+      "name": "BLISS GVS HEALTHCARE - KAPENGURIA",
+      "countyId": 24
+    },
+    {
+      "name": "EQUITY AFIA MEDICAL CENTRE - KAPENGURIA",
+      "countyId": 24
+    },
+    {
+      "name": "THE CHERANGANY HOSPITAL - KAPENGURIA ANNEX",
+      "countyId": 24
+    },
+    {
+      "name": "ELITE MISSION OPTICALS - THIKA",
+      "countyId": 22
+    },
+    {
+      "name": "MEDILIFE HOSPITAL - RUIRU",
+      "countyId": 22
+    },
+    {
+      "name": "ST PETER & ANN MEDICAL CENTRE RUAKA",
+      "countyId": 22
+    },
+    {
+      "name": "DENTISTRY NOW CLINIC",
+      "countyId": 47
+    }
+  ]
+}

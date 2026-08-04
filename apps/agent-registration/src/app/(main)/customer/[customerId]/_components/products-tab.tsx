@@ -12,7 +12,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Loader2, MoreHorizontal } from 'lucide-react';
+import { Info, Loader2, MoreHorizontal } from 'lucide-react';
 import {
   activateCustomerPolicy,
   deactivateCustomerPolicy,
@@ -21,6 +21,12 @@ import {
   terminateCustomerPolicy,
   type CustomerPolicyListItem,
 } from '@/lib/api';
+import { formatInstallmentsPaidDisplay } from '@/lib/policy-display';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { useAuth } from '@/hooks/useAuth';
 import * as Sentry from '@sentry/nextjs';
 import PolicyReasonDialog from './policy-reason-dialog';
@@ -223,13 +229,37 @@ export default function ProductsTab({ customerId, basePath }: ProductsTabProps) 
                         className="text-right cursor-pointer"
                         onClick={() => handleRowClick(p.id)}
                       >
-                        {p.installmentsPaid}
+                        <span className="inline-flex items-center justify-end gap-1">
+                          {formatInstallmentsPaidDisplay(
+                            p.installmentsPaid,
+                            p.installmentsPaidApproximate
+                          )}
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <button
+                                type="button"
+                                className="text-muted-foreground hover:text-foreground"
+                                onClick={(e) => e.stopPropagation()}
+                                aria-label="Payments made"
+                              >
+                                <Info className="h-3.5 w-3.5" />
+                              </button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              {p.paymentsMadeCount ?? 0} payment
+                              {(p.paymentsMadeCount ?? 0) === 1 ? '' : 's'} made
+                            </TooltipContent>
+                          </Tooltip>
+                        </span>
                       </TableCell>
                       <TableCell
                         className="text-right cursor-pointer"
                         onClick={() => handleRowClick(p.id)}
                       >
-                        {p.missedPayments}
+                        {formatInstallmentsPaidDisplay(
+                          p.missedPayments,
+                          p.missedPaymentsApproximate
+                        )}
                       </TableCell>
                       {showAdminActions && (
                         <TableCell>

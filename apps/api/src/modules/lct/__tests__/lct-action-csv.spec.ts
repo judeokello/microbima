@@ -12,6 +12,7 @@ import {
 } from '../lct.types';
 import { buildLctCsv, intentToCsvRow } from '../lct-csv.builder';
 import type { LctMemberSyncIntent } from '../lct.types';
+import { formatLctIdNumber, isLctDependantExportEligible } from '../../missing-requirements/completeness.util';
 
 describe('LCT action mapping', () => {
   it('maps policy statuses to CSV actions', () => {
@@ -113,6 +114,27 @@ describe('LCT CSV builder', () => {
     expect(formatLctPhone('+254722000000')).toBe('254722000000');
     expect(formatLctPhone('')).toBe('');
     expect(formatLctPhone('not-a-phone')).toBe('');
+  });
+
+  it('formats blank IDs as N/A and gates incomplete dependants', () => {
+    expect(formatLctIdNumber('')).toBe('N/A');
+    expect(formatLctIdNumber('12345678')).toBe('12345678');
+    expect(
+      isLctDependantExportEligible('SPOUSE', {
+        firstName: 'A',
+        lastName: 'B',
+        idNumber: '1',
+        gender: 'FEMALE',
+        dateOfBirth: new Date(),
+      })
+    ).toBe(true);
+    expect(
+      isLctDependantExportEligible('CHILD', {
+        firstName: 'A',
+        lastName: 'B',
+        dateOfBirth: new Date(),
+      })
+    ).toBe(false);
   });
 
   it('sorts export intents Principal → Spouse → Children by family', () => {

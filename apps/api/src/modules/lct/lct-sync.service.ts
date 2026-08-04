@@ -1,7 +1,6 @@
 import { createHash } from 'crypto';
 import { forwardRef, Inject, Injectable, Logger } from '@nestjs/common';
 import {
-  DependantRelationship,
   LctPendingAction,
   LctSubjectType,
   PolicyStatus,
@@ -584,21 +583,8 @@ export class LctSyncService {
       }
     }
 
-    if (target.subjectType === LctSubjectType.DEPENDANT && target.dependantId) {
-      const dep = await client.dependant.findUnique({
-        where: { id: target.dependantId },
-        select: { relationship: true, idNumber: true, deletedAt: true },
-      });
-      if (
-        dep &&
-        !dep.deletedAt &&
-        dep.relationship === DependantRelationship.SPOUSE &&
-        !(dep.idNumber ?? '').trim() &&
-        target.pendingAction
-      ) {
-        errorCode = LCT_ERROR_CODES.MISSING_SPOUSE_ID;
-      }
-    }
+    // Incomplete spouse/child data is Pending (disabled + MISSING_INFO), not Errors.
+    // Legacy MISSING_SPOUSE_ID is cleared when errorCode stays null here.
 
     if (target.errorCode !== errorCode) {
       await client.lctMemberSyncTarget.update({
