@@ -30,10 +30,11 @@ import {
   CreateMissingRequirementDto,
   UpdateMissingRequirementDto,
   MissingRequirementResponseDto,
+  CareOpsQueueResponseDto,
 } from '../../dto/missing-requirement';
 import { CorrelationId } from '../../decorators/correlation-id.decorator';
 import { Request } from 'express';
-import { BAAuth, AdminOnly, AdminOrBA } from '../../decorators/ba-auth.decorator';
+import { BAAuth, AdminOnly, AdminOrBA, AdminOrCustomerCare } from '../../decorators/ba-auth.decorator';
 import { DataMaskingInterceptor } from '../../interceptors/data-masking.interceptor';
 import { EnableDataMasking } from '../../decorators/data-masking.decorator';
 
@@ -291,11 +292,73 @@ export class AgentRegistrationController {
   }
 
   /**
+   * Get pending missing requirements for care-ops / admin resolution
+   * (Static path must be registered before missing-requirements/:id)
+   */
+  @Get('missing-requirements/pending')
+  @HttpCode(HttpStatus.OK)
+  @AdminOrCustomerCare()
+  @ApiOperation({
+    summary: 'Get pending missing requirements',
+    description: 'Retrieve all pending missing requirements for care-ops resolution.',
+  })
+  @ApiQuery({ name: 'partnerId', required: false, example: 1 })
+  @ApiQuery({ name: 'limit', required: false, example: 50 })
+  @ApiQuery({ name: 'offset', required: false, example: 0 })
+  async getPendingMissingRequirements(
+    @Req() req: Request,
+    @CorrelationId() _correlationId: string,
+    @Query('partnerId') partnerId?: string,
+    @Query('limit') limit?: string,
+    @Query('offset') offset?: string,
+  ): Promise<{ missingRequirements: MissingRequirementResponseDto[]; total: number }> {
+    const userId = req.user?.id ?? 'system';
+    return this.missingRequirementService.getPendingMissingRequirements(
+      userId,
+      partnerId ? parseInt(partnerId, 10) : undefined,
+      limit ? parseInt(limit, 10) : 50,
+      offset ? parseInt(offset, 10) : 0,
+    );
+  }
+
+  /**
+   * Care-ops queue: grouped incomplete entities with live field values.
+   * (Static path must be registered before missing-requirements/:id)
+   */
+  @Get('missing-requirements/queue')
+  @HttpCode(HttpStatus.OK)
+  @AdminOrCustomerCare()
+  @ApiOperation({
+    summary: 'Care-ops missing information queue',
+    description:
+      'Returns incomplete spouse/child/beneficiary entities for customer care. Live fields are re-evaluated on each load.',
+  })
+  @ApiQuery({ name: 'partnerId', required: false })
+  @ApiQuery({ name: 'limit', required: false })
+  @ApiQuery({ name: 'offset', required: false })
+  @ApiResponse({ status: 200, type: CareOpsQueueResponseDto })
+  async getCareOpsQueue(
+    @Req() req: Request,
+    @CorrelationId() _correlationId: string,
+    @Query('partnerId') partnerId?: string,
+    @Query('limit') limit?: string,
+    @Query('offset') offset?: string,
+  ): Promise<CareOpsQueueResponseDto> {
+    const userId = req.user?.id ?? 'system';
+    return this.missingRequirementService.getCareOpsQueue({
+      userId,
+      partnerId: partnerId ? parseInt(partnerId, 10) : undefined,
+      limit: limit ? parseInt(limit, 10) : 50,
+      offset: offset ? parseInt(offset, 10) : 0,
+    });
+  }
+
+  /**
    * Get missing requirement by ID
    */
   @Get('missing-requirements/:id')
   @HttpCode(HttpStatus.OK)
-  @AdminOnly()
+  @AdminOrCustomerCare()
   @ApiOperation({
     summary: 'Get missing requirement by ID',
     description: 'Retrieve a specific missing requirement by its ID.',
@@ -337,7 +400,7 @@ export class AgentRegistrationController {
    */
   @Put('missing-requirements/:id')
   @HttpCode(HttpStatus.OK)
-  @AdminOnly()
+  @AdminOrCustomerCare()
   @ApiOperation({
     summary: 'Update missing requirement',
     description: 'Update an existing missing requirement.',
@@ -445,74 +508,4 @@ export class AgentRegistrationController {
     );
   }
 
-  /**
-   * Get pending missing requirements for admin resolution
-   */
-  @Get('missing-requirements/pending')
-  @HttpCode(HttpStatus.OK)
-  @AdminOnly()
-  @ApiOperation({
-    summary: 'Get pending missing requirements',
-    description: 'Retrieve all pending missing requirements for admin resolution.',
-  })
-  @ApiQuery({
-    name: 'partnerId',
-    description: 'Filter by partner ID',
-    required: false,
-    example: 1,
-  })
-  @ApiQuery({
-    name: 'limit',
-    description: 'Number of records to return',
-    required: false,
-    example: 50,
-  })
-  @ApiQuery({
-    name: 'offset',
-    description: 'Number of records to skip',
-    required: false,
-    example: 0,
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Pending missing requirements retrieved successfully',
-    schema: {
-      type: 'object',
-      properties: {
-        missingRequirements: {
-          type: 'array',
-          items: { $ref: '#/components/schemas/MissingRequirementResponseDto' },
-        },
-        total: { type: 'number' },
-      },
-    },
-  })
-  @ApiResponse({
-    status: 401,
-    description: 'Unauthorized - invalid authentication',
-  })
-  @ApiResponse({
-    status: 500,
-    description: 'Internal server error',
-  })
-  async getPendingMissingRequirements(
-    @CorrelationId() correlationId: string,
-    @Query('partnerId') partnerId?: string,
-    @Query('limit') limit?: string,
-    @Query('offset') offset?: string,
-  ): Promise<{ missingRequirements: MissingRequirementResponseDto[]; total: number }> {
-    // TODO: Extract user ID from JWT token
-    const userId = 'system'; // Placeholder until auth is implemented
-
-    const partnerIdNum = partnerId ? parseInt(partnerId, 10) : undefined;
-    const limitNum = limit ? parseInt(limit, 10) : 50;
-    const offsetNum = offset ? parseInt(offset, 10) : 0;
-
-    return this.missingRequirementService.getPendingMissingRequirements(
-      userId,
-      partnerIdNum,
-      limitNum,
-      offsetNum,
-    );
-  }
 }

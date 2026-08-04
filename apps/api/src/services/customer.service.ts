@@ -71,6 +71,7 @@ import { ConfigurationService } from '../config/configuration.service';
 import { PolicyService } from './policy.service';
 import { UpdateCustomerDto } from '../dto/customers/update-customer.dto';
 import { LctSyncService } from '../modules/lct/lct-sync.service';
+import { MissingRequirementService } from './missing-requirement.service';
 import { UpdateDependantDto } from '../dto/dependants/update-dependant.dto';
 import { UpdateBeneficiaryDto } from '../dto/beneficiaries/update-beneficiary.dto';
 import {
@@ -132,6 +133,7 @@ export class CustomerService {
     private readonly policyService: PolicyService,
     @Inject(forwardRef(() => LctSyncService))
     private readonly lctSyncService: LctSyncService,
+    private readonly missingRequirementService: MissingRequirementService,
   ) {}
 
   /**
@@ -3568,6 +3570,11 @@ export class CustomerService {
         correlationId,
       });
 
+      await this.missingRequirementService.syncCustomerFromLiveData(
+        dependant.customerId,
+        userId
+      );
+
       return {
         id: updated.id,
         firstName: updated.firstName,
@@ -3578,6 +3585,7 @@ export class CustomerService {
         idType: updated.idType ?? undefined,
         idNumber: updated.idNumber ?? undefined,
         relationship: updated.relationship,
+        gender: updated.gender ?? undefined,
       };
     } catch (error) {
       this.logger.error(`[${correlationId}] Error updating dependant: ${error instanceof Error ? error.message : 'Unknown error'}`, error instanceof Error ? error.stack : undefined);
@@ -3654,6 +3662,8 @@ export class CustomerService {
         where: { id: beneficiaryId },
         data: updatePayload,
       });
+
+      await this.missingRequirementService.syncCustomerFromLiveData(customerId, userId);
 
       return {
         id: updated.id,

@@ -2715,6 +2715,8 @@ export interface LctPendingRow {
   idNumber: string
   phone: string
   relationship: string
+  exportEligible?: boolean
+  missingFields?: string[]
 }
 
 export interface LctPendingGroup {
@@ -2765,6 +2767,7 @@ export async function getLctPending(filters?: {
   memberNumber?: string
   phone?: string
   product?: string
+  scheme?: string
 }): Promise<{
   status: number
   data: { groups: LctPendingGroup[]; openBatch: LctOpenBatch | null }
@@ -2775,8 +2778,57 @@ export async function getLctPending(filters?: {
   if (filters?.memberNumber) params.set('memberNumber', filters.memberNumber)
   if (filters?.phone) params.set('phone', filters.phone)
   if (filters?.product) params.set('product', filters.product)
+  if (filters?.scheme) params.set('scheme', filters.scheme)
   const q = params.toString()
   return lctFetch(`/internal/lct-exports/pending${q ? `?${q}` : ''}`)
+}
+
+export interface CareOpsQueueItem {
+  customerId: string
+  customerName: string
+  customerPhone?: string | null
+  registrationId?: string | null
+  partnerId?: number | null
+  entityKind: 'SPOUSE' | 'CHILD' | 'BENEFICIARY' | 'CUSTOMER'
+  entityId?: string | null
+  entityName: string
+  missingFields: string[]
+  missingFieldLabels: string[]
+  firstName?: string | null
+  middleName?: string | null
+  lastName?: string | null
+  gender?: string | null
+  idType?: string | null
+  idNumber?: string | null
+  dateOfBirth?: string | null
+}
+
+export async function getCareOpsMissingQueue(params?: {
+  limit?: number
+  offset?: number
+  partnerId?: number
+}): Promise<{ items: CareOpsQueueItem[]; total: number }> {
+  const search = new URLSearchParams()
+  if (params?.limit != null) search.set('limit', String(params.limit))
+  if (params?.offset != null) search.set('offset', String(params.offset))
+  if (params?.partnerId != null) search.set('partnerId', String(params.partnerId))
+  const q = search.toString()
+  const token = await getSupabaseToken()
+  const response = await fetch(
+    `${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/agent-registrations/missing-requirements/queue${q ? `?${q}` : ''}`,
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+        'x-correlation-id': `care-ops-${Date.now()}`,
+      },
+    }
+  )
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}))
+    throw new Error(err.message || `Failed to load care-ops queue (${response.status})`)
+  }
+  return response.json()
 }
 
 export async function getLctErrors(): Promise<{ status: number; data: unknown[] }> {

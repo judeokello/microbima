@@ -10,6 +10,7 @@
     "scripts/backfill-customer-portal-announcement.ts",
     "scripts/backfill-unmapped-mpesa-payments.ts",
     "scripts/backfill-lct-never-sent.ts",
+    "scripts/backfill-missing-requirements.ts",
     "scripts/reprocess-siti-empty-msisdn-ipns.ts",
     "scripts/remediate-daily-premium-as-installment.ts"
   ],
