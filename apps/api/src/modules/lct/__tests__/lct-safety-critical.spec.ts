@@ -159,12 +159,14 @@ describe('LCT safety — CSV action fidelity', () => {
     dateOfBirth: '01-01-1980',
     relationship: 'PRINCIPAL',
     email: '',
-    phoneNumber: '+254711000000',
+    phoneNumber: '254711000000',
     idNumber: '11111111',
-    principalMemberNumber: '',
+    principalMemberNumber: 'MFG100-00',
     schemeName: 'Test Scheme',
     policyStartDate: '01-06-2026',
     policyEndDate: '31-05-2027',
+    productName: 'Maisha Poa',
+    planName: 'Gold',
     ...overrides,
   });
 
