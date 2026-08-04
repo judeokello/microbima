@@ -4,10 +4,18 @@ import { SupabaseService } from './supabase.service';
 import { ValidationException } from '../exceptions/validation.exception';
 import { ErrorCodes } from '../enums/error-codes.enum';
 import { PaymentAccountNumberService } from './payment-account-number.service';
-import { PaymentFrequency } from '@prisma/client';
+import { PaymentFrequency, Prisma } from '@prisma/client';
+import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
 import { PAYMENT_CADENCE } from '../constants/payment-cadence.constants';
-import { trimOrNull } from '../utils/string.util';
+import { trimOrNull, toTitleCase } from '../utils/string.util';
+import {
+  isValidPackageSlug,
+  normalizePackageSlug,
+  validateInstallmentCount,
+} from '../utils/package-payment-frequency.util';
 import * as Sentry from '@sentry/nestjs';
+
+type PaymentFrequencyInput = { frequency: PaymentFrequency; installmentCount: number };
 
 /**
  * Product Management Service
@@ -36,6 +44,109 @@ export class ProductManagementService {
    * @param correlationId - Correlation ID for tracing
    * @returns List of active packages
    */
+  private validatePaymentFrequenciesInput(
+    paymentFrequencies: PaymentFrequencyInput[]
+  ): PaymentFrequencyInput[] {
+    if (!paymentFrequencies?.length) {
+      throw ValidationException.forField(
+        'paymentFrequencies',
+        'At least one payment frequency is required',
+        ErrorCodes.VALIDATION_ERROR
+      );
+    }
+
+    const seen = new Set<PaymentFrequency>();
+    const validationErrors: Record<string, string> = {};
+    const normalized: PaymentFrequencyInput[] = [];
+
+    for (let i = 0; i < paymentFrequencies.length; i++) {
+      const row = paymentFrequencies[i];
+      const key = `paymentFrequencies[${i}]`;
+      if (seen.has(row.frequency)) {
+        validationErrors[key] = `Duplicate frequency: ${row.frequency}`;
+        continue;
+      }
+      seen.add(row.frequency);
+      const err = validateInstallmentCount(row.frequency, row.installmentCount);
+      if (err) {
+        validationErrors[key] = err;
+        continue;
+      }
+      normalized.push({
+        frequency: row.frequency,
+        installmentCount: row.installmentCount,
+      });
+    }
+
+    if (Object.keys(validationErrors).length > 0) {
+      throw ValidationException.withMultipleErrors(validationErrors);
+    }
+    return normalized;
+  }
+
+  private async replacePackagePaymentFrequencies(
+    tx: Prisma.TransactionClient,
+    packageId: number,
+    paymentFrequencies: PaymentFrequencyInput[]
+  ): Promise<void> {
+    await tx.packagePaymentFrequency.deleteMany({ where: { packageId } });
+    if (paymentFrequencies.length === 0) return;
+    await tx.packagePaymentFrequency.createMany({
+      data: paymentFrequencies.map((pf) => ({
+        packageId,
+        frequency: pf.frequency,
+        installmentCount: pf.installmentCount,
+      })),
+    });
+  }
+
+  private mapPaymentFrequencies(
+    rows: { frequency: PaymentFrequency; installmentCount: number }[]
+  ) {
+    return rows.map((r) => ({
+      frequency: r.frequency,
+      installmentCount: r.installmentCount,
+    }));
+  }
+
+  /** Extract Prisma P2002 unique-constraint target field names. */
+  private getPrismaUniqueTargetFields(error: PrismaClientKnownRequestError): string[] {
+    const target = error.meta?.target;
+    if (Array.isArray(target)) {
+      return target.map(String);
+    }
+    if (typeof target === 'string' && target.length > 0) {
+      return [target];
+    }
+    return [];
+  }
+
+  private mapPackageUniqueConstraintError(error: PrismaClientKnownRequestError): never {
+    const fields = this.getPrismaUniqueTargetFields(error);
+    const blob = `${error.message} ${fields.join(' ')}`.toLowerCase();
+
+    if (fields.includes('slug') || blob.includes('slug')) {
+      throw ValidationException.forField(
+        'slug',
+        'A package with this slug already exists',
+        ErrorCodes.VALIDATION_ERROR
+      );
+    }
+    if (fields.includes('name') || /\bname\b/.test(blob)) {
+      throw ValidationException.forField(
+        'name',
+        'A package with this name already exists for this underwriter',
+        ErrorCodes.VALIDATION_ERROR
+      );
+    }
+    const label = fields.length > 0 ? fields.join(', ') : 'value';
+    throw ValidationException.forField(
+      'package',
+      `A package with this ${label} already exists`,
+      ErrorCodes.VALIDATION_ERROR
+    );
+  }
+
   async getPackages(correlationId: string) {
     this.logger.log(`[${correlationId}] Getting all active packages`);
 
@@ -47,6 +158,11 @@ export class ProductManagementService {
         select: {
           id: true,
           name: true,
+          slug: true,
+          packagePaymentFrequencies: {
+            select: { frequency: true, installmentCount: true },
+            orderBy: { frequency: 'asc' },
+          },
         },
         orderBy: {
           name: 'asc',
@@ -54,7 +170,12 @@ export class ProductManagementService {
       });
 
       this.logger.log(`[${correlationId}] Found ${packages.length} active packages`);
-      return packages;
+      return packages.map((p) => ({
+        id: p.id,
+        name: p.name,
+        slug: p.slug,
+        paymentFrequencies: this.mapPaymentFrequencies(p.packagePaymentFrequencies),
+      }));
     } catch (error) {
       this.logger.error(
         `[${correlationId}] Error getting packages: ${error instanceof Error ? error.message : 'Unknown error'}`,
@@ -127,13 +248,19 @@ export class ProductManagementService {
   }
 
   /**
-   * Get active plans for a package
+   * Get plans for a package
    * @param packageId - Package ID
    * @param correlationId - Correlation ID for tracing
-   * @returns List of active plans for the package
+   * @param includeInactive - When true, include inactive plans (admin); default active-only
    */
-  async getPackagePlans(packageId: number, correlationId: string) {
-    this.logger.log(`[${correlationId}] Getting plans for package ${packageId}`);
+  async getPackagePlans(
+    packageId: number,
+    correlationId: string,
+    includeInactive = false
+  ) {
+    this.logger.log(
+      `[${correlationId}] Getting plans for package ${packageId} (includeInactive=${includeInactive})`
+    );
 
     try {
       // Verify package exists
@@ -149,26 +276,27 @@ export class ProductManagementService {
       const plans = await this.prismaService.packagePlan.findMany({
         where: {
           packageId: packageId,
-          isActive: true,
+          ...(includeInactive ? {} : { isActive: true }),
         },
         select: {
           id: true,
           name: true,
           description: true,
+          isActive: true,
         },
         orderBy: {
           name: 'asc',
         },
       });
 
-      // Map null to undefined for DTO compatibility
       const plansDto = plans.map((plan) => ({
         id: plan.id,
         name: plan.name,
         description: plan.description ?? undefined,
+        isActive: plan.isActive,
       }));
 
-      this.logger.log(`[${correlationId}] Found ${plans.length} active plans for package ${packageId}`);
+      this.logger.log(`[${correlationId}] Found ${plans.length} plans for package ${packageId}`);
       return plansDto;
     } catch (error) {
       this.logger.error(
@@ -177,6 +305,123 @@ export class ProductManagementService {
       );
       throw error;
     }
+  }
+
+  async createPackagePlan(
+    packageId: number,
+    data: { name: string; description?: string; isActive?: boolean },
+    userId: string,
+    correlationId: string
+  ) {
+    this.logger.log(`[${correlationId}] Creating plan for package ${packageId}`);
+
+    const packageExists = await this.prismaService.package.findUnique({
+      where: { id: packageId },
+      select: { id: true },
+    });
+    if (!packageExists) {
+      throw new NotFoundException(`Package with ID ${packageId} not found`);
+    }
+
+    const name = toTitleCase(data.name);
+    if (!name) {
+      throw ValidationException.forField('name', 'Plan name is required', ErrorCodes.VALIDATION_ERROR);
+    }
+
+    const duplicate = await this.prismaService.packagePlan.findFirst({
+      where: {
+        packageId,
+        name: { equals: name, mode: 'insensitive' },
+      },
+      select: { id: true },
+    });
+    if (duplicate) {
+      throw ValidationException.forField(
+        'name',
+        'A plan with this name already exists for this package',
+        ErrorCodes.VALIDATION_ERROR
+      );
+    }
+
+    try {
+      const plan = await this.prismaService.packagePlan.create({
+        data: {
+          packageId,
+          name,
+          description: trimOrNull(data.description ?? null),
+          isActive: data.isActive ?? true,
+          createdBy: userId,
+          updatedBy: userId,
+        },
+      });
+
+      return {
+        id: plan.id,
+        name: plan.name,
+        description: plan.description ?? undefined,
+        isActive: plan.isActive,
+      };
+    } catch (error) {
+      if (error instanceof PrismaClientKnownRequestError && error.code === 'P2002') {
+        throw ValidationException.forField(
+          'name',
+          'A plan with this name already exists for this package',
+          ErrorCodes.VALIDATION_ERROR
+        );
+      }
+      throw error;
+    }
+  }
+
+  async updatePackagePlan(
+    packageId: number,
+    planId: number,
+    data: { description?: string; isActive?: boolean },
+    userId: string,
+    correlationId: string
+  ) {
+    this.logger.log(`[${correlationId}] Updating plan ${planId} for package ${packageId}`);
+
+    const plan = await this.prismaService.packagePlan.findFirst({
+      where: { id: planId, packageId },
+      include: { package: { select: { id: true, isActive: true } } },
+    });
+    if (!plan) {
+      throw new NotFoundException(`Plan with ID ${planId} not found for package ${packageId}`);
+    }
+
+    if (data.isActive === false && plan.isActive && plan.package.isActive) {
+      const otherActive = await this.prismaService.packagePlan.count({
+        where: {
+          packageId,
+          isActive: true,
+          NOT: { id: planId },
+        },
+      });
+      if (otherActive < 1) {
+        throw ValidationException.forField(
+          'isActive',
+          'Cannot deactivate the last active plan while the package is active',
+          ErrorCodes.VALIDATION_ERROR
+        );
+      }
+    }
+
+    const updated = await this.prismaService.packagePlan.update({
+      where: { id: planId },
+      data: {
+        ...(data.description !== undefined && { description: trimOrNull(data.description) }),
+        ...(data.isActive !== undefined && { isActive: data.isActive }),
+        updatedBy: userId,
+      },
+    });
+
+    return {
+      id: updated.id,
+      name: updated.name,
+      description: updated.description ?? undefined,
+      isActive: updated.isActive,
+    };
   }
 
   /**
@@ -355,6 +600,10 @@ export class ProductManagementService {
               name: true,
             },
           },
+          packagePaymentFrequencies: {
+            select: { frequency: true, installmentCount: true },
+            orderBy: { frequency: 'asc' },
+          },
         },
       });
 
@@ -370,13 +619,14 @@ export class ProductManagementService {
       return {
         id: pkg.id,
         name: pkg.name,
+        slug: pkg.slug,
         description: pkg.description,
         underwriterId: pkg.underwriterId,
         underwriterName: pkg.underwriter?.name ?? null,
         isActive: pkg.isActive,
         logoPath: pkg.logoPath,
         cardTemplateName: pkg.cardTemplateName ?? null,
-        productDurationDays: pkg.productDurationDays ?? null,
+        paymentFrequencies: this.mapPaymentFrequencies(pkg.packagePaymentFrequencies),
         createdBy: pkg.createdBy,
         createdByDisplayName,
         createdAt: pkg.createdAt.toISOString(),
@@ -402,18 +652,18 @@ export class ProductManagementService {
     packageId: number,
     data: {
       name?: string;
+      slug?: string;
       description?: string;
       underwriterId?: number;
       isActive?: boolean;
       logoPath?: string;
-      productDurationDays?: number | null;
+      paymentFrequencies?: PaymentFrequencyInput[];
     },
     correlationId: string
   ) {
     this.logger.log(`[${correlationId}] Updating package ${packageId}`);
 
     try {
-      // Verify package exists
       const existing = await this.prismaService.package.findUnique({
         where: { id: packageId },
       });
@@ -422,24 +672,90 @@ export class ProductManagementService {
         throw new NotFoundException(`Package with ID ${packageId} not found`);
       }
 
-      const pkg = await this.prismaService.package.update({
-        where: { id: packageId },
-        data: {
-          ...(data.name !== undefined && { name: data.name.trim() }),
-          ...(data.description !== undefined && { description: data.description.trim() }),
-          ...(data.underwriterId !== undefined && { underwriterId: data.underwriterId }),
-          ...(data.isActive !== undefined && { isActive: data.isActive }),
-          ...(data.logoPath !== undefined && { logoPath: trimOrNull(data.logoPath) }),
-          ...(data.productDurationDays !== undefined && { productDurationDays: data.productDurationDays }),
-        },
-        include: {
-          underwriter: {
-            select: {
-              id: true,
-              name: true,
+      let normalizedSlug: string | undefined;
+      if (data.slug !== undefined) {
+        normalizedSlug = normalizePackageSlug(data.slug);
+        if (!isValidPackageSlug(normalizedSlug)) {
+          throw ValidationException.forField(
+            'slug',
+            'slug must be lowercase letters, numbers, and hyphens only',
+            ErrorCodes.VALIDATION_ERROR
+          );
+        }
+        const slugConflict = await this.prismaService.package.findFirst({
+          where: {
+            slug: normalizedSlug,
+            NOT: { id: packageId },
+          },
+          select: { id: true },
+        });
+        if (slugConflict) {
+          throw ValidationException.forField(
+            'slug',
+            'A package with this slug already exists',
+            ErrorCodes.VALIDATION_ERROR
+          );
+        }
+      }
+
+      const frequencies =
+        data.paymentFrequencies !== undefined
+          ? this.validatePaymentFrequenciesInput(data.paymentFrequencies)
+          : undefined;
+
+      if (data.isActive === true && !existing.isActive) {
+        const activePlanCount = await this.prismaService.packagePlan.count({
+          where: { packageId, isActive: true },
+        });
+        if (activePlanCount < 1) {
+          throw ValidationException.forField(
+            'isActive',
+            'Package cannot be set to active without at least one active plan',
+            ErrorCodes.VALIDATION_ERROR
+          );
+        }
+      }
+
+      const pkg = await this.prismaService.$transaction(async (tx) => {
+        const updated = await tx.package.update({
+          where: { id: packageId },
+          data: {
+            ...(data.name !== undefined && { name: data.name.trim() }),
+            ...(normalizedSlug !== undefined && { slug: normalizedSlug }),
+            ...(data.description !== undefined && { description: data.description.trim() }),
+            ...(data.underwriterId !== undefined && { underwriterId: data.underwriterId }),
+            ...(data.isActive !== undefined && { isActive: data.isActive }),
+            ...(data.logoPath !== undefined && { logoPath: trimOrNull(data.logoPath) }),
+          },
+          include: {
+            underwriter: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
+            packagePaymentFrequencies: {
+              select: { frequency: true, installmentCount: true },
+              orderBy: { frequency: 'asc' },
             },
           },
-        },
+        });
+
+        if (frequencies) {
+          await this.replacePackagePaymentFrequencies(tx, packageId, frequencies);
+          return tx.package.findUniqueOrThrow({
+            where: { id: packageId },
+            include: {
+              underwriter: { select: { id: true, name: true } },
+              packagePaymentFrequencies: {
+                select: { frequency: true, installmentCount: true },
+                orderBy: { frequency: 'asc' },
+              },
+            },
+          });
+        }
+
+        return updated;
       });
 
       this.logger.log(`[${correlationId}] Updated package ${packageId}`);
@@ -447,12 +763,13 @@ export class ProductManagementService {
       return {
         id: pkg.id,
         name: pkg.name,
+        slug: pkg.slug,
         description: pkg.description,
         underwriterId: pkg.underwriterId,
         underwriterName: pkg.underwriter?.name ?? null,
         isActive: pkg.isActive,
         logoPath: pkg.logoPath,
-        productDurationDays: pkg.productDurationDays ?? null,
+        paymentFrequencies: this.mapPaymentFrequencies(pkg.packagePaymentFrequencies),
         createdBy: pkg.createdBy,
         createdAt: pkg.createdAt.toISOString(),
         updatedAt: pkg.updatedAt.toISOString(),
@@ -460,6 +777,102 @@ export class ProductManagementService {
     } catch (error) {
       this.logger.error(
         `[${correlationId}] Error updating package ${packageId}: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        error instanceof Error ? error.stack : undefined
+      );
+      throw error;
+    }
+  }
+
+  /**
+   * Get all package-schemes with customer counts, package, and underwriter context
+   * @param page - Page number (1-based)
+   * @param pageSize - Items per page
+   * @param correlationId - Correlation ID for tracing
+   * @returns Paginated list of schemes with package/underwriter context
+   */
+  async getAllSchemesWithCounts(page: number, pageSize: number, correlationId: string) {
+    this.logger.log(`[${correlationId}] Getting all schemes with counts (page=${page}, pageSize=${pageSize})`);
+
+    try {
+      const validatedPage = Math.max(1, page);
+      const validatedPageSize = Math.min(100, Math.max(1, pageSize));
+      const skip = (validatedPage - 1) * validatedPageSize;
+
+      const [packageSchemes, totalCount] = await Promise.all([
+        this.prismaService.packageScheme.findMany({
+          skip,
+          take: validatedPageSize,
+          include: {
+            scheme: {
+              select: {
+                id: true,
+                schemeName: true,
+                description: true,
+                isActive: true,
+                isPostpaid: true,
+              },
+            },
+            package: {
+              select: {
+                id: true,
+                name: true,
+                underwriterId: true,
+                underwriter: {
+                  select: {
+                    id: true,
+                    name: true,
+                  },
+                },
+              },
+            },
+            _count: {
+              select: {
+                packageSchemeCustomers: true,
+              },
+            },
+          },
+          orderBy: {
+            scheme: {
+              schemeName: 'asc',
+            },
+          },
+        }),
+        this.prismaService.packageScheme.count(),
+      ]);
+
+      const totalPages = Math.ceil(totalCount / validatedPageSize);
+
+      const schemes = packageSchemes.map((ps) => ({
+        id: ps.scheme.id,
+        packageSchemeId: ps.id,
+        schemeName: ps.scheme.schemeName,
+        description: ps.scheme.description,
+        isActive: ps.scheme.isActive,
+        isPostpaid: ps.scheme.isPostpaid,
+        generalSchemeWaitingPeriod: ps.generalSchemeWaitingPeriod,
+        customersCount: ps._count.packageSchemeCustomers,
+        packageId: ps.package.id,
+        packageName: ps.package.name,
+        underwriterId: ps.package.underwriterId ?? ps.package.underwriter?.id ?? null,
+        underwriterName: ps.package.underwriter?.name ?? null,
+      }));
+
+      this.logger.log(`[${correlationId}] Found ${schemes.length} of ${totalCount} schemes`);
+
+      return {
+        data: schemes,
+        pagination: {
+          page: validatedPage,
+          pageSize: validatedPageSize,
+          totalItems: totalCount,
+          totalPages,
+          hasNextPage: validatedPage < totalPages,
+          hasPreviousPage: validatedPage > 1,
+        },
+      };
+    } catch (error) {
+      this.logger.error(
+        `[${correlationId}] Error getting all schemes with counts: ${error instanceof Error ? error.message : 'Unknown error'}`,
         error instanceof Error ? error.stack : undefined
       );
       throw error;
@@ -854,10 +1267,11 @@ export class ProductManagementService {
   async createPackage(
     data: {
       name: string;
+      slug: string;
       description: string;
       underwriterId?: number;
       isActive?: boolean;
-      productDurationDays?: number;
+      paymentFrequencies: PaymentFrequencyInput[];
     },
     userId: string,
     correlationId: string
@@ -865,11 +1279,19 @@ export class ProductManagementService {
     this.logger.log(`[${correlationId}] Creating package: ${data.name}`);
 
     try {
-      // Trim string fields before validation and persistence
       const name = data.name.trim();
       const description = data.description.trim();
+      const slug = normalizePackageSlug(data.slug);
+      const frequencies = this.validatePaymentFrequenciesInput(data.paymentFrequencies);
 
-      // Pre-save validation: Check for duplicates (name + underwriterId combination)
+      if (!isValidPackageSlug(slug)) {
+        throw ValidationException.forField(
+          'slug',
+          'slug must be lowercase letters, numbers, and hyphens only',
+          ErrorCodes.VALIDATION_ERROR
+        );
+      }
+
       const existingPackage = await this.prismaService.package.findFirst({
         where: {
           name: {
@@ -888,31 +1310,57 @@ export class ProductManagementService {
         );
       }
 
-      const pkg = await this.prismaService.package.create({
-        data: {
-          name,
-          description,
-          underwriterId: data.underwriterId,
-          isActive: data.isActive ?? false, // Default to false
-          createdBy: userId,
-          productDurationDays: data.productDurationDays ?? 365,
-        },
-        include: {
-          underwriter: {
-            select: {
-              id: true,
-              name: true,
+      const slugConflict = await this.prismaService.package.findFirst({
+        where: { slug },
+        select: { id: true },
+      });
+      if (slugConflict) {
+        throw ValidationException.forField(
+          'slug',
+          'A package with this slug already exists',
+          ErrorCodes.VALIDATION_ERROR
+        );
+      }
+
+      const pkg = await this.prismaService.$transaction(async (tx) => {
+        const created = await tx.package.create({
+          data: {
+            name,
+            slug,
+            description,
+            underwriterId: data.underwriterId,
+            isActive: data.isActive ?? false,
+            createdBy: userId,
+          },
+          include: {
+            underwriter: {
+              select: {
+                id: true,
+                name: true,
+              },
             },
           },
-        },
-      });
+        });
 
-      // Seed policy_number_sequences for the new package
-      await this.prismaService.policyNumberSequence.create({
-        data: {
-          packageId: pkg.id,
-          lastSequence: 0,
-        },
+        await this.replacePackagePaymentFrequencies(tx, created.id, frequencies);
+
+        await tx.policyNumberSequence.create({
+          data: {
+            packageId: created.id,
+            lastSequence: 0,
+          },
+        });
+
+        return tx.package.findUniqueOrThrow({
+          where: { id: created.id },
+          include: {
+            underwriter: { select: { id: true, name: true } },
+            packagePaymentFrequencies: {
+              select: { frequency: true, installmentCount: true },
+              orderBy: { frequency: 'asc' },
+            },
+          },
+        });
       });
 
       this.logger.log(`[${correlationId}] Created package with ID ${pkg.id}`);
@@ -920,12 +1368,13 @@ export class ProductManagementService {
       return {
         id: pkg.id,
         name: pkg.name,
+        slug: pkg.slug,
         description: pkg.description,
         underwriterId: pkg.underwriterId,
         underwriterName: pkg.underwriter?.name ?? null,
         isActive: pkg.isActive,
         logoPath: pkg.logoPath,
-        productDurationDays: pkg.productDurationDays ?? null,
+        paymentFrequencies: this.mapPaymentFrequencies(pkg.packagePaymentFrequencies),
         createdBy: pkg.createdBy,
         createdAt: pkg.createdAt.toISOString(),
         updatedAt: pkg.updatedAt.toISOString(),
@@ -936,14 +1385,51 @@ export class ProductManagementService {
         error instanceof Error ? error.stack : undefined
       );
 
-      // Re-throw with more context if it's a Prisma error
-      if (error instanceof Error) {
-        if (error.message.includes('Unique constraint failed')) {
-          throw new Error('A package with this name already exists for this underwriter');
+      if (error instanceof ValidationException) {
+        throw error;
+      }
+
+      if (error instanceof PrismaClientKnownRequestError) {
+        if (error.code === 'P2002') {
+          this.mapPackageUniqueConstraintError(error);
         }
-        if (error.message.includes('Foreign key constraint failed')) {
-          throw new Error('Invalid underwriter ID');
+        if (error.code === 'P2003') {
+          throw ValidationException.forField(
+            'underwriterId',
+            'Invalid underwriter ID',
+            ErrorCodes.VALIDATION_ERROR
+          );
         }
+      }
+
+      // Legacy string match for drivers that omit Prisma error codes
+      if (error instanceof Error && error.message.includes('Unique constraint failed')) {
+        if (error.message.toLowerCase().includes('slug')) {
+          throw ValidationException.forField(
+            'slug',
+            'A package with this slug already exists',
+            ErrorCodes.VALIDATION_ERROR
+          );
+        }
+        if (/\bname\b/i.test(error.message)) {
+          throw ValidationException.forField(
+            'name',
+            'A package with this name already exists for this underwriter',
+            ErrorCodes.VALIDATION_ERROR
+          );
+        }
+        throw ValidationException.forField(
+          'package',
+          'A package with a conflicting unique value already exists',
+          ErrorCodes.VALIDATION_ERROR
+        );
+      }
+      if (error instanceof Error && error.message.includes('Foreign key constraint failed')) {
+        throw ValidationException.forField(
+          'underwriterId',
+          'Invalid underwriter ID',
+          ErrorCodes.VALIDATION_ERROR
+        );
       }
 
       throw error;
@@ -1000,20 +1486,13 @@ export class ProductManagementService {
       if (data.isPostpaid) {
         if (!data.frequency) {
           validationErrors['frequency'] = 'Payment frequency is required for postpaid schemes';
+        } else if (data.frequency === PaymentFrequency.CUSTOM) {
+          validationErrors['frequency'] =
+            'CUSTOM frequency is not supported for postpaid schemes; use a package-supported frequency';
         } else {
-          // Calculate payment cadence from frequency if not CUSTOM
-          if (data.frequency === PaymentFrequency.CUSTOM) {
-            if (!data.paymentCadence) {
-              validationErrors['paymentCadence'] = 'Payment cadence is required when frequency is CUSTOM';
-            } else {
-              calculatedPaymentCadence = data.paymentCadence;
-            }
-          } else {
-            // Calculate cadence from frequency constants
-            calculatedPaymentCadence = PAYMENT_CADENCE[data.frequency];
-            if (!calculatedPaymentCadence) {
-              validationErrors['frequency'] = `Invalid payment frequency: ${data.frequency}`;
-            }
+          calculatedPaymentCadence = PAYMENT_CADENCE[data.frequency];
+          if (!calculatedPaymentCadence) {
+            validationErrors['frequency'] = `Invalid payment frequency: ${data.frequency}`;
           }
         }
       }
@@ -1024,6 +1503,22 @@ export class ProductManagementService {
             'Waiting period is required when linking a scheme to a package';
         } else if (data.generalSchemeWaitingPeriod < 0 || data.generalSchemeWaitingPeriod > 9999) {
           validationErrors['generalSchemeWaitingPeriod'] = 'Waiting period must be between 0 and 9999';
+        }
+
+        if (data.isPostpaid && data.frequency && !validationErrors['frequency']) {
+          const supported = await this.prismaService.packagePaymentFrequency.findUnique({
+            where: {
+              packageId_frequency: {
+                packageId: data.packageId,
+                frequency: data.frequency,
+              },
+            },
+            select: { id: true },
+          });
+          if (!supported) {
+            validationErrors['frequency'] =
+              'Payment frequency is not supported for this package';
+          }
         }
       }
 
@@ -1146,14 +1641,50 @@ export class ProductManagementService {
         extra: { schemeName: data.schemeName, isPostpaid: data.isPostpaid },
       });
 
-      // Re-throw with more context if it's a Prisma error
-      if (error instanceof Error) {
-        if (error.message.includes('Unique constraint failed')) {
-          throw new Error('A scheme with this name already exists');
+      if (error instanceof ValidationException) {
+        throw error;
+      }
+
+      if (error instanceof PrismaClientKnownRequestError) {
+        if (error.code === 'P2002') {
+          const fields = this.getPrismaUniqueTargetFields(error);
+          const blob = `${error.message} ${fields.join(' ')}`.toLowerCase();
+          if (fields.includes('schemeName') || blob.includes('schemename') || blob.includes('scheme_name')) {
+            throw ValidationException.forField(
+              'schemeName',
+              'A scheme with this name already exists',
+              ErrorCodes.VALIDATION_ERROR
+            );
+          }
+          const label = fields.length > 0 ? fields.join(', ') : 'value';
+          throw ValidationException.forField(
+            'scheme',
+            `A scheme with this ${label} already exists`,
+            ErrorCodes.VALIDATION_ERROR
+          );
         }
-        if (error.message.includes('Foreign key constraint failed')) {
-          throw new Error('Invalid package ID');
+        if (error.code === 'P2003') {
+          throw ValidationException.forField(
+            'packageId',
+            'Invalid package ID',
+            ErrorCodes.VALIDATION_ERROR
+          );
         }
+      }
+
+      if (error instanceof Error && error.message.includes('Unique constraint failed')) {
+        throw ValidationException.forField(
+          'schemeName',
+          'A scheme with this name already exists',
+          ErrorCodes.VALIDATION_ERROR
+        );
+      }
+      if (error instanceof Error && error.message.includes('Foreign key constraint failed')) {
+        throw ValidationException.forField(
+          'packageId',
+          'Invalid package ID',
+          ErrorCodes.VALIDATION_ERROR
+        );
       }
 
       throw error;

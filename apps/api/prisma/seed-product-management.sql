@@ -59,13 +59,33 @@ BEGIN
         RAISE WARNING 'No users found in auth.users, using placeholder UUID';
     END IF;
 
-    -- Insert packages with createdBy and isActive fields
-    INSERT INTO "packages" ("id", "name", "description", "underwriterId", "isActive", "createdBy", "updatedAt") VALUES
-    (1, 'MfanisiGo', 'Product targeting drivers and riders in the logistics space', 1, true, first_user_id, CURRENT_TIMESTAMP),
-    (2, 'Mfanisi', 'A product targeted for SMEs', 1, true, first_user_id, CURRENT_TIMESTAMP),
-    (3, 'Mzalendo', 'Product that allows customers to pay a monthly fee and select a particular hospital for all treatments', 1, true, first_user_id, CURRENT_TIMESTAMP)
+    -- Insert packages with createdBy, isActive, and slug fields
+    INSERT INTO "packages" ("id", "name", "slug", "description", "underwriterId", "isActive", "createdBy", "updatedAt") VALUES
+    (1, 'MfanisiGo', 'mfanisi-go', 'Product targeting drivers and riders in the logistics space', 1, true, first_user_id, CURRENT_TIMESTAMP),
+    (2, 'Mfanisi', 'mfanisi', 'A product targeted for SMEs', 1, true, first_user_id, CURRENT_TIMESTAMP),
+    (3, 'Mzalendo', 'mzalendo', 'Product that allows customers to pay a monthly fee and select a particular hospital for all treatments', 1, true, first_user_id, CURRENT_TIMESTAMP)
     ON CONFLICT (id) DO NOTHING;
+
+    -- Ensure slugs on re-seed / existing rows
+    UPDATE "packages" SET "slug" = 'mfanisi-go', "updatedAt" = CURRENT_TIMESTAMP WHERE id = 1 AND ("slug" IS NULL OR "slug" = '');
+    UPDATE "packages" SET "slug" = 'mfanisi', "updatedAt" = CURRENT_TIMESTAMP WHERE id = 2 AND ("slug" IS NULL OR "slug" = '');
+    UPDATE "packages" SET "slug" = 'mzalendo', "updatedAt" = CURRENT_TIMESTAMP WHERE id = 3 AND ("slug" IS NULL OR "slug" = '');
 END $$;
+
+-- Seed package payment frequencies (DAILY 276, WEEKLY 39, MONTHLY 9)
+INSERT INTO "package_payment_frequencies" ("packageId", "frequency", "installmentCount", "updatedAt")
+SELECT p.id, f.frequency::"PaymentFrequency", f.installment_count, CURRENT_TIMESTAMP
+FROM "packages" p
+CROSS JOIN (
+  VALUES
+    ('DAILY', 276),
+    ('WEEKLY', 39),
+    ('MONTHLY', 9)
+) AS f(frequency, installment_count)
+WHERE p.id IN (1, 2, 3)
+ON CONFLICT ("packageId", "frequency") DO UPDATE
+SET "installmentCount" = EXCLUDED."installmentCount",
+    "updatedAt" = CURRENT_TIMESTAMP;
 
 -- Seed package products (idempotent - using composite unique constraint)
 INSERT INTO "package_products" ("packageId", "productId") VALUES
@@ -165,4 +185,12 @@ INSERT INTO "package_plans" ("name", "description", "packageId", "isActive", "cr
     VALUES ('Gold', 'the Gold plan', 3, true, first_user_id::uuid, first_user_id::uuid, CURRENT_TIMESTAMP)
 ON CONFLICT ("packageId", "name") DO NOTHING;
 END $$;
+
+-- Sync serial sequences after explicit-id inserts so the next create() does not
+-- collide on primary key (which was misreported as "name already exists").
+SELECT setval(pg_get_serial_sequence('underwriters', 'id'), (SELECT COALESCE(MAX(id), 1) FROM underwriters));
+SELECT setval(pg_get_serial_sequence('product_types', 'id'), (SELECT COALESCE(MAX(id), 1) FROM product_types));
+SELECT setval(pg_get_serial_sequence('products', 'id'), (SELECT COALESCE(MAX(id), 1) FROM products));
+SELECT setval(pg_get_serial_sequence('packages', 'id'), (SELECT COALESCE(MAX(id), 1) FROM packages));
+SELECT setval(pg_get_serial_sequence('schemes', 'id'), (SELECT COALESCE(MAX(id), 1) FROM schemes));
 

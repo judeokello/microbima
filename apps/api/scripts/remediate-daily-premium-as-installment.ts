@@ -49,7 +49,7 @@ config({ path: envPath });
 
 const prisma = new PrismaClient();
 
-/** Known daily rates from agent-registration public/insurance-pricing.json (± spouse). */
+/** Known daily rates from agent-registration public/product-pricing/mfanisi-go-pricing.json (± spouse). */
 const DAILY_RATES = new Set([
   63, 111, 137, 76, 124, 150, // Silver
   84, 152, 189, 103, 171, 208, // Gold

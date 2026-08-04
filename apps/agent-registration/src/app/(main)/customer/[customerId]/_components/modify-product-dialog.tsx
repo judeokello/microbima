@@ -34,27 +34,27 @@ import {
   type PolicyNumberChoice,
   type Plan,
 } from '@/lib/api';
-import { computeInstallmentPremium } from '@/lib/insurance-installment';
+import {
+  computeInstallmentPremium,
+  isFrequencySupportedByPackage,
+  isPricingSubmitBlocked,
+  productPricingPath,
+  type PricingMode,
+  type PricingRateBand,
+} from '@/lib/insurance-installment';
 
 interface InsurancePricing {
+  packageSlug?: string;
+  pricingMode?: PricingMode;
   plans: Record<
     string,
     {
       name: string;
-      categories: Record<string, { display: string; daily: number; weekly: number }>;
-      additional_spouse: { daily: number; weekly: number };
+      categories: Record<string, PricingRateBand & { display: string }>;
+      additional_spouse: PricingRateBand;
     }
   >;
 }
-
-const FREQUENCY_OPTIONS = [
-  { value: 'DAILY', label: 'Daily (1 day)' },
-  { value: 'WEEKLY', label: 'Weekly (7 days)' },
-  { value: 'MONTHLY', label: 'Monthly (31 days)' },
-  { value: 'QUARTERLY', label: 'Quarterly (90 days)' },
-  { value: 'ANNUALLY', label: 'Annually (365 days)' },
-  { value: 'CUSTOM', label: 'Custom' },
-] as const;
 
 interface ModifyProductDialogProps {
   open: boolean;
@@ -77,11 +77,11 @@ export default function ModifyProductDialog({
   const [options, setOptions] = useState<ModifyPolicyOptions | null>(null);
   const [plans, setPlans] = useState<Plan[]>([]);
   const [pricing, setPricing] = useState<InsurancePricing | null>(null);
+  const [pricingLoadError, setPricingLoadError] = useState<string | null>(null);
 
   const [reason, setReason] = useState('');
   const [selectedPlan, setSelectedPlan] = useState('');
   const [frequency, setFrequency] = useState<string>('DAILY');
-  const [customDays, setCustomDays] = useState('');
   const [packageSchemeId, setPackageSchemeId] = useState<string>('');
   const [policyNumberChoice, setPolicyNumberChoice] = useState<PolicyNumberChoice | ''>('');
   const [firstPaymentId, setFirstPaymentId] = useState<string>('');
@@ -89,26 +89,32 @@ export default function ModifyProductDialog({
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
+    setPricingLoadError(null);
     try {
-      const [opts, pricingRes] = await Promise.all([
-        getModifyPolicyOptions(customerId, policyId),
-        fetch('/insurance-pricing.json').then((r) => r.json() as Promise<InsurancePricing>),
-      ]);
+      const opts = await getModifyPolicyOptions(customerId, policyId);
       setOptions(opts);
-      setPricing(pricingRes);
+      setFrequency(opts.currentFrequency);
+      setPackageSchemeId(
+        opts.currentPackageSchemeId != null ? String(opts.currentPackageSchemeId) : ''
+      );
+
+      if (!opts.packageSlug) {
+        setPricing(null);
+        setPricingLoadError('Package slug is not configured. Contact support.');
+      } else {
+        const pricingRes = await fetch(productPricingPath(opts.packageSlug));
+        if (!pricingRes.ok) {
+          setPricing(null);
+          setPricingLoadError(`Pricing file not found for package “${opts.packageSlug}”.`);
+        } else {
+          setPricing((await pricingRes.json()) as InsurancePricing);
+        }
+      }
+
       const plansData = await getPackagePlans(opts.packageId);
       setPlans(plansData);
-      setFrequency(opts.currentFrequency);
-      setCustomDays(
-        opts.currentFrequency === 'CUSTOM' ? String(opts.currentPaymentCadence) : ''
-      );
       if (opts.currentPlanName) {
         setSelectedPlan(opts.currentPlanName.toLowerCase());
-      }
-      if (opts.schemes.length > 0) {
-        setPackageSchemeId(
-          String(opts.currentPackageSchemeId ?? opts.schemes[0]?.packageSchemeId ?? '')
-        );
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load modify options');
@@ -120,33 +126,34 @@ export default function ModifyProductDialog({
   useEffect(() => {
     if (open) {
       void load();
-      setReason('');
-      setPolicyNumberChoice('');
-      setFirstPaymentId('');
     }
   }, [open, load]);
 
-  const premium = useMemo(() => {
+  const pricingMode: PricingMode = pricing?.pricingMode ?? 'extrapolate';
+
+  const installmentAmount = useMemo(() => {
     if (!pricing || !options || !selectedPlan) return 0;
     const plan = pricing.plans[selectedPlan];
     if (!plan) return 0;
-    const cat = plan.categories[options.familyCategory as keyof typeof plan.categories];
+    const cat = plan.categories[options.familyCategory];
     if (!cat) return 0;
-    let daily = cat.daily;
-    let weekly = cat.weekly;
-    if (options.additionalSpouse) {
-      daily += plan.additional_spouse.daily;
-      weekly += plan.additional_spouse.weekly;
-    }
-    const customCadenceDays =
-      frequency === 'CUSTOM' ? parseInt(customDays, 10) || undefined : undefined;
+    const spouse = options.additionalSpouse;
+    const daily = (cat.daily ?? 0) + (spouse ? plan.additional_spouse.daily ?? 0 : 0);
+    const weekly = (cat.weekly ?? 0) + (spouse ? plan.additional_spouse.weekly ?? 0 : 0);
+    const lookupRates: PricingRateBand = {
+      daily,
+      weekly,
+      monthly: (cat.monthly ?? 0) + (spouse ? plan.additional_spouse.monthly ?? 0 : 0),
+      annually: (cat.annually ?? 0) + (spouse ? plan.additional_spouse.annually ?? 0 : 0),
+    };
     return computeInstallmentPremium({
       frequency,
       daily,
       weekly,
-      customDays: customCadenceDays,
+      pricingMode,
+      lookupRates,
     });
-  }, [pricing, options, selectedPlan, frequency, customDays]);
+  }, [pricing, options, selectedPlan, frequency, pricingMode]);
 
   const packagePlanId = useMemo(() => {
     if (!selectedPlan || plans.length === 0) return 0;
@@ -155,45 +162,45 @@ export default function ModifyProductDialog({
   }, [selectedPlan, plans]);
 
   const handleSubmit = async () => {
-    if (!options) return;
-    if (!reason.trim()) {
-      setError('Reason is required');
+    setError(null);
+    if (isPricingSubmitBlocked(pricingLoadError, pricing)) {
+      setError(pricingLoadError ?? 'Missing price setup for this package.');
       return;
     }
     if (!selectedPlan || !packagePlanId) {
       setError('Select a plan');
       return;
     }
+    if (!reason.trim()) {
+      setError('Reason is required');
+      return;
+    }
     if (!policyNumberChoice) {
-      setError('Select policy number option (Keep Existing or Generate New)');
+      setError('Select Keep Existing or Generate New policy number');
       return;
     }
-    if (options.paymentMigrationAllowed && !firstPaymentId) {
-      setError('Select the first payment to migrate');
+    if (!isFrequencySupportedByPackage(frequency, options?.paymentFrequencies)) {
+      setError('Selected frequency is not supported for this package');
       return;
     }
-    if (frequency === 'CUSTOM' && (!customDays || parseInt(customDays, 10) < 1)) {
-      setError('Enter valid custom cadence days');
+    if (installmentAmount <= 0) {
+      setError('Could not calculate installment for this selection');
       return;
     }
-
-    const body: ModifyPolicyRequest = {
-      reason: reason.trim(),
-      packagePlanId,
-      frequency: frequency as ModifyPolicyRequest['frequency'],
-      premium,
-      policyNumberChoice,
-      ...(frequency === 'CUSTOM' ? { customDays: parseInt(customDays, 10) } : {}),
-      ...(packageSchemeId ? { packageSchemeId: parseInt(packageSchemeId, 10) } : {}),
-      ...(firstPaymentId ? { firstPaymentId: parseInt(firstPaymentId, 10) } : {}),
-    };
 
     setSubmitting(true);
-    setError(null);
     try {
+      const body: ModifyPolicyRequest = {
+        reason: reason.trim(),
+        packagePlanId,
+        frequency: frequency as ModifyPolicyRequest['frequency'],
+        premium: installmentAmount,
+        policyNumberChoice,
+        ...(packageSchemeId ? { packageSchemeId: parseInt(packageSchemeId, 10) } : {}),
+        ...(firstPaymentId ? { firstPaymentId: parseInt(firstPaymentId, 10) } : {}),
+      };
       const res = await modifyCustomerPolicy(customerId, policyId, body);
-      const newId = res.newPolicyId ?? res.policy.id;
-      onSuccess(newId);
+      onSuccess(res.policy.id);
       onOpenChange(false);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Modify failed');
@@ -208,26 +215,29 @@ export default function ModifyProductDialog({
         <DialogHeader>
           <DialogTitle>Modify product</DialogTitle>
           <DialogDescription>
-            Deactivates the current policy and creates a new one on the same package. Family
-            category is derived from dependants ({options?.familyCategory ?? '…'}).
+            Creates a new policy superseding the current one. Family category is derived from
+            dependants ({options?.familyCategory ?? '…'}).
           </DialogDescription>
         </DialogHeader>
 
         {loading ? (
           <div className="flex justify-center py-8">
-            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            <Loader2 className="h-6 w-6 animate-spin" />
           </div>
-        ) : options ? (
-          <div className="space-y-4 py-2">
+        ) : (
+          <div className="space-y-4">
+            {pricingLoadError && (
+              <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+                {pricingLoadError}
+              </div>
+            )}
+            {error && <p className="text-sm text-red-600">{error}</p>}
+
             <div>
-              <Label>Package</Label>
-              <Input value={options.packageName} disabled />
-            </div>
-            <div>
-              <Label>Insurance plan</Label>
-              <Select value={selectedPlan} onValueChange={setSelectedPlan}>
+              <Label>Plan</Label>
+              <Select value={selectedPlan} onValueChange={setSelectedPlan} disabled={!pricing}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Select plan" />
+                  <SelectValue placeholder={pricing ? 'Select plan' : 'No pricing available'} />
                 </SelectTrigger>
                 <SelectContent>
                   {pricing &&
@@ -239,10 +249,12 @@ export default function ModifyProductDialog({
                 </SelectContent>
               </Select>
             </div>
+
             <div>
               <Label>Family category (read-only)</Label>
-              <Input value={options.familyCategory} disabled />
+              <Input value={options?.familyCategory ?? ''} disabled />
             </div>
+
             <div>
               <Label>Payment frequency</Label>
               <Select value={frequency} onValueChange={setFrequency}>
@@ -250,31 +262,29 @@ export default function ModifyProductDialog({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {FREQUENCY_OPTIONS.map((f) => (
-                    <SelectItem key={f.value} value={f.value}>
-                      {f.label}
+                  {(options?.paymentFrequencies ?? []).map((pf) => (
+                    <SelectItem key={pf.frequency} value={pf.frequency}>
+                      {pf.frequency} · {pf.installmentCount} installments
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
-            {frequency === 'CUSTOM' && (
-              <div>
-                <Label>Cadence (days)</Label>
-                <Input
-                  value={customDays}
-                  onChange={(e) => setCustomDays(e.target.value.replace(/\D/g, '').slice(0, 3))}
-                />
-              </div>
-            )}
+
             <div>
-              <Label>Scheme</Label>
-              <Select value={packageSchemeId} onValueChange={setPackageSchemeId}>
+              <Label>Installment amount (KES)</Label>
+              <Input value={String(installmentAmount)} disabled />
+            </div>
+
+            <div>
+              <Label>Scheme (optional)</Label>
+              <Select value={packageSchemeId || 'none'} onValueChange={(v) => setPackageSchemeId(v === 'none' ? '' : v)}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Select scheme" />
+                  <SelectValue placeholder="Keep current" />
                 </SelectTrigger>
                 <SelectContent>
-                  {options.schemes.map((s) => (
+                  <SelectItem value="none">Keep current</SelectItem>
+                  {(options?.schemes ?? []).map((s) => (
                     <SelectItem key={s.packageSchemeId} value={String(s.packageSchemeId)}>
                       {s.schemeName}
                       {s.isPostpaid ? ' (postpaid)' : ''}
@@ -283,68 +293,59 @@ export default function ModifyProductDialog({
                 </SelectContent>
               </Select>
             </div>
+
             <div>
-              <Label>Installment (KES)</Label>
-              <Input value={premium > 0 ? String(premium) : ''} disabled />
-            </div>
-            <div>
-              <Label>Policy number</Label>
+              <Label>Policy number *</Label>
               <Select
                 value={policyNumberChoice}
                 onValueChange={(v) => setPolicyNumberChoice(v as PolicyNumberChoice)}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Select option (required)" />
+                  <SelectValue placeholder="Select…" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="KEEP_EXISTING">Keep existing</SelectItem>
-                  <SelectItem value="GENERATE_NEW">Generate new</SelectItem>
+                  <SelectItem value="KEEP_EXISTING">Keep Existing</SelectItem>
+                  <SelectItem value="GENERATE_NEW">Generate New</SelectItem>
                 </SelectContent>
               </Select>
             </div>
-            {options.paymentMigrationAllowed && (
+
+            {options?.paymentMigrationAllowed && (
               <div>
-                <Label>First payment to migrate</Label>
-                <Select
-                  value={firstPaymentId}
-                  onValueChange={(v) => {
-                    setFirstPaymentId(v);
-                    setError(null);
-                  }}
-                >
+                <Label>First payment to migrate (optional)</Label>
+                <Select value={firstPaymentId || 'none'} onValueChange={(v) => setFirstPaymentId(v === 'none' ? '' : v)}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Select first payment" />
+                    <SelectValue placeholder="None" />
                   </SelectTrigger>
                   <SelectContent>
-                    {options.eligiblePayments.map((p) => (
+                    <SelectItem value="none">None</SelectItem>
+                    {(options?.eligiblePayments ?? []).map((p) => (
                       <SelectItem key={p.id} value={String(p.id)}>
-                        {formatTransactionReferenceForDisplay(p.transactionReference)} — KES{' '}
-                        {p.amount} —{' '}
-                        {new Date(p.expectedPaymentDate).toLocaleDateString()}{' '}
-                        {formatMigrationPaymentStatusLabel(p.paymentStatus)}
+                        {formatTransactionReferenceForDisplay(p.transactionReference)} ·{' '}
+                        {formatMigrationPaymentStatusLabel(p.paymentStatus)} · {p.amount}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
             )}
+
             <div>
-              <Label>Reason (required)</Label>
+              <Label>Reason *</Label>
               <Textarea value={reason} onChange={(e) => setReason(e.target.value)} rows={3} />
             </div>
-            {error && <p className="text-sm text-destructive">{error}</p>}
           </div>
-        ) : (
-          error && <p className="text-sm text-destructive">{error}</p>
         )}
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={submitting}>
             Cancel
           </Button>
-          <Button onClick={() => void handleSubmit()} disabled={submitting || loading || !options}>
-            {submitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-            Modify product
+          <Button
+            onClick={() => void handleSubmit()}
+            disabled={submitting || loading || !!pricingLoadError || !pricing}
+          >
+            {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Confirm modify'}
           </Button>
         </DialogFooter>
       </DialogContent>

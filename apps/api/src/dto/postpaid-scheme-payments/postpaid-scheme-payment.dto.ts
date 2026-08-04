@@ -125,3 +125,48 @@ export interface PostpaidSchemePaymentCsvRow {
   idNumber: string;
   paidDate: string | null;
 }
+
+/** IPN/statement preview for postpaid MPESA batch transaction reference */
+export class PostpaidMpesaLookupDto {
+  @ApiProperty({ example: true })
+  valid: boolean;
+
+  @ApiProperty({
+    description: 'Human-readable verification line for the admin UI',
+    example: 'Valid M-Pesa payment: SHARON CHEPKORIR NGETICH — 29/07/2026 15:00:22',
+    nullable: true,
+  })
+  displayLabel: string | null;
+
+  @ApiProperty({ example: 'UGTPM18EP7', nullable: true })
+  transactionReference: string | null;
+
+  @ApiProperty({ nullable: true })
+  payerName: string | null;
+
+  @ApiProperty({
+    description: 'Completion time ISO 8601',
+    nullable: true,
+  })
+  completionTime: string | null;
+
+  @ApiProperty({
+    description: 'Error when invalid or already mapped',
+    nullable: true,
+  })
+  error: string | null;
+}
+
+export class PostpaidMpesaLookupResponseDto {
+  @ApiProperty({ type: PostpaidMpesaLookupDto })
+  data: PostpaidMpesaLookupDto;
+
+  @ApiProperty()
+  status: number;
+
+  @ApiProperty()
+  correlationId: string;
+
+  @ApiProperty()
+  message: string;
+}

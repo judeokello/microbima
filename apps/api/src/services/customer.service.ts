@@ -2659,8 +2659,8 @@ export class CustomerService {
         package: {
           select: {
             name: true,
+            slug: true,
             totalPremium: true,
-            productDurationDays: true,
             underwriter: { select: { name: true } },
           },
         },
@@ -2747,13 +2747,16 @@ export class CustomerService {
           planName: policy.packagePlan?.name ?? null,
           schemeName,
           productName: policy.productName,
-          productDurationDays: policy.package.productDurationDays ?? null,
+          packageSlug: policy.package.slug ?? null,
         },
         enrollment: {
           startDate: policy.startDate?.toISOString() ?? null,
           endDate: policy.endDate?.toISOString() ?? null,
           frequency: policy.frequency,
           paymentCadence: policy.paymentCadence,
+          expectedInstallmentCount: policy.expectedInstallmentCount ?? null,
+          nominalPaymentPeriodEndDate:
+            policy.nominalPaymentPeriodEndDate?.toISOString() ?? null,
         },
         totalPremium: policy.package.totalPremium != null ? policy.package.totalPremium.toString() : '—',
         installmentAmount: policy.premium.toString(),

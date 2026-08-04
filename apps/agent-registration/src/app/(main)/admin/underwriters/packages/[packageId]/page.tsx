@@ -9,28 +9,70 @@ import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { RefreshCw, Edit, Save, X, Plus } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
 import { supabase } from '@/lib/supabase';
 import * as Sentry from '@sentry/nextjs';
 import Image from 'next/image';
 import { TruncatedDescription } from '../../[underwriterId]/_components/truncated-description';
 import CreateSchemeDialog from './_components/create-scheme-dialog';
+import CreatePlanDialog from './_components/create-plan-dialog';
+import EditPlanDialog, { type EditablePlan } from './_components/edit-plan-dialog';
 import MemberCardWithDownload from '@/components/member-cards/MemberCardWithDownload';
 import { SAMPLE_CARD_DATA } from '@/components/member-cards/sample-card-data';
+
+const CONFIGURABLE_FREQUENCIES = [
+  { value: 'DAILY', label: 'Daily', min: 1, max: 365 },
+  { value: 'WEEKLY', label: 'Weekly', min: 1, max: 52 },
+  { value: 'MONTHLY', label: 'Monthly', min: 1, max: 12 },
+  { value: 'QUARTERLY', label: 'Quarterly', min: 1, max: 4 },
+  { value: 'ANNUALLY', label: 'Annually', min: 1, max: 1 },
+] as const;
+
+const SLUG_REGEX = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+
+interface PaymentFrequencyRow {
+  frequency: string;
+  installmentCount: number;
+}
 
 interface Package {
   id: number;
   name: string;
+  slug?: string | null;
   description: string;
   underwriterId?: number | null;
   underwriterName?: string | null;
   isActive: boolean;
   logoPath?: string | null;
   cardTemplateName?: string | null;
-  productDurationDays?: number | null;
+  paymentFrequencies?: PaymentFrequencyRow[];
   createdBy: string;
   createdByDisplayName?: string;
   createdAt: string;
   updatedAt: string;
+}
+
+function emptyFrequencyForm() {
+  return {
+    DAILY: { enabled: false, count: '276' },
+    WEEKLY: { enabled: false, count: '39' },
+    MONTHLY: { enabled: false, count: '9' },
+    QUARTERLY: { enabled: false, count: '4' },
+    ANNUALLY: { enabled: false, count: '1' },
+  } as Record<string, { enabled: boolean; count: string }>;
+}
+
+function frequenciesToForm(rows: PaymentFrequencyRow[] | undefined) {
+  const form = emptyFrequencyForm();
+  for (const row of rows ?? []) {
+    if (form[row.frequency]) {
+      form[row.frequency] = {
+        enabled: true,
+        count: String(row.installmentCount),
+      };
+    }
+  }
+  return form;
 }
 
 interface Scheme {
@@ -41,6 +83,13 @@ interface Scheme {
   isPostpaid: boolean;
   generalSchemeWaitingPeriod?: number | null;
   customersCount: number;
+}
+
+interface PackagePlan {
+  id: number;
+  name: string;
+  description?: string;
+  isActive: boolean;
 }
 
 interface PackageResponse {
@@ -57,6 +106,13 @@ interface SchemesResponse {
   data: Scheme[];
 }
 
+interface PlansResponse {
+  status: number;
+  correlationId: string;
+  message: string;
+  data: PackagePlan[];
+}
+
 export default function PackageDetailPage() {
   const router = useRouter();
   const params = useParams();
@@ -64,16 +120,21 @@ export default function PackageDetailPage() {
 
   const [pkg, setPkg] = useState<Package | null>(null);
   const [schemes, setSchemes] = useState<Scheme[]>([]);
+  const [plans, setPlans] = useState<PackagePlan[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [createSchemeDialogOpen, setCreateSchemeDialogOpen] = useState(false);
+  const [createPlanDialogOpen, setCreatePlanDialogOpen] = useState(false);
+  const [editPlanDialogOpen, setEditPlanDialogOpen] = useState(false);
+  const [planBeingEdited, setPlanBeingEdited] = useState<EditablePlan | null>(null);
   const [formData, setFormData] = useState({
     name: '',
+    slug: '',
     description: '',
     isActive: true,
-    productDurationDays: '',
+    frequencies: emptyFrequencyForm(),
   });
 
   const getSupabaseToken = async () => {
@@ -102,10 +163,10 @@ export default function PackageDetailPage() {
       setPkg(data.data);
       setFormData({
         name: data.data.name,
+        slug: data.data.slug ?? '',
         description: data.data.description,
         isActive: data.data.isActive,
-        productDurationDays:
-          data.data.productDurationDays != null ? String(data.data.productDurationDays) : '',
+        frequencies: frequenciesToForm(data.data.paymentFrequencies),
       });
     } catch (err) {
       console.error('Error fetching package:', err);
@@ -150,10 +211,35 @@ export default function PackageDetailPage() {
     }
   }, [packageId]);
 
+  const fetchPlans = useCallback(async () => {
+    try {
+      const token = await getSupabaseToken();
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/product-management/packages/${packageId}/plans?includeInactive=true`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'x-correlation-id': `req-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          },
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const data: PlansResponse = await response.json();
+      setPlans(data.data ?? []);
+    } catch (err) {
+      console.error('Error fetching plans:', err);
+    }
+  }, [packageId]);
+
   useEffect(() => {
     fetchPackage();
     fetchSchemes();
-  }, [fetchPackage, fetchSchemes]);
+    fetchPlans();
+  }, [fetchPackage, fetchSchemes, fetchPlans]);
 
   const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -269,20 +355,37 @@ export default function PackageDetailPage() {
       setError(null);
 
       const token = await getSupabaseToken();
-      const pdTrim = formData.productDurationDays.trim();
-      if (pdTrim) {
-        const pd = parseInt(pdTrim, 10);
-        if (!Number.isFinite(pd) || pd < 1 || pd > 365) {
-          throw new Error('Product duration must be a whole number between 1 and 365');
-        }
+      const slug = formData.slug.trim().toLowerCase();
+      if (!slug || !SLUG_REGEX.test(slug)) {
+        throw new Error('Slug must be lowercase letters, numbers, and hyphens only');
       }
+
+      const paymentFrequencies: PaymentFrequencyRow[] = [];
+      for (const freq of CONFIGURABLE_FREQUENCIES) {
+        const row = formData.frequencies[freq.value];
+        if (!row?.enabled) continue;
+        const count = parseInt(row.count, 10);
+        if (!Number.isInteger(count) || count < freq.min || count > freq.max) {
+          throw new Error(
+            `${freq.label} installment count must be a whole number between ${freq.min} and ${freq.max}`
+          );
+        }
+        paymentFrequencies.push({ frequency: freq.value, installmentCount: count });
+      }
+      if (paymentFrequencies.length === 0) {
+        throw new Error('Select at least one payment frequency');
+      }
+
+      if (formData.isActive && !plans.some((p) => p.isActive)) {
+        throw new Error('Package cannot be set to active without at least one active plan');
+      }
+
       const payload = {
         name: formData.name.trim(),
+        slug,
         description: formData.description.trim(),
         isActive: formData.isActive,
-        ...(pdTrim
-          ? { productDurationDays: parseInt(pdTrim, 10) }
-          : { productDurationDays: null }),
+        paymentFrequencies,
       };
       const response = await fetch(`${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/product-management/packages/${packageId}`, {
         method: 'PUT',
@@ -296,6 +399,10 @@ export default function PackageDetailPage() {
 
       if (!response.ok) {
         const errorData = await response.json();
+        const details = errorData.error?.details;
+        if (details && typeof details === 'object') {
+          throw new Error(Object.values(details as Record<string, string>).join('; '));
+        }
         throw new Error(errorData.error?.message ?? `HTTP ${response.status}: ${response.statusText}`);
       }
 
@@ -303,7 +410,6 @@ export default function PackageDetailPage() {
       fetchPackage();
     } catch (err) {
       console.error('Error updating package:', err);
-      // Report error to Sentry
       if (err instanceof Error) {
         Sentry.captureException(err, {
           tags: {
@@ -326,9 +432,10 @@ export default function PackageDetailPage() {
     if (pkg) {
       setFormData({
         name: pkg.name,
+        slug: pkg.slug ?? '',
         description: pkg.description,
         isActive: pkg.isActive,
-        productDurationDays: pkg.productDurationDays != null ? String(pkg.productDurationDays) : '',
+        frequencies: frequenciesToForm(pkg.paymentFrequencies),
       });
     }
     setEditing(false);
@@ -460,33 +567,107 @@ export default function PackageDetailPage() {
                   <option value="false">Inactive</option>
                 </select>
               ) : (
-                <Badge variant={pkg.isActive ? 'default' : 'secondary'}>
+                <Badge
+                  variant="outline"
+                  className={
+                    pkg.isActive
+                      ? 'bg-green-50 text-green-700 border-green-200'
+                      : 'bg-secondary text-secondary-foreground border-transparent'
+                  }
+                >
                   {pkg.isActive ? 'Active' : 'Inactive'}
                 </Badge>
               )}
             </div>
 
             <div>
-              <Label htmlFor="product-duration">Product duration (days)</Label>
+              <Label htmlFor="package-slug">Package slug</Label>
               {editing ? (
                 <Input
-                  id="product-duration"
-                  inputMode="numeric"
-                  maxLength={3}
-                  value={formData.productDurationDays}
+                  id="package-slug"
+                  value={formData.slug}
                   onChange={(e) =>
                     setFormData({
                       ...formData,
-                      productDurationDays: e.target.value.replace(/\D/g, '').slice(0, 3),
+                      slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''),
                     })
                   }
-                  placeholder="1–365"
-                  aria-label="Product duration in days"
+                  placeholder="mfanisi-go"
+                  aria-label="Package slug"
                 />
               ) : (
-                <p className="text-sm font-medium">{pkg.productDurationDays ?? '—'}</p>
+                <p className="text-sm font-medium">{pkg.slug ?? '—'}</p>
               )}
-              <p className="text-xs text-muted-foreground mt-1">1–365; leave empty when editing to clear (not recommended).</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                Lowercase letters, numbers, hyphens.
+              </p>
+            </div>
+
+            <div className="md:col-span-2">
+              <Label>Payment frequencies</Label>
+              {editing ? (
+                <div className="mt-2 space-y-2">
+                  {CONFIGURABLE_FREQUENCIES.map((freq) => {
+                    const row = formData.frequencies[freq.value];
+                    return (
+                      <div key={freq.value} className="flex flex-wrap items-center gap-3 rounded-md border p-3">
+                        <div className="flex items-center gap-2 min-w-[140px]">
+                          <Checkbox
+                            id={`edit-freq-${freq.value}`}
+                            checked={row.enabled}
+                            onCheckedChange={(checked) =>
+                              setFormData({
+                                ...formData,
+                                frequencies: {
+                                  ...formData.frequencies,
+                                  [freq.value]: { ...row, enabled: checked === true },
+                                },
+                              })
+                            }
+                          />
+                          <Label htmlFor={`edit-freq-${freq.value}`} className="font-normal cursor-pointer">
+                            {freq.label}
+                          </Label>
+                        </div>
+                        <Input
+                          className="w-24"
+                          inputMode="numeric"
+                          disabled={!row.enabled}
+                          value={row.count}
+                          onChange={(e) =>
+                            setFormData({
+                              ...formData,
+                              frequencies: {
+                                ...formData.frequencies,
+                                [freq.value]: {
+                                  ...row,
+                                  count: e.target.value.replace(/\D/g, '').slice(0, 3),
+                                },
+                              },
+                            })
+                          }
+                          aria-label={`${freq.label} installment count`}
+                        />
+                        <span className="text-xs text-muted-foreground">
+                          ({freq.min}–{freq.max})
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {(pkg.paymentFrequencies ?? []).length === 0 ? (
+                    <p className="text-sm text-muted-foreground">None configured</p>
+                  ) : (
+                    (pkg.paymentFrequencies ?? []).map((pf) => (
+                      <Badge key={pf.frequency} variant="outline">
+                        {pf.frequency}: {pf.installmentCount}
+                      </Badge>
+                    ))
+                  )}
+                </div>
+              )}
             </div>
 
             <div>
@@ -529,6 +710,82 @@ export default function PackageDetailPage() {
               )}
             </div>
           </div>
+        </CardContent>
+      </Card>
+
+      {/* Plans */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>Plans</CardTitle>
+              <CardDescription>
+                Plans for this package (names must match pricing file plan keys, e.g. Silver, Gold). A package
+                needs at least one active plan before it can be set active.
+              </CardDescription>
+            </div>
+            <Button onClick={() => setCreatePlanDialogOpen(true)}>
+              <Plus className="h-4 w-4 mr-2" />
+              Add Plan
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {plans.length === 0 ? (
+            <div className="text-center py-8">
+              <p className="text-muted-foreground">No plans found</p>
+            </div>
+          ) : (
+            <div className="rounded-md border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Description</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="w-[100px]">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {plans.map((plan) => (
+                    <TableRow key={plan.id}>
+                      <TableCell className="font-medium">{plan.name}</TableCell>
+                      <TableCell>{plan.description ?? '—'}</TableCell>
+                      <TableCell>
+                        <Badge
+                          variant="outline"
+                          className={
+                            plan.isActive
+                              ? 'bg-green-50 text-green-700 border-green-200'
+                              : 'bg-secondary text-secondary-foreground border-transparent'
+                          }
+                        >
+                          {plan.isActive ? 'Active' : 'Inactive'}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setPlanBeingEdited({
+                              id: plan.id,
+                              name: plan.name,
+                              description: plan.description,
+                              isActive: plan.isActive,
+                            });
+                            setEditPlanDialogOpen(true);
+                          }}
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -604,7 +861,14 @@ export default function PackageDetailPage() {
                       <TableCell>{scheme.generalSchemeWaitingPeriod ?? '—'}</TableCell>
                       <TableCell>{scheme.customersCount}</TableCell>
                       <TableCell>
-                        <Badge variant={scheme.isActive ? 'default' : 'secondary'}>
+                        <Badge
+                          variant="outline"
+                          className={
+                            scheme.isActive
+                              ? 'bg-green-50 text-green-700 border-green-200'
+                              : 'bg-secondary text-secondary-foreground border-transparent'
+                          }
+                        >
                           {scheme.isActive ? 'Active' : 'Inactive'}
                         </Badge>
                       </TableCell>
@@ -626,6 +890,29 @@ export default function PackageDetailPage() {
           fetchSchemes();
         }}
         packageId={packageId}
+        paymentFrequencies={pkg?.paymentFrequencies}
+      />
+
+      <CreatePlanDialog
+        open={createPlanDialogOpen}
+        onOpenChange={setCreatePlanDialogOpen}
+        onSuccess={() => {
+          setCreatePlanDialogOpen(false);
+          fetchPlans();
+        }}
+        packageId={packageId}
+      />
+
+      <EditPlanDialog
+        open={editPlanDialogOpen}
+        onOpenChange={setEditPlanDialogOpen}
+        onSuccess={() => {
+          setEditPlanDialogOpen(false);
+          setPlanBeingEdited(null);
+          fetchPlans();
+        }}
+        packageId={packageId}
+        plan={planBeingEdited}
       />
     </div>
   );

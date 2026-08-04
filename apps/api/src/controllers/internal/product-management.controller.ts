@@ -32,10 +32,14 @@ import {
   TagsResponseDto,
   CreateTagRequestDto,
   CreateTagResponseDto,
+  CreatePackagePlanRequestDto,
+  UpdatePackagePlanRequestDto,
+  PackagePlanDetailResponseDto,
 } from '../../dto/product-management/product-management.dto';
 import {
   PackageDetailResponseDto,
   PackageSchemesResponseDto,
+  GlobalSchemesListResponseDto,
   UpdatePackageRequestDto,
 } from '../../dto/packages/package.dto';
 import {
@@ -61,6 +65,7 @@ import { PostpaidSchemePaymentService, parsePostpaidPaymentCsv } from '../../ser
 import {
   PostpaidSchemePaymentListResponseDto,
   CreatePostpaidSchemePaymentResponseDto,
+  PostpaidMpesaLookupResponseDto,
 } from '../../dto/postpaid-scheme-payments/postpaid-scheme-payment.dto';
 import { PaymentType } from '@prisma/client';
 
@@ -204,19 +209,26 @@ export class ProductManagementController {
   }
 
   /**
-   * Get active plans for a package
+   * Get plans for a package (active-only by default; admin can include inactive)
    */
   @Get('packages/:packageId/plans')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Get plans for a package',
-    description: 'Retrieve a list of active plans associated with a specific package.',
+    description:
+      'Retrieve plans for a package. Defaults to active plans only; pass includeInactive=true for admin.',
   })
   @ApiParam({
     name: 'packageId',
     description: 'Package ID',
     type: Number,
     example: 1,
+  })
+  @ApiQuery({
+    name: 'includeInactive',
+    required: false,
+    type: Boolean,
+    description: 'When true, include inactive plans',
   })
   @ApiResponse({
     status: 200,
@@ -233,15 +245,82 @@ export class ProductManagementController {
   })
   async getPackagePlans(
     @Param('packageId', ParseIntPipe) packageId: number,
+    @Query('includeInactive') includeInactive: string | undefined,
     @CorrelationId() correlationId: string
   ): Promise<PlansResponseDto> {
-    const plans = await this.productManagementService.getPackagePlans(packageId, correlationId);
+    const plans = await this.productManagementService.getPackagePlans(
+      packageId,
+      correlationId,
+      includeInactive === 'true' || includeInactive === '1'
+    );
 
     return {
       status: HttpStatus.OK,
       correlationId,
       message: 'Plans retrieved successfully',
       data: plans,
+    };
+  }
+
+  @Post('packages/:packageId/plans')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'Create a plan for a package' })
+  @ApiParam({ name: 'packageId', type: Number })
+  @ApiResponse({ status: 201, type: PackagePlanDetailResponseDto })
+  async createPackagePlan(
+    @Param('packageId', ParseIntPipe) packageId: number,
+    @Body() body: CreatePackagePlanRequestDto,
+    @UserId() userId: string,
+    @CorrelationId() correlationId: string
+  ): Promise<PackagePlanDetailResponseDto> {
+    if (!userId) {
+      throw new Error('User ID not found in request');
+    }
+    const plan = await this.productManagementService.createPackagePlan(
+      packageId,
+      body,
+      userId,
+      correlationId
+    );
+    return {
+      status: HttpStatus.CREATED,
+      correlationId,
+      message: 'Plan created successfully',
+      data: plan,
+    };
+  }
+
+  @Put('packages/:packageId/plans/:planId')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Update a package plan',
+    description: 'Update description and/or active status. Plan name cannot be changed.',
+  })
+  @ApiParam({ name: 'packageId', type: Number })
+  @ApiParam({ name: 'planId', type: Number })
+  @ApiResponse({ status: 200, type: PackagePlanDetailResponseDto })
+  async updatePackagePlan(
+    @Param('packageId', ParseIntPipe) packageId: number,
+    @Param('planId', ParseIntPipe) planId: number,
+    @Body() body: UpdatePackagePlanRequestDto,
+    @UserId() userId: string,
+    @CorrelationId() correlationId: string
+  ): Promise<PackagePlanDetailResponseDto> {
+    if (!userId) {
+      throw new Error('User ID not found in request');
+    }
+    const plan = await this.productManagementService.updatePackagePlan(
+      packageId,
+      planId,
+      body,
+      userId,
+      correlationId
+    );
+    return {
+      status: HttpStatus.OK,
+      correlationId,
+      message: 'Plan updated successfully',
+      data: plan,
     };
   }
 
@@ -468,11 +547,12 @@ export class ProductManagementController {
       packageId,
       {
         name: updateRequest.name,
+        slug: updateRequest.slug,
         description: updateRequest.description,
         underwriterId: updateRequest.underwriterId,
         isActive: updateRequest.isActive,
         logoPath: updateRequest.logoPath,
-        productDurationDays: updateRequest.productDurationDays,
+        paymentFrequencies: updateRequest.paymentFrequencies,
       },
       correlationId ?? 'unknown'
     );
@@ -568,6 +648,61 @@ export class ProductManagementController {
       correlationId,
       message: 'Scheme created successfully',
       data: scheme,
+    };
+  }
+
+  /**
+   * Get all schemes with customer counts (paginated)
+   */
+  @Get('schemes-with-counts')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Get all schemes with customer counts',
+    description:
+      'Retrieve a paginated list of all package-scheme assignments with underwriter, package, and customer counts.',
+  })
+  @ApiQuery({
+    name: 'page',
+    description: 'Page number (default: 1)',
+    required: false,
+    type: Number,
+    example: 1,
+  })
+  @ApiQuery({
+    name: 'pageSize',
+    description: 'Items per page (default: 20, max: 100)',
+    required: false,
+    type: Number,
+    example: 20,
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Schemes retrieved successfully',
+    type: GlobalSchemesListResponseDto,
+  })
+  @ApiResponse({
+    status: 500,
+    description: 'Internal server error',
+  })
+  async getAllSchemesWithCounts(
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+    @CorrelationId() correlationId?: string
+  ): Promise<GlobalSchemesListResponseDto> {
+    const pageNum = page ? parseInt(page, 10) : 1;
+    const pageSizeNum = pageSize ? parseInt(pageSize, 10) : 20;
+
+    const result = await this.productManagementService.getAllSchemesWithCounts(
+      pageNum,
+      pageSizeNum,
+      correlationId ?? 'unknown'
+    );
+
+    return {
+      status: HttpStatus.OK,
+      correlationId: correlationId ?? 'unknown',
+      message: 'Schemes retrieved successfully',
+      ...result,
     };
   }
 
@@ -996,6 +1131,42 @@ export class ProductManagementController {
   }
 
   /**
+   * Look up an M-Pesa IPN/statement row for a postpaid MPESA batch transaction reference.
+   */
+  @Get('schemes/:schemeId/postpaid-payments/mpesa-lookup')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Look up M-Pesa transaction reference for postpaid upload',
+    description:
+      'Verifies the batch transaction reference exists in mpesa_payment_report_items and is not already mapped. Used by the admin UI on field blur when payment type is MPESA.',
+  })
+  @ApiParam({ name: 'schemeId', description: 'Scheme ID', type: Number })
+  @ApiQuery({ name: 'transactionReference', required: true, type: String })
+  @ApiResponse({ status: 200, description: 'Lookup result', type: PostpaidMpesaLookupResponseDto })
+  @ApiResponse({ status: 400, description: 'Scheme is not postpaid' })
+  @ApiResponse({ status: 404, description: 'Scheme not found' })
+  async lookupPostpaidMpesaTransactionReference(
+    @Param('schemeId', ParseIntPipe) schemeId: number,
+    @Query('transactionReference') transactionReference: string,
+    @CorrelationId() correlationId?: string
+  ): Promise<PostpaidMpesaLookupResponseDto> {
+    // Ensure scheme exists and is postpaid (same gate as list/create)
+    await this.postpaidSchemePaymentService.assertSchemeIsPostpaid(schemeId);
+    const data = await this.postpaidSchemePaymentService.lookupMpesaTransactionReference(
+      transactionReference ?? '',
+      correlationId ?? 'unknown'
+    );
+    return {
+      status: HttpStatus.OK,
+      correlationId: correlationId ?? 'unknown',
+      message: data.valid
+        ? 'M-Pesa transaction reference verified'
+        : (data.error ?? 'M-Pesa transaction reference invalid'),
+      data,
+    };
+  }
+
+  /**
    * Validate CSV and amount for postpaid scheme payment (no persist)
    */
   @Post('schemes/:schemeId/postpaid-payments/validate')
@@ -1003,7 +1174,8 @@ export class ProductManagementController {
   @UseInterceptors(FileInterceptor('file'))
   @ApiOperation({
     summary: 'Validate postpaid payment CSV',
-    description: 'Validate CSV rows and amount match. Does not persist. Use before submitting payment.',
+    description:
+      'Validate CSV rows and amount match. For MPESA, also verifies the batch transaction reference against unmapped IPN rows. Does not persist.',
   })
   @ApiParam({ name: 'schemeId', description: 'Scheme ID', type: Number })
   @ApiResponse({ status: 200, description: 'Validation result' })
@@ -1011,7 +1183,8 @@ export class ProductManagementController {
   async validatePostpaidSchemePayment(
     @Param('schemeId', ParseIntPipe) schemeId: number,
     @UploadedFile() file: Express.Multer.File,
-    @Body() body: { amount?: string; transactionReference?: string },
+    @Body()
+    body: { amount?: string; transactionReference?: string; paymentType?: string },
     @CorrelationId() correlationId?: string
   ): Promise<{ valid: boolean; errors?: string[] }> {
     if (!file?.buffer) {
@@ -1026,9 +1199,19 @@ export class ProductManagementController {
     if (csvRows.length === 0) {
       return { valid: false, errors: ['CSV has no valid data rows'] };
     }
+    const paymentTypeRaw = (body.paymentType ?? '').trim().toUpperCase();
+    const validTypes: PaymentType[] = ['MPESA', 'SASAPAY', 'BANK_TRANSFER', 'CHEQUE'];
+    const paymentType =
+      paymentTypeRaw && validTypes.includes(paymentTypeRaw as PaymentType)
+        ? (paymentTypeRaw as PaymentType)
+        : undefined;
     const result = await this.postpaidSchemePaymentService.validateCsvAndAmount(
       schemeId,
-      { amount, transactionReference: body.transactionReference ?? '' },
+      {
+        amount,
+        transactionReference: body.transactionReference ?? '',
+        paymentType,
+      },
       csvRows,
       correlationId ?? 'unknown'
     );
