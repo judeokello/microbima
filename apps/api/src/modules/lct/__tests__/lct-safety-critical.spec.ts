@@ -196,11 +196,15 @@ describe('LCT safety — CSV action fidelity', () => {
         memberName: 'Spouse',
       }),
     ];
-    const { csv, rowCount } = buildLctCsv(intents);
+    const { csv, rowCount, rows } = buildLctCsv(intents);
     const dataLines = csv.trimEnd().split('\n').slice(1);
     expect(rowCount).toBe(2);
     expect(dataLines).toHaveLength(2);
     expect(dataLines[1]).toContain('SUSPENDED');
+    expect(csv.split('\n')[0].endsWith('PRODUCT,PLAN')).toBe(true);
+    expect(rows[0]['PRINCIPAL MEMBER NUMBER']).toBe('MFG100-00');
+    expect(rows[0].PRODUCT).toBe('Maisha Poa');
+    expect(rows[0].PLAN).toBe('Gold');
   });
 
   it('rejects unknown REQUIRED ACTION values', () => {
