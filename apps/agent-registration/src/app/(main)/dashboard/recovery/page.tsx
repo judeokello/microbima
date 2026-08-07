@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -32,9 +32,9 @@ import {
 } from '@/lib/api';
 import {
   computeAnnualPremium,
-  computeInstallmentPremium,
   isFrequencySupportedByPackage,
   isPricingSubmitBlocked,
+  nextInstallmentPremiumFormValue,
   productPricingPath,
   type PricingMode,
   type PricingRateBand,
@@ -163,7 +163,7 @@ export default function RecoveryPage() {
 
   const pricingMode: PricingMode = pricingData?.pricingMode ?? 'extrapolate';
 
-  const calculatedPricing = (() => {
+  const calculatedPricing = useMemo(() => {
     if (!pricingData || !formData.selectedPlan || !formData.selectedCategory) {
       return { daily: 0, weekly: 0, totalDaily: 0, totalWeekly: 0, lookupRates: null as PricingRateBand | null };
     }
@@ -195,23 +195,35 @@ export default function RecoveryPage() {
       totalWeekly: (category.weekly ?? 0) + spouseWeekly,
       lookupRates,
     };
-  })();
+  }, [
+    pricingData,
+    formData.selectedPlan,
+    formData.selectedCategory,
+    formData.additionalSpouse,
+  ]);
 
+  // Sync installment premium from pricing inputs. Bail out when unchanged;
+  // useMemo keeps lookupRates identity stable so this effect cannot loop.
   useEffect(() => {
-    if (formData.selectedPlan && formData.selectedCategory) {
-      const premium = computeInstallmentPremium({
+    if (!formData.selectedPlan || !formData.selectedCategory) {
+      return;
+    }
+    setFormData((f) => {
+      const next = nextInstallmentPremiumFormValue(f.premium, {
         frequency: formData.frequency,
         daily: calculatedPricing.totalDaily,
         weekly: calculatedPricing.totalWeekly,
         pricingMode,
         lookupRates: calculatedPricing.lookupRates ?? undefined,
       });
-      setFormData((f) => ({ ...f, premium: premium.toString() }));
-    }
+      if (next == null) {
+        return f;
+      }
+      return { ...f, premium: next };
+    });
   }, [
     formData.selectedPlan,
     formData.selectedCategory,
-    formData.additionalSpouse,
     formData.frequency,
     calculatedPricing.totalDaily,
     calculatedPricing.totalWeekly,

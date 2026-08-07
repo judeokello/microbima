@@ -179,3 +179,15 @@ export function isFrequencySupportedByPackage(
 ): boolean {
   return (paymentFrequencies ?? []).some((pf) => pf.frequency === frequency);
 }
+
+/**
+ * Next premium input value after pricing inputs change.
+ * Returns null when unchanged so callers can bail out of setState and avoid update loops.
+ */
+export function nextInstallmentPremiumFormValue(
+  currentPremium: string,
+  params: Parameters<typeof computeInstallmentPremium>[0]
+): string | null {
+  const next = computeInstallmentPremium(params).toString();
+  return next === currentPremium ? null : next;
+}

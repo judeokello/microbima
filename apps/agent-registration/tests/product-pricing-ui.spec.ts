@@ -4,6 +4,7 @@ import {
   computeNominalHorizonFromToday,
   isFrequencySupportedByPackage,
   isPricingSubmitBlocked,
+  nextInstallmentPremiumFormValue,
   packageFrequencySelectOptions,
   productPricingPath,
   resolveModifyExpectedInstallmentCount,
@@ -95,5 +96,30 @@ describe('insurance-installment (UI pricing modes)', () => {
     const start = new Date(Date.UTC(2025, 0, 1, 0, 0, 0));
     const end = computeNominalHorizonFromToday(3, 7, start);
     expect(end.toISOString()).toBe('2025-01-15T00:00:00.000Z');
+  });
+
+  it('returns next premium string when calculated installment changes', () => {
+    expect(
+      nextInstallmentPremiumFormValue('', {
+        frequency: 'DAILY',
+        daily: 56,
+        weekly: 339,
+        pricingMode: 'extrapolate',
+      })
+    ).toBe('56');
+  });
+
+  it('returns null when premium form value already matches calculated installment', () => {
+    // Recovery dialog sync must bail out here — otherwise a new lookupRates object
+    // each render + unconditional setState causes Maximum update depth exceeded.
+    expect(
+      nextInstallmentPremiumFormValue('1470', {
+        frequency: 'MONTHLY',
+        daily: 56,
+        weekly: 339,
+        pricingMode: 'lookup',
+        lookupRates: { daily: 56, weekly: 339, monthly: 1470, annually: 17645 },
+      })
+    ).toBeNull();
   });
 });
