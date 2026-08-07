@@ -51,6 +51,22 @@ describe('policy-due-date.util', () => {
       expect(nextDue.toISOString().startsWith('2026-01-01')).toBe(true);
       expect(daysOverdue({ nextUnpaidDueDate: nextDue, asOfUtc: asOf })).toBe(19);
     });
+
+    it('when current mid-period, next due is when the next period accrues (not overdue)', () => {
+      // Mar 31 start, cadence 31; as of Aug 5 → floor(128/31)=4 periods expected = 13764
+      const start = new Date(Date.UTC(2026, 2, 31));
+      const asOf = new Date(Date.UTC(2026, 7, 5));
+      const nextDue = nextUnpaidExpectedDueDate({
+        policyStart: start,
+        paymentCadenceDays: 31,
+        installmentAmount: 3441,
+        paidThroughAsOf: 16761, // excess vs 13764
+        asOfUtc: asOf,
+      });
+      // Next accrual when inclusiveDays hits 5*31=155 → day offset 154 from start
+      expect(nextDue.toISOString().startsWith('2026-09-01')).toBe(true);
+      expect(daysOverdue({ nextUnpaidDueDate: nextDue, asOfUtc: asOf })).toBe(0);
+    });
   });
 
   describe('isPolicyEndDatePassed / calendar days', () => {

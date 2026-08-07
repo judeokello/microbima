@@ -535,6 +535,16 @@ export class PolicyLifecycleService {
         policy.policyPayments,
         asOfUtc
       );
+      const arrears = outstandingArrears({
+        policyStart: policy.startDate,
+        paymentCadenceDays: policy.paymentCadence,
+        installmentAmount,
+        paidThroughAsOf,
+        asOfUtc,
+      });
+      // Never suspend (or SMS) when premium accrued-to-date is fully paid.
+      if (arrears <= 0) continue;
+
       const nextDue = nextUnpaidExpectedDueDate({
         policyStart: policy.startDate,
         paymentCadenceDays: policy.paymentCadence,
@@ -544,14 +554,6 @@ export class PolicyLifecycleService {
       });
       const overdue = daysOverdue({ nextUnpaidDueDate: nextDue, asOfUtc });
       if (overdue <= 14) continue;
-
-      const arrears = outstandingArrears({
-        policyStart: policy.startDate,
-        paymentCadenceDays: policy.paymentCadence,
-        installmentAmount,
-        paidThroughAsOf,
-        asOfUtc,
-      });
 
       await this.prisma.$transaction(async (tx) => {
         if (policy.inGracePeriod) {
@@ -1279,6 +1281,13 @@ export class PolicyLifecycleService {
       policy.policyPayments,
       asOfUtc
     );
+    const arrears = outstandingArrears({
+      policyStart: policy.startDate,
+      paymentCadenceDays: policy.paymentCadence,
+      installmentAmount,
+      paidThroughAsOf,
+      asOfUtc,
+    });
     const nextDue = nextUnpaidExpectedDueDate({
       policyStart: policy.startDate,
       paymentCadenceDays: policy.paymentCadence,
@@ -1287,15 +1296,8 @@ export class PolicyLifecycleService {
       asOfUtc,
     });
     const overdue = daysOverdue({ nextUnpaidDueDate: nextDue, asOfUtc });
-    const arrears = outstandingArrears({
-      policyStart: policy.startDate,
-      paymentCadenceDays: policy.paymentCadence,
-      installmentAmount,
-      paidThroughAsOf,
-      asOfUtc,
-    });
 
-    if (overdue > 14) {
+    if (overdue > 14 && arrears > 0) {
       await this.prisma.$transaction(async (tx) => {
         if (policy.inGracePeriod) {
           await this.statusChangeService.recordGraceExit({

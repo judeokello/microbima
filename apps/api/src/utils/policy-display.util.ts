@@ -2,11 +2,25 @@ import type { PolicyStatus } from '@prisma/client';
 
 const MONTHS_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
-/** Format UTC date as `DD Mon` for policy dropdown labels. */
+/** Format UTC date as `DD Mon YYYY` for policy dropdown labels. */
 export function formatPolicyLabelDate(date: Date): string {
   const day = date.getUTCDate();
   const month = MONTHS_SHORT[date.getUTCMonth()] ?? '';
-  return `${day} ${month}`;
+  const year = date.getUTCFullYear();
+  return `${day} ${month} ${year}`;
+}
+
+/** Term span for dropdown: `31 Mar 2026–30 Mar 2027`. */
+export function formatPolicyTermRange(
+  startDate?: Date | null,
+  endDate?: Date | null
+): string | null {
+  if (startDate && endDate) {
+    return `${formatPolicyLabelDate(startDate)}–${formatPolicyLabelDate(endDate)}`;
+  }
+  if (startDate) return `from ${formatPolicyLabelDate(startDate)}`;
+  if (endDate) return `ended ${formatPolicyLabelDate(endDate)}`;
+  return null;
 }
 
 export function buildPolicyDisplayText(params: {
@@ -22,19 +36,21 @@ export function buildPolicyDisplayText(params: {
     : params.packageName;
 
   const status = params.status;
+  const term = formatPolicyTermRange(params.startDate, params.endDate);
+
   if (status === 'DEACTIVATED' || status === 'TERMINATED') {
-    const ended = params.endDate ?? params.deactivatedAt;
-    const suffix = ended
-      ? `(${status}, ended ${formatPolicyLabelDate(ended)})`
-      : `(${status})`;
-    return `${base} ${suffix}`;
+    const parts: string[] = [status];
+    if (term) parts.push(term);
+    if (params.deactivatedAt) {
+      parts.push(`off ${formatPolicyLabelDate(params.deactivatedAt)}`);
+    } else if (!term && params.endDate) {
+      parts.push(`ended ${formatPolicyLabelDate(params.endDate)}`);
+    }
+    return parts.length > 1 ? `${base} (${parts.join(', ')})` : `${base} (${status})`;
   }
 
   if (status === 'ACTIVE' || status === 'PENDING_ACTIVATION' || status === 'SUSPENDED' || status === 'INACTIVE') {
-    const suffix = params.startDate
-      ? `(${status}, from ${formatPolicyLabelDate(params.startDate)})`
-      : `(${status})`;
-    return `${base} ${suffix}`;
+    return term ? `${base} (${status}, ${term})` : `${base} (${status})`;
   }
 
   if (status === 'EXPIRED') {
