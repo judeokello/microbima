@@ -211,42 +211,24 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('Error uploading file:', error);
 
-    // Report error to Sentry with context
-    // Note: We can't read formData again in catch block, so we'll capture what we can
-    try {
-      const formData = await request.formData();
-      if (error instanceof Error) {
-        Sentry.captureException(error, {
-          tags: {
-            endpoint: '/api/upload/logo',
-            method: 'POST',
-          },
-          extra: {
-            entityType: formData.get('entityType'),
-            entityId: formData.get('entityId'),
-          },
-        });
-      } else {
-        Sentry.captureException(new Error('Unknown error in logo upload'), {
-          tags: {
-            endpoint: '/api/upload/logo',
-            method: 'POST',
-          },
-          extra: {
-            error: String(error),
-          },
-        });
-      }
-    } catch {
-      // If we can't read formData, just capture the error without extra context
-      if (error instanceof Error) {
-        Sentry.captureException(error, {
-          tags: {
-            endpoint: '/api/upload/logo',
-            method: 'POST',
-          },
-        });
-      }
+    // Do not re-read request.formData() here — the body was already consumed above.
+    if (error instanceof Error) {
+      Sentry.captureException(error, {
+        tags: {
+          endpoint: '/api/upload/logo',
+          method: 'POST',
+        },
+      });
+    } else {
+      Sentry.captureException(new Error('Unknown error in logo upload'), {
+        tags: {
+          endpoint: '/api/upload/logo',
+          method: 'POST',
+        },
+        extra: {
+          error: String(error),
+        },
+      });
     }
 
     return NextResponse.json(
