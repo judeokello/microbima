@@ -5,13 +5,35 @@ import type { MemberCardData } from '@/types/member-card';
 import type { CardTemplateConfig } from '@/types/member-card';
 
 const MEMBER_CARDS_BASE = '/member-cards';
+const TEMPLATE_IMAGE_EXTENSIONS = ['jpeg', 'jpg', 'png', 'webp'] as const;
 
 function getConfigUrl(templateName: string): string {
   return `${MEMBER_CARDS_BASE}/${templateName}/config.json`;
 }
 
-function getImageUrl(templateName: string): string {
-  return `${MEMBER_CARDS_BASE}/${templateName}/${templateName}.jpeg`;
+function getImageUrl(templateName: string, extension: string): string {
+  return `${MEMBER_CARDS_BASE}/${templateName}/${templateName}.${extension}`;
+}
+
+function loadTemplateImage(templateName: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    let index = 0;
+
+    const tryNext = () => {
+      if (index >= TEMPLATE_IMAGE_EXTENSIONS.length) {
+        reject(new Error('Failed to load template image'));
+        return;
+      }
+      const extension = TEMPLATE_IMAGE_EXTENSIONS[index++];
+      const image = new Image();
+      image.crossOrigin = 'anonymous';
+      image.onload = () => resolve(image);
+      image.onerror = () => tryNext();
+      image.src = getImageUrl(templateName, extension);
+    };
+
+    tryNext();
+  });
 }
 
 function getFieldValue(
@@ -69,13 +91,7 @@ export default function ImageBasedMemberCard({
         setError(null);
         const [configRes, img] = await Promise.all([
           fetch(getConfigUrl(templateName)),
-          new Promise<HTMLImageElement>((resolve, reject) => {
-            const image = new Image();
-            image.crossOrigin = 'anonymous';
-            image.onload = () => resolve(image);
-            image.onerror = () => reject(new Error('Failed to load template image'));
-            image.src = getImageUrl(templateName);
-          }),
+          loadTemplateImage(templateName),
         ]);
 
         if (cancelled) return;

@@ -41,10 +41,12 @@ export function utcCalendarDaysBetween(from: Date, to: Date): number {
 }
 
 /**
- * Earliest installment slot start that is not fully covered by confirmed paid amount
+ * Earliest installment slot that is not fully covered by confirmed paid amount
  * through `asOf`, using the same period counting as premium-statement math.
  *
- * If current through `asOf` is fully paid (no arrears), returns the next future slot start.
+ * If current through `asOf` (no arrears), returns the first UTC calendar day on which
+ * the *next* cadence period enters expected premium — not the start of the incomplete
+ * mid-period window (that previously made current customers look overdue).
  */
 export function nextUnpaidExpectedDueDate(params: {
   policyStart: Date;
@@ -74,8 +76,12 @@ export function nextUnpaidExpectedDueDate(params: {
     return addUtcCalendarDays(start, paidPeriods * params.paymentCadenceDays);
   }
 
-  // Fully paid through asOf — next due is the next slot after periodsDue
-  return addUtcCalendarDays(start, periodsDue * params.paymentCadenceDays);
+  // Fully paid for all accrued periods. Next obligation appears when floor(inclusiveDays/cadence)
+  // becomes periodsDue+1, i.e. inclusiveDays === (periodsDue+1)*cadence → day offset cadence*(n+1)-1.
+  return addUtcCalendarDays(
+    start,
+    (periodsDue + 1) * params.paymentCadenceDays - 1
+  );
 }
 
 export function daysOverdue(params: {
