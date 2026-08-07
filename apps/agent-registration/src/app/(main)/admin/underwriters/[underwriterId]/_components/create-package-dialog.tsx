@@ -143,37 +143,62 @@ export default function CreatePackageDialog({
 
       if (formData.logo && createdPackage.data?.id) {
         setUploading(true);
-        const uploadFormData = new FormData();
-        uploadFormData.append('file', formData.logo);
-        uploadFormData.append('entityType', 'package');
-        uploadFormData.append('entityId', createdPackage.data.id.toString());
-        uploadFormData.append('underwriterId', underwriterId.toString());
+        try {
+          const uploadFormData = new FormData();
+          uploadFormData.append('file', formData.logo);
+          uploadFormData.append('entityType', 'package');
+          uploadFormData.append('entityId', createdPackage.data.id.toString());
+          uploadFormData.append('underwriterId', underwriterId.toString());
 
-        const uploadResponse = await fetch('/api/upload/logo', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-          },
-          body: uploadFormData,
-        });
+          const uploadResponse = await fetch('/api/upload/logo', {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+            body: uploadFormData,
+            signal: AbortSignal.timeout(60_000),
+          });
 
-        if (uploadResponse.ok) {
+          if (!uploadResponse.ok) {
+            let uploadError = 'Failed to upload logo';
+            try {
+              const body = await uploadResponse.json();
+              if (typeof body.error === 'string') uploadError = body.error;
+            } catch {
+              /* keep default */
+            }
+            throw new Error(
+              `${uploadError}. Package was created — you can add a logo from the package page.`
+            );
+          }
+
           const uploadResult = await uploadResponse.json();
           logoPath = uploadResult.path;
 
-          await fetch(`${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/product-management/packages/${createdPackage.data.id}`, {
-            method: 'PUT',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${token}`,
-              'x-correlation-id': `req-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
-            },
-            body: JSON.stringify({
-              logoPath: logoPath,
-            }),
-          });
+          const saveLogoResponse = await fetch(
+            `${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/product-management/packages/${createdPackage.data.id}`,
+            {
+              method: 'PUT',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${token}`,
+                'x-correlation-id': `req-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+              },
+              body: JSON.stringify({
+                logoPath,
+              }),
+              signal: AbortSignal.timeout(30_000),
+            }
+          );
+
+          if (!saveLogoResponse.ok) {
+            throw new Error(
+              'Logo uploaded but failed to save on the package. You can retry from the package page.'
+            );
+          }
+        } finally {
+          setUploading(false);
         }
-        setUploading(false);
       }
 
       setFormData({

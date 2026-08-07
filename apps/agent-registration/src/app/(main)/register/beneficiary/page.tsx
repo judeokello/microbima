@@ -11,7 +11,6 @@ import { Loader2 } from 'lucide-react';
 import { addBeneficiaries, BeneficiaryData } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
 import { useBrandAmbassador } from '@/hooks/useBrandAmbassador';
-import * as Sentry from '@sentry/nextjs';
 
 // Helper functions for date validation (currently unused but kept for future use)
 // const getMinDateForAdults = () => {
@@ -162,129 +161,30 @@ export default function BeneficiaryStep() {
     // Validate required fields BEFORE setting isSubmitting
     if (!formData.firstName?.trim()) {
       setError('First name is required');
-      try {
-        Sentry.captureException(new Error('Validation error'), {
-          tags: {
-            component: 'BeneficiaryRegistration',
-            action: 'validation_error',
-          },
-          extra: {
-            field: 'firstName',
-            errorMessage: 'First name is required',
-          },
-        });
-      } catch (sentryErr) {
-        console.error('Sentry error:', sentryErr);
-      }
       return;
     }
     if (!formData.lastName?.trim()) {
       setError('Last name is required');
-      try {
-        Sentry.captureException(new Error('Validation error'), {
-          tags: {
-            component: 'BeneficiaryRegistration',
-            action: 'validation_error',
-          },
-          extra: {
-            field: 'lastName',
-            errorMessage: 'Last name is required',
-          },
-        });
-      } catch (sentryErr) {
-        console.error('Sentry error:', sentryErr);
-      }
       return;
     }
     if (!formData.gender?.trim()) {
       setError('Gender is required');
-      try {
-        Sentry.captureException(new Error('Validation error'), {
-          tags: {
-            component: 'BeneficiaryRegistration',
-            action: 'validation_error',
-          },
-          extra: {
-            field: 'gender',
-            errorMessage: 'Gender is required',
-          },
-        });
-      } catch (sentryErr) {
-        console.error('Sentry error:', sentryErr);
-      }
       return;
     }
     if (!formData.phoneNumber || formData.phoneNumber.trim() === '') {
       setError('Phone number is required');
-      try {
-        Sentry.captureException(new Error('Validation error'), {
-          tags: {
-            component: 'BeneficiaryRegistration',
-            action: 'validation_error',
-          },
-          extra: {
-            field: 'phoneNumber',
-            errorMessage: 'Phone number is required',
-          },
-        });
-      } catch (sentryErr) {
-        console.error('Sentry error:', sentryErr);
-      }
       return;
     }
     if (!validatePhoneNumber(formData.phoneNumber)) {
       setError('Phone number must be 10 digits starting with 01 or 07');
-      try {
-        Sentry.captureException(new Error('Validation error'), {
-          tags: {
-            component: 'BeneficiaryRegistration',
-            action: 'validation_error',
-          },
-          extra: {
-            field: 'phoneNumber',
-            value: formData.phoneNumber,
-            errorMessage: 'Phone number must be 10 digits starting with 01 or 07',
-          },
-        });
-      } catch (sentryErr) {
-        console.error('Sentry error:', sentryErr);
-      }
       return;
     }
     if (!formData.relationship?.trim()) {
       setError('Relationship is required');
-      try {
-        Sentry.captureException(new Error('Validation error'), {
-          tags: {
-            component: 'BeneficiaryRegistration',
-            action: 'validation_error',
-          },
-          extra: {
-            field: 'relationship',
-            errorMessage: 'Relationship is required',
-          },
-        });
-      } catch (sentryErr) {
-        console.error('Sentry error:', sentryErr);
-      }
       return;
     }
     if (formData.relationship === 'OTHER' && !formData.customRelationship?.trim()) {
       setError('Relationship description is required when relationship is "Other"');
-      try {
-        Sentry.captureException(new Error('Validation error'), {
-          tags: {
-            component: 'BeneficiaryRegistration',
-            action: 'validation_error',
-          },
-          extra: {
-            field: 'customRelationship',
-            errorMessage: 'Relationship description is required when relationship is "Other"',
-          },
-        });
-      } catch (sentryErr) {
-        console.error('Sentry error:', sentryErr);
-      }
       return;
     }
 

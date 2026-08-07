@@ -355,17 +355,6 @@ export default function CustomerStep() {
     // Validate package and scheme selection
     if (!selectedPackageId || !selectedSchemeId) {
       setError('Please select both a package and a scheme before continuing');
-      Sentry.captureException(new Error('Package/Scheme validation error'), {
-        tags: {
-          component: 'CustomerRegistration',
-          action: 'validation_error',
-        },
-        extra: {
-          selectedPackageId,
-          selectedSchemeId,
-          errorMessage: 'Package and scheme selection required',
-        },
-      });
       return;
     }
 
@@ -375,18 +364,6 @@ export default function CustomerStep() {
 
     if (!packageSchemeId) {
       setError('Invalid package/scheme combination. Please select again.');
-      Sentry.captureException(new Error('Package scheme ID lookup failed'), {
-        tags: {
-          component: 'CustomerRegistration',
-          action: 'validation_error',
-        },
-        extra: {
-          selectedPackageId,
-          selectedSchemeId,
-          schemes: schemes.length,
-          errorMessage: 'Package scheme ID not found',
-        },
-      });
       return;
     }
 
@@ -404,21 +381,6 @@ export default function CustomerStep() {
     for (const { field, label } of requiredFields) {
       if (!formData[field as keyof CustomerFormData]?.toString().trim()) {
         setError(`${label} is required`);
-        try {
-          Sentry.captureException(new Error('Validation error'), {
-            tags: {
-              component: 'CustomerRegistration',
-              action: 'validation_error',
-            },
-            extra: {
-              field,
-              label,
-              errorMessage: `${label} is required`,
-            },
-          });
-        } catch (sentryErr) {
-          console.error('Sentry error:', sentryErr);
-        }
         return;
       }
     }
@@ -426,21 +388,6 @@ export default function CustomerStep() {
     // Validate email format
     if (formData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
       setError('Please enter a valid email address');
-      try {
-        Sentry.captureException(new Error('Validation error'), {
-          tags: {
-            component: 'CustomerRegistration',
-            action: 'validation_error',
-          },
-          extra: {
-            field: 'email',
-            value: formData.email,
-            errorMessage: 'Please enter a valid email address',
-          },
-        });
-      } catch (sentryErr) {
-        console.error('Sentry error:', sentryErr);
-      }
       return;
     }
 
@@ -450,21 +397,6 @@ export default function CustomerStep() {
       const today = new Date();
       if (selectedDate > today) {
         setError('Date of birth cannot be in the future');
-        try {
-          Sentry.captureException(new Error('Validation error'), {
-            tags: {
-              component: 'CustomerRegistration',
-              action: 'validation_error',
-            },
-            extra: {
-              field: 'dateOfBirth',
-              value: formData.dateOfBirth,
-              errorMessage: 'Date of birth cannot be in the future',
-            },
-          });
-        } catch (sentryErr) {
-          console.error('Sentry error:', sentryErr);
-        }
         return;
       }
 
@@ -472,22 +404,6 @@ export default function CustomerStep() {
       const age = calculateAge(formData.dateOfBirth);
       if (age < 18) {
         setError('Minimum age is 18 years old for a Principal member');
-        try {
-          Sentry.captureException(new Error('Age validation failed'), {
-            tags: {
-              component: 'CustomerRegistration',
-              action: 'age_validation_error',
-            },
-            extra: {
-              field: 'dateOfBirth',
-              value: formData.dateOfBirth,
-              age,
-              errorMessage: 'Minimum age is 18 years old for a Principal member',
-            },
-          });
-        } catch (sentryErr) {
-          console.error('Sentry error:', sentryErr);
-        }
         return;
       }
     }
@@ -557,46 +473,11 @@ export default function CustomerStep() {
 
         if (daysOld < 1) {
           setError(`Child ${i + 1} age must be at least 1 day old`);
-          try {
-            Sentry.captureException(new Error('Child age validation failed'), {
-              tags: {
-                component: 'CustomerRegistration',
-                action: 'age_validation_error',
-              },
-              extra: {
-                childIndex: i + 1,
-                field: 'dateOfBirth',
-                value: child.dateOfBirth,
-                age,
-                daysOld,
-                errorMessage: `Child ${i + 1} age must be at least 1 day old`,
-              },
-            });
-          } catch (sentryErr) {
-            console.error('Sentry error:', sentryErr);
-          }
           return;
         }
 
         if (age >= 25) {
           setError(`Child ${i + 1} age must be less than 25 years old`);
-          try {
-            Sentry.captureException(new Error('Child age validation failed'), {
-              tags: {
-                component: 'CustomerRegistration',
-                action: 'age_validation_error',
-              },
-              extra: {
-                childIndex: i + 1,
-                field: 'dateOfBirth',
-                value: child.dateOfBirth,
-                age,
-                errorMessage: `Child ${i + 1} age must be less than 25 years old`,
-              },
-            });
-          } catch (sentryErr) {
-            console.error('Sentry error:', sentryErr);
-          }
           return;
         }
       }
