@@ -83,6 +83,11 @@ export class MessagingWorker {
     const _correlationId = `worker-${Date.now()}`;
 
     try {
+      if (delivery.status === 'CANCELLED') {
+        this.logger.debug(`Skipping CANCELLED delivery ${delivery.id}`);
+        return;
+      }
+
       // 1. Generate dynamic attachments first (EMAIL only)
       const specs = delivery.dynamicAttachmentSpecs as Array<{ attachmentTemplateId: string; params: Record<string, string> }> | null | undefined;
       if (delivery.channel === 'EMAIL' && Array.isArray(specs) && specs.length > 0) {
@@ -181,6 +186,7 @@ export class MessagingWorker {
           providerMessageId: result.messageId,
           attemptCount: { increment: 1 },
           lastError: null,
+          handedOffAt: new Date(),
         });
       } else if (delivery.channel === 'EMAIL') {
         if (!delivery.recipientEmail) {
@@ -214,6 +220,7 @@ export class MessagingWorker {
           status: 'SENT',
           attemptCount: { increment: 1 },
           lastError: null,
+          handedOffAt: new Date(),
         });
       }
 

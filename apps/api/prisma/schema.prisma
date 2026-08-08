@@ -1218,6 +1218,16 @@ enum MessagingDeliveryStatus {
   RETRY_WAIT
   SENT
   FAILED
+  CANCELLED
+}
+
+enum MessagingCampaignStatus {
+  DELAYED
+  DISPATCHING
+  COMPLETED
+  COMPLETED_WITH_FAILURES
+  CANCELLED
+  FAILED_PREFLIGHT
 }
 
 enum MessagingProvider {
@@ -1333,6 +1343,15 @@ model MessagingDelivery {
   /// Placeholder key/value map from enqueue(); merged at render time with customer defaults (worker).
   enqueuePlaceholderContext Json?
 
+  /// Admin campaign this delivery belongs to (null for transactional messages).
+  campaignId String? @db.Uuid
+  campaign   MessagingCampaign? @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+
+  /// Provider API accepted the send (handoff).
+  handedOffAt DateTime? @db.Timestamptz
+  /// Provider delivery receipt confirmed (SMS webhook; email often unset).
+  receiptConfirmedAt DateTime? @db.Timestamptz
+
   attachments   MessagingAttachment[]
   providerEvents MessagingProviderEvent[]
 
@@ -1345,7 +1364,59 @@ model MessagingDelivery {
   @@index([customerId, createdAt], name: "idx_messaging_delivery_customer_created")
   @@index([policyId, createdAt], name: "idx_messaging_delivery_policy_created")
   @@index([providerMessageId], name: "idx_messaging_delivery_provider_message_id")
+  @@index([campaignId, status], name: "idx_messaging_delivery_campaign_status")
+  @@index([campaignId, createdAt], name: "idx_messaging_delivery_campaign_created")
   @@map("messaging_deliveries")
+}
+
+model MessagingCampaign {
+  id                       String                  @id @default(uuid()) @db.Uuid
+  name                     String                  @db.VarChar(200)
+  requestedName            String                  @db.VarChar(200)
+  channel                  MessagingChannel
+  templateKey              String                  @db.VarChar(100)
+  status                   MessagingCampaignStatus
+  bodyWithPlaceholders     String                  @db.Text
+  subjectWithPlaceholders  String?                 @db.VarChar(500)
+  audienceSnapshot         Json
+  contentHash              String                  @db.VarChar(64)
+  audienceHash             String                  @db.VarChar(64)
+  targetedCount            Int                     @default(0)
+  idempotencyKey           String?                 @unique @db.VarChar(100)
+  dispatchStartsAt         DateTime?               @db.Timestamptz
+  dispatchStartedAt        DateTime?               @db.Timestamptz
+  completedAt              DateTime?               @db.Timestamptz
+  cancelledAt              DateTime?               @db.Timestamptz
+  cancelledBy              String?
+  createdBy                String
+  correlationId            String?                 @db.VarChar(100)
+  preflightErrors          Json?
+  preflightSkips           Json?
+
+  deliveries  MessagingDelivery[]
+  auditEvents MessagingCampaignAuditEvent[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([name], name: "unique_messaging_campaign_name")
+  @@index([status, dispatchStartsAt], name: "idx_messaging_campaign_status_dispatch")
+  @@index([createdAt(sort: Desc)], name: "idx_messaging_campaign_created")
+  @@index([contentHash, audienceHash, createdAt], name: "idx_messaging_campaign_idempotency_window")
+  @@map("messaging_campaigns")
+}
+
+model MessagingCampaignAuditEvent {
+  id          String            @id @default(uuid()) @db.Uuid
+  campaignId  String            @db.Uuid
+  campaign    MessagingCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  eventType   String            @db.VarChar(50)
+  actorUserId String?
+  payload     Json
+  createdAt   DateTime          @default(now())
+
+  @@index([campaignId, createdAt], name: "idx_messaging_campaign_audit_campaign_created")
+  @@map("messaging_campaign_audit_events")
 }
 
 model MessagingAttachment {

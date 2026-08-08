@@ -20,6 +20,10 @@ const DEFAULT_SETTINGS: MessagingSettingsSnapshot = {
   defaultSystemCurrency: 'Kes',
   general_support_number: '0746907934',
   medical_support_number: '0113569606',
+  campaignConfirmThreshold: 20,
+  campaignSmsDelaySeconds: 120,
+  campaignEmailDelaySeconds: 180,
+  campaignIdempotencyWindowMinutes: 10,
 };
 
 @Injectable()
@@ -93,6 +97,22 @@ export class SystemSettingsService {
     next.messagingContentRetentionMonths = this.coerceInt(
       next.messagingContentRetentionMonths,
       DEFAULT_SETTINGS.messagingContentRetentionMonths,
+    );
+    next.campaignConfirmThreshold = this.coerceInt(
+      next.campaignConfirmThreshold,
+      DEFAULT_SETTINGS.campaignConfirmThreshold,
+    );
+    next.campaignSmsDelaySeconds = this.coerceInt(
+      next.campaignSmsDelaySeconds,
+      DEFAULT_SETTINGS.campaignSmsDelaySeconds,
+    );
+    next.campaignEmailDelaySeconds = this.coerceInt(
+      next.campaignEmailDelaySeconds,
+      DEFAULT_SETTINGS.campaignEmailDelaySeconds,
+    );
+    next.campaignIdempotencyWindowMinutes = this.coerceInt(
+      next.campaignIdempotencyWindowMinutes,
+      DEFAULT_SETTINGS.campaignIdempotencyWindowMinutes,
     );
 
     this.cache = next;
@@ -219,6 +239,21 @@ export class SystemSettingsService {
       case 'medical_support_number':
         if (typeof val === 'string' && val.trim() !== '') target.medical_support_number = val.trim();
         else if (val != null) target.medical_support_number = String(val).trim();
+        return;
+      case 'campaignConfirmThreshold':
+        target.campaignConfirmThreshold = this.coerceInt(val, DEFAULT_SETTINGS.campaignConfirmThreshold);
+        return;
+      case 'campaignSmsDelaySeconds':
+        target.campaignSmsDelaySeconds = this.coerceInt(val, DEFAULT_SETTINGS.campaignSmsDelaySeconds);
+        return;
+      case 'campaignEmailDelaySeconds':
+        target.campaignEmailDelaySeconds = this.coerceInt(val, DEFAULT_SETTINGS.campaignEmailDelaySeconds);
+        return;
+      case 'campaignIdempotencyWindowMinutes':
+        target.campaignIdempotencyWindowMinutes = this.coerceInt(
+          val,
+          DEFAULT_SETTINGS.campaignIdempotencyWindowMinutes,
+        );
         return;
     }
   }
