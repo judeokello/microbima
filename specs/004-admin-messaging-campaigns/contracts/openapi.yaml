@@ -1,0 +1,416 @@
+openapi: 3.0.3
+info:
+  title: MicroBima Internal API — Admin Messaging Campaigns
+  version: 0.1.0
+  description: |
+    Campaign compose/preview/send/cancel/history and non-campaign template edit.
+    Base path assumes existing internal API prefix (e.g. /api/v1/internal).
+servers:
+  - url: /api/v1/internal
+tags:
+  - name: Campaigns
+  - name: MessagingTemplates
+paths:
+  /messaging/campaigns/preview:
+    post:
+      tags: [Campaigns]
+      summary: Preflight preview (no campaign row)
+      operationId: previewMessagingCampaign
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CampaignComposeRequest'
+      responses:
+        '200':
+          description: Preview result with sample, counts, CSV row payloads
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CampaignPreviewResponse'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /messaging/campaigns:
+    get:
+      tags: [Campaigns]
+      summary: List campaigns (admin + customer care)
+      operationId: listMessagingCampaigns
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: channel
+          schema:
+            $ref: '#/components/schemas/MessagingChannel'
+        - in: query
+          name: status
+          schema:
+            $ref: '#/components/schemas/MessagingCampaignStatus'
+        - in: query
+          name: page
+          schema: { type: integer, minimum: 1, default: 1 }
+        - in: query
+          name: pageSize
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+      responses:
+        '200':
+          description: Paginated campaign list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CampaignListResponse'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      tags: [Campaigns]
+      summary: Send campaign (creates row; DELAYED or FAILED_PREFLIGHT)
+      operationId: createMessagingCampaign
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: header
+          name: Idempotency-Key
+          schema: { type: string, maxLength: 100 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CampaignComposeRequest'
+      responses:
+        '201':
+          description: Campaign created (DELAYED)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CampaignDetail'
+        '422':
+          description: Failed preflight — campaign saved as FAILED_PREFLIGHT with renamed name
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CampaignFailedPreflightResponse'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          description: Idempotency or duplicate name+body+audience within window
+
+  /messaging/campaigns/{campaignId}:
+    get:
+      tags: [Campaigns]
+      summary: Campaign detail with progress counts
+      operationId: getMessagingCampaign
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CampaignId'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CampaignDetail'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /messaging/campaigns/{campaignId}/cancel:
+    post:
+      tags: [Campaigns]
+      summary: Cancel delayed or in-flight campaign (admin only)
+      operationId: cancelMessagingCampaign
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CampaignId'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CampaignDetail'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          description: Not cancellable in current status
+
+  /messaging/campaigns/{campaignId}/errors.csv:
+    get:
+      tags: [Campaigns]
+      summary: Download blocking-error CSV
+      operationId: downloadCampaignErrorsCsv
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CampaignId'
+      responses:
+        '200':
+          description: CSV file
+          content:
+            text/csv:
+              schema: { type: string, format: binary }
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /messaging/campaigns/{campaignId}/skips.csv:
+    get:
+      tags: [Campaigns]
+      summary: Download soft-skip CSV
+      operationId: downloadCampaignSkipsCsv
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CampaignId'
+      responses:
+        '200':
+          description: CSV file
+          content:
+            text/csv:
+              schema: { type: string, format: binary }
+
+  /messaging/templates:
+    get:
+      tags: [MessagingTemplates]
+      summary: List templates (exclude admin campaign shells from edit UI clients)
+      operationId: listMessagingTemplatesForAdmin
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: excludeAdminCampaignShells
+          schema: { type: boolean, default: true }
+      responses:
+        '200':
+          description: Template list
+    # Existing POST/PATCH may already exist; PATCH body documented for edit/save
+
+  /messaging/templates/{templateId}:
+    patch:
+      tags: [MessagingTemplates]
+      summary: Update non-campaign system template (admin only)
+      operationId: updateMessagingTemplate
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: templateId
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                subject: { type: string, nullable: true }
+                body: { type: string }
+                textBody: { type: string, nullable: true }
+                description: { type: string, nullable: true }
+                isActive: { type: boolean }
+      responses:
+        '200':
+          description: Updated template
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    CampaignId:
+      in: path
+      name: campaignId
+      required: true
+      schema: { type: string, format: uuid }
+
+  responses:
+    ValidationError:
+      description: Standardized validation error (`status`, details, correlationId)
+    Forbidden:
+      description: Insufficient role
+    NotFound:
+      description: Resource not found
+
+  schemas:
+    MessagingChannel:
+      type: string
+      enum: [SMS, EMAIL]
+
+    MessagingCampaignStatus:
+      type: string
+      enum:
+        - DELAYED
+        - DISPATCHING
+        - COMPLETED
+        - COMPLETED_WITH_FAILURES
+        - CANCELLED
+        - FAILED_PREFLIGHT
+
+    AudienceMode:
+      type: string
+      enum: [SCHEME_CUSTOMERS, SCHEME_CONTACTS, PASTE_LIST]
+
+    CampaignAudience:
+      type: object
+      required: [modes]
+      properties:
+        modes:
+          type: array
+          items: { $ref: '#/components/schemas/AudienceMode' }
+          minItems: 1
+        schemeIds:
+          type: array
+          items: { type: integer }
+        packageIds:
+          type: array
+          items: { type: integer }
+        customerStatuses:
+          type: array
+          items: { type: string }
+        policyStatuses:
+          type: array
+          items: { type: string }
+        pasteList:
+          type: array
+          items: { type: string }
+          description: Phones (SMS) or emails (EMAIL); invalid lines soft-skipped
+
+    CampaignComposeRequest:
+      type: object
+      required: [name, channel, audience]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        channel:
+          $ref: '#/components/schemas/MessagingChannel'
+        subject:
+          type: string
+          description: Required for EMAIL
+        body:
+          type: string
+          description: SMS text or email HTML; required non-empty
+        audience:
+          $ref: '#/components/schemas/CampaignAudience'
+        confirmationName:
+          type: string
+          description: Must equal name when sendableCount >= confirm threshold
+
+    PreflightRow:
+      type: object
+      properties:
+        customerName: { type: string, nullable: true }
+        phone: { type: string, nullable: true }
+        email: { type: string, nullable: true }
+        customerId: { type: string, format: uuid, nullable: true }
+        error: { type: string }
+
+    CampaignPreviewResponse:
+      type: object
+      properties:
+        sendableCount: { type: integer }
+        largeAudienceWarning: { type: boolean }
+        requiresNameConfirmation: { type: boolean }
+        perSchemeCounts:
+          type: array
+          items:
+            type: object
+            properties:
+              schemeId: { type: integer }
+              schemeName: { type: string }
+              recipientCount: { type: integer }
+        sample:
+          type: object
+          nullable: true
+          properties:
+            customerId: { type: string, format: uuid, nullable: true }
+            address: { type: string }
+            renderedSubject: { type: string, nullable: true }
+            renderedBody: { type: string }
+            placeholderHighlights:
+              type: array
+              items:
+                type: object
+                properties:
+                  key: { type: string }
+                  value: { type: string }
+                  colorToken: { type: string }
+        blockingErrors:
+          type: array
+          items: { $ref: '#/components/schemas/PreflightRow' }
+        softSkips:
+          type: array
+          items: { $ref: '#/components/schemas/PreflightRow' }
+        characterCount: { type: integer }
+        smsSegmentCount: { type: integer, nullable: true }
+
+    CampaignProgress:
+      type: object
+      properties:
+        targetedCount: { type: integer }
+        handedOffCount: { type: integer }
+        receiptConfirmedCount: { type: integer }
+
+    CampaignDetail:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        requestedName: { type: string }
+        channel: { $ref: '#/components/schemas/MessagingChannel' }
+        templateKey: { type: string }
+        status: { $ref: '#/components/schemas/MessagingCampaignStatus' }
+        subjectWithPlaceholders: { type: string, nullable: true }
+        bodyWithPlaceholders: { type: string }
+        audienceSnapshot: { type: object }
+        progress: { $ref: '#/components/schemas/CampaignProgress' }
+        dispatchStartsAt: { type: string, format: date-time, nullable: true }
+        dispatchStartedAt: { type: string, format: date-time, nullable: true }
+        completedAt: { type: string, format: date-time, nullable: true }
+        cancelledAt: { type: string, format: date-time, nullable: true }
+        cancelledBy: { type: string, nullable: true }
+        createdBy: { type: string }
+        createdAt: { type: string, format: date-time }
+        auditEvents:
+          type: array
+          items:
+            type: object
+            properties:
+              eventType: { type: string }
+              actorUserId: { type: string, nullable: true }
+              payload: { type: object }
+              createdAt: { type: string, format: date-time }
+
+    CampaignFailedPreflightResponse:
+      allOf:
+        - $ref: '#/components/schemas/CampaignDetail'
+        - type: object
+          properties:
+            blockingErrors:
+              type: array
+              items: { $ref: '#/components/schemas/PreflightRow' }
+            softSkips:
+              type: array
+              items: { $ref: '#/components/schemas/PreflightRow' }
+
+    CampaignListResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/CampaignDetail' }
+        page: { type: integer }
+        pageSize: { type: integer }
+        total: { type: integer }
+```

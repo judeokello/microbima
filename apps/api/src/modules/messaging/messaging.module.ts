@@ -18,12 +18,21 @@ import { MessagingTemplatesService } from './messaging-templates.service';
 import { MessagingRoutesService } from './messaging-routes.service';
 import { MessagingAttachmentTemplatesService } from './messaging-attachment-templates.service';
 import { AfricasTalkingWebhookService } from './africas-talking-webhook.service';
+import { CampaignAudienceService } from './campaigns/campaign-audience.service';
+import { CampaignPreflightService } from './campaigns/campaign-preflight.service';
+import { CampaignService } from './campaigns/campaign.service';
+import { CampaignDispatcher } from './campaigns/campaign.dispatcher';
 import { InternalMessagingController } from '../../controllers/internal/messaging.controller';
+import { MessagingCampaignsController } from '../../controllers/internal/messaging-campaigns.controller';
 import { AfricasTalkingWebhookController } from '../../controllers/webhooks/messaging/africas-talking-webhook.controller';
 
 @Module({
   imports: [PrismaModule],
-  controllers: [InternalMessagingController, AfricasTalkingWebhookController],
+  controllers: [
+    InternalMessagingController,
+    MessagingCampaignsController,
+    AfricasTalkingWebhookController,
+  ],
   providers: [
     SupabaseService,
     MessagingService,
@@ -43,6 +52,10 @@ import { AfricasTalkingWebhookController } from '../../controllers/webhooks/mess
     MessagingAttachmentService,
     AttachmentGeneratorService,
     AttachmentRetentionCleanupService,
+    CampaignAudienceService,
+    CampaignPreflightService,
+    CampaignService,
+    CampaignDispatcher,
   ],
   exports: [
     MessagingService,
@@ -50,6 +63,9 @@ import { AfricasTalkingWebhookController } from '../../controllers/webhooks/mess
     PaymentMessagingService,
     PolicyLifecycleMessagingService,
     SmtpEmailService,
+    CampaignAudienceService,
+    CampaignPreflightService,
+    CampaignService,
   ],
 })
 export class MessagingModule {}

@@ -57,5 +57,13 @@ export interface MessagingSettingsSnapshot {
   defaultSystemCurrency: string;
   general_support_number: string;
   medical_support_number: string;
+  /** Typed campaign-name confirmation when sendableCount >= this. */
+  campaignConfirmThreshold: number;
+  /** Delay before SMS campaign dispatch (seconds). */
+  campaignSmsDelaySeconds: number;
+  /** Delay before email campaign dispatch (seconds). */
+  campaignEmailDelaySeconds: number;
+  /** Duplicate name+body+audience Send guard window (minutes). */
+  campaignIdempotencyWindowMinutes: number;
 }
 

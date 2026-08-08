@@ -9,20 +9,25 @@ import { useBAStatusCheck } from '@/hooks/useBAStatusCheck';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { LogOut, User, LayoutDashboard, Search, Home, Users, UsersRound, Menu, Building2, Wallet, MessageSquare, FileCheck, FileSpreadsheet, Layers, ClipboardPen } from 'lucide-react';
+import { LogOut, User, LayoutDashboard, Search, Home, Users, UsersRound, Menu, Building2, Wallet, MessageSquare, Megaphone, FileCheck, FileSpreadsheet, Layers, ClipboardPen, FileText } from 'lucide-react';
 
 export default function AdminLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const { user, userMetadata, isAdmin, signOut, loading } = useAuth();
+  const { user, userMetadata, isAdmin, isCustomerCare, signOut, loading } = useAuth();
   const pathname = usePathname();
   const isMobile = useIsMobile();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   // Check BA active status during active sessions (for BA users who also have admin access)
   useBAStatusCheck();
+
+  const isCampaignHistoryPath =
+    !!pathname?.startsWith('/admin/campaigns') && !pathname?.startsWith('/admin/campaigns/compose');
+  const canAccessAsCustomerCare = isCustomerCare && isCampaignHistoryPath;
+  const canAccessAdminArea = isAdmin || canAccessAsCustomerCare;
 
   if (loading) {
     return (
@@ -41,7 +46,7 @@ export default function AdminLayout({
     return null;
   }
 
-  if (!isAdmin) {
+  if (!canAccessAdminArea) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
@@ -66,6 +71,8 @@ export default function AdminLayout({
       </div>
 
       <nav className="space-y-2">
+        {isAdmin ? (
+          <>
         <Link
           href="/admin"
           className={`flex items-center px-3 py-2 rounded-md hover:bg-white/10 transition-colors ${
@@ -127,6 +134,30 @@ export default function AdminLayout({
           <MessageSquare className="h-4 w-4 mr-2" />
           Messages
         </Link>
+          </>
+        ) : null}
+        <Link
+          href="/admin/campaigns"
+          className={`flex items-center px-3 py-2 rounded-md hover:bg-white/10 transition-colors ${
+            pathname?.startsWith('/admin/campaigns') ? 'bg-white/10' : ''
+          }`}
+          onClick={() => isMobile && setSidebarOpen(false)}
+        >
+          <Megaphone className="h-4 w-4 mr-2" />
+          Campaigns
+        </Link>
+        {isAdmin ? (
+          <>
+        <Link
+          href="/admin/messaging-templates"
+          className={`flex items-center px-3 py-2 rounded-md hover:bg-white/10 transition-colors ${
+            pathname?.startsWith('/admin/messaging-templates') ? 'bg-white/10' : ''
+          }`}
+          onClick={() => isMobile && setSidebarOpen(false)}
+        >
+          <FileText className="h-4 w-4 mr-2" />
+          Templates
+        </Link>
         <Link
           href="/admin/mpesa-payments"
           className={`flex items-center px-3 py-2 rounded-md hover:bg-white/10 transition-colors ${
@@ -185,6 +216,8 @@ export default function AdminLayout({
           <LayoutDashboard className="h-4 w-4 mr-2" />
           Agent Dashboard
         </Link>
+          </>
+        ) : null}
       </nav>
 
       <div className="mt-6 space-y-4">
