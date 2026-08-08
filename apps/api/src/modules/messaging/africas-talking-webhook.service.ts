@@ -138,25 +138,37 @@ export class AfricasTalkingWebhookService {
 
   /**
    * T038: Only update delivery to terminal status if it is not already SENT or FAILED.
+   * Campaign FR-037: set receiptConfirmedAt on SMS delivery-success even when already SENT.
    */
   private async maybeUpdateDeliveryStatus(deliveryId: string, payload: Record<string, unknown>): Promise<void> {
     const delivery = await this.prisma.messagingDelivery.findUnique({
       where: { id: deliveryId },
-      select: { status: true },
+      select: { status: true, receiptConfirmedAt: true },
     });
     if (!delivery) return;
 
-    const terminalStatuses = ['SENT', 'FAILED'];
+    const status = (payload.status as string)?.toUpperCase?.() ?? payload.eventType ?? payload.event;
+    const statusStr = typeof status === 'string' ? status.toUpperCase() : '';
+    const isReceiptSuccess =
+      statusStr === 'SUCCESS' || statusStr === 'DELIVERED' || statusStr === 'ACCEPTED';
+
+    if (isReceiptSuccess && !delivery.receiptConfirmedAt) {
+      await this.prisma.messagingDelivery.update({
+        where: { id: deliveryId },
+        data: { receiptConfirmedAt: new Date() },
+      });
+    }
+
+    const terminalStatuses = ['SENT', 'FAILED', 'CANCELLED'];
     if (terminalStatuses.includes(delivery.status)) {
       this.logger.debug(`Skip status update for delivery ${deliveryId}: already ${delivery.status}`);
       return;
     }
 
-    const status = (payload.status as string)?.toUpperCase?.() ?? payload.eventType ?? payload.event;
     let newStatus: 'SENT' | 'FAILED' | null = null;
-    if (status === 'SUCCESS' || status === 'DELIVERED' || status === 'ACCEPTED') {
+    if (isReceiptSuccess) {
       newStatus = 'SENT';
-    } else if (status === 'FAILED' || status === 'REJECTED' || status === 'UNDELIVERABLE') {
+    } else if (statusStr === 'FAILED' || statusStr === 'REJECTED' || statusStr === 'UNDELIVERABLE') {
       newStatus = 'FAILED';
     }
     if (!newStatus) return;
@@ -166,7 +178,11 @@ export class AfricasTalkingWebhookService {
       data: {
         status: newStatus,
         lastAttemptAt: new Date(),
-        lastError: newStatus === 'FAILED' ? (payload.reason as string) ?? (payload.description as string) ?? 'Provider reported failure' : null,
+        lastError:
+          newStatus === 'FAILED'
+            ? (payload.reason as string) ?? (payload.description as string) ?? 'Provider reported failure'
+            : null,
+        ...(isReceiptSuccess ? { receiptConfirmedAt: new Date() } : {}),
       },
     });
     this.logger.log(`Delivery ${deliveryId} updated to ${newStatus} from Africa's Talking webhook`);

@@ -107,6 +107,7 @@ export class InternalMessagingController {
     @Query('templateKey') templateKey?: string,
     @Query('channel') channel?: 'SMS' | 'EMAIL',
     @Query('language') language?: string,
+    @Query('excludeAdminCampaignShells') excludeAdminCampaignShells?: string,
     @CorrelationId() correlationId?: string,
   ) {
     this.assertSupportOrAdmin(user);
@@ -114,7 +115,11 @@ export class InternalMessagingController {
     if (templateKey) where.templateKey = templateKey;
     if (channel) where.channel = channel;
     if (language) where.language = language;
-    const rows = await this.templates.list(where);
+    const excludeShells =
+      excludeAdminCampaignShells === undefined
+        ? true
+        : excludeAdminCampaignShells === 'true' || excludeAdminCampaignShells === '1';
+    const rows = await this.templates.list(where, { excludeAdminCampaignShells: excludeShells });
     return {
       status: HttpStatus.OK,
       correlationId: correlationId ?? 'unknown',

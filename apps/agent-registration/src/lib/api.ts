@@ -2413,6 +2413,296 @@ export async function resendMessagingDelivery(deliveryId: string): Promise<{ new
   return { newDeliveryId: body.data?.newDeliveryId ?? body.newDeliveryId ?? deliveryId }
 }
 
+// ── Admin messaging campaigns ────────────────────────────────────────────────
+
+export type CampaignChannel = 'SMS' | 'EMAIL'
+export type AudienceMode = 'SCHEME_CUSTOMERS' | 'SCHEME_CONTACTS' | 'PASTE_LIST'
+export type MessagingCampaignStatus =
+  | 'DELAYED'
+  | 'DISPATCHING'
+  | 'COMPLETED'
+  | 'COMPLETED_WITH_FAILURES'
+  | 'CANCELLED'
+  | 'FAILED_PREFLIGHT'
+
+export interface CampaignAudience {
+  modes: AudienceMode[]
+  schemeIds?: number[]
+  packageIds?: number[]
+  customerStatuses?: string[]
+  policyStatuses?: string[]
+  pasteList?: string[]
+}
+
+export interface CampaignComposeRequest {
+  name: string
+  channel: CampaignChannel
+  subject?: string
+  body?: string
+  audience: CampaignAudience
+  confirmationName?: string
+}
+
+export interface CampaignPreflightRow {
+  customerName?: string | null
+  phone?: string | null
+  email?: string | null
+  customerId?: string | null
+  error: string
+}
+
+export interface CampaignPreviewResponse {
+  sendableCount: number
+  largeAudienceWarning: boolean
+  requiresNameConfirmation: boolean
+  perSchemeCounts: Array<{ schemeId: number; schemeName: string; recipientCount: number }>
+  sample?: {
+    customerId?: string | null
+    address: string
+    renderedSubject?: string | null
+    renderedBody: string
+    placeholderHighlights: Array<{ key: string; value: string; colorToken: string }>
+  } | null
+  blockingErrors: CampaignPreflightRow[]
+  softSkips: CampaignPreflightRow[]
+  characterCount: number
+  smsSegmentCount?: number | null
+}
+
+export interface CampaignProgress {
+  targetedCount: number
+  handedOffCount: number
+  receiptConfirmedCount: number
+}
+
+export interface CampaignDetail {
+  id: string
+  name: string
+  requestedName: string
+  channel: CampaignChannel
+  templateKey: string
+  status: MessagingCampaignStatus
+  subjectWithPlaceholders?: string | null
+  bodyWithPlaceholders: string
+  audienceSnapshot: Record<string, unknown>
+  progress: CampaignProgress
+  dispatchStartsAt?: string | null
+  dispatchStartedAt?: string | null
+  completedAt?: string | null
+  cancelledAt?: string | null
+  cancelledBy?: string | null
+  createdBy: string
+  createdAt: string
+  auditEvents?: Array<{
+    eventType: string
+    actorUserId?: string | null
+    payload?: Record<string, unknown>
+    createdAt: string
+  }>
+  blockingErrors?: CampaignPreflightRow[]
+  softSkips?: CampaignPreflightRow[]
+}
+
+export interface CampaignListResponse {
+  data: CampaignDetail[]
+  page: number
+  pageSize: number
+  total: number
+}
+
+export interface ListCampaignsParams {
+  channel?: CampaignChannel
+  status?: MessagingCampaignStatus
+  page?: number
+  pageSize?: number
+}
+
+async function messagingCampaignFetch(
+  path: string,
+  init?: RequestInit & { idempotencyKey?: string }
+): Promise<Response> {
+  const token = await getSupabaseToken()
+  const headers: Record<string, string> = {
+    Authorization: `Bearer ${token}`,
+    'x-correlation-id': `campaign-${Date.now()}`,
+    ...(init?.headers as Record<string, string> | undefined),
+  }
+  if (init?.idempotencyKey) {
+    headers['Idempotency-Key'] = init.idempotencyKey
+  }
+  const { idempotencyKey: _k, ...rest } = init ?? {}
+  return fetch(`${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}${path}`, {
+    ...rest,
+    headers,
+  })
+}
+
+/** Preview campaign preflight (no history row). */
+export async function previewMessagingCampaign(
+  request: CampaignComposeRequest
+): Promise<CampaignPreviewResponse> {
+  const response = await messagingCampaignFetch('/internal/messaging/campaigns/preview', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(request),
+  })
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}))
+    throw new Error(err?.error?.message ?? `Failed to preview campaign: ${response.statusText}`)
+  }
+  const body = await response.json()
+  return body.data ?? body
+}
+
+/** Send campaign (creates DELAYED or FAILED_PREFLIGHT row). */
+export async function createMessagingCampaign(
+  request: CampaignComposeRequest,
+  options?: { idempotencyKey?: string }
+): Promise<CampaignDetail> {
+  const response = await messagingCampaignFetch('/internal/messaging/campaigns', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(request),
+    idempotencyKey: options?.idempotencyKey,
+  })
+  const body = await response.json().catch(() => ({}))
+  // Failed preflight returns 422 with saved campaign in data
+  if (response.status === 422 && body?.data?.id) {
+    return body.data as CampaignDetail
+  }
+  if (!response.ok) {
+    throw new Error(
+      body?.message ?? body?.error?.message ?? `Failed to create campaign: ${response.statusText}`
+    )
+  }
+  return body.data ?? body
+}
+
+export async function listMessagingCampaigns(
+  params?: ListCampaignsParams
+): Promise<CampaignListResponse> {
+  const searchParams = new URLSearchParams()
+  if (params?.channel) searchParams.set('channel', params.channel)
+  if (params?.status) searchParams.set('status', params.status)
+  if (params?.page) searchParams.set('page', String(params.page))
+  if (params?.pageSize) searchParams.set('pageSize', String(params.pageSize))
+  const qs = searchParams.toString()
+  const response = await messagingCampaignFetch(
+    `/internal/messaging/campaigns${qs ? `?${qs}` : ''}`
+  )
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}))
+    throw new Error(err?.error?.message ?? `Failed to list campaigns: ${response.statusText}`)
+  }
+  const body = await response.json()
+  return {
+    data: body.data ?? [],
+    page: body.page ?? params?.page ?? 1,
+    pageSize: body.pageSize ?? params?.pageSize ?? 20,
+    total: body.total ?? 0,
+  }
+}
+
+export async function getMessagingCampaign(campaignId: string): Promise<CampaignDetail> {
+  const response = await messagingCampaignFetch(`/internal/messaging/campaigns/${campaignId}`)
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}))
+    throw new Error(err?.error?.message ?? `Failed to get campaign: ${response.statusText}`)
+  }
+  const body = await response.json()
+  return body.data ?? body
+}
+
+export async function cancelMessagingCampaign(campaignId: string): Promise<CampaignDetail> {
+  const response = await messagingCampaignFetch(
+    `/internal/messaging/campaigns/${campaignId}/cancel`,
+    { method: 'POST' }
+  )
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}))
+    throw new Error(err?.error?.message ?? `Failed to cancel campaign: ${response.statusText}`)
+  }
+  const body = await response.json()
+  return body.data ?? body
+}
+
+/** Download campaign errors.csv or skips.csv as Blob. */
+export async function downloadMessagingCampaignCsv(
+  campaignId: string,
+  kind: 'errors' | 'skips'
+): Promise<Blob> {
+  const response = await messagingCampaignFetch(
+    `/internal/messaging/campaigns/${campaignId}/${kind}.csv`
+  )
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}))
+    throw new Error(err?.error?.message ?? `Failed to download ${kind}.csv: ${response.statusText}`)
+  }
+  return response.blob()
+}
+
+export interface MessagingTemplateRow {
+  id: string
+  templateKey: string
+  channel: 'SMS' | 'EMAIL'
+  language: string
+  subject?: string | null
+  body: string
+  textBody?: string | null
+  description?: string | null
+  isActive: boolean
+}
+
+export async function listMessagingTemplates(options?: {
+  excludeAdminCampaignShells?: boolean
+}): Promise<MessagingTemplateRow[]> {
+  const token = await getSupabaseToken()
+  const params = new URLSearchParams()
+  if (options?.excludeAdminCampaignShells !== false) {
+    params.set('excludeAdminCampaignShells', 'true')
+  }
+  const response = await fetch(
+    `${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/messaging/templates?${params}`,
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'x-correlation-id': `templates-list-${Date.now()}`,
+      },
+    }
+  )
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}))
+    throw new Error(err?.error?.message ?? `Failed to list templates: ${response.statusText}`)
+  }
+  const body = await response.json()
+  return body.data ?? []
+}
+
+export async function updateMessagingTemplate(
+  templateId: string,
+  patch: { subject?: string | null; body?: string; textBody?: string | null; description?: string | null }
+): Promise<MessagingTemplateRow> {
+  const token = await getSupabaseToken()
+  const response = await fetch(
+    `${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/messaging/templates/${templateId}`,
+    {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+        'x-correlation-id': `templates-patch-${Date.now()}`,
+      },
+      body: JSON.stringify(patch),
+    }
+  )
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}))
+    throw new Error(err?.error?.message ?? `Failed to update template: ${response.statusText}`)
+  }
+  const body = await response.json()
+  return body.data ?? body
+}
+
 // ── Policy lifecycle (admin) ─────────────────────────────────────────────────
 
 export interface PolicyLifecyclePolicy {

@@ -569,3 +569,80 @@ SET "toEmails" = EXCLUDED."toEmails",
     "ccEmails" = EXCLUDED."ccEmails",
     "bccEmails" = EXCLUDED."bccEmails",
     "updatedAt" = NOW();
+
+-- ---------- Route/Template: admin_template_sms (campaign shell; body from campaign snapshot) ----------
+INSERT INTO messaging_routes ("templateKey", "smsEnabled", "emailEnabled", "isActive", "createdAt", "updatedAt")
+VALUES ('admin_template_sms', true, false, true, NOW(), NOW())
+ON CONFLICT ("templateKey") DO UPDATE
+SET "smsEnabled" = EXCLUDED."smsEnabled",
+    "emailEnabled" = EXCLUDED."emailEnabled",
+    "isActive" = EXCLUDED."isActive",
+    "updatedAt" = NOW();
+
+INSERT INTO messaging_templates (
+  id, "templateKey", "channel", "language", "subject", "body", "textBody",
+  "placeholders", "description", "isActive", "createdAt", "updatedAt"
+)
+VALUES (
+  gen_random_uuid(),
+  'admin_template_sms',
+  'SMS',
+  'en',
+  NULL,
+  '',
+  NULL,
+  ARRAY[]::TEXT[],
+  'Admin SMS campaign shell — content comes from campaign compose (not editable in Templates UI)',
+  true,
+  NOW(),
+  NOW()
+)
+ON CONFLICT ("templateKey", "channel", "language") DO UPDATE
+SET "description" = EXCLUDED."description",
+    "isActive" = EXCLUDED."isActive",
+    "updatedAt" = NOW();
+
+-- ---------- Route/Template: admin_template_email (campaign shell) ----------
+INSERT INTO messaging_routes ("templateKey", "smsEnabled", "emailEnabled", "isActive", "createdAt", "updatedAt")
+VALUES ('admin_template_email', false, true, true, NOW(), NOW())
+ON CONFLICT ("templateKey") DO UPDATE
+SET "smsEnabled" = EXCLUDED."smsEnabled",
+    "emailEnabled" = EXCLUDED."emailEnabled",
+    "isActive" = EXCLUDED."isActive",
+    "updatedAt" = NOW();
+
+INSERT INTO messaging_templates (
+  id, "templateKey", "channel", "language", "subject", "body", "textBody",
+  "placeholders", "description", "isActive", "createdAt", "updatedAt"
+)
+VALUES (
+  gen_random_uuid(),
+  'admin_template_email',
+  'EMAIL',
+  'en',
+  '',
+  '',
+  NULL,
+  ARRAY[]::TEXT[],
+  'Admin email campaign shell — content comes from campaign compose (not editable in Templates UI)',
+  true,
+  NOW(),
+  NOW()
+)
+ON CONFLICT ("templateKey", "channel", "language") DO UPDATE
+SET "description" = EXCLUDED."description",
+    "isActive" = EXCLUDED."isActive",
+    "updatedAt" = NOW();
+
+-- ---------- Campaign system settings ----------
+INSERT INTO system_settings (key, value, "updatedAt", "updatedBy")
+VALUES
+  ('campaignConfirmThreshold', '20'::jsonb, NOW(), NULL),
+  ('campaignSmsDelaySeconds', '120'::jsonb, NOW(), NULL),
+  ('campaignEmailDelaySeconds', '180'::jsonb, NOW(), NULL),
+  ('campaignIdempotencyWindowMinutes', '10'::jsonb, NOW(), NULL)
+ON CONFLICT (key) DO UPDATE
+SET value = EXCLUDED.value,
+    "updatedAt" = NOW();
+
+UPDATE system_settings_meta SET "updatedAt" = NOW() WHERE id = 1;
