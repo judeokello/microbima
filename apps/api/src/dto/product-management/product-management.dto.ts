@@ -22,6 +22,14 @@ export class PackageDto {
     example: 'MfanisiGo',
   })
   name: string;
+
+  @ApiProperty({
+    description: 'Whether the package is active',
+    example: true,
+    required: false,
+  })
+  @IsOptional()
+  isActive?: boolean;
 }
 
 export class SchemeDto {
@@ -44,6 +52,14 @@ export class SchemeDto {
   })
   @IsOptional()
   description?: string;
+
+  @ApiProperty({
+    description: 'Whether the scheme is active',
+    example: true,
+    required: false,
+  })
+  @IsOptional()
+  isActive?: boolean;
 }
 
 export class PlanDto {

@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
@@ -9,18 +9,26 @@ import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
-import { PlaceholderComposer } from '@/components/messaging/placeholder-composer'
 import { CampaignPreviewPanel } from '@/components/messaging/campaign-preview-panel'
 import { RichTextEmailEditor } from '@/components/messaging/rich-text-email-editor'
+import { EntityMultiSelect } from '@/components/messaging/entity-multi-select'
+import { PlaceholderPillsPanel } from '@/components/messaging/placeholder-pills-panel'
 import {
   createMessagingCampaign,
+  getPackages,
+  listSchemesForPicker,
   previewMessagingCampaign,
   type AudienceMode,
   type CampaignChannel,
   type CampaignPreviewResponse,
   type CampaignPreflightRow,
+  type Package,
+  type Scheme,
 } from '@/lib/api'
 import { useAuth } from '@/hooks/useAuth'
+import { extractUsedPlaceholderKeys } from '@/lib/messaging/placeholder-catalog'
+import { colorTokenForKey } from '@/components/messaging/placeholder-composer'
+import { X } from 'lucide-react'
 
 function rowsToCsv(rows: CampaignPreflightRow[]): string {
   const header = 'customerName,phone,email,customerId,error'
@@ -44,6 +52,36 @@ function downloadCsv(filename: string, rows: CampaignPreflightRow[]) {
   URL.revokeObjectURL(url)
 }
 
+function UsedPlaceholderChips({
+  value,
+  onChange,
+}: {
+  value: string
+  onChange: (next: string) => void
+}) {
+  const usedKeys = extractUsedPlaceholderKeys(value)
+  if (usedKeys.length === 0) return null
+  return (
+    <div className="flex flex-wrap gap-2">
+      {usedKeys.map((key, idx) => (
+        <span
+          key={`${key}-${idx}`}
+          className={`inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-xs ${colorTokenForKey(key)}`}
+        >
+          {`{${key}}`}
+          <button
+            type="button"
+            aria-label={`Remove ${key}`}
+            onClick={() => onChange(value.replaceAll(`{${key}}`, ''))}
+          >
+            <X className="h-3 w-3" />
+          </button>
+        </span>
+      ))}
+    </div>
+  )
+}
+
 export default function ComposeCampaignPage() {
   const router = useRouter()
   const { isAdmin, loading: authLoading } = useAuth()
@@ -52,8 +90,11 @@ export default function ComposeCampaignPage() {
   const [subject, setSubject] = useState('Hello {first_name}')
   const [smsBody, setSmsBody] = useState('Hi {first_name}')
   const [emailBody, setEmailBody] = useState('<p>Hi <strong>{first_name}</strong></p>')
-  const [schemeIds, setSchemeIds] = useState('')
-  const [packageIds, setPackageIds] = useState('')
+  const [selectedSchemeIds, setSelectedSchemeIds] = useState<number[]>([])
+  const [selectedPackageIds, setSelectedPackageIds] = useState<number[]>([])
+  const [schemes, setSchemes] = useState<Scheme[]>([])
+  const [packages, setPackages] = useState<Package[]>([])
+  const [entitiesLoading, setEntitiesLoading] = useState(true)
   const [pasteList, setPasteList] = useState('')
   const [audienceMode, setAudienceMode] = useState<'scheme_customers' | 'scheme_contacts' | 'paste'>(
     'scheme_customers'
@@ -66,6 +107,52 @@ export default function ComposeCampaignPage() {
 
   const body = channel === 'SMS' ? smsBody : emailBody
 
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        setEntitiesLoading(true)
+        const [schemeRows, packageRows] = await Promise.all([
+          listSchemesForPicker(),
+          getPackages({ includeInactive: true }),
+        ])
+        if (!cancelled) {
+          setSchemes(schemeRows)
+          setPackages(packageRows)
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : 'Failed to load schemes/packages')
+        }
+      } finally {
+        if (!cancelled) setEntitiesLoading(false)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  const schemeEntities = useMemo(
+    () =>
+      schemes.map((s) => ({
+        id: s.id,
+        name: s.name,
+        isActive: s.isActive !== false,
+      })),
+    [schemes]
+  )
+
+  const packageEntities = useMemo(
+    () =>
+      packages.map((p) => ({
+        id: p.id,
+        name: p.name,
+        isActive: p.isActive !== false,
+      })),
+    [packages]
+  )
+
   const audience = useMemo(() => {
     const modes: AudienceMode[] =
       audienceMode === 'scheme_customers'
@@ -73,14 +160,6 @@ export default function ComposeCampaignPage() {
         : audienceMode === 'scheme_contacts'
           ? ['SCHEME_CONTACTS']
           : ['PASTE_LIST']
-    const schemeIdList = schemeIds
-      .split(',')
-      .map((s) => Number(s.trim()))
-      .filter((n) => Number.isFinite(n) && n > 0)
-    const packageIdList = packageIds
-      .split(',')
-      .map((s) => Number(s.trim()))
-      .filter((n) => Number.isFinite(n) && n > 0)
     const paste = pasteList
       .split(/[\n,]+/)
       .map((s) => s.trim())
@@ -88,13 +167,13 @@ export default function ComposeCampaignPage() {
 
     return {
       modes,
-      schemeIds: audienceMode === 'paste' ? undefined : schemeIdList,
-      packageIds: audienceMode === 'scheme_customers' ? packageIdList : undefined,
+      schemeIds: audienceMode === 'paste' ? undefined : selectedSchemeIds,
+      packageIds: audienceMode === 'scheme_customers' ? selectedPackageIds : undefined,
       customerStatuses: audienceMode === 'scheme_customers' ? ['ACTIVE'] : undefined,
       policyStatuses: audienceMode === 'scheme_customers' ? ['ACTIVE'] : undefined,
       pasteList: audienceMode === 'paste' ? paste : undefined,
     }
-  }, [audienceMode, schemeIds, packageIds, pasteList])
+  }, [audienceMode, selectedSchemeIds, selectedPackageIds, pasteList])
 
   const runPreview = async () => {
     try {
@@ -175,9 +254,6 @@ export default function ComposeCampaignPage() {
         onValueChange={(v) => {
           setChannel(v as CampaignChannel)
           setPreview(null)
-          if (v === 'EMAIL' && audienceMode === 'paste') {
-            /* paste stays; SMS phones vs emails */
-          }
         }}
       >
         <TabsList>
@@ -214,15 +290,14 @@ export default function ComposeCampaignPage() {
               </div>
 
               {audienceMode !== 'paste' ? (
-                <div className="space-y-2">
-                  <Label htmlFor="schemes">Scheme IDs (comma-separated)</Label>
-                  <Input
-                    id="schemes"
-                    value={schemeIds}
-                    onChange={(e) => setSchemeIds(e.target.value)}
-                    placeholder="e.g. 1"
-                  />
-                </div>
+                <EntityMultiSelect
+                  label="Schemes"
+                  entities={schemeEntities}
+                  selectedIds={selectedSchemeIds}
+                  onChange={setSelectedSchemeIds}
+                  loading={entitiesLoading}
+                  placeholder="Search schemes…"
+                />
               ) : (
                 <div className="space-y-2">
                   <Label htmlFor="paste">
@@ -239,36 +314,42 @@ export default function ComposeCampaignPage() {
 
               {audienceMode === 'scheme_customers' ? (
                 <div className="space-y-2">
-                  <Label htmlFor="packages">Package IDs (comma-separated)</Label>
-                  <Input
-                    id="packages"
-                    value={packageIds}
-                    onChange={(e) => setPackageIds(e.target.value)}
-                    placeholder="e.g. 10"
+                  <EntityMultiSelect
+                    label="Packages"
+                    entities={packageEntities}
+                    selectedIds={selectedPackageIds}
+                    onChange={setSelectedPackageIds}
+                    loading={entitiesLoading}
+                    placeholder="Search packages…"
                   />
                   <p className="text-xs text-gray-500">
                     Customer/policy status filters default to ACTIVE for this MVP compose form.
+                    Inactive schemes/packages appear in the list but cannot be selected.
                   </p>
                 </div>
               ) : null}
 
-              <TabsContent value="SMS" className="mt-0 space-y-4">
-                <PlaceholderComposer value={smsBody} onChange={setSmsBody} label="SMS body" />
+              <TabsContent value="SMS" className="mt-0 space-y-3">
+                <Label htmlFor="sms-body">SMS body</Label>
+                <UsedPlaceholderChips value={smsBody} onChange={setSmsBody} />
+                <Textarea
+                  id="sms-body"
+                  rows={6}
+                  value={smsBody}
+                  onChange={(e) => setSmsBody(e.target.value)}
+                  placeholder="Compose SMS…"
+                />
                 <div className="text-xs text-gray-500">{smsBody.length} characters</div>
               </TabsContent>
 
-              <TabsContent value="EMAIL" className="mt-0 space-y-4">
+              <TabsContent value="EMAIL" className="mt-0 space-y-3">
                 <div className="space-y-2">
                   <Label htmlFor="subject">Subject</Label>
+                  <UsedPlaceholderChips value={subject} onChange={setSubject} />
                   <Input id="subject" value={subject} onChange={(e) => setSubject(e.target.value)} />
                 </div>
+                <UsedPlaceholderChips value={emailBody} onChange={setEmailBody} />
                 <RichTextEmailEditor value={emailBody} onChange={setEmailBody} label="Email body" />
-                <PlaceholderComposer
-                  value={emailBody}
-                  onChange={setEmailBody}
-                  label="Insert placeholders (updates HTML)"
-                  rows={3}
-                />
               </TabsContent>
 
               {preview?.largeAudienceWarning ? (
@@ -296,37 +377,47 @@ export default function ComposeCampaignPage() {
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={runPreview}
+                  onClick={() => void runPreview()}
                   disabled={loadingPreview || !name}
                 >
                   {loadingPreview ? 'Previewing…' : 'Preview'}
                 </Button>
-                <Button type="button" onClick={send} disabled={sending || !name}>
+                <Button type="button" onClick={() => void send()} disabled={sending || !name}>
                   {sending ? 'Sending…' : 'Send'}
                 </Button>
               </div>
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Preview</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <CampaignPreviewPanel
-                preview={preview}
-                loading={loadingPreview}
-                onDownloadErrorsCsv={
-                  preview
-                    ? () => downloadCsv('campaign-errors.csv', preview.blockingErrors)
-                    : undefined
-                }
-                onDownloadSkipsCsv={
-                  preview ? () => downloadCsv('campaign-skips.csv', preview.softSkips) : undefined
-                }
-              />
-            </CardContent>
-          </Card>
+          <div className="space-y-4">
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base">Preview</CardTitle>
+              </CardHeader>
+              <CardContent className="max-h-[280px] overflow-y-auto">
+                <CampaignPreviewPanel
+                  preview={preview}
+                  loading={loadingPreview}
+                  onDownloadErrorsCsv={
+                    preview
+                      ? () => downloadCsv('campaign-errors.csv', preview.blockingErrors)
+                      : undefined
+                  }
+                  onDownloadSkipsCsv={
+                    preview
+                      ? () => downloadCsv('campaign-skips.csv', preview.softSkips)
+                      : undefined
+                  }
+                />
+              </CardContent>
+            </Card>
+
+            <PlaceholderPillsPanel
+              title={channel === 'SMS' ? 'Insert into SMS body' : 'Insert into email body'}
+              value={channel === 'SMS' ? smsBody : emailBody}
+              onChange={channel === 'SMS' ? setSmsBody : setEmailBody}
+            />
+          </div>
         </div>
       </Tabs>
     </div>
