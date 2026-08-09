@@ -1746,6 +1746,7 @@ export interface Package {
   id: number
   name: string
   slug?: string | null
+  isActive?: boolean
   paymentFrequencies?: Array<{ frequency: string; installmentCount: number }>
 }
 
@@ -1753,6 +1754,7 @@ export interface Scheme {
   id: number
   name: string
   description?: string
+  isActive?: boolean
   /** Junction id for scheme assignment (PackageScheme.id); use as value when updating customer scheme */
   packageSchemeId?: number
 }
@@ -1807,12 +1809,15 @@ export interface CreateTagResponse {
   data: Tag
 }
 
-export async function getPackages(): Promise<Package[]> {
+export async function getPackages(options?: { includeInactive?: boolean }): Promise<Package[]> {
   try {
     const token = await getSupabaseToken()
+    const params = new URLSearchParams()
+    if (options?.includeInactive) params.set('includeInactive', 'true')
+    const qs = params.toString()
 
     const response = await fetch(
-      `${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/product-management/packages`,
+      `${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/product-management/packages${qs ? `?${qs}` : ''}`,
       {
         method: 'GET',
         headers: {
@@ -1832,6 +1837,26 @@ export async function getPackages(): Promise<Package[]> {
     console.error('Error fetching packages:', error)
     throw error
   }
+}
+
+/** All schemes including inactive (for campaign audience pickers). */
+export async function listSchemesForPicker(): Promise<Scheme[]> {
+  const token = await getSupabaseToken()
+  const response = await fetch(
+    `${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/product-management/schemes`,
+    {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'x-correlation-id': `list-schemes-picker-${Date.now()}`,
+      },
+    }
+  )
+  if (!response.ok) {
+    throw new Error(`Failed to fetch schemes: ${response.statusText}`)
+  }
+  const data: SchemesResponse = await response.json()
+  return data.data
 }
 
 export async function getPackageSchemes(packageId: number): Promise<Scheme[]> {
@@ -2680,7 +2705,13 @@ export async function listMessagingTemplates(options?: {
 
 export async function updateMessagingTemplate(
   templateId: string,
-  patch: { subject?: string | null; body?: string; textBody?: string | null; description?: string | null }
+  patch: {
+    subject?: string | null
+    body?: string
+    textBody?: string | null
+    description?: string | null
+    isActive?: boolean
+  }
 ): Promise<MessagingTemplateRow> {
   const token = await getSupabaseToken()
   const response = await fetch(

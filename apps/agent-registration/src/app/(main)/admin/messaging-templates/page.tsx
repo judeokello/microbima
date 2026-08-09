@@ -1,11 +1,18 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Switch } from '@/components/ui/switch'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
 import {
   listMessagingTemplates,
   updateMessagingTemplate,
@@ -13,13 +20,29 @@ import {
 } from '@/lib/api'
 import { useAuth } from '@/hooks/useAuth'
 import Link from 'next/link'
+import { PlaceholderPillsPanel } from '@/components/messaging/placeholder-pills-panel'
+import {
+  isTemplateDraftDirty,
+  type TemplateDraftFields,
+} from '@/lib/messaging/template-draft'
+
+function truncate(text: string | null | undefined, max = 48): string {
+  const t = (text ?? '').trim()
+  if (!t) return '—'
+  return t.length > max ? `${t.slice(0, max)}…` : t
+}
 
 export default function MessagingTemplatesPage() {
   const { isAdmin, loading: authLoading } = useAuth()
   const [templates, setTemplates] = useState<MessagingTemplateRow[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [channelTab, setChannelTab] = useState<'SMS' | 'EMAIL'>('SMS')
+  const [editing, setEditing] = useState(false)
+  const [baseline, setBaseline] = useState<TemplateDraftFields | null>(null)
   const [subject, setSubject] = useState('')
   const [body, setBody] = useState('')
+  const [description, setDescription] = useState('')
+  const [isActive, setIsActive] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [loading, setLoading] = useState(true)
@@ -43,22 +66,67 @@ export default function MessagingTemplatesPage() {
 
   const selected = templates.find((t) => t.id === selectedId) ?? null
 
+  const filtered = useMemo(
+    () => templates.filter((t) => t.channel === channelTab),
+    [templates, channelTab]
+  )
+
+  const loadDraftFromTemplate = (t: MessagingTemplateRow) => {
+    const draft: TemplateDraftFields = {
+      subject: t.subject ?? '',
+      body: t.body,
+      description: t.description ?? '',
+      isActive: t.isActive,
+    }
+    setSubject(draft.subject)
+    setBody(draft.body)
+    setDescription(draft.description)
+    setIsActive(draft.isActive)
+    setBaseline(draft)
+    setEditing(false)
+  }
+
   useEffect(() => {
-    if (!selected) return
-    setSubject(selected.subject ?? '')
-    setBody(selected.body)
-  }, [selected])
+    if (!selected) {
+      setBaseline(null)
+      setEditing(false)
+      return
+    }
+    loadDraftFromTemplate(selected)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only when selection changes
+  }, [selectedId])
+
+  const draft: TemplateDraftFields = { subject, body, description, isActive }
+  const dirty = isTemplateDraftDirty(draft, baseline)
+  const canSave = editing && dirty && !saving
+
+  const selectTemplate = (t: MessagingTemplateRow) => {
+    setSelectedId(t.id)
+  }
+
+  const cancelEdit = () => {
+    if (baseline) {
+      setSubject(baseline.subject)
+      setBody(baseline.body)
+      setDescription(baseline.description)
+      setIsActive(baseline.isActive)
+    }
+    setEditing(false)
+  }
 
   const save = async () => {
-    if (!selected) return
+    if (!selected || !canSave) return
     try {
       setSaving(true)
       setError(null)
       const updated = await updateMessagingTemplate(selected.id, {
         subject: selected.channel === 'EMAIL' ? subject : null,
         body,
+        description: description || null,
+        isActive,
       })
       setTemplates((prev) => prev.map((t) => (t.id === updated.id ? updated : t)))
+      loadDraftFromTemplate(updated)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Save failed')
     } finally {
@@ -96,46 +164,139 @@ export default function MessagingTemplatesPage() {
         <Card>
           <CardHeader>
             <CardTitle>Templates</CardTitle>
-            <CardDescription>{loading ? 'Loading…' : `${templates.length} templates`}</CardDescription>
+            <CardDescription>
+              {loading ? 'Loading…' : `${filtered.length} ${channelTab} templates`}
+            </CardDescription>
           </CardHeader>
-          <CardContent className="max-h-[480px] space-y-1 overflow-y-auto">
-            {templates.map((t) => (
-              <button
-                key={t.id}
-                type="button"
-                onClick={() => setSelectedId(t.id)}
-                className={`block w-full rounded-md px-3 py-2 text-left text-sm hover:bg-slate-100 ${
-                  selectedId === t.id ? 'bg-slate-100 font-medium' : ''
-                }`}
-              >
-                <span className="font-mono text-xs text-slate-500">{t.channel}</span> {t.templateKey}{' '}
-                <span className="text-xs text-slate-400">({t.language})</span>
-              </button>
-            ))}
+          <CardContent>
+            <Tabs
+              value={channelTab}
+              onValueChange={(v) => {
+                setChannelTab(v as 'SMS' | 'EMAIL')
+                setSelectedId(null)
+              }}
+            >
+              <TabsList className="mb-3">
+                <TabsTrigger value="SMS">SMS</TabsTrigger>
+                <TabsTrigger value="EMAIL">Email</TabsTrigger>
+              </TabsList>
+              <TabsContent value={channelTab} className="mt-0">
+                <div className="max-h-[480px] space-y-1 overflow-y-auto">
+                  {filtered.map((t) => (
+                    <button
+                      key={t.id}
+                      type="button"
+                      onClick={() => selectTemplate(t)}
+                      className={`block w-full rounded-md px-3 py-2 text-left text-sm hover:bg-slate-100 ${
+                        selectedId === t.id ? 'bg-slate-100 font-medium' : ''
+                      }`}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-mono text-xs">{t.templateKey}</span>
+                        <span
+                          className={`rounded px-1.5 py-0.5 text-[10px] font-medium uppercase ${
+                            t.isActive
+                              ? 'bg-emerald-100 text-emerald-800'
+                              : 'bg-gray-200 text-gray-600'
+                          }`}
+                        >
+                          {t.isActive ? 'Active' : 'Inactive'}
+                        </span>
+                      </div>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <p className="mt-0.5 truncate text-xs text-slate-500">
+                            {truncate(t.description)}
+                          </p>
+                        </TooltipTrigger>
+                        <TooltipContent className="max-w-sm text-xs">
+                          {(t.description ?? '').trim() || 'No description'}
+                        </TooltipContent>
+                      </Tooltip>
+                    </button>
+                  ))}
+                  {!loading && filtered.length === 0 ? (
+                    <p className="py-6 text-center text-sm text-gray-500">No templates</p>
+                  ) : null}
+                </div>
+              </TabsContent>
+            </Tabs>
           </CardContent>
         </Card>
 
         <Card>
-          <CardHeader>
-            <CardTitle>Edit</CardTitle>
-            <CardDescription>
-              {selected ? selected.templateKey : 'Select a template to edit and save'}
-            </CardDescription>
+          <CardHeader className="flex flex-row items-start justify-between gap-2 space-y-0">
+            <div>
+              <CardTitle>{editing ? 'Edit' : 'View'}</CardTitle>
+              <CardDescription>
+                {selected ? selected.templateKey : 'Select a template'}
+              </CardDescription>
+            </div>
+            {selected ? (
+              <div className="flex gap-2">
+                {!editing ? (
+                  <Button type="button" size="sm" onClick={() => setEditing(true)}>
+                    Edit
+                  </Button>
+                ) : (
+                  <Button type="button" size="sm" variant="outline" onClick={cancelEdit}>
+                    Cancel
+                  </Button>
+                )}
+              </div>
+            ) : null}
           </CardHeader>
           <CardContent className="space-y-4">
             {selected ? (
               <>
+                <div className="space-y-2">
+                  <Label htmlFor="description">Description</Label>
+                  <Input
+                    id="description"
+                    value={description}
+                    disabled={!editing}
+                    onChange={(e) => setDescription(e.target.value)}
+                  />
+                </div>
+                <div className="flex items-center justify-between rounded-md border px-3 py-2">
+                  <Label htmlFor="active">Active</Label>
+                  <Switch
+                    id="active"
+                    checked={isActive}
+                    disabled={!editing}
+                    onCheckedChange={setIsActive}
+                  />
+                </div>
                 {selected.channel === 'EMAIL' ? (
                   <div className="space-y-2">
                     <Label htmlFor="subject">Subject</Label>
-                    <Input id="subject" value={subject} onChange={(e) => setSubject(e.target.value)} />
+                    <Input
+                      id="subject"
+                      value={subject}
+                      disabled={!editing}
+                      onChange={(e) => setSubject(e.target.value)}
+                    />
                   </div>
                 ) : null}
                 <div className="space-y-2">
                   <Label htmlFor="body">Body</Label>
-                  <Textarea id="body" rows={12} value={body} onChange={(e) => setBody(e.target.value)} />
+                  <Textarea
+                    id="body"
+                    rows={10}
+                    value={body}
+                    disabled={!editing}
+                    onChange={(e) => setBody(e.target.value)}
+                  />
                 </div>
-                <Button type="button" onClick={save} disabled={saving}>
+
+                <PlaceholderPillsPanel
+                  title="Placeholders"
+                  value={body}
+                  onChange={setBody}
+                  disabled={!editing}
+                />
+
+                <Button type="button" onClick={() => void save()} disabled={!canSave}>
                   {saving ? 'Saving…' : 'Save'}
                 </Button>
               </>

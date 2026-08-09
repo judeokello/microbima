@@ -94,13 +94,20 @@ export class ProductManagementController {
   ) {}
 
   /**
-   * Get all active packages
+   * Get packages (active by default; pass includeInactive=true for pickers)
    */
   @Get('packages')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
-    summary: 'Get all active packages',
-    description: 'Retrieve a list of all active packages.',
+    summary: 'Get packages',
+    description:
+      'Retrieve packages. By default only active packages. Pass includeInactive=true to include inactive (for admin pickers).',
+  })
+  @ApiQuery({
+    name: 'includeInactive',
+    required: false,
+    type: Boolean,
+    description: 'When true, include inactive packages',
   })
   @ApiResponse({
     status: 200,
@@ -111,14 +118,39 @@ export class ProductManagementController {
     status: 500,
     description: 'Internal server error',
   })
-  async getPackages(@CorrelationId() correlationId: string): Promise<PackagesResponseDto> {
-    const packages = await this.productManagementService.getPackages(correlationId);
+  async getPackages(
+    @CorrelationId() correlationId: string,
+    @Query('includeInactive') includeInactive?: string,
+  ): Promise<PackagesResponseDto> {
+    const include = includeInactive === 'true' || includeInactive === '1';
+    const packages = await this.productManagementService.getPackages(correlationId, include);
 
     return {
       status: HttpStatus.OK,
       correlationId,
       message: 'Packages retrieved successfully',
       data: packages,
+    };
+  }
+
+  /**
+   * Flat scheme list for campaign / audience pickers (includes inactive).
+   * Registered before schemes/:schemeId.
+   */
+  @Get('schemes')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'List schemes for pickers',
+    description: 'All schemes with isActive flag (inactive rows are for display only).',
+  })
+  @ApiResponse({ status: 200, description: 'Schemes retrieved successfully' })
+  async listSchemesForPicker(@CorrelationId() correlationId: string) {
+    const schemes = await this.productManagementService.listSchemesForPicker(correlationId);
+    return {
+      status: HttpStatus.OK,
+      correlationId,
+      message: 'Schemes retrieved successfully',
+      data: schemes,
     };
   }
 

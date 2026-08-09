@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { LogOut, User, LayoutDashboard, Search, Home, Users, UsersRound, Menu, Building2, Wallet, MessageSquare, Megaphone, FileCheck, FileSpreadsheet, Layers, ClipboardPen, FileText } from 'lucide-react';
+import { MessagingNavGroup } from '@/components/messaging/messaging-nav-group';
 
 export default function AdminLayout({
   children,
@@ -124,40 +125,46 @@ export default function AdminLayout({
           <Layers className="h-4 w-4 mr-2" />
           Schemes
         </Link>
-        <Link
-          href="/admin/messages"
-          className={`flex items-center px-3 py-2 rounded-md hover:bg-white/10 transition-colors ${
-            pathname?.startsWith('/admin/messages') ? 'bg-white/10' : ''
-          }`}
-          onClick={() => isMobile && setSidebarOpen(false)}
-        >
-          <MessageSquare className="h-4 w-4 mr-2" />
-          Messages
-        </Link>
           </>
         ) : null}
-        <Link
-          href="/admin/campaigns"
-          className={`flex items-center px-3 py-2 rounded-md hover:bg-white/10 transition-colors ${
-            pathname?.startsWith('/admin/campaigns') ? 'bg-white/10' : ''
-          }`}
-          onClick={() => isMobile && setSidebarOpen(false)}
-        >
-          <Megaphone className="h-4 w-4 mr-2" />
-          Campaigns
-        </Link>
+        <MessagingNavGroup
+          pathname={pathname}
+          onNavigate={() => isMobile && setSidebarOpen(false)}
+          items={
+            isAdmin
+              ? [
+                  {
+                    href: '/admin/messages',
+                    label: 'Messages',
+                    icon: MessageSquare,
+                    match: (p) => !!p?.startsWith('/admin/messages'),
+                  },
+                  {
+                    href: '/admin/campaigns',
+                    label: 'Campaigns',
+                    icon: Megaphone,
+                    match: (p) => !!p?.startsWith('/admin/campaigns'),
+                  },
+                  {
+                    href: '/admin/messaging-templates',
+                    label: 'Templates',
+                    icon: FileText,
+                    match: (p) => !!p?.startsWith('/admin/messaging-templates'),
+                  },
+                ]
+              : [
+                  {
+                    href: '/admin/campaigns',
+                    label: 'Campaigns',
+                    icon: Megaphone,
+                    match: (p) =>
+                      !!p?.startsWith('/admin/campaigns') && !p?.startsWith('/admin/campaigns/compose'),
+                  },
+                ]
+          }
+        />
         {isAdmin ? (
           <>
-        <Link
-          href="/admin/messaging-templates"
-          className={`flex items-center px-3 py-2 rounded-md hover:bg-white/10 transition-colors ${
-            pathname?.startsWith('/admin/messaging-templates') ? 'bg-white/10' : ''
-          }`}
-          onClick={() => isMobile && setSidebarOpen(false)}
-        >
-          <FileText className="h-4 w-4 mr-2" />
-          Templates
-        </Link>
         <Link
           href="/admin/mpesa-payments"
           className={`flex items-center px-3 py-2 rounded-md hover:bg-white/10 transition-colors ${
