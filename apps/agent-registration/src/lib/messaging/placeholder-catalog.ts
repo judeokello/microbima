@@ -51,6 +51,28 @@ export function insertPlaceholderToken(text: string, key: string): string {
   return `${text}{${key}}`
 }
 
+/** Remove a single `{key}` occurrence by 0-based index among matches of that key. */
+export function removePlaceholderOccurrence(
+  text: string,
+  key: string,
+  occurrenceIndex: number,
+): string {
+  const token = `{${key}}`
+  let from = 0
+  let seen = 0
+  while (from < text.length) {
+    const idx = text.indexOf(token, from)
+    if (idx === -1) return text
+    if (seen === occurrenceIndex) {
+      return text.slice(0, idx) + text.slice(idx + token.length)
+    }
+    seen += 1
+    from = idx + token.length
+  }
+  return text
+}
+
+/** @deprecated Prefer removePlaceholderOccurrence for per-chip remove. */
 export function removePlaceholderToken(text: string, key: string): string {
-  return text.replaceAll(`{${key}}`, '')
+  return removePlaceholderOccurrence(text, key, 0)
 }

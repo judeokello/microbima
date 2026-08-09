@@ -6,7 +6,12 @@ describe('CampaignService.preview (SMS)', () => {
   let service: CampaignService;
   let prisma: any;
   let systemSettings: { getSnapshot: jest.Mock };
-  let preflightService: { run: jest.Mock; isEmptyBody: jest.Mock; computePerSchemeCounts: jest.Mock };
+  let preflightService: {
+    run: jest.Mock;
+    isEmptyBody: jest.Mock;
+    computePerSchemeCounts: jest.Mock;
+    computePerPackageCounts: jest.Mock;
+  };
   let audienceService: { contentHash: jest.Mock };
 
   const baseDto = (): CampaignComposeRequestDto => ({
@@ -26,6 +31,9 @@ describe('CampaignService.preview (SMS)', () => {
     prisma = {
       scheme: {
         findMany: jest.fn().mockResolvedValue([{ id: 1, schemeName: 'Scheme A' }]),
+      },
+      package: {
+        findMany: jest.fn().mockResolvedValue([{ id: 10, name: 'Pkg' }]),
       },
       messagingCampaign: {},
       messagingDelivery: { count: jest.fn() },
@@ -55,6 +63,19 @@ describe('CampaignService.preview (SMS)', () => {
             ).length,
           })),
       ),
+      computePerPackageCounts: jest.fn(
+        (
+          packages: Array<{ id: number; name: string }>,
+          sendable: Array<{ packageId?: number | null; contributingPackageIds?: number[] }>,
+        ) =>
+          packages.map((p) => ({
+            packageId: p.id,
+            packageName: p.name,
+            recipientCount: sendable.filter((c) =>
+              (c.contributingPackageIds ?? (c.packageId != null ? [c.packageId] : [])).includes(p.id),
+            ).length,
+          })),
+      ),
       run: jest.fn().mockResolvedValue({
         sendable: [
           {
@@ -64,6 +85,8 @@ describe('CampaignService.preview (SMS)', () => {
             policyId: 'p1',
             schemeId: 1,
             contributingSchemeIds: [1],
+            packageId: 10,
+            contributingPackageIds: [10],
             customerName: 'Ann',
             renderedSubject: null,
             renderedBody: 'Hi Ann',

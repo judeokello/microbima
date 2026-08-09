@@ -421,6 +421,8 @@ export class InternalMessagingController {
   async listDeliveries(
     @User() user: AuthenticatedUser,
     @Query('customerId') customerId?: string,
+    @Query('customerName') customerName?: string,
+    @Query('recipientPhone') recipientPhone?: string,
     @Query('policyId') policyId?: string,
     @Query('channel') channel?: string,
     @Query('status') status?: string,
@@ -436,6 +438,8 @@ export class InternalMessagingController {
 
     const deliveries = await this.messagingService.listDeliveries({
       customerId,
+      customerName,
+      recipientPhone,
       policyId,
       channel: channel as 'SMS' | 'EMAIL' | undefined,
       status: status as 'PENDING' | 'PROCESSING' | 'SENT' | 'FAILED' | 'RETRY_WAIT' | undefined,

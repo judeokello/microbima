@@ -14,6 +14,7 @@ import { MessagingAttachmentTemplatesService } from './messaging-attachment-temp
 import * as Sentry from '@sentry/nestjs';
 import { MessagingAttachmentTemplateType, Prisma } from '@prisma/client';
 import { applyNonProdMessagingPrefix } from './non-prod-messaging.util';
+import { normalizePhoneNumber } from '../../utils/phone-number.util';
 
 /** Claimed delivery shape (includes optional dynamicAttachmentSpecs). */
 type ClaimedDelivery = Awaited<ReturnType<MessagingOutboxRepository['claimEligibleDeliveries']>>[number];
@@ -176,8 +177,16 @@ export class MessagingWorker {
           return;
         }
 
+        // Persist national (07…); Africas Talking expects international (254…).
+        let smsTo = delivery.recipientPhone;
+        try {
+          smsTo = normalizePhoneNumber(delivery.recipientPhone);
+        } catch {
+          // keep stored value if already provider-acceptable
+        }
+
         const result = await this.smsProvider.sendSms({
-          to: delivery.recipientPhone,
+          to: smsTo,
           message: delivery.renderedBody,
         });
 

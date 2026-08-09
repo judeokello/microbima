@@ -5,12 +5,14 @@ describe('ProductManagementService picker lists', () => {
   let prisma: {
     package: { findMany: jest.Mock };
     scheme: { findMany: jest.Mock };
+    packageScheme: { findMany: jest.Mock };
   };
 
   beforeEach(() => {
     prisma = {
       package: { findMany: jest.fn() },
       scheme: { findMany: jest.fn() },
+      packageScheme: { findMany: jest.fn() },
     };
     service = new ProductManagementService(prisma as never, {} as never, {} as never);
   });
@@ -65,6 +67,22 @@ describe('ProductManagementService picker lists', () => {
     expect(result).toEqual([
       { id: 1, name: 'A', isActive: true },
       { id: 2, name: 'B', isActive: false },
+    ]);
+  });
+
+  it('listPackagesForSchemes returns distinct packages for scheme ids', async () => {
+    prisma.packageScheme.findMany.mockResolvedValue([
+      { package: { id: 10, name: 'Pkg A', isActive: true } },
+      { package: { id: 10, name: 'Pkg A', isActive: true } },
+      { package: { id: 11, name: 'Pkg B', isActive: false } },
+    ]);
+    const result = await service.listPackagesForSchemes([1, 2], 'corr');
+    expect(prisma.packageScheme.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { schemeId: { in: [1, 2] } } }),
+    );
+    expect(result).toEqual([
+      { id: 10, name: 'Pkg A', isActive: true },
+      { id: 11, name: 'Pkg B', isActive: false },
     ]);
   });
 });

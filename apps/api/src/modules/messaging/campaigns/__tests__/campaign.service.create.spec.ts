@@ -6,7 +6,12 @@ describe('CampaignService.create (SMS)', () => {
   let service: CampaignService;
   let prisma: any;
   let systemSettings: { getSnapshot: jest.Mock };
-  let preflightService: { run: jest.Mock; isEmptyBody: jest.Mock; computePerSchemeCounts: jest.Mock };
+  let preflightService: {
+    run: jest.Mock;
+    isEmptyBody: jest.Mock;
+    computePerSchemeCounts: jest.Mock;
+    computePerPackageCounts: jest.Mock;
+  };
   let audienceService: { contentHash: jest.Mock };
 
   const dto = (overrides: Partial<CampaignComposeRequestDto> = {}): CampaignComposeRequestDto => ({
@@ -41,6 +46,7 @@ describe('CampaignService.create (SMS)', () => {
       },
       messagingDelivery: { count: jest.fn().mockResolvedValue(0) },
       scheme: { findMany: jest.fn().mockResolvedValue([]) },
+      package: { findMany: jest.fn().mockResolvedValue([]) },
     };
     systemSettings = {
       getSnapshot: jest.fn().mockResolvedValue({
@@ -55,6 +61,7 @@ describe('CampaignService.create (SMS)', () => {
     preflightService = {
       isEmptyBody: jest.fn((_: string, body: string) => !body?.trim()),
       computePerSchemeCounts: jest.fn().mockReturnValue([]),
+      computePerPackageCounts: jest.fn().mockReturnValue([]),
       run: jest.fn().mockResolvedValue({
         sendable: [{ customerId: 'c1', schemeId: 1, contributingSchemeIds: [1], normalizedAddress: '254700000001' }],
         blockingErrors: [],

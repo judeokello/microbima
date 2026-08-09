@@ -123,6 +123,13 @@ import { ErrorCodes } from '../enums/error-codes.enum';
 - Return field-specific error messages
 - Check business rules before database operations
 
+### Supabase Row Level Security (CRITICAL)
+- All `public` tables MUST have RLS enabled; NestJS/Prisma and `service_role` bypass RLS
+- Do **not** add open `USING (true)` policies for `anon`/`authenticated` unless intentionally exposing PostgREST
+- Do **not** use `FORCE ROW LEVEL SECURITY` (breaks Prisma as table owner)
+- New tables inherit RLS via DB event trigger `ensure_rls_on_public_tables` (migration `20260809120000_enable_rls_on_public_tables`) — do not drop it
+- See `.cursor/rules/supabase-rls.mdc` and constitution Principle VII
+
 ## API Standards
 
 ### Response Format
