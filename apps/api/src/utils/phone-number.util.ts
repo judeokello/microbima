@@ -160,3 +160,41 @@ export function normalizeMsisdnOrReturnRaw(
   return { normalized: true, value: normalizePhoneNumber(trimmed) };
 }
 
+/**
+ * Convert any accepted Kenyan phone input to national storage form `0XXXXXXXXX`.
+ */
+export function toNationalPhoneNumber(phone: string): string {
+  const international = normalizePhoneNumber(phone);
+  return `0${international.slice(3)}`;
+}
+
+/**
+ * Safe national conversion for messaging persistence (returns null if invalid).
+ */
+export function tryToNationalPhoneNumber(phone: string | null | undefined): string | null {
+  if (!phone || typeof phone !== 'string' || !phone.trim()) return null;
+  try {
+    return toNationalPhoneNumber(phone.trim());
+  } catch {
+    return null;
+  }
+}
+
+/** Match stored national (07…) and legacy international (254…) recipient phones. */
+export function recipientPhoneSearchVariants(input: string): string[] {
+  const digits = input.replace(/\D/g, '');
+  if (!digits) return [];
+  const variants = new Set<string>([digits]);
+  if (digits.startsWith('254') && digits.length >= 12) {
+    variants.add(`0${digits.slice(3)}`);
+    variants.add(digits.slice(3));
+  } else if (digits.startsWith('0') && digits.length >= 10) {
+    variants.add(`254${digits.slice(1)}`);
+    variants.add(digits.slice(1));
+  } else if (digits.length === 9) {
+    variants.add(`0${digits}`);
+    variants.add(`254${digits}`);
+  }
+  return Array.from(variants);
+}
+

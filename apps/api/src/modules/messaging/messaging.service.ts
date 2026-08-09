@@ -6,6 +6,11 @@ import { SystemSettingsService } from './settings/system-settings.service';
 import { EnqueueMessageRequest } from './messaging.types';
 import { getNonProdMessagingTag } from './non-prod-messaging.util';
 import { ValidationException } from '../../exceptions/validation.exception';
+import {
+  recipientPhoneSearchVariants,
+  tryToNationalPhoneNumber,
+} from '../../utils/phone-number.util';
+import { Prisma } from '@prisma/client';
 import { v4 as uuidv4 } from 'uuid';
 
 @Injectable()
@@ -305,7 +310,10 @@ export class MessagingService {
         templateKey: params.templateKey,
         requestedLanguage: params.requestedLanguage,
         correlationId: params.correlationId,
-        recipientPhone: params.channel === 'SMS' ? params.recipient : null,
+        recipientPhone:
+          params.channel === 'SMS'
+            ? (tryToNationalPhoneNumber(params.recipient) ?? params.recipient)
+            : null,
         recipientEmail: params.channel === 'EMAIL' ? params.recipient : null,
         status: 'PENDING',
         attemptCount: 0,
@@ -395,17 +403,43 @@ export class MessagingService {
    */
   async listDeliveries(filters: {
     customerId?: string;
+    customerName?: string;
+    recipientPhone?: string;
     policyId?: string;
     channel?: 'SMS' | 'EMAIL';
     status?: 'PENDING' | 'PROCESSING' | 'SENT' | 'FAILED' | 'RETRY_WAIT';
     skip: number;
     take: number;
   }) {
-    const where: Record<string, unknown> = {};
-    if (filters.customerId) where['customerId'] = filters.customerId;
-    if (filters.policyId) where['policyId'] = filters.policyId;
-    if (filters.channel) where['channel'] = filters.channel;
-    if (filters.status) where['status'] = filters.status;
+    const where: Prisma.MessagingDeliveryWhereInput = {};
+    if (filters.customerId) where.customerId = filters.customerId;
+    if (filters.policyId) where.policyId = filters.policyId;
+    if (filters.channel) where.channel = filters.channel;
+    if (filters.status) where.status = filters.status;
+
+    const name = filters.customerName?.trim();
+    if (name) {
+      const tokens = name.split(/\s+/).filter(Boolean);
+      where.customer = {
+        AND: tokens.map((token) => ({
+          OR: [
+            { firstName: { contains: token, mode: 'insensitive' } },
+            { lastName: { contains: token, mode: 'insensitive' } },
+            { middleName: { contains: token, mode: 'insensitive' } },
+          ],
+        })),
+      };
+    }
+
+    const phoneRaw = filters.recipientPhone?.trim();
+    if (phoneRaw) {
+      const variants = recipientPhoneSearchVariants(phoneRaw);
+      if (variants.length === 1) {
+        where.recipientPhone = { contains: variants[0] };
+      } else if (variants.length > 1) {
+        where.OR = variants.map((v) => ({ recipientPhone: { contains: v } }));
+      }
+    }
 
     return this.prisma.messagingDelivery.findMany({
       where,

@@ -5,6 +5,7 @@ import {
   PLACEHOLDER_CATALOG,
   extractUsedPlaceholderKeys,
   placeholdersByCategory,
+  removePlaceholderOccurrence,
   type PlaceholderDef,
 } from '@/lib/messaging/placeholder-catalog'
 import { colorTokenForKey } from './placeholder-composer'
@@ -35,9 +36,9 @@ export function PlaceholderPillsPanel({
     onChange(`${value}{${key}}`)
   }
 
-  const remove = (key: string) => {
+  const remove = (key: string, occurrenceIndex: number) => {
     if (disabled) return
-    onChange(value.replaceAll(`{${key}}`, ''))
+    onChange(removePlaceholderOccurrence(value, key, occurrenceIndex))
   }
 
   return (
@@ -48,23 +49,26 @@ export function PlaceholderPillsPanel({
         <div className="space-y-1">
           <p className="text-xs text-gray-500">In message</p>
           <div className="flex flex-wrap gap-2">
-            {usedKeys.map((key, idx) => (
-              <span
-                key={`${key}-${idx}`}
-                className={`inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-xs ${colorTokenForKey(key)}`}
-              >
-                {`{${key}}`}
-                <button
-                  type="button"
-                  aria-label={`Remove ${key}`}
-                  className="hover:opacity-70 disabled:opacity-40"
-                  disabled={disabled}
-                  onClick={() => remove(key)}
+            {usedKeys.map((key, idx) => {
+              const occurrenceIndex = usedKeys.slice(0, idx + 1).filter((k) => k === key).length - 1
+              return (
+                <span
+                  key={`${key}-${idx}`}
+                  className={`inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-xs ${colorTokenForKey(key)}`}
                 >
-                  <X className="h-3 w-3" />
-                </button>
-              </span>
-            ))}
+                  {`{${key}}`}
+                  <button
+                    type="button"
+                    aria-label={`Remove ${key}`}
+                    className="hover:opacity-70 disabled:opacity-40"
+                    disabled={disabled}
+                    onClick={() => remove(key, occurrenceIndex)}
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </span>
+              )
+            })}
           </div>
         </div>
       ) : null}

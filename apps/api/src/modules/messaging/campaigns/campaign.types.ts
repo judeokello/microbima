@@ -45,6 +45,9 @@ export interface CampaignCandidate {
    * Merged across modes/schemes when address+content dedupe keeps one send.
    */
   contributingSchemeIds: number[];
+  /** Package attribution for per-package compose pills. */
+  packageId: number | null;
+  contributingPackageIds: number[];
   customerName: string | null;
   renderedSubject: string | null;
   renderedBody: string;
@@ -57,6 +60,12 @@ export interface CampaignCandidate {
 export interface PerSchemeCount {
   schemeId: number;
   schemeName: string;
+  recipientCount: number;
+}
+
+export interface PerPackageCount {
+  packageId: number;
+  packageName: string;
   recipientCount: number;
 }
 

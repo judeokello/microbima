@@ -236,6 +236,7 @@
 - [ ] T076 Execute manual paths in `specs/004-admin-messaging-campaigns/quickstart.md` (SMS happy path, failed preflight rename, email soft-skip, customer_care read-only, non-prod redirect spot-check) — **manual; for you to run locally**
 - [x] T077 [P] Ensure large-audience warning (≥5000) and confirm threshold UX copy on `apps/agent-registration/src/app/(main)/admin/campaigns/compose/page.tsx`
 - [x] T078 Verify customer-linked campaign deliveries appear on existing Messages tab (`apps/agent-registration` customer messaging tab) — code path: dispatcher sets `customerId` + `campaignId` on `MessagingDelivery`; Messages tab lists by `customerId` with no campaign exclusion (spot-check after a real send still recommended)
+- [x] T079 Compose audience UX: policy-status multi-select (no customer status), scheme→package filter/auto-select, packages-only via policy, live sendable total + pill counts, single-occurrence placeholder remove
 
 ---
 

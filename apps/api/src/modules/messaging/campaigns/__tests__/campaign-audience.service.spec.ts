@@ -142,6 +142,92 @@ describe('CampaignAudienceService', () => {
       expect(deduped[0].normalizedAddress).toBe('254700000001');
     });
 
+    it('ignores customer status when expanding scheme customers', async () => {
+      prisma.scheme.findMany.mockResolvedValue([{ id: 1, isActive: true, schemeName: 'A' }]);
+      prisma.package.findMany.mockResolvedValue([{ id: 10, isActive: true, name: 'Pkg' }]);
+      prisma.packageScheme.findMany.mockResolvedValue([{ id: 100, schemeId: 1, packageId: 10 }]);
+      prisma.packageSchemeCustomer.findMany.mockResolvedValue([
+        {
+          customerId: 'cinactive',
+          packageSchemeId: 100,
+          customer: {
+            id: 'cinactive',
+            firstName: 'Ina',
+            lastName: 'C',
+            email: null,
+            phoneNumber: '254700000088',
+            status: 'INACTIVE',
+            isTestUser: false,
+          },
+        },
+      ]);
+      prisma.policy.findMany.mockResolvedValue([
+        {
+          id: 'pi',
+          customerId: 'cinactive',
+          policyNumber: 'I-1',
+          status: 'ACTIVE',
+          packagePlan: { packageId: 10, package: { id: 10, name: 'Pkg' } },
+        },
+      ]);
+
+      const result = await service.expand({
+        channel: 'SMS',
+        modes: ['SCHEME_CUSTOMERS'],
+        schemeIds: [1],
+        packageIds: [10],
+        customerStatuses: ['ACTIVE'],
+        policyStatuses: ['ACTIVE'],
+        body: 'Hi {first_name}',
+        subject: null,
+        supportNumbers: { general_support_number: '1', medical_support_number: '2' },
+      });
+
+      expect(result.candidates.some((c) => c.customerId === 'cinactive')).toBe(true);
+    });
+
+    it('expands packages-only audience via policy package match', async () => {
+      prisma.scheme.findMany.mockResolvedValue([]);
+      prisma.package.findMany.mockResolvedValue([{ id: 10, isActive: true, name: 'Pkg' }]);
+      prisma.policy.findMany.mockResolvedValue([
+        {
+          id: 'p-only',
+          customerId: 'c-only',
+          policyNumber: 'PO-1',
+          status: 'ACTIVE',
+          packagePlan: { packageId: 10, package: { id: 10, name: 'Pkg' } },
+        },
+      ]);
+      prisma.customer.findMany.mockResolvedValue([
+        {
+          id: 'c-only',
+          firstName: 'Pat',
+          lastName: 'Only',
+          email: null,
+          phoneNumber: '254700000077',
+          status: 'SUSPENDED',
+          isTestUser: false,
+        },
+      ]);
+
+      const result = await service.expand({
+        channel: 'SMS',
+        modes: ['SCHEME_CUSTOMERS'],
+        schemeIds: [],
+        packageIds: [10],
+        customerStatuses: [],
+        policyStatuses: ['ACTIVE'],
+        body: 'Hi {first_name}',
+        subject: null,
+        supportNumbers: { general_support_number: '1', medical_support_number: '2' },
+      });
+
+      expect(result.candidates).toHaveLength(1);
+      expect(result.candidates[0].customerId).toBe('c-only');
+      expect(result.candidates[0].packageId).toBe(10);
+      expect(result.candidates[0].schemeId).toBeNull();
+    });
+
     it('includes isTestUser customers (FR-019)', async () => {
       prisma.scheme.findMany.mockResolvedValue([{ id: 1, isActive: true, schemeName: 'A' }]);
       prisma.package.findMany.mockResolvedValue([{ id: 10, isActive: true, name: 'Pkg' }]);
@@ -263,6 +349,8 @@ describe('CampaignAudienceService', () => {
         policyId: 'p1',
         schemeId: 1,
         contributingSchemeIds: [1],
+        packageId: null,
+        contributingPackageIds: [],
         customerName: 'Ann',
         renderedSubject: null as string | null,
         renderedBody: 'Hi Ann POL-1',

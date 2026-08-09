@@ -17,9 +17,15 @@ describe('CampaignService EMAIL (US2)', () => {
     };
     messagingDelivery: { count: jest.Mock };
     scheme: { findMany: jest.Mock };
+    package: { findMany: jest.Mock };
   };
   let systemSettings: { getSnapshot: jest.Mock };
-  let preflightService: { run: jest.Mock; isEmptyBody: jest.Mock; computePerSchemeCounts: jest.Mock };
+  let preflightService: {
+    run: jest.Mock;
+    isEmptyBody: jest.Mock;
+    computePerSchemeCounts: jest.Mock;
+    computePerPackageCounts: jest.Mock;
+  };
   let audienceService: {
     contentHash: jest.Mock;
     normalizePhone: jest.Mock;
@@ -56,6 +62,7 @@ describe('CampaignService EMAIL (US2)', () => {
       },
       messagingDelivery: { count: jest.fn().mockResolvedValue(0) },
       scheme: { findMany: jest.fn().mockResolvedValue([{ id: 1, schemeName: 'S' }]) },
+      package: { findMany: jest.fn().mockResolvedValue([]) },
     };
     systemSettings = {
       getSnapshot: jest.fn().mockResolvedValue({
@@ -79,6 +86,7 @@ describe('CampaignService EMAIL (US2)', () => {
         return !String(body ?? '').trim();
       }),
       computePerSchemeCounts: jest.fn().mockReturnValue([]),
+      computePerPackageCounts: jest.fn().mockReturnValue([]),
       run: jest.fn().mockResolvedValue({
         sendable: [
           {
@@ -88,6 +96,8 @@ describe('CampaignService EMAIL (US2)', () => {
             policyId: null,
             schemeId: 1,
             contributingSchemeIds: [1],
+            packageId: null,
+            contributingPackageIds: [],
             customerName: 'Ann',
             renderedSubject: 'Hello Ann',
             renderedBody: '<p>Hi <strong>Ann</strong></p>',

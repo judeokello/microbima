@@ -6,6 +6,7 @@ import { SupabaseService } from '../../../services/supabase.service';
 import { SystemSettingsService } from '../settings/system-settings.service';
 import { CampaignPreflightService } from './campaign-preflight.service';
 import { applyNonProdMessagingPrefix, getNonProdMessagingTag } from '../non-prod-messaging.util';
+import { tryToNationalPhoneNumber } from '../../../utils/phone-number.util';
 import { AudienceMode, CampaignChannel, templateKeyForChannel } from './campaign.types';
 
 @Injectable()
@@ -154,7 +155,10 @@ export class CampaignDispatcher {
             channel: campaign.channel,
             customerId: candidate.customerId,
             policyId: candidate.policyId,
-            recipientPhone,
+            recipientPhone:
+              campaign.channel === 'SMS' && recipientPhone
+                ? (tryToNationalPhoneNumber(recipientPhone) ?? recipientPhone)
+                : recipientPhone,
             recipientEmail,
             requestedLanguage: 'en',
             usedLanguage: 'en',
