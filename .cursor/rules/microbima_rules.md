@@ -30,6 +30,15 @@ The `npx prisma migrate dev` command has not been working due to shadow database
 - `npx prisma db push` (skips migration history tracking)
 
 
+## Supabase Row Level Security (RLS)
+
+- All `public` tables MUST have RLS enabled (Supabase Security Advisor: `rls_disabled_in_public`).
+- NestJS/Prisma and `service_role` bypass RLS; do not open tables to `anon`/`authenticated` via PostgREST.
+- Future tables are covered by event trigger `ensure_rls_on_public_tables` (see migration `20260809120000_enable_rls_on_public_tables`). Do not drop that trigger.
+- Never use `FORCE ROW LEVEL SECURITY` on app tables (breaks Prisma as table owner).
+- Details: `.cursor/rules/supabase-rls.mdc` and constitution Principle VII.
+
+
 ## Monorepo shape
 - Single-root monorepo.
 - Apps live in `apps/*` (e.g., `web-admin`, `mobile`, `api`).

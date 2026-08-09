@@ -1,20 +1,13 @@
 <!--
 Sync Impact Report:
-Version: 1.0.0 → 1.1.0 (MINOR - Principle VII / Security: scoped Supabase Auth for customer self-service)
+Version: 1.1.0 → 1.2.0 (MINOR - Principle VII / Security: Supabase public-schema RLS lockdown + auto-enable for new tables)
+Prior: 1.0.0 → 1.1.0 (MINOR - Principle VII / Security: scoped Supabase Auth for customer self-service)
 Prior: 0.0.0 → 1.0.0 (MAJOR - Initial constitution creation)
-Modified Principles: N/A (new document)
-Added Sections:
-  - Project Purpose
-  - Core Principles (8 principles)
-  - Technology Constraints
-  - Security Requirements
-  - Monitoring & Observability
-  - Project Structure
-  - Key Business Rules
-  - Governance
-Removed Sections: N/A (new document)
+Modified Principles: VII. Security (RLS / Data API)
+Added Sections: N/A
+Removed Sections: N/A
 Templates Requiring Updates:
-  ✅ plan-template.md - Constitution Check section aligns with principles
+  ✅ plan-template.md - Constitution Check remains compatible
   ✅ spec-template.md - No direct constitution references, compatible
   ✅ tasks-template.md - No direct constitution references, compatible
 Follow-up TODOs: None
@@ -56,6 +49,8 @@ Node.js >= 18.0.0, pnpm >= 8.0.0, PostgreSQL database, NestJS 11.x for backend, 
 
 OIDC/OAuth2 authentication via **Authentik** for staff and partner-facing contexts. **Customer self-service** at `/self/customer` in the Agent Registration app **MAY** use **Supabase Auth** (JWT to the internal API), including **six-digit chosen PINs** after first-time setup (Supabase minimum password length), without replacing Authentik for those primary flows. API key authentication for partner APIs. Role-based access control. Encrypted data at rest and in transit. These security measures protect sensitive customer and business data.
 
+**Supabase / Postgres Row Level Security (NON-NEGOTIABLE):** All tables in the `public` schema MUST have RLS enabled. Application data access is via NestJS + Prisma (privileged DB role) and server-side `service_role` clients, which bypass RLS. The Supabase Data API roles (`anon`, `authenticated`) MUST NOT receive open table access. Do **not** add permissive `USING (true)` policies for those roles unless a table is intentionally exposed through PostgREST. Do **not** use `FORCE ROW LEVEL SECURITY` on application tables (it would break Prisma). New `public` tables MUST inherit RLS via the database event trigger installed by migration `enable_rls_on_public_tables` (`ensure_rls_on_public_tables` / `public.rls_auto_enable()`); agents and humans MUST NOT disable that trigger.
+
 ### VIII. Monitoring & Observability
 
 Sentry for error tracking. Correlation IDs for request tracing. External instrumentation calls MUST be asynchronous (message queue preferred) to avoid impacting service performance. This enables effective debugging and performance monitoring without degrading user experience.
@@ -74,6 +69,7 @@ Sentry for error tracking. Correlation IDs for request tracing. External instrum
 - **Authentication**: OIDC/OAuth2 via Authentik for staff/partner contexts; Supabase Auth for the customer self-service portal (`specs/001-customer-self-service`), with PIN policy set in Supabase for the chosen **six-digit** member PIN (minimum password length)
 - **API Security**: API key authentication for partner APIs
 - **Authorization**: Role-based access control (RBAC)
+- **Supabase RLS**: RLS enabled on all `public` tables; Data API lockdown (no open `anon`/`authenticated` policies); auto-enable via DB event trigger for new tables
 - **Data Protection**: Encrypted at rest and in transit
 - **Audit Logging**: Comprehensive activity tracking
 
@@ -119,4 +115,4 @@ This constitution supersedes all other development practices and coding standard
 
 Complexity introduced that violates principles MUST be justified in code reviews with explicit reasoning for why simpler alternatives were rejected.
 
-**Version**: 1.1.0 | **Ratified**: 2025-11-27 | **Last Amended**: 2026-04-04
+**Version**: 1.2.0 | **Ratified**: 2025-11-27 | **Last Amended**: 2026-08-09
