@@ -1,0 +1,31 @@
+---
+description: Supabase/Postgres RLS must stay enabled on public tables; Data API is locked down.
+alwaysApply: true
+---
+
+# Supabase Row Level Security (RLS)
+
+## Architecture
+
+- Application data is accessed via **NestJS + Prisma** (privileged DB role) and occasional **`service_role`** Supabase clients. Those paths **bypass RLS**.
+- The Supabase Data API roles (`anon`, `authenticated`) must **not** read/write application tables unless an explicit policy is added on purpose.
+- Enabling RLS with **no** `anon`/`authenticated` policies is the intended lockdown (closes `rls_disabled_in_public` / `sensitive_columns_exposed` advisors).
+
+## Automatic coverage
+
+Migration `20260809120000_enable_rls_on_public_tables` installs Postgres event trigger `ensure_rls_on_public_tables`, which runs `public.rls_auto_enable()` on `CREATE TABLE` / `CREATE TABLE AS` / `SELECT INTO` in schema `public`.
+
+**New Prisma tables get RLS enabled at CREATE time.** Do not rely on re-running a one-off script.
+
+## Rules for agents and humans
+
+1. **Never** disable RLS on a `public` table to “fix” a query.
+2. **Never** add `USING (true)` / `WITH CHECK (true)` policies for `anon` or `authenticated` unless the table is intentionally public via PostgREST.
+3. **Never** use `FORCE ROW LEVEL SECURITY` on app tables — that would subject the Prisma/table-owner role to RLS and break the API.
+4. Prefer Nest API authorization over browser → PostgREST table access.
+5. Storage policies (`storage.objects`) are separate from table RLS; configure them when using buckets.
+6. If the event trigger is missing (e.g. restored DB without migrations), re-apply Prisma migrations; do not invent ad-hoc grants for `anon`.
+
+## Verification
+
+After schema changes on Supabase, check Database → Security Advisor. New public tables should not appear under `rls_disabled_in_public`.

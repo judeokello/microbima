@@ -74,30 +74,45 @@ export function PlaceholderComposer({
     setPicker('')
   }
 
-  const removePlaceholder = (key: string) => {
-    onChange(value.replaceAll(`{${key}}`, ''))
+  const removePlaceholder = (key: string, occurrenceIndex: number) => {
+    const token = `{${key}}`
+    let from = 0
+    let seen = 0
+    while (from < value.length) {
+      const idx = value.indexOf(token, from)
+      if (idx === -1) return
+      if (seen === occurrenceIndex) {
+        onChange(value.slice(0, idx) + value.slice(idx + token.length))
+        return
+      }
+      seen += 1
+      from = idx + token.length
+    }
   }
 
   return (
     <div className="space-y-2">
       {label ? <label className="text-sm font-medium text-gray-700">{label}</label> : null}
       <div className="flex flex-wrap gap-2">
-        {usedKeys.map((key) => (
-          <span
-            key={`${key}-${usedKeys.indexOf(key)}`}
-            className={`inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-xs ${colorTokenForKey(key)}`}
-          >
-            {`{${key}}`}
-            <button
-              type="button"
-              aria-label={`Remove ${key}`}
-              className="hover:opacity-70"
-              onClick={() => removePlaceholder(key)}
+        {usedKeys.map((key, idx) => {
+          const occurrenceIndex = usedKeys.slice(0, idx + 1).filter((k) => k === key).length - 1
+          return (
+            <span
+              key={`${key}-${idx}`}
+              className={`inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-xs ${colorTokenForKey(key)}`}
             >
-              <X className="h-3 w-3" />
-            </button>
-          </span>
-        ))}
+              {`{${key}}`}
+              <button
+                type="button"
+                aria-label={`Remove ${key}`}
+                className="hover:opacity-70"
+                onClick={() => removePlaceholder(key, occurrenceIndex)}
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </span>
+          )
+        })}
       </div>
       <div className="flex gap-2">
         <Select value={picker} onValueChange={(v) => insertPlaceholder(v)}>

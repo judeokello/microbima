@@ -91,7 +91,7 @@ describe('CampaignDispatcher', () => {
           usedLanguage: 'en',
           templateKey: 'admin_template_sms',
           renderedBody: expect.stringContaining('Hi Ann'),
-          recipientPhone: '254700000001',
+          recipientPhone: '0700000001',
         }),
       }),
     );

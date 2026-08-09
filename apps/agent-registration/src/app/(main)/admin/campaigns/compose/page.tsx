@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
+import { Checkbox } from '@/components/ui/checkbox'
 import { CampaignPreviewPanel } from '@/components/messaging/campaign-preview-panel'
 import { RichTextEmailEditor } from '@/components/messaging/rich-text-email-editor'
 import { EntityMultiSelect } from '@/components/messaging/entity-multi-select'
@@ -16,6 +17,7 @@ import { PlaceholderPillsPanel } from '@/components/messaging/placeholder-pills-
 import {
   createMessagingCampaign,
   getPackages,
+  listPackagesForSchemes,
   listSchemesForPicker,
   previewMessagingCampaign,
   type AudienceMode,
@@ -26,9 +28,22 @@ import {
   type Scheme,
 } from '@/lib/api'
 import { useAuth } from '@/hooks/useAuth'
-import { extractUsedPlaceholderKeys } from '@/lib/messaging/placeholder-catalog'
+import {
+  extractUsedPlaceholderKeys,
+  removePlaceholderOccurrence,
+} from '@/lib/messaging/placeholder-catalog'
 import { colorTokenForKey } from '@/components/messaging/placeholder-composer'
 import { X } from 'lucide-react'
+
+const POLICY_STATUSES = [
+  'PENDING_ACTIVATION',
+  'ACTIVE',
+  'SUSPENDED',
+  'INACTIVE',
+  'DEACTIVATED',
+  'TERMINATED',
+  'EXPIRED',
+] as const
 
 function rowsToCsv(rows: CampaignPreflightRow[]): string {
   const header = 'customerName,phone,email,customerId,error'
@@ -63,23 +78,46 @@ function UsedPlaceholderChips({
   if (usedKeys.length === 0) return null
   return (
     <div className="flex flex-wrap gap-2">
-      {usedKeys.map((key, idx) => (
-        <span
-          key={`${key}-${idx}`}
-          className={`inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-xs ${colorTokenForKey(key)}`}
-        >
-          {`{${key}}`}
-          <button
-            type="button"
-            aria-label={`Remove ${key}`}
-            onClick={() => onChange(value.replaceAll(`{${key}}`, ''))}
+      {usedKeys.map((key, idx) => {
+        const occurrenceIndex = usedKeys.slice(0, idx + 1).filter((k) => k === key).length - 1
+        return (
+          <span
+            key={`${key}-${idx}`}
+            className={`inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-xs ${colorTokenForKey(key)}`}
           >
-            <X className="h-3 w-3" />
-          </button>
-        </span>
-      ))}
+            {`{${key}}`}
+            <button
+              type="button"
+              aria-label={`Remove ${key}`}
+              onClick={() => onChange(removePlaceholderOccurrence(value, key, occurrenceIndex))}
+            >
+              <X className="h-3 w-3" />
+            </button>
+          </span>
+        )
+      })}
     </div>
   )
+}
+
+function countValidPasteLines(pasteList: string, channel: CampaignChannel): number {
+  const lines = pasteList
+    .split(/[\n,]+/)
+    .map((s) => s.trim())
+    .filter(Boolean)
+  if (channel === 'EMAIL') {
+    return lines.filter((line) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(line.toLowerCase())).length
+  }
+  // National or international Kenyan phone shapes (preview does full normalize).
+  return lines.filter((line) => {
+    const digits = line.replace(/\D/g, '')
+    return (
+      /^07\d{8}$/.test(digits) ||
+      /^2547\d{8}$/.test(digits) ||
+      /^7\d{8}$/.test(digits) ||
+      /^\+2547\d{8}$/.test(line.replace(/\s/g, ''))
+    )
+  }).length
 }
 
 export default function ComposeCampaignPage() {
@@ -92,15 +130,21 @@ export default function ComposeCampaignPage() {
   const [emailBody, setEmailBody] = useState('<p>Hi <strong>{first_name}</strong></p>')
   const [selectedSchemeIds, setSelectedSchemeIds] = useState<number[]>([])
   const [selectedPackageIds, setSelectedPackageIds] = useState<number[]>([])
+  const [policyStatuses, setPolicyStatuses] = useState<string[]>(['ACTIVE'])
   const [schemes, setSchemes] = useState<Scheme[]>([])
-  const [packages, setPackages] = useState<Package[]>([])
+  const [allPackages, setAllPackages] = useState<Package[]>([])
+  const [linkedPackages, setLinkedPackages] = useState<Package[]>([])
   const [entitiesLoading, setEntitiesLoading] = useState(true)
+  const [packagesLoading, setPackagesLoading] = useState(false)
   const [pasteList, setPasteList] = useState('')
   const [audienceMode, setAudienceMode] = useState<'scheme_customers' | 'scheme_contacts' | 'paste'>(
     'scheme_customers'
   )
   const [confirmationName, setConfirmationName] = useState('')
   const [preview, setPreview] = useState<CampaignPreviewResponse | null>(null)
+  const [liveSendableCount, setLiveSendableCount] = useState<number | null>(null)
+  const [liveSchemeCounts, setLiveSchemeCounts] = useState<Record<number, number>>({})
+  const [livePackageCounts, setLivePackageCounts] = useState<Record<number, number>>({})
   const [loadingPreview, setLoadingPreview] = useState(false)
   const [sending, setSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -118,7 +162,7 @@ export default function ComposeCampaignPage() {
         ])
         if (!cancelled) {
           setSchemes(schemeRows)
-          setPackages(packageRows)
+          setAllPackages(packageRows)
         }
       } catch (err) {
         if (!cancelled) {
@@ -133,6 +177,34 @@ export default function ComposeCampaignPage() {
     }
   }, [])
 
+  // When schemes change: clear packages, load linked packages, auto-select active ones.
+  useEffect(() => {
+    if (audienceMode !== 'scheme_customers') return
+    let cancelled = false
+    ;(async () => {
+      if (selectedSchemeIds.length === 0) {
+        setLinkedPackages([])
+        return
+      }
+      try {
+        setPackagesLoading(true)
+        const rows = await listPackagesForSchemes(selectedSchemeIds)
+        if (cancelled) return
+        setLinkedPackages(rows)
+        setSelectedPackageIds(rows.filter((p) => p.isActive !== false).map((p) => p.id))
+      } catch (err) {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : 'Failed to load packages for schemes')
+        }
+      } finally {
+        if (!cancelled) setPackagesLoading(false)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [selectedSchemeIds, audienceMode])
+
   const schemeEntities = useMemo(
     () =>
       schemes.map((s) => ({
@@ -143,15 +215,14 @@ export default function ComposeCampaignPage() {
     [schemes]
   )
 
-  const packageEntities = useMemo(
-    () =>
-      packages.map((p) => ({
-        id: p.id,
-        name: p.name,
-        isActive: p.isActive !== false,
-      })),
-    [packages]
-  )
+  const packageEntities = useMemo(() => {
+    const source = selectedSchemeIds.length > 0 ? linkedPackages : allPackages
+    return source.map((p) => ({
+      id: p.id,
+      name: p.name,
+      isActive: p.isActive !== false,
+    }))
+  }, [selectedSchemeIds.length, linkedPackages, allPackages])
 
   const audience = useMemo(() => {
     const modes: AudienceMode[] =
@@ -169,11 +240,89 @@ export default function ComposeCampaignPage() {
       modes,
       schemeIds: audienceMode === 'paste' ? undefined : selectedSchemeIds,
       packageIds: audienceMode === 'scheme_customers' ? selectedPackageIds : undefined,
-      customerStatuses: audienceMode === 'scheme_customers' ? ['ACTIVE'] : undefined,
-      policyStatuses: audienceMode === 'scheme_customers' ? ['ACTIVE'] : undefined,
+      policyStatuses: audienceMode === 'scheme_customers' ? policyStatuses : undefined,
       pasteList: audienceMode === 'paste' ? paste : undefined,
     }
-  }, [audienceMode, selectedSchemeIds, selectedPackageIds, pasteList])
+  }, [audienceMode, selectedSchemeIds, selectedPackageIds, policyStatuses, pasteList])
+
+  const canLiveCount = useMemo(() => {
+    if (!name.trim()) return false
+    if (channel === 'SMS' && !smsBody.trim()) return false
+    if (channel === 'EMAIL' && (!subject.trim() || !emailBody.trim())) return false
+    if (audienceMode === 'scheme_customers') {
+      return (
+        (selectedSchemeIds.length > 0 || selectedPackageIds.length > 0) &&
+        policyStatuses.length > 0
+      )
+    }
+    if (audienceMode === 'scheme_contacts') return selectedSchemeIds.length > 0
+    return pasteList.trim().length > 0
+  }, [
+    name,
+    channel,
+    smsBody,
+    subject,
+    emailBody,
+    audienceMode,
+    selectedSchemeIds,
+    selectedPackageIds,
+    policyStatuses,
+    pasteList,
+  ])
+
+  // Debounced live sendable count (same rules as Preview).
+  useEffect(() => {
+    if (!canLiveCount) {
+      setLiveSendableCount(null)
+      setLiveSchemeCounts({})
+      setLivePackageCounts({})
+      return
+    }
+    const handle = window.setTimeout(() => {
+      void (async () => {
+        try {
+          const result = await previewMessagingCampaign({
+            name,
+            channel,
+            subject: channel === 'EMAIL' ? subject : undefined,
+            body,
+            audience,
+          })
+          setLiveSendableCount(result.sendableCount)
+          const schemeMap: Record<number, number> = {}
+          for (const row of result.perSchemeCounts ?? []) {
+            schemeMap[row.schemeId] = row.recipientCount
+          }
+          setLiveSchemeCounts(schemeMap)
+          const packageMap: Record<number, number> = {}
+          for (const row of result.perPackageCounts ?? []) {
+            packageMap[row.packageId] = row.recipientCount
+          }
+          setLivePackageCounts(packageMap)
+        } catch {
+          // Live count is best-effort; explicit Preview still shows errors.
+        }
+      })()
+    }, 450)
+    return () => window.clearTimeout(handle)
+  }, [canLiveCount, name, channel, subject, body, audience])
+
+  const pasteValidCount = useMemo(
+    () => (audienceMode === 'paste' ? countValidPasteLines(pasteList, channel) : null),
+    [audienceMode, pasteList, channel]
+  )
+
+  const togglePolicyStatus = (status: string, checked: boolean) => {
+    setPolicyStatuses((prev) => {
+      if (checked) return prev.includes(status) ? prev : [...prev, status]
+      return prev.filter((s) => s !== status)
+    })
+  }
+
+  const onSchemesChange = (ids: number[]) => {
+    setSelectedSchemeIds(ids)
+    setSelectedPackageIds([])
+  }
 
   const runPreview = async () => {
     try {
@@ -187,6 +336,17 @@ export default function ComposeCampaignPage() {
         audience,
       })
       setPreview(result)
+      setLiveSendableCount(result.sendableCount)
+      const schemeMap: Record<number, number> = {}
+      for (const row of result.perSchemeCounts ?? []) {
+        schemeMap[row.schemeId] = row.recipientCount
+      }
+      setLiveSchemeCounts(schemeMap)
+      const packageMap: Record<number, number> = {}
+      for (const row of result.perPackageCounts ?? []) {
+        packageMap[row.packageId] = row.recipientCount
+      }
+      setLivePackageCounts(packageMap)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Preview failed')
       setPreview(null)
@@ -236,9 +396,6 @@ export default function ComposeCampaignPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Compose campaign</h1>
-          <p className="text-sm text-gray-600">
-            Admin shells only — ad hoc content is not saved as a reusable template. English only.
-          </p>
         </div>
         <Button asChild variant="outline">
           <Link href="/admin/campaigns">Back to history</Link>
@@ -294,9 +451,10 @@ export default function ComposeCampaignPage() {
                   label="Schemes"
                   entities={schemeEntities}
                   selectedIds={selectedSchemeIds}
-                  onChange={setSelectedSchemeIds}
+                  onChange={onSchemesChange}
                   loading={entitiesLoading}
                   placeholder="Search schemes…"
+                  countsById={liveSchemeCounts}
                 />
               ) : (
                 <div className="space-y-2">
@@ -309,24 +467,48 @@ export default function ComposeCampaignPage() {
                     value={pasteList}
                     onChange={(e) => setPasteList(e.target.value)}
                   />
+                  {pasteValidCount != null ? (
+                    <p className="text-xs text-gray-500">{pasteValidCount} valid addresses</p>
+                  ) : null}
                 </div>
               )}
 
               {audienceMode === 'scheme_customers' ? (
-                <div className="space-y-2">
+                <>
                   <EntityMultiSelect
                     label="Packages"
                     entities={packageEntities}
                     selectedIds={selectedPackageIds}
                     onChange={setSelectedPackageIds}
-                    loading={entitiesLoading}
-                    placeholder="Search packages…"
+                    loading={entitiesLoading || packagesLoading}
+                    placeholder={
+                      selectedSchemeIds.length > 0
+                        ? 'Packages linked to selected schemes…'
+                        : 'Search packages…'
+                    }
+                    countsById={livePackageCounts}
                   />
-                  <p className="text-xs text-gray-500">
-                    Customer/policy status filters default to ACTIVE for this MVP compose form.
-                    Inactive schemes/packages appear in the list but cannot be selected.
-                  </p>
-                </div>
+                  <div className="space-y-2">
+                    <Label>Policy status</Label>
+                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                      {POLICY_STATUSES.map((status) => {
+                        const checked = policyStatuses.includes(status)
+                        return (
+                          <label
+                            key={status}
+                            className="flex items-center gap-2 rounded-md border px-2 py-1.5 text-xs text-gray-800"
+                          >
+                            <Checkbox
+                              checked={checked}
+                              onCheckedChange={(v) => togglePolicyStatus(status, v === true)}
+                            />
+                            <span className="truncate">{status.replaceAll('_', ' ')}</span>
+                          </label>
+                        )
+                      })}
+                    </div>
+                  </div>
+                </>
               ) : null}
 
               <TabsContent value="SMS" className="mt-0 space-y-3">
@@ -373,18 +555,26 @@ export default function ComposeCampaignPage() {
                 </div>
               ) : null}
 
-              <div className="flex gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => void runPreview()}
-                  disabled={loadingPreview || !name}
-                >
-                  {loadingPreview ? 'Previewing…' : 'Preview'}
-                </Button>
-                <Button type="button" onClick={() => void send()} disabled={sending || !name}>
-                  {sending ? 'Sending…' : 'Send'}
-                </Button>
+              <div className="space-y-2">
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => void runPreview()}
+                    disabled={loadingPreview || !name}
+                  >
+                    {loadingPreview ? 'Previewing…' : 'Preview'}
+                  </Button>
+                  <Button type="button" onClick={() => void send()} disabled={sending || !name}>
+                    {sending ? 'Sending…' : 'Send'}
+                  </Button>
+                </div>
+                <p className="text-sm text-gray-600">
+                  Sendable recipients:{' '}
+                  <span className="font-medium text-gray-900">
+                    {liveSendableCount == null ? '—' : liveSendableCount.toLocaleString()}
+                  </span>
+                </p>
               </div>
             </CardContent>
           </Card>

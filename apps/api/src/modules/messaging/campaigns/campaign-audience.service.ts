@@ -102,10 +102,13 @@ export class CampaignAudienceService {
         byKey.set(key, {
           ...c,
           contributingSchemeIds: [...(c.contributingSchemeIds ?? (c.schemeId != null ? [c.schemeId] : []))],
+          contributingPackageIds: [
+            ...(c.contributingPackageIds ?? (c.packageId != null ? [c.packageId] : [])),
+          ],
         });
         continue;
       }
-      // SC-005 / overlapping modes: one send; union scheme attribution for pills
+      // SC-005 / overlapping modes: one send; union scheme/package attribution for pills
       const schemeSet = new Set([
         ...(existing.contributingSchemeIds ?? []),
         ...(c.contributingSchemeIds ?? []),
@@ -113,10 +116,18 @@ export class CampaignAudienceService {
         ...(c.schemeId != null ? [c.schemeId] : []),
       ]);
       existing.contributingSchemeIds = Array.from(schemeSet).sort((a, b) => a - b);
+      const packageSet = new Set([
+        ...(existing.contributingPackageIds ?? []),
+        ...(c.contributingPackageIds ?? []),
+        ...(existing.packageId != null ? [existing.packageId] : []),
+        ...(c.packageId != null ? [c.packageId] : []),
+      ]);
+      existing.contributingPackageIds = Array.from(packageSet).sort((a, b) => a - b);
       // Prefer non-null customer/policy identity when merging contact↔customer overlap
       if (!existing.customerId && c.customerId) existing.customerId = c.customerId;
       if (!existing.policyId && c.policyId) existing.policyId = c.policyId;
       if (!existing.customerName && c.customerName) existing.customerName = c.customerName;
+      if (existing.packageId == null && c.packageId != null) existing.packageId = c.packageId;
     }
     return Array.from(byKey.values());
   }
@@ -126,15 +137,25 @@ export class CampaignAudienceService {
     const softSkipsFromExpand: CampaignAudienceExpandResult['softSkipsFromExpand'] = [];
     const raw: CampaignCandidate[] = [];
 
-    if (modes.has('SCHEME_CUSTOMERS') || modes.has('SCHEME_CONTACTS')) {
-      await this.assertSelectableSchemesAndPackages(
-        input.schemeIds ?? [],
-        modes.has('SCHEME_CUSTOMERS') ? input.packageIds ?? [] : [],
-      );
+    let customerInput = input;
+    if (modes.has('SCHEME_CUSTOMERS')) {
+      const schemeIds = input.schemeIds ?? [];
+      let packageIds = [...(input.packageIds ?? [])];
+      if (packageIds.length === 0 && schemeIds.length > 0) {
+        const linked = await this.prisma.packageScheme.findMany({
+          where: { schemeId: { in: schemeIds } },
+          select: { packageId: true },
+        });
+        packageIds = Array.from(new Set(linked.map((l) => l.packageId)));
+      }
+      customerInput = { ...input, packageIds };
+      await this.assertSelectableSchemesAndPackages(schemeIds, packageIds);
+    } else if (modes.has('SCHEME_CONTACTS')) {
+      await this.assertSelectableSchemesAndPackages(input.schemeIds ?? [], []);
     }
 
     if (modes.has('SCHEME_CUSTOMERS')) {
-      raw.push(...(await this.expandSchemeCustomers(input, softSkipsFromExpand)));
+      raw.push(...(await this.expandSchemeCustomers(customerInput, softSkipsFromExpand)));
     }
     if (modes.has('SCHEME_CONTACTS')) {
       raw.push(...(await this.expandSchemeContacts(input, softSkipsFromExpand)));
@@ -150,10 +171,19 @@ export class CampaignAudienceService {
     input: CampaignAudienceInput,
     softSkips: CampaignAudienceExpandResult['softSkipsFromExpand'],
   ): Promise<CampaignCandidate[]> {
+    const schemeIds = input.schemeIds ?? [];
+    const packageIds = input.packageIds ?? [];
+    if (packageIds.length === 0) return [];
+
+    // Packages-only: customers with a matching policy on those packages (no enrollment filter).
+    if (schemeIds.length === 0) {
+      return this.expandCustomersByPolicyPackages(input, packageIds, softSkips);
+    }
+
     const packageSchemes = await this.prisma.packageScheme.findMany({
       where: {
-        schemeId: { in: input.schemeIds },
-        packageId: { in: input.packageIds },
+        schemeId: { in: schemeIds },
+        packageId: { in: packageIds },
       },
       select: { id: true, schemeId: true, packageId: true },
     });
@@ -176,13 +206,12 @@ export class CampaignAudienceService {
       },
     });
 
-    const statusSet = new Set(input.customerStatuses);
+    // Customer status is not used for campaign audience filtering.
     const customersById = new Map<string, CustomerRow>();
     const customerSchemeIds = new Map<string, Set<number>>();
 
     for (const row of psc) {
       const c = row.customer;
-      if (!statusSet.has(c.status)) continue;
       // FR-019: include isTestUser — no exclusion
       customersById.set(c.id, c);
       const ps = packageSchemes.find((x) => x.id === row.packageSchemeId);
@@ -200,7 +229,7 @@ export class CampaignAudienceService {
       where: {
         customerId: { in: customerIds },
         status: { in: input.policyStatuses as any },
-        packagePlan: { packageId: { in: input.packageIds } },
+        packagePlan: { packageId: { in: packageIds } },
       },
       select: {
         id: true,
@@ -216,7 +245,7 @@ export class CampaignAudienceService {
       },
     });
 
-    const selectedSchemeSet = new Set(input.schemeIds);
+    const selectedSchemeSet = new Set(schemeIds);
     const out: CampaignCandidate[] = [];
     for (const policy of policies) {
       const customer = customersById.get(policy.customerId);
@@ -225,6 +254,7 @@ export class CampaignAudienceService {
         .filter((id) => selectedSchemeSet.has(id))
         .sort((a, b) => a - b);
       const schemeId = allSchemes[0] ?? null;
+      const packageId = policy.packagePlan?.packageId ?? null;
       out.push(
         this.buildCandidate({
           channel: input.channel,
@@ -232,6 +262,73 @@ export class CampaignAudienceService {
           policyId: policy.id,
           schemeId,
           contributingSchemeIds: allSchemes,
+          packageId,
+          contributingPackageIds: packageId != null ? [packageId] : [],
+          productName: policy.packagePlan?.package?.name ?? '',
+          policyNumber: policy.policyNumber ?? '',
+          body: input.body,
+          subject: input.subject,
+          supportNumbers: input.supportNumbers,
+          softSkips,
+        }),
+      );
+    }
+    return out;
+  }
+
+  private async expandCustomersByPolicyPackages(
+    input: CampaignAudienceInput,
+    packageIds: number[],
+    softSkips: CampaignAudienceExpandResult['softSkipsFromExpand'],
+  ): Promise<CampaignCandidate[]> {
+    const policies = await this.prisma.policy.findMany({
+      where: {
+        status: { in: input.policyStatuses as any },
+        packagePlan: { packageId: { in: packageIds } },
+      },
+      select: {
+        id: true,
+        customerId: true,
+        policyNumber: true,
+        status: true,
+        packagePlan: {
+          select: {
+            packageId: true,
+            package: { select: { id: true, name: true } },
+          },
+        },
+      },
+    });
+    if (policies.length === 0) return [];
+
+    const customerIds = Array.from(new Set(policies.map((p) => p.customerId)));
+    const customers = await this.prisma.customer.findMany({
+      where: { id: { in: customerIds } },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        email: true,
+        phoneNumber: true,
+        status: true,
+        isTestUser: true,
+      },
+    });
+    const customersById = new Map(customers.map((c) => [c.id, c]));
+    const out: CampaignCandidate[] = [];
+    for (const policy of policies) {
+      const customer = customersById.get(policy.customerId);
+      if (!customer) continue;
+      const packageId = policy.packagePlan?.packageId ?? null;
+      out.push(
+        this.buildCandidate({
+          channel: input.channel,
+          customer,
+          policyId: policy.id,
+          schemeId: null,
+          contributingSchemeIds: [],
+          packageId,
+          contributingPackageIds: packageId != null ? [packageId] : [],
           productName: policy.packagePlan?.package?.name ?? '',
           policyNumber: policy.policyNumber ?? '',
           body: input.body,
@@ -438,6 +535,8 @@ export class CampaignAudienceService {
     policyId: string | null;
     schemeId: number | null;
     contributingSchemeIds?: number[];
+    packageId?: number | null;
+    contributingPackageIds?: number[];
     productName: string;
     policyNumber: string;
     body: string;
@@ -504,6 +603,10 @@ export class CampaignAudienceService {
       params.contributingSchemeIds ??
       (params.schemeId != null ? [params.schemeId] : []);
 
+    const packageId = params.packageId ?? null;
+    const contributingPackageIds =
+      params.contributingPackageIds ?? (packageId != null ? [packageId] : []);
+
     return {
       channel: params.channel,
       normalizedAddress: address,
@@ -511,6 +614,8 @@ export class CampaignAudienceService {
       policyId: params.policyId,
       schemeId: params.schemeId,
       contributingSchemeIds,
+      packageId,
+      contributingPackageIds,
       customerName,
       renderedSubject,
       renderedBody,

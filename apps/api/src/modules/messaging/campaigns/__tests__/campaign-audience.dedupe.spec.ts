@@ -9,6 +9,8 @@ function cand(partial: Partial<CampaignCandidate> & Pick<CampaignCandidate, 'nor
     policyId: null,
     schemeId: null,
     contributingSchemeIds: [],
+    packageId: null,
+    contributingPackageIds: [],
     customerName: null,
     renderedSubject: null,
     placeholderValues: {},
@@ -155,6 +157,8 @@ describe('CampaignAudienceService dedupe fixtures (US7 / SC-005 / SC-006)', () =
       customerId: 'c1',
       schemeId: 1,
       contributingSchemeIds: [1],
+      packageId: null,
+      contributingPackageIds: [],
     });
     const fromContact = cand({
       normalizedAddress: '254700000001',
@@ -163,6 +167,8 @@ describe('CampaignAudienceService dedupe fixtures (US7 / SC-005 / SC-006)', () =
       customerId: null,
       schemeId: 1,
       contributingSchemeIds: [1],
+      packageId: null,
+      contributingPackageIds: [],
       customerName: 'Scheme Contact',
     });
     const deduped = service.dedupeByAddressAndContent([fromCustomer, fromContact]);

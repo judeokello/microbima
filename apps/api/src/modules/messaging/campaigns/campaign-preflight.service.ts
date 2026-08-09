@@ -61,6 +61,19 @@ export class CampaignPreflightService {
     }));
   }
 
+  computePerPackageCounts(
+    packageMeta: Array<{ id: number; name: string }>,
+    sendable: CampaignCandidate[],
+  ): Array<{ packageId: number; packageName: string; recipientCount: number }> {
+    return packageMeta.map((p) => ({
+      packageId: p.id,
+      packageName: p.name,
+      recipientCount: sendable.filter((c) =>
+        (c.contributingPackageIds ?? (c.packageId != null ? [c.packageId] : [])).includes(p.id),
+      ).length,
+    }));
+  }
+
   selectSample(sendable: CampaignCandidate[]): CampaignCandidate | null {
     if (sendable.length === 0) return null;
     const sorted = [...sendable].sort((a, b) => {

@@ -9,8 +9,26 @@ import { useBAStatusCheck } from '@/hooks/useBAStatusCheck';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { LogOut, User, LayoutDashboard, Search, Home, Users, UsersRound, Menu, Building2, Wallet, MessageSquare, Megaphone, FileCheck, FileSpreadsheet, Layers, ClipboardPen, FileText } from 'lucide-react';
-import { MessagingNavGroup } from '@/components/messaging/messaging-nav-group';
+import {
+  LogOut,
+  User,
+  LayoutDashboard,
+  Search,
+  Home,
+  Users,
+  UsersRound,
+  Menu,
+  Building2,
+  Wallet,
+  MessageSquare,
+  Megaphone,
+  FileCheck,
+  FileSpreadsheet,
+  Layers,
+  ClipboardPen,
+  FileText,
+} from 'lucide-react';
+import { ExpandableNavGroup } from '@/components/messaging/expandable-nav-group';
 
 export default function AdminLayout({
   children,
@@ -22,7 +40,6 @@ export default function AdminLayout({
   const isMobile = useIsMobile();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  // Check BA active status during active sessions (for BA users who also have admin access)
   useBAStatusCheck();
 
   const isCampaignHistoryPath =
@@ -41,7 +58,6 @@ export default function AdminLayout({
     );
   }
 
-  // If user is not authenticated, redirect to login
   if (!user) {
     window.location.href = '/auth/login';
     return null;
@@ -61,6 +77,10 @@ export default function AdminLayout({
     );
   }
 
+  const closeMobile = () => {
+    if (isMobile) setSidebarOpen(false);
+  };
+
   const SidebarContent = () => (
     <>
       <div className="mb-6">
@@ -74,62 +94,73 @@ export default function AdminLayout({
       <nav className="space-y-2">
         {isAdmin ? (
           <>
-        <Link
-          href="/admin"
-          className={`flex items-center px-3 py-2 rounded-md hover:bg-white/10 transition-colors ${
-            pathname === '/admin' ? 'bg-white/10' : ''
-          }`}
-          onClick={() => isMobile && setSidebarOpen(false)}
-        >
-          <Home className="h-4 w-4 mr-2" />
-          Dashboard
-        </Link>
-        <Link
-          href="/admin/customers"
-          className={`flex items-center px-3 py-2 rounded-md hover:bg-white/10 transition-colors ${
-            pathname === '/admin/customers' ? 'bg-white/10' : ''
-          }`}
-          onClick={() => isMobile && setSidebarOpen(false)}
-        >
-          <Users className="h-4 w-4 mr-2" />
-          Customers
-        </Link>
-
-        <Link
-          href="/admin/ba-management"
-          className={`flex items-center px-3 py-2 rounded-md hover:bg-white/10 transition-colors ${
-            pathname === '/admin/ba-management' ? 'bg-white/10' : ''
-          }`}
-          onClick={() => isMobile && setSidebarOpen(false)}
-        >
-          <UsersRound className="h-4 w-4 mr-2" />
-          Manage Agents
-        </Link>
-        <Link
-          href="/admin/underwriters"
-          className={`flex items-center px-3 py-2 rounded-md hover:bg-white/10 transition-colors ${
-            pathname?.startsWith('/admin/underwriters') ? 'bg-white/10' : ''
-          }`}
-          onClick={() => isMobile && setSidebarOpen(false)}
-        >
-          <Building2 className="h-4 w-4 mr-2" />
-          Underwriters
-        </Link>
-        <Link
-          href="/admin/schemes"
-          className={`flex items-center px-3 py-2 rounded-md hover:bg-white/10 transition-colors ${
-            pathname?.startsWith('/admin/schemes') ? 'bg-white/10' : ''
-          }`}
-          onClick={() => isMobile && setSidebarOpen(false)}
-        >
-          <Layers className="h-4 w-4 mr-2" />
-          Schemes
-        </Link>
+            <Link
+              href="/admin"
+              className={`flex items-center px-3 py-2 rounded-md hover:bg-white/10 transition-colors ${
+                pathname === '/admin' ? 'bg-white/10' : ''
+              }`}
+              onClick={closeMobile}
+            >
+              <Home className="h-4 w-4 mr-2" />
+              Dashboard
+            </Link>
+            <Link
+              href="/dashboard/search"
+              className={`flex items-center px-3 py-2 rounded-md hover:bg-white/10 transition-colors ${
+                pathname === '/dashboard/search' ? 'bg-white/10' : ''
+              }`}
+              onClick={closeMobile}
+            >
+              <Search className="h-4 w-4 mr-2" />
+              Find Customer
+            </Link>
+            <Link
+              href="/admin/customers"
+              className={`flex items-center px-3 py-2 rounded-md hover:bg-white/10 transition-colors ${
+                pathname === '/admin/customers' ? 'bg-white/10' : ''
+              }`}
+              onClick={closeMobile}
+            >
+              <Users className="h-4 w-4 mr-2" />
+              Customers
+            </Link>
+            <Link
+              href="/admin/ba-management"
+              className={`flex items-center px-3 py-2 rounded-md hover:bg-white/10 transition-colors ${
+                pathname === '/admin/ba-management' ? 'bg-white/10' : ''
+              }`}
+              onClick={closeMobile}
+            >
+              <UsersRound className="h-4 w-4 mr-2" />
+              Manage Agents
+            </Link>
+            <Link
+              href="/admin/underwriters"
+              className={`flex items-center px-3 py-2 rounded-md hover:bg-white/10 transition-colors ${
+                pathname?.startsWith('/admin/underwriters') ? 'bg-white/10' : ''
+              }`}
+              onClick={closeMobile}
+            >
+              <Building2 className="h-4 w-4 mr-2" />
+              Underwriters
+            </Link>
+            <Link
+              href="/admin/schemes"
+              className={`flex items-center px-3 py-2 rounded-md hover:bg-white/10 transition-colors ${
+                pathname?.startsWith('/admin/schemes') ? 'bg-white/10' : ''
+              }`}
+              onClick={closeMobile}
+            >
+              <Layers className="h-4 w-4 mr-2" />
+              Schemes
+            </Link>
           </>
         ) : null}
-        <MessagingNavGroup
+
+        <ExpandableNavGroup
+          title="Messaging"
           pathname={pathname}
-          onNavigate={() => isMobile && setSidebarOpen(false)}
+          onNavigate={closeMobile}
           items={
             isAdmin
               ? [
@@ -158,71 +189,54 @@ export default function AdminLayout({
                     label: 'Campaigns',
                     icon: Megaphone,
                     match: (p) =>
-                      !!p?.startsWith('/admin/campaigns') && !p?.startsWith('/admin/campaigns/compose'),
+                      !!p?.startsWith('/admin/campaigns') &&
+                      !p?.startsWith('/admin/campaigns/compose'),
                   },
                 ]
           }
         />
+
         {isAdmin ? (
           <>
-        <Link
-          href="/admin/mpesa-payments"
-          className={`flex items-center px-3 py-2 rounded-md hover:bg-white/10 transition-colors ${
-            pathname?.startsWith('/admin/mpesa-payments') ? 'bg-white/10' : ''
-          }`}
-          onClick={() => isMobile && setSidebarOpen(false)}
-        >
-          <Wallet className="h-4 w-4 mr-2" />
-          MPESA Payments
-        </Link>
-        <Link
-          href="/admin/member-number-reconciliation"
-          className={`flex items-center px-3 py-2 rounded-md hover:bg-white/10 transition-colors ${
-            pathname === '/admin/member-number-reconciliation' ? 'bg-white/10' : ''
-          }`}
-          onClick={() => isMobile && setSidebarOpen(false)}
-        >
-          <FileCheck className="h-4 w-4 mr-2" />
-          Member # Reconciliation
-        </Link>
-        <Link
-          href="/admin/lct-exports"
-          className={`flex items-center px-3 py-2 rounded-md hover:bg-white/10 transition-colors ${
-            pathname?.startsWith('/admin/lct-exports') ? 'bg-white/10' : ''
-          }`}
-          onClick={() => isMobile && setSidebarOpen(false)}
-        >
-          <FileSpreadsheet className="h-4 w-4 mr-2" />
-          LCT Exports
-        </Link>
-        <Link
-          href="/dashboard/missing-information"
-          className={`flex items-center px-3 py-2 rounded-md hover:bg-white/10 transition-colors ${
-            pathname === '/dashboard/missing-information' ? 'bg-white/10' : ''
-          }`}
-          onClick={() => isMobile && setSidebarOpen(false)}
-        >
-          <ClipboardPen className="h-4 w-4 mr-2" />
-          Missing Information
-        </Link>
-        <Link
-          href="/dashboard/search"
-          className={`flex items-center px-3 py-2 rounded-md hover:bg-white/10 transition-colors ${
-            pathname === '/dashboard/search' ? 'bg-white/10' : ''
-          }`}
-          onClick={() => isMobile && setSidebarOpen(false)}
-        >
-          <Search className="h-4 w-4 mr-2" />
-          Find Customer
-        </Link>
-        <Link
-          href="/dashboard"
-          className="flex items-center px-3 py-2 rounded-md hover:bg-white/10 transition-colors"
-          onClick={() => isMobile && setSidebarOpen(false)}
-        >
-          <LayoutDashboard className="h-4 w-4 mr-2" />
-          Agent Dashboard
-        </Link>
+            <ExpandableNavGroup
+              title="Utilities"
+              pathname={pathname}
+              onNavigate={closeMobile}
+              items={[
+                {
+                  href: '/admin/mpesa-payments',
+                  label: 'MPESA Payments',
+                  icon: Wallet,
+                  match: (p) => !!p?.startsWith('/admin/mpesa-payments'),
+                },
+                {
+                  href: '/admin/member-number-reconciliation',
+                  label: 'Member # Reconciliation',
+                  icon: FileCheck,
+                  match: (p) => p === '/admin/member-number-reconciliation',
+                },
+                {
+                  href: '/dashboard/missing-information',
+                  label: 'Missing Information',
+                  icon: ClipboardPen,
+                  match: (p) => p === '/dashboard/missing-information',
+                },
+                {
+                  href: '/admin/lct-exports',
+                  label: 'LCT Exports',
+                  icon: FileSpreadsheet,
+                  match: (p) => !!p?.startsWith('/admin/lct-exports'),
+                },
+              ]}
+            />
+            <Link
+              href="/dashboard"
+              className="flex items-center px-3 py-2 rounded-md hover:bg-white/10 transition-colors"
+              onClick={closeMobile}
+            >
+              <LayoutDashboard className="h-4 w-4 mr-2" />
+              Agent Dashboard
+            </Link>
           </>
         ) : null}
       </nav>
@@ -243,34 +257,29 @@ export default function AdminLayout({
 
   return (
     <div className="flex min-h-screen">
-      {/* Mobile Hamburger Menu */}
       {isMobile && (
         <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
           <SheetTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="fixed top-4 left-4 z-50 md:hidden"
-            >
+            <Button variant="ghost" size="icon" className="fixed top-4 left-4 z-50 md:hidden">
               <Menu className="h-6 w-6" />
             </Button>
           </SheetTrigger>
           <SheetContent side="left" className="w-64 p-4 text-white" style={{ backgroundColor: '#2D1B69' }}>
             <SheetHeader>
               <SheetTitle className="sr-only">Navigation Menu</SheetTitle>
-              <SheetDescription className="sr-only">Main navigation menu for the admin dashboard</SheetDescription>
+              <SheetDescription className="sr-only">
+                Main navigation menu for the admin dashboard
+              </SheetDescription>
             </SheetHeader>
             <SidebarContent />
           </SheetContent>
         </Sheet>
       )}
 
-      {/* Admin Sidebar - Hidden on mobile, visible on desktop */}
       <aside className="hidden md:block w-64 text-white p-4" style={{ backgroundColor: '#2D1B69' }}>
         <SidebarContent />
       </aside>
 
-      {/* Main content */}
       <main className="flex-1 p-6 bg-gray-100">
         {!isMobile && (
           <div className="mb-6">

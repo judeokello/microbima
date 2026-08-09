@@ -29,6 +29,8 @@ interface EntityMultiSelectProps {
   loading?: boolean
   placeholder?: string
   emptyText?: string
+  /** Optional sendable/matched counts keyed by entity id (shown on selected pills). */
+  countsById?: Record<number, number>
 }
 
 export function EntityMultiSelect({
@@ -39,6 +41,7 @@ export function EntityMultiSelect({
   loading,
   placeholder = 'Search…',
   emptyText = 'No matches',
+  countsById,
 }: EntityMultiSelectProps) {
   const [open, setOpen] = React.useState(false)
   const selected = entities.filter((e) => selectedIds.includes(e.id))
@@ -120,7 +123,12 @@ export function EntityMultiSelect({
               key={e.id}
               className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-2 py-0.5 text-xs text-slate-800"
             >
-              {e.name}
+              <span>
+                {e.name}
+                {countsById && e.id in countsById ? (
+                  <span className="ml-1 text-slate-500">({countsById[e.id]})</span>
+                ) : null}
+              </span>
               <button type="button" aria-label={`Remove ${e.name}`} onClick={() => remove(e.id)}>
                 <X className="h-3 w-3" />
               </button>
