@@ -154,6 +154,34 @@ export class ProductManagementController {
     };
   }
 
+  @Get('schemes/packages')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'List packages linked to schemes',
+    description:
+      'Distinct packages linked via package_schemes for the given scheme IDs (includes inactive).',
+  })
+  @ApiResponse({ status: 200, description: 'Packages retrieved successfully' })
+  async listPackagesForSchemes(
+    @CorrelationId() correlationId: string,
+    @Query('schemeIds') schemeIdsRaw?: string,
+  ) {
+    const schemeIds = (schemeIdsRaw ?? '')
+      .split(',')
+      .map((s) => Number(s.trim()))
+      .filter((n) => Number.isInteger(n) && n > 0);
+    const packages = await this.productManagementService.listPackagesForSchemes(
+      schemeIds,
+      correlationId,
+    );
+    return {
+      status: HttpStatus.OK,
+      correlationId,
+      message: 'Packages retrieved successfully',
+      data: packages,
+    };
+  }
+
   /**
    * Create a new package
    */

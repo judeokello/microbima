@@ -216,6 +216,43 @@ export class ProductManagementService {
   }
 
   /**
+   * Packages linked to any of the given schemes (for campaign compose pickers).
+   * Includes inactive packages; UI disables inactive rows.
+   */
+  async listPackagesForSchemes(schemeIds: number[], correlationId: string) {
+    this.logger.log(
+      `[${correlationId}] Listing packages for schemes [${schemeIds.join(',')}]`,
+    );
+    if (schemeIds.length === 0) return [];
+    try {
+      const rows = await this.prismaService.packageScheme.findMany({
+        where: { schemeId: { in: schemeIds } },
+        select: {
+          package: {
+            select: { id: true, name: true, isActive: true },
+          },
+        },
+      });
+      const byId = new Map<number, { id: number; name: string; isActive: boolean }>();
+      for (const row of rows) {
+        if (!row.package) continue;
+        byId.set(row.package.id, {
+          id: row.package.id,
+          name: row.package.name,
+          isActive: row.package.isActive,
+        });
+      }
+      return Array.from(byId.values()).sort((a, b) => a.name.localeCompare(b.name));
+    } catch (error) {
+      this.logger.error(
+        `[${correlationId}] Error listing packages for schemes: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        error instanceof Error ? error.stack : undefined,
+      );
+      throw error;
+    }
+  }
+
+  /**
    * Get active schemes for a package
    * @param packageId - Package ID
    * @param correlationId - Correlation ID for tracing

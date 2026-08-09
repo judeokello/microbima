@@ -43,6 +43,7 @@ export class CampaignService {
       largeAudienceWarning: result.largeAudienceWarning,
       requiresNameConfirmation: result.sendableCount >= settings.campaignConfirmThreshold,
       perSchemeCounts: await this.computePerSchemeCounts(dto, result),
+      perPackageCounts: await this.computePerPackageCounts(dto, result),
       sample: result.sample
         ? {
             customerId: result.sample.customerId,
@@ -344,10 +345,10 @@ export class CampaignService {
     }
 
     if (modes.has(AudienceModeDto.SCHEME_CUSTOMERS)) {
-      if (!dto.audience.schemeIds?.length) errors['audience.schemeIds'] = 'Scheme is required';
-      if (!dto.audience.packageIds?.length) errors['audience.packageIds'] = 'At least one package is required';
-      if (!dto.audience.customerStatuses?.length) {
-        errors['audience.customerStatuses'] = 'At least one customer status is required';
+      const hasSchemes = !!dto.audience.schemeIds?.length;
+      const hasPackages = !!dto.audience.packageIds?.length;
+      if (!hasSchemes && !hasPackages) {
+        errors['audience'] = 'Select at least one scheme or package';
       }
       if (!dto.audience.policyStatuses?.length) {
         errors['audience.policyStatuses'] = 'At least one policy status is required';
@@ -471,6 +472,16 @@ export class CampaignService {
       select: { id: true, schemeName: true },
     });
     return this.preflightService.computePerSchemeCounts(schemes, result.sendable);
+  }
+
+  private async computePerPackageCounts(dto: CampaignComposeRequestDto, result: PreflightResult) {
+    const packageIds = dto.audience.packageIds ?? [];
+    if (packageIds.length === 0) return [];
+    const packages = await this.prisma.package.findMany({
+      where: { id: { in: packageIds } },
+      select: { id: true, name: true },
+    });
+    return this.preflightService.computePerPackageCounts(packages, result.sendable);
   }
 
   private async progressFor(campaignId: string, targetedCount: number) {

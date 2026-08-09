@@ -21,9 +21,15 @@ describe('CampaignService preflight persistence (US3)', () => {
     };
     messagingDelivery: { count: jest.Mock; findMany: jest.Mock };
     scheme: { findMany: jest.Mock };
+    package: { findMany: jest.Mock };
   };
   let systemSettings: { getSnapshot: jest.Mock };
-  let preflightService: { run: jest.Mock; isEmptyBody: jest.Mock; computePerSchemeCounts: jest.Mock };
+  let preflightService: {
+    run: jest.Mock;
+    isEmptyBody: jest.Mock;
+    computePerSchemeCounts: jest.Mock;
+    computePerPackageCounts: jest.Mock;
+  };
   let audienceService: {
     contentHash: jest.Mock;
     normalizePhone: jest.Mock;
@@ -62,6 +68,7 @@ describe('CampaignService preflight persistence (US3)', () => {
       },
       messagingDelivery: { count: jest.fn().mockResolvedValue(0), findMany: jest.fn() },
       scheme: { findMany: jest.fn().mockResolvedValue([]) },
+      package: { findMany: jest.fn().mockResolvedValue([]) },
     };
     systemSettings = {
       getSnapshot: jest.fn().mockResolvedValue({
@@ -76,6 +83,7 @@ describe('CampaignService preflight persistence (US3)', () => {
     preflightService = {
       isEmptyBody: jest.fn().mockReturnValue(false),
       computePerSchemeCounts: jest.fn().mockReturnValue([]),
+      computePerPackageCounts: jest.fn().mockReturnValue([]),
       run: jest.fn(),
     };
     audienceService = {

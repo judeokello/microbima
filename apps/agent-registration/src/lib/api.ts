@@ -1859,6 +1859,28 @@ export async function listSchemesForPicker(): Promise<Scheme[]> {
   return data.data
 }
 
+/** Packages linked to any of the given schemes (includes inactive). */
+export async function listPackagesForSchemes(schemeIds: number[]): Promise<Package[]> {
+  if (schemeIds.length === 0) return []
+  const token = await getSupabaseToken()
+  const params = new URLSearchParams({ schemeIds: schemeIds.join(',') })
+  const response = await fetch(
+    `${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/product-management/schemes/packages?${params}`,
+    {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'x-correlation-id': `list-packages-for-schemes-${Date.now()}`,
+      },
+    }
+  )
+  if (!response.ok) {
+    throw new Error(`Failed to fetch packages for schemes: ${response.statusText}`)
+  }
+  const data: PackagesResponse = await response.json()
+  return data.data
+}
+
 export async function getPackageSchemes(packageId: number): Promise<Scheme[]> {
   try {
     const token = await getSupabaseToken()
@@ -2485,6 +2507,7 @@ export interface CampaignPreviewResponse {
   largeAudienceWarning: boolean
   requiresNameConfirmation: boolean
   perSchemeCounts: Array<{ schemeId: number; schemeName: string; recipientCount: number }>
+  perPackageCounts?: Array<{ packageId: number; packageName: string; recipientCount: number }>
   sample?: {
     customerId?: string | null
     address: string
