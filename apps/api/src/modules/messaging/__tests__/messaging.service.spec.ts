@@ -77,7 +77,7 @@ describe('MessagingService.enqueue non-prod redirect', () => {
       expect.objectContaining({
         data: expect.objectContaining({
           channel: 'SMS',
-          recipientPhone: '254711111111',
+          recipientPhone: '0711111111',
           status: 'PENDING',
         }),
       }),
@@ -158,7 +158,7 @@ describe('MessagingService.enqueue non-prod redirect', () => {
     expect(prisma.messagingDelivery.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
-          recipientPhone: '254700000004',
+          recipientPhone: '0700000004',
         }),
       }),
     );
@@ -178,7 +178,7 @@ describe('MessagingService.enqueue non-prod redirect', () => {
     expect(prisma.messagingDelivery.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
-          recipientPhone: '254733333333',
+          recipientPhone: '0733333333',
           customerId: null,
         }),
       }),
