@@ -147,18 +147,19 @@ export class ProductManagementService {
     );
   }
 
-  async getPackages(correlationId: string) {
-    this.logger.log(`[${correlationId}] Getting all active packages`);
+  async getPackages(correlationId: string, includeInactive = false) {
+    this.logger.log(
+      `[${correlationId}] Getting packages (includeInactive=${includeInactive})`,
+    );
 
     try {
       const packages = await this.prismaService.package.findMany({
-        where: {
-          isActive: true,
-        },
+        where: includeInactive ? {} : { isActive: true },
         select: {
           id: true,
           name: true,
           slug: true,
+          isActive: true,
           packagePaymentFrequencies: {
             select: { frequency: true, installmentCount: true },
             orderBy: { frequency: 'asc' },
@@ -169,17 +170,46 @@ export class ProductManagementService {
         },
       });
 
-      this.logger.log(`[${correlationId}] Found ${packages.length} active packages`);
+      this.logger.log(`[${correlationId}] Found ${packages.length} packages`);
       return packages.map((p) => ({
         id: p.id,
         name: p.name,
         slug: p.slug,
+        isActive: p.isActive,
         paymentFrequencies: this.mapPaymentFrequencies(p.packagePaymentFrequencies),
       }));
     } catch (error) {
       this.logger.error(
         `[${correlationId}] Error getting packages: ${error instanceof Error ? error.message : 'Unknown error'}`,
         error instanceof Error ? error.stack : undefined
+      );
+      throw error;
+    }
+  }
+
+  /**
+   * Flat scheme list for pickers (includes inactive; UI disables inactive rows).
+   */
+  async listSchemesForPicker(correlationId: string) {
+    this.logger.log(`[${correlationId}] Listing schemes for picker`);
+    try {
+      const schemes = await this.prismaService.scheme.findMany({
+        select: {
+          id: true,
+          schemeName: true,
+          isActive: true,
+        },
+        orderBy: { schemeName: 'asc' },
+      });
+      return schemes.map((s) => ({
+        id: s.id,
+        name: s.schemeName,
+        isActive: s.isActive,
+      }));
+    } catch (error) {
+      this.logger.error(
+        `[${correlationId}] Error listing schemes for picker: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        error instanceof Error ? error.stack : undefined,
       );
       throw error;
     }

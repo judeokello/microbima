@@ -9,7 +9,8 @@ import { useBAStatusCheck } from '@/hooks/useBAStatusCheck';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { LogOut, User, Settings, Search, Home, UserPlus, ClipboardList, Menu, RefreshCw, Hospital, ClipboardPen } from 'lucide-react';
+import { LogOut, User, Settings, Search, Home, UserPlus, ClipboardList, Menu, RefreshCw, Hospital, ClipboardPen, MessageSquare } from 'lucide-react';
+import { MessagingNavGroup } from '@/components/messaging/messaging-nav-group';
 
 export default function DashboardLayout({
   children,
@@ -130,6 +131,19 @@ export default function DashboardLayout({
           <Hospital className="h-4 w-4 mr-2" />
           Providers
         </Link>
+
+        <MessagingNavGroup
+          pathname={pathname}
+          onNavigate={() => isMobile && setSidebarOpen(false)}
+          items={[
+            {
+              href: '/dashboard/messages',
+              label: 'Messages',
+              icon: MessageSquare,
+              match: (p) => !!p?.startsWith('/dashboard/messages'),
+            },
+          ]}
+        />
 
         {(isCustomerCare || isRegistrationAdmin) && (
           <Link
