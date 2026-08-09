@@ -37,8 +37,8 @@ export function MessagesList({ basePath }: MessagesListProps) {
   const [deliveries, setDeliveries] = useState<MessagingDelivery[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [customerId, setCustomerId] = useState('')
-  const [policyId, setPolicyId] = useState('')
+  const [customerName, setCustomerName] = useState('')
+  const [recipientPhone, setRecipientPhone] = useState('')
   const [channel, setChannel] = useState<string>('all')
   const [status, setStatus] = useState<string>('all')
   const [page] = useState(1)
@@ -49,8 +49,8 @@ export function MessagesList({ basePath }: MessagesListProps) {
       setLoading(true)
       setError(null)
       const params: ListDeliveriesParams = { page, pageSize }
-      if (customerId.trim()) params.customerId = customerId.trim()
-      if (policyId.trim()) params.policyId = policyId.trim()
+      if (customerName.trim()) params.customerName = customerName.trim()
+      if (recipientPhone.trim()) params.recipientPhone = recipientPhone.trim()
       if (channel && channel !== 'all') params.channel = channel as 'SMS' | 'EMAIL'
       if (status && status !== 'all') params.status = status
 
@@ -63,7 +63,7 @@ export function MessagesList({ basePath }: MessagesListProps) {
     } finally {
       setLoading(false)
     }
-  }, [customerId, policyId, channel, status, page])
+  }, [customerName, recipientPhone, channel, status, page])
 
   useEffect(() => {
     void fetchDeliveries()
@@ -74,31 +74,31 @@ export function MessagesList({ basePath }: MessagesListProps) {
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Messages</h1>
         <p className="mt-1 text-sm text-gray-600">
-          View message delivery history. Filter by customer, policy, channel, or status.
+          View message delivery history. Filter by customer name, phone, channel, or status.
         </p>
       </div>
 
       <Card>
         <CardHeader>
           <CardTitle>Filters</CardTitle>
-          <CardDescription>Narrow down deliveries by customer, policy, channel, or status</CardDescription>
+          <CardDescription>Narrow down by customer name, phone, channel, or status</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-wrap gap-4">
           <div className="flex flex-col gap-1">
-            <label className="text-sm font-medium text-gray-700">Customer ID</label>
+            <label className="text-sm font-medium text-gray-700">Customer name</label>
             <Input
-              placeholder="Customer UUID"
-              value={customerId}
-              onChange={(e) => setCustomerId(e.target.value)}
+              placeholder="e.g. Jane Doe"
+              value={customerName}
+              onChange={(e) => setCustomerName(e.target.value)}
               className="w-64"
             />
           </div>
           <div className="flex flex-col gap-1">
-            <label className="text-sm font-medium text-gray-700">Policy ID</label>
+            <label className="text-sm font-medium text-gray-700">Phone number</label>
             <Input
-              placeholder="Policy UUID"
-              value={policyId}
-              onChange={(e) => setPolicyId(e.target.value)}
+              placeholder="e.g. 0722000000"
+              value={recipientPhone}
+              onChange={(e) => setRecipientPhone(e.target.value)}
               className="w-64"
             />
           </div>

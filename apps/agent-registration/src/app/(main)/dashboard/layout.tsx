@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { LogOut, User, Settings, Search, Home, UserPlus, ClipboardList, Menu, RefreshCw, Hospital, ClipboardPen, MessageSquare } from 'lucide-react';
-import { MessagingNavGroup } from '@/components/messaging/messaging-nav-group';
+import { ExpandableNavGroup } from '@/components/messaging/expandable-nav-group';
 
 export default function DashboardLayout({
   children,
@@ -82,6 +82,16 @@ export default function DashboardLayout({
           Dashboard
         </Link>
         <Link
+          href="/dashboard/search"
+          className={`flex items-center px-3 py-2 rounded-md hover:bg-white/10 transition-colors ${
+            pathname === '/dashboard/search' ? 'bg-white/10' : ''
+          }`}
+          onClick={() => isMobile && setSidebarOpen(false)}
+        >
+          <Search className="h-4 w-4 mr-2" />
+          Find Customer
+        </Link>
+        <Link
           href="/register"
           className={`flex items-center px-3 py-2 rounded-md hover:bg-white/10 transition-colors ${
             pathname?.startsWith('/register') ? 'bg-white/10' : ''
@@ -112,16 +122,6 @@ export default function DashboardLayout({
           Policy Recovery
         </Link>
         <Link
-          href="/dashboard/search"
-          className={`flex items-center px-3 py-2 rounded-md hover:bg-white/10 transition-colors ${
-            pathname === '/dashboard/search' ? 'bg-white/10' : ''
-          }`}
-          onClick={() => isMobile && setSidebarOpen(false)}
-        >
-          <Search className="h-4 w-4 mr-2" />
-          Find Customer
-        </Link>
-        <Link
           href="/dashboard/providers"
           className={`flex items-center px-3 py-2 rounded-md hover:bg-white/10 transition-colors ${
             pathname?.startsWith('/dashboard/providers') ? 'bg-white/10' : ''
@@ -132,7 +132,8 @@ export default function DashboardLayout({
           Providers
         </Link>
 
-        <MessagingNavGroup
+        <ExpandableNavGroup
+          title="Messaging"
           pathname={pathname}
           onNavigate={() => isMobile && setSidebarOpen(false)}
           items={[
@@ -146,19 +147,21 @@ export default function DashboardLayout({
         />
 
         {(isCustomerCare || isRegistrationAdmin) && (
-          <Link
-            href="/dashboard/missing-information"
-            className={`flex items-center px-3 py-2 rounded-md hover:bg-white/10 transition-colors ${
-              pathname === '/dashboard/missing-information' ? 'bg-white/10' : ''
-            }`}
-            onClick={() => isMobile && setSidebarOpen(false)}
-          >
-            <ClipboardPen className="h-4 w-4 mr-2" />
-            Missing Information
-          </Link>
+          <ExpandableNavGroup
+            title="Utilities"
+            pathname={pathname}
+            onNavigate={() => isMobile && setSidebarOpen(false)}
+            items={[
+              {
+                href: '/dashboard/missing-information',
+                label: 'Missing Information',
+                icon: ClipboardPen,
+                match: (p) => p === '/dashboard/missing-information',
+              },
+            ]}
+          />
         )}
 
-        {/* Admin link - only visible if user has registration_admin role */}
         {isAdmin && (
           <Link
             href="/admin"

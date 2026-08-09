@@ -2364,6 +2364,8 @@ export interface MessagingDelivery {
 
 export interface ListDeliveriesParams {
   customerId?: string
+  customerName?: string
+  recipientPhone?: string
   policyId?: string
   channel?: 'SMS' | 'EMAIL'
   status?: string
@@ -2375,6 +2377,8 @@ export async function listMessagingDeliveries(params?: ListDeliveriesParams): Pr
   const token = await getSupabaseToken()
   const searchParams = new URLSearchParams()
   if (params?.customerId) searchParams.set('customerId', params.customerId)
+  if (params?.customerName) searchParams.set('customerName', params.customerName)
+  if (params?.recipientPhone) searchParams.set('recipientPhone', params.recipientPhone)
   if (params?.policyId) searchParams.set('policyId', params.policyId)
   if (params?.channel) searchParams.set('channel', params.channel)
   if (params?.status) searchParams.set('status', params.status)
