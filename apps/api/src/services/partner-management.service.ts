@@ -4,6 +4,8 @@ import { SupabaseService } from './supabase.service';
 import { Prisma } from '@prisma/client';
 import { ValidationException } from '../exceptions/validation.exception';
 import { normalizePhoneNumber } from '../utils/phone-number.util';
+import { assertCanGrantSetupAdmin } from '../utils/setup-admin-role.util';
+import { BootstrapUserService } from './bootstrap-user.service';
 import { Partner } from '../entities/partner.entity';
 import { PartnerApiKey } from '../entities/partner-api-key.entity';
 import * as crypto from 'crypto';
@@ -28,7 +30,8 @@ export class PartnerManagementService {
 
   constructor(
     private readonly prismaService: PrismaService,
-    private readonly supabaseService: SupabaseService
+    private readonly supabaseService: SupabaseService,
+    private readonly bootstrapUserService: BootstrapUserService,
   ) {}
 
   // ==================== PARTNER OPERATIONS ====================
@@ -469,6 +472,16 @@ export class PartnerManagementService {
       throw new NotFoundException(`Partner with ID ${partnerId} not found or inactive`);
     }
 
+    const actorUserId = brandAmbassadorData.createdBy;
+    const actorIsRoot = actorUserId
+      ? await this.bootstrapUserService.isBootstrapUser(actorUserId)
+      : false;
+    assertCanGrantSetupAdmin({
+      actorIsRoot,
+      rolesBeingSet: brandAmbassadorData.roles,
+      previousRoles: [],
+    });
+
     // Combine first and last name into displayName
     const displayName = `${brandAmbassadorData.firstName} ${brandAmbassadorData.lastName}`.trim();
 
@@ -901,6 +914,17 @@ export class PartnerManagementService {
         this.logger.warn(`[${correlationId}] Could not fetch user metadata for role update: ${getUserError?.message}`);
       } else {
         const currentMeta = (user.user_metadata ?? {}) as Record<string, unknown>;
+        const previousRoles = Array.isArray(currentMeta.roles)
+          ? (currentMeta.roles as string[])
+          : [];
+
+        const actorIsRoot = await this.bootstrapUserService.isBootstrapUser(updatedByUserId);
+        assertCanGrantSetupAdmin({
+          actorIsRoot,
+          rolesBeingSet: updateData.roles,
+          previousRoles,
+        });
+
         const updatedMetadata = {
           roles: updateData.roles,
           ...(currentMeta.phone !== undefined ? { phone: currentMeta.phone } : {}),
@@ -1107,5 +1131,10 @@ export class PartnerManagementService {
       this.logger.error(`[${correlationId}] Error during metadata cleanup: ${error instanceof Error ? error.message : 'Unknown error'}`, error instanceof Error ? error.stack : undefined);
       throw error;
     }
+  }
+
+  /** True when userId is the bootstrap (first) user in auth.users. */
+  async isBootstrapUser(userId: string): Promise<boolean> {
+    return this.bootstrapUserService.isBootstrapUser(userId);
   }
 }

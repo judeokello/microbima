@@ -251,6 +251,32 @@ export async function updateBrandAmbassador(id: string, data: UpdateBARequest): 
   }
 }
 
+export async function getIsBootstrapUser(): Promise<boolean> {
+  try {
+    const token = await getSupabaseToken()
+
+    const response = await fetch(
+      `${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/partner-management/auth/is-bootstrap`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'x-correlation-id': `is-bootstrap-${Date.now()}`,
+        },
+      }
+    )
+
+    if (!response.ok) {
+      return false
+    }
+
+    const data = await response.json()
+    return Boolean(data.isBootstrap)
+  } catch (error) {
+    console.error('Error checking bootstrap status:', error)
+    return false
+  }
+}
+
 export async function getBrandAmbassadorRoles(id: string): Promise<string[]> {
   try {
     const token = await getSupabaseToken()
@@ -2025,6 +2051,155 @@ export async function createTag(name: string): Promise<Tag> {
     console.error('Error creating tag:', error)
     throw error
   }
+}
+
+// Package pricing (DB-backed; drop-in for static product-pricing JSON)
+
+export type PackagePricingRateBand = {
+  daily?: number
+  weekly?: number
+  monthly?: number
+  quarterly?: number
+  annually?: number
+}
+
+export type PackagePricingCategory = {
+  id?: number
+  key: string
+  display: string
+  kind: 'MEMBER_ONLY' | 'UP_TO_N' | 'ADDITIONAL_SPOUSE'
+  maxMembers?: number | null
+  sortOrder?: number
+}
+
+export type PackagePricingData = {
+  packageId: number
+  packageSlug?: string | null
+  isPricingComplete: boolean
+  isActive: boolean
+  enabledFrequencies?: string[]
+  categories: PackagePricingCategory[]
+  plans: Record<
+    string,
+    {
+      planId: number
+      name: string
+      isActive?: boolean
+      rates: Record<string, PackagePricingRateBand>
+    }
+  >
+  softLossWarnings?: Array<{
+    planKey: string
+    categoryKey: string
+    frequency: string
+    amount: number
+    floorAmount: number
+    message?: string
+  }>
+  warning?: string | null
+}
+
+export type PutPackagePricingRequest = {
+  categories: PackagePricingCategory[]
+  plans: Record<
+    string,
+    {
+      planId?: number
+      rates: Record<string, PackagePricingRateBand>
+    }
+  >
+}
+
+export type CreatePackagePricingCategoryRequest = {
+  kind: 'MEMBER_ONLY' | 'UP_TO_N' | 'ADDITIONAL_SPOUSE'
+  display: string
+  key?: string
+  maxMembers?: number
+  sortOrder?: number
+}
+
+export type SuggestPackagePricingFillRequest = {
+  planId: number
+  categoryKey: string
+  overwriteFilled?: boolean
+}
+
+async function packagePricingFetch<T>(
+  path: string,
+  init?: RequestInit
+): Promise<T> {
+  const token = await getSupabaseToken()
+  const response = await fetch(
+    `${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/product-management${path}`,
+    {
+      ...init,
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+        'x-correlation-id': `package-pricing-${Date.now()}`,
+        ...(init?.headers ?? {}),
+      },
+    }
+  )
+  if (!response.ok) {
+    let message = `Package pricing request failed: ${response.statusText}`
+    try {
+      const errorData = await response.json()
+      message =
+        errorData.error?.details?.message ??
+        errorData.error?.message ??
+        message
+    } catch {
+      // keep default
+    }
+    throw new Error(message)
+  }
+  const body = await response.json()
+  return body.data as T
+}
+
+export async function getPackagePricing(packageId: number): Promise<PackagePricingData> {
+  return packagePricingFetch<PackagePricingData>(`/packages/${packageId}/pricing`)
+}
+
+export async function getPackagePricingBySlug(slug: string): Promise<PackagePricingData> {
+  return packagePricingFetch<PackagePricingData>(
+    `/packages/by-slug/${encodeURIComponent(slug)}/pricing`
+  )
+}
+
+export async function putPackagePricing(
+  packageId: number,
+  body: PutPackagePricingRequest
+): Promise<PackagePricingData> {
+  return packagePricingFetch<PackagePricingData>(`/packages/${packageId}/pricing`, {
+    method: 'PUT',
+    body: JSON.stringify(body),
+  })
+}
+
+export async function suggestPackagePricingFill(
+  packageId: number,
+  body: SuggestPackagePricingFillRequest
+): Promise<{ planId: number; categoryKey: string; suggested: PackagePricingRateBand }> {
+  return packagePricingFetch(`/packages/${packageId}/pricing/suggest-fill`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
+}
+
+export async function createPackagePricingCategory(
+  packageId: number,
+  body: CreatePackagePricingCategoryRequest
+): Promise<{
+  category: PackagePricingCategory
+  isActive?: boolean
+  warning?: string | null
+}> {
+  return packagePricingFetch(`/packages/${packageId}/pricing/categories`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
 }
 
 // Policy Creation API

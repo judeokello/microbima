@@ -39,6 +39,7 @@
     "backfill:unmapped-mpesa-payments": "ts-node -r dotenv/config scripts/backfill-unmapped-mpesa-payments.ts",
     "backfill:lct-never-sent": "ts-node -r dotenv/config scripts/backfill-lct-never-sent.ts",
     "backfill:missing-requirements": "ts-node -r dotenv/config scripts/backfill-missing-requirements.ts",
+    "backfill:missing-policy-member-dependants": "ts-node -r dotenv/config scripts/backfill-missing-policy-member-dependants.ts",
     "reprocess:siti-empty-msisdn-ipns": "ts-node -r dotenv/config scripts/reprocess-siti-empty-msisdn-ipns.ts",
     "audit:messaging-creator-phones": "ts-node -r dotenv/config scripts/audit-messaging-creator-phones.ts",
     "remediate:daily-premium-as-installment": "ts-node -r dotenv/config scripts/remediate-daily-premium-as-installment.ts"

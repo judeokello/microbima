@@ -58,6 +58,9 @@ export const BAAuth = (options?: {
  */
 export const AdminOnly = () => BAAuth({ roles: ['registration_admin', 'system_admin'] });
 
+/** Package/pricing mutate endpoints (setup wizard). */
+export const SetupAdminOnly = () => BAAuth({ roles: ['setup_admin'] });
+
 /**
  * Decorator for registration admin or customer care (care-ops queues).
  */

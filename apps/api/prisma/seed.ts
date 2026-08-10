@@ -79,7 +79,7 @@ async function createRootUser(): Promise<string | null> {
       password: rootUserPassword,
       email_confirm: true, // Verify email automatically
       user_metadata: {
-        roles: ['registration_admin', 'brand_ambassador'],
+        roles: ['registration_admin', 'brand_ambassador', 'setup_admin'],
         displayName: rootUserDisplayName
       }
     })

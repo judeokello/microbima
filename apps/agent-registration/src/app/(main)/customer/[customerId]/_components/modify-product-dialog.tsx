@@ -28,6 +28,7 @@ import {
 import {
   getModifyPolicyOptions,
   getPackagePlans,
+  getPackagePricingBySlug,
   modifyCustomerPolicy,
   type ModifyPolicyOptions,
   type ModifyPolicyRequest,
@@ -39,23 +40,9 @@ import {
   computeInstallmentPremium,
   isFrequencySupportedByPackage,
   isPricingSubmitBlocked,
-  productPricingPath,
-  type PricingMode,
   type PricingRateBand,
 } from '@/lib/insurance-installment';
-
-interface InsurancePricing {
-  packageSlug?: string;
-  pricingMode?: PricingMode;
-  plans: Record<
-    string,
-    {
-      name: string;
-      categories: Record<string, PricingRateBand & { display: string }>;
-      additional_spouse: PricingRateBand;
-    }
-  >;
-}
+import { mapPackagePricingToUi, type UiInsurancePricing } from '@/lib/package-pricing-ui';
 
 interface ModifyProductDialogProps {
   open: boolean;
@@ -77,7 +64,7 @@ export default function ModifyProductDialog({
   const [error, setError] = useState<string | null>(null);
   const [options, setOptions] = useState<ModifyPolicyOptions | null>(null);
   const [plans, setPlans] = useState<Plan[]>([]);
-  const [pricing, setPricing] = useState<InsurancePricing | null>(null);
+  const [pricing, setPricing] = useState<UiInsurancePricing | null>(null);
   const [pricingLoadError, setPricingLoadError] = useState<string | null>(null);
 
   const [reason, setReason] = useState('');
@@ -103,12 +90,12 @@ export default function ModifyProductDialog({
         setPricing(null);
         setPricingLoadError('Package slug is not configured. Contact support.');
       } else {
-        const pricingRes = await fetch(productPricingPath(opts.packageSlug));
-        if (!pricingRes.ok) {
+        try {
+          const apiPricing = await getPackagePricingBySlug(opts.packageSlug);
+          setPricing(mapPackagePricingToUi(apiPricing));
+        } catch {
           setPricing(null);
-          setPricingLoadError(`Pricing file not found for package “${opts.packageSlug}”.`);
-        } else {
-          setPricing((await pricingRes.json()) as InsurancePricing);
+          setPricingLoadError(`Pricing not available for package “${opts.packageSlug}”.`);
         }
       }
 
@@ -129,8 +116,6 @@ export default function ModifyProductDialog({
       void load();
     }
   }, [open, load]);
-
-  const pricingMode: PricingMode = pricing?.pricingMode ?? 'extrapolate';
 
   const pricingRates = useMemo(() => {
     if (!pricing || !options || !selectedPlan) return null;
@@ -156,19 +141,17 @@ export default function ModifyProductDialog({
       frequency,
       daily: pricingRates.daily,
       weekly: pricingRates.weekly,
-      pricingMode,
       lookupRates: pricingRates.lookupRates,
     });
-  }, [pricingRates, frequency, pricingMode]);
+  }, [pricingRates, frequency]);
 
   const annualPremium = useMemo(() => {
     if (!pricingRates) return 0;
     return computeAnnualPremium({
       daily: pricingRates.daily,
-      pricingMode,
       lookupRates: pricingRates.lookupRates,
     });
-  }, [pricingRates, pricingMode]);
+  }, [pricingRates]);
 
   const packagePlanId = useMemo(() => {
     if (!selectedPlan || plans.length === 0) return 0;

@@ -4,7 +4,7 @@ import { SupabaseService } from './supabase.service';
 import { ValidationException } from '../exceptions/validation.exception';
 import { ErrorCodes } from '../enums/error-codes.enum';
 import { PaymentAccountNumberService } from './payment-account-number.service';
-import { PaymentFrequency, Prisma } from '@prisma/client';
+import { PaymentFrequency, Prisma, PackagePricingCategoryKind } from '@prisma/client';
 import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
 import { PAYMENT_CADENCE } from '../constants/payment-cadence.constants';
 import { trimOrNull, toTitleCase } from '../utils/string.util';
@@ -14,6 +14,9 @@ import {
   validateInstallmentCount,
 } from '../utils/package-payment-frequency.util';
 import * as Sentry from '@sentry/nestjs';
+import { evaluatePackagePricingCompleteness } from './package-pricing/package-pricing-completeness';
+import { PACKAGE_PRICING_INCOMPLETE_DEACTIVATE_WARNING } from './package-pricing/package-pricing.constants';
+import { loadPricingCompletenessInput } from './package-pricing/package-pricing.service';
 
 type PaymentFrequencyInput = { frequency: PaymentFrequency; installmentCount: number };
 
@@ -107,6 +110,44 @@ export class ProductManagementService {
       frequency: r.frequency,
       installmentCount: r.installmentCount,
     }));
+  }
+
+  /** Whether all required pricing cells are filled for activation. */
+  async isPackagePricingComplete(packageId: number): Promise<boolean> {
+    const input = await loadPricingCompletenessInput(this.prismaService, packageId);
+    if (!input) return false;
+    return evaluatePackagePricingCompleteness(input).isPricingComplete;
+  }
+
+  /**
+   * When an active package becomes pricing-incomplete, deactivate and return a warning (US3).
+   */
+  async deactivateIfActiveAndPricingIncomplete(
+    packageId: number,
+    wasActive: boolean
+  ): Promise<{ isActive: boolean; warning?: string }> {
+    if (!wasActive) {
+      const pkg = await this.prismaService.package.findUnique({
+        where: { id: packageId },
+        select: { isActive: true },
+      });
+      return { isActive: pkg?.isActive ?? false };
+    }
+
+    const complete = await this.isPackagePricingComplete(packageId);
+    if (complete) {
+      return { isActive: true };
+    }
+
+    await this.prismaService.package.update({
+      where: { id: packageId },
+      data: { isActive: false },
+    });
+
+    return {
+      isActive: false,
+      warning: PACKAGE_PRICING_INCOMPLETE_DEACTIVATE_WARNING,
+    };
   }
 
   /** Extract Prisma P2002 unique-constraint target field names. */
@@ -384,7 +425,7 @@ export class ProductManagementService {
 
     const packageExists = await this.prismaService.package.findUnique({
       where: { id: packageId },
-      select: { id: true },
+      select: { id: true, isActive: true },
     });
     if (!packageExists) {
       throw new NotFoundException(`Package with ID ${packageId} not found`);
@@ -422,11 +463,18 @@ export class ProductManagementService {
         },
       });
 
+      const deactivateResult = await this.deactivateIfActiveAndPricingIncomplete(
+        packageId,
+        packageExists.isActive
+      );
+
       return {
         id: plan.id,
         name: plan.name,
         description: plan.description ?? undefined,
         isActive: plan.isActive,
+        packageIsActive: deactivateResult.isActive,
+        ...(deactivateResult.warning ? { warning: deactivateResult.warning } : {}),
       };
     } catch (error) {
       if (error instanceof PrismaClientKnownRequestError && error.code === 'P2002') {
@@ -781,6 +829,14 @@ export class ProductManagementService {
             ErrorCodes.VALIDATION_ERROR
           );
         }
+        const pricingComplete = await this.isPackagePricingComplete(packageId);
+        if (!pricingComplete) {
+          throw ValidationException.forField(
+            'isActive',
+            'Package cannot be activated until pricing is complete',
+            ErrorCodes.VALIDATION_ERROR
+          );
+        }
       }
 
       const pkg = await this.prismaService.$transaction(async (tx) => {
@@ -827,6 +883,17 @@ export class ProductManagementService {
 
       this.logger.log(`[${correlationId}] Updated package ${packageId}`);
 
+      let packageIsActive = pkg.isActive;
+      let warning: string | undefined;
+      if (frequencies && existing.isActive) {
+        const deactivateResult = await this.deactivateIfActiveAndPricingIncomplete(
+          packageId,
+          true
+        );
+        packageIsActive = deactivateResult.isActive;
+        warning = deactivateResult.warning;
+      }
+
       return {
         id: pkg.id,
         name: pkg.name,
@@ -834,12 +901,13 @@ export class ProductManagementService {
         description: pkg.description,
         underwriterId: pkg.underwriterId,
         underwriterName: pkg.underwriter?.name ?? null,
-        isActive: pkg.isActive,
+        isActive: packageIsActive,
         logoPath: pkg.logoPath,
         paymentFrequencies: this.mapPaymentFrequencies(pkg.packagePaymentFrequencies),
         createdBy: pkg.createdBy,
         createdAt: pkg.createdAt.toISOString(),
         updatedAt: pkg.updatedAt.toISOString(),
+        ...(warning ? { warning } : {}),
       };
     } catch (error) {
       this.logger.error(
@@ -1410,6 +1478,18 @@ export class ProductManagementService {
         });
 
         await this.replacePackagePaymentFrequencies(tx, created.id, frequencies);
+
+        await tx.packagePricingCategory.create({
+          data: {
+            packageId: created.id,
+            key: 'member_only',
+            displayName: 'M',
+            kind: PackagePricingCategoryKind.MEMBER_ONLY,
+            sortOrder: 0,
+            createdBy: userId,
+            updatedBy: userId,
+          },
+        });
 
         await tx.policyNumberSequence.create({
           data: {

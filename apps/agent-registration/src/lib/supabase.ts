@@ -51,6 +51,7 @@ export interface UserMetadata {
 export const ROLES = {
   BRAND_AMBASSADOR: 'brand_ambassador',
   REGISTRATION_ADMIN: 'registration_admin',
+  SETUP_ADMIN: 'setup_admin',
   CUSTOMER_CARE: 'customer_care',
   CUSTOMER: 'customer',
 } as const
