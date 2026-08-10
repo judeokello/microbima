@@ -242,7 +242,7 @@ export class PolicyService {
     return [...dependants].sort((a, b) => {
       const aIsSpouse = a.relationship === 'SPOUSE' ? 1 : 0;
       const bIsSpouse = b.relationship === 'SPOUSE' ? 1 : 0;
-      if (bIsSpouse !== aIsSpouse) return aIsSpouse - bIsSpouse; // Spouse first (1 before 0)
+      if (bIsSpouse !== aIsSpouse) return bIsSpouse - aIsSpouse; // Spouse first
       return 0; // Stable order within same relationship
     });
   }

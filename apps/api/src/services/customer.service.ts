@@ -326,7 +326,10 @@ export class CustomerService {
       // Use provided packageSchemeId or default to 1 (MfanisiGo -> OOD Drivers)
       const packageSchemeId = createRequest.packageSchemeId ?? 1;
 
-      // Insert into package_scheme_customers table immediately after partner_customers
+      // Insert into package_scheme_customers table immediately after partner_customers.
+      // Postpaid: create PENDING policy shell here, but defer historical M-Pesa map/activate
+      // until after dependants are inserted so activatePolicy can create PMD rows.
+      let postpaidPolicyId: string | null = null;
       try {
         await this.prismaService.packageSchemeCustomer.create({
           data: {
@@ -378,20 +381,8 @@ export class CustomerService {
               status: 'PENDING_ACTIVATION',
             },
           });
+          postpaidPolicyId = postpaidPolicy.id;
           this.logger.log(`[${correlationId}] Postpaid policy created for customer ${createdCustomer.id} (package ${packageScheme.package.id})`);
-
-          // A: map historical paybill payments (accountNumber == idNumber) onto the new policy
-          if (createdCustomer.idNumber) {
-            await this.prismaService.$transaction(async (tx) => {
-              await this.policyService.mapUnmappedMpesaItemsToPolicy(
-                postpaidPolicy.id,
-                createdCustomer.idNumber,
-                correlationId,
-                tx,
-                { activateIfPending: true }
-              );
-            });
-          }
         }
       } catch (error) {
         this.logger.error(`[${correlationId}] Failed to create package scheme customer: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -539,6 +530,42 @@ export class CustomerService {
           orderBy: { createdAt: 'desc' },
           take: createRequest.beneficiaries.length,
         });
+      }
+
+      // Postpaid historical map/activate only after dependants exist (Sharon/Kailani race).
+      if (postpaidPolicyId && createdCustomer.idNumber) {
+        const deferredPostpaidPolicyId = postpaidPolicyId;
+        const idNumber = createdCustomer.idNumber;
+        try {
+          await this.prismaService.$transaction(async (tx) => {
+            await this.policyService.mapUnmappedMpesaItemsToPolicy(
+              deferredPostpaidPolicyId,
+              idNumber,
+              correlationId,
+              tx,
+              { activateIfPending: true }
+            );
+          });
+          // Safety net if activation ran with partial family, or map left policy already active.
+          await this.lctSyncService.ensureMemberRowsForLateDependants(
+            deferredPostpaidPolicyId,
+            correlationId
+          );
+          await this.lctSyncService.upsertTargetsForPolicy(
+            deferredPostpaidPolicyId,
+            correlationId
+          );
+          await this.lctSyncService.onPolicyActivated(
+            deferredPostpaidPolicyId,
+            correlationId
+          );
+        } catch (error) {
+          this.logger.error(
+            `[${correlationId}] Postpaid historical map/activate after dependants failed: ${
+              error instanceof Error ? error.message : 'Unknown error'
+            }`
+          );
+        }
       }
 
       // Create customer entity from database result
