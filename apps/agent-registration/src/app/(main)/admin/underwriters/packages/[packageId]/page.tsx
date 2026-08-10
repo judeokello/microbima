@@ -511,9 +511,33 @@ export default function PackageDetailPage() {
     router.push(`/admin/underwriters/packages/${packageId}`);
   };
 
+  if (loading && !pkg) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <RefreshCw className="h-8 w-8 animate-spin" />
+        <span className="ml-2">Loading package...</span>
+      </div>
+    );
+  }
+
+  if (error && !pkg) {
+    return (
+      <div className="space-y-6">
+        <Card className="border-red-200 bg-red-50">
+          <CardContent className="pt-6">
+            <p className="text-red-600">{error}</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (!pkg) {
+    return null;
+  }
+
   const canActivate =
     isSetupAdmin &&
-    pkg &&
     !pkg.isActive &&
     pricing?.isPricingComplete &&
     plans.some((p) => p.isActive);
@@ -535,13 +559,13 @@ export default function PackageDetailPage() {
                 maxLength={100}
               />
             ) : (
-              <p className="text-sm font-medium">{pkg!.name}</p>
+              <p className="text-sm font-medium">{pkg.name}</p>
             )}
           </div>
 
           <div>
             <Label>Underwriter</Label>
-            <p className="text-sm font-medium">{pkg!.underwriterName ?? 'N/A'}</p>
+            <p className="text-sm font-medium">{pkg.underwriterName ?? 'N/A'}</p>
           </div>
 
           <div className="md:col-span-2">
@@ -561,11 +585,11 @@ export default function PackageDetailPage() {
               <div className="flex items-start gap-2">
                 <TruncatedDescription
                   description={
-                    pkg!.description.length > 40
-                      ? pkg!.description.substring(0, 40) + '...'
-                      : pkg!.description
+                    pkg.description.length > 40
+                      ? pkg.description.substring(0, 40) + '...'
+                      : pkg.description
                   }
-                  fullDescription={pkg!.description}
+                  fullDescription={pkg.description}
                 />
               </div>
             )}
@@ -577,12 +601,12 @@ export default function PackageDetailPage() {
               <Badge
                 variant="outline"
                 className={
-                  pkg!.isActive
+                  pkg.isActive
                     ? 'bg-green-50 text-green-700 border-green-200'
                     : 'bg-secondary text-secondary-foreground border-transparent'
                 }
               >
-                {pkg!.isActive ? 'Active' : 'Inactive'}
+                {pkg.isActive ? 'Active' : 'Inactive'}
               </Badge>
               {pricing && !pricing.isPricingComplete && (
                 <Badge variant="outline" className="bg-amber-50 text-amber-800 border-amber-200">
@@ -608,7 +632,7 @@ export default function PackageDetailPage() {
                 aria-label="Package slug"
               />
             ) : (
-              <p className="text-sm font-medium">{pkg!.slug ?? '—'}</p>
+              <p className="text-sm font-medium">{pkg.slug ?? '—'}</p>
             )}
             <p className="text-xs text-muted-foreground mt-1">
               Lowercase letters, numbers, hyphens.
@@ -669,10 +693,10 @@ export default function PackageDetailPage() {
               </div>
             ) : (
               <div className="mt-2 flex flex-wrap gap-2">
-                {(pkg!.paymentFrequencies ?? []).length === 0 ? (
+                {(pkg.paymentFrequencies ?? []).length === 0 ? (
                   <p className="text-sm text-muted-foreground">None configured</p>
                 ) : (
-                  (pkg!.paymentFrequencies ?? []).map((pf) => (
+                  (pkg.paymentFrequencies ?? []).map((pf) => (
                     <Badge key={pf.frequency} variant="outline">
                       {pf.frequency}: {pf.installmentCount}
                     </Badge>
@@ -684,23 +708,23 @@ export default function PackageDetailPage() {
 
           <div>
             <Label>Created By</Label>
-            <p className="text-sm font-medium">{pkg!.createdByDisplayName ?? 'Unknown'}</p>
+            <p className="text-sm font-medium">{pkg.createdByDisplayName ?? 'Unknown'}</p>
           </div>
 
           <div>
             <Label>Created At</Label>
             <p className="text-sm font-medium">
-              {pkg!.createdAt ? new Date(pkg!.createdAt).toLocaleString() : 'N/A'}
+              {pkg.createdAt ? new Date(pkg.createdAt).toLocaleString() : 'N/A'}
             </p>
           </div>
 
           <div className="md:col-span-2">
             <Label>Logo</Label>
-            {pkg!.logoPath ? (
+            {pkg.logoPath ? (
               <div className="mt-2">
                 <Image
-                  src={pkg!.logoPath}
-                  alt={`${pkg!.name} logo`}
+                  src={pkg.logoPath}
+                  alt={`${pkg.name} logo`}
                   width={200}
                   height={200}
                   className="object-contain"
@@ -765,31 +789,6 @@ export default function PackageDetailPage() {
       </CardContent>
     </Card>
   );
-
-  if (loading && !pkg) {
-    return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <RefreshCw className="h-8 w-8 animate-spin" />
-        <span className="ml-2">Loading package...</span>
-      </div>
-    );
-  }
-
-  if (error && !pkg) {
-    return (
-      <div className="space-y-6">
-        <Card className="border-red-200 bg-red-50">
-          <CardContent className="pt-6">
-            <p className="text-red-600">{error}</p>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
-  if (!pkg) {
-    return null;
-  }
 
   return (
     <div className="space-y-6">

@@ -167,9 +167,11 @@ export default function PackagePricingGrid({
 
   const planEntries = useMemo(
     () =>
-      Object.entries(local.plans).sort(([, a], [, b]) =>
-        a.name.localeCompare(b.name)
-      ),
+      Object.entries(local.plans)
+        .filter((entry): entry is [string, NonNullable<(typeof local.plans)[string]>] =>
+          entry[1] != null && typeof entry[1].name === 'string'
+        )
+        .sort(([, a], [, b]) => a.name.localeCompare(b.name)),
     [local.plans]
   );
 
