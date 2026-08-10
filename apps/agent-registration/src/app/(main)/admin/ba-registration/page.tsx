@@ -12,11 +12,13 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Loader2 } from 'lucide-react'
 import { createBrandAmbassador, getPartners, ROLES, Partner } from '@/lib/api'
 import { useAuth } from '@/hooks/useAuth'
+import { useIsBootstrap } from '@/hooks/useIsBootstrap'
 import { formatPhoneNumber, getPhoneValidationError } from '@/lib/phone-validation'
 
 export default function BARegistrationPage() {
   const router = useRouter()
   const { loading: authLoading } = useAuth()
+  const { isBootstrap, loading: bootstrapLoading } = useIsBootstrap()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
@@ -125,7 +127,7 @@ export default function BARegistrationPage() {
     }))
   }
 
-  if (authLoading) {
+  if (authLoading || bootstrapLoading) {
     return (
       <div className="flex justify-center items-center min-h-screen">
         <Loader2 className="h-8 w-8 animate-spin" />
@@ -318,6 +320,18 @@ export default function BARegistrationPage() {
                     Registration Admin (can manage Agents and resolve MRs)
                   </Label>
                 </div>
+                {isBootstrap && (
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="setup_admin"
+                      checked={formData.roles.includes(ROLES.SETUP_ADMIN)}
+                      onCheckedChange={(checked) => handleRoleToggle(ROLES.SETUP_ADMIN, checked as boolean)}
+                    />
+                    <Label htmlFor="setup_admin" className="text-sm font-normal">
+                      Setup Admin (can configure packages, pricing, and activation)
+                    </Label>
+                  </div>
+                )}
               </div>
               <p className="text-sm text-muted-foreground">
                 Select one or more roles. Agent role is required for customer registration; pair Customer Care with Agent for care users.

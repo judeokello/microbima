@@ -15,6 +15,7 @@ import {
   CreatePolicyRequest,
   completePostpaidEnrollment,
   getPackagePlans,
+  getPackagePricingBySlug,
   Plan,
   initiateStkPush,
   InitiateStkPushRequest,
@@ -30,27 +31,17 @@ import {
   computeNominalHorizonFromToday,
   isFrequencySupportedByPackage,
   isPricingSubmitBlocked,
-  productPricingPath,
   PAYMENT_CADENCE_DAYS,
   type PackagePaymentFrequencyOption,
-  type PricingMode,
   type PricingRateBand,
 } from '@/lib/insurance-installment';
-
-type PricingCategoryRates = PricingRateBand & { display: string };
-
-interface InsurancePricing {
-  packageSlug?: string;
-  pricingMode?: PricingMode;
-  plans: Record<
-    string,
-    {
-      name: string;
-      categories: Record<string, PricingCategoryRates>;
-      additional_spouse: PricingRateBand;
-    }
-  >;
-}
+import {
+  hasAdditionalSpousePremium,
+  householdSizeFromRegistrationForm,
+  validateSelectedFamilyCategory,
+} from '@/lib/family-category';
+import type { PackagePricingData } from '@/lib/api';
+import { mapPackagePricingToUi, pricingBandsFromApi, type UiInsurancePricing } from '@/lib/package-pricing-ui';
 
 interface CustomerFormData {
   firstName: string;
@@ -144,7 +135,8 @@ export default function PaymentStep() {
   });
 
   // Insurance pricing state
-  const [pricingData, setPricingData] = useState<InsurancePricing | null>(null);
+  const [pricingData, setPricingData] = useState<UiInsurancePricing | null>(null);
+  const [pricingApiData, setPricingApiData] = useState<PackagePricingData | null>(null);
   const [pricingLoadError, setPricingLoadError] = useState<string | null>(null);
   const [selectedPlan, setSelectedPlan] = useState<string>('');
   const [selectedCategory, setSelectedCategory] = useState<string>('');
@@ -166,7 +158,24 @@ export default function PaymentStep() {
   const [packageSlug, setPackageSlug] = useState<string | null>(null);
   const [paymentFrequencies, setPaymentFrequencies] = useState<PackagePaymentFrequencyOption[]>([]);
 
-  const pricingMode: PricingMode = pricingData?.pricingMode ?? 'extrapolate';
+  const loadPricingForSlug = (slug: string) => {
+    setPricingLoadError(null);
+    setPricingData(null);
+    setPricingApiData(null);
+    getPackagePricingBySlug(slug)
+      .then((data) => {
+        setPricingApiData(data);
+        setPricingData(mapPackagePricingToUi(data));
+      })
+      .catch((err) => {
+        console.error('Error loading pricing data:', err);
+        setPricingLoadError(
+          err instanceof Error
+            ? err.message
+            : 'Missing price setup for this package. Contact support.'
+        );
+      });
+  };
 
   const getFrequencyDays = (frequency: string, cadence?: number): number => {
     if (frequency === 'CUSTOM') return cadence ?? 0;
@@ -204,27 +213,6 @@ export default function PaymentStep() {
       month: 'long',
       day: 'numeric',
     });
-  };
-
-  const loadPricingForSlug = (slug: string) => {
-    setPricingLoadError(null);
-    setPricingData(null);
-    fetch(productPricingPath(slug))
-      .then(async (response) => {
-        if (!response.ok) {
-          throw new Error(`Pricing file not found for package "${slug}"`);
-        }
-        return response.json() as Promise<InsurancePricing>;
-      })
-      .then((data) => setPricingData(data))
-      .catch((err) => {
-        console.error('Error loading pricing data:', err);
-        setPricingLoadError(
-          err instanceof Error
-            ? err.message
-            : 'Missing price setup for this package. Contact support.'
-        );
-      });
   };
 
   useEffect(() => {
@@ -352,7 +340,6 @@ export default function PaymentStep() {
       weekly: calculatedPricing.totalWeekly,
       customDays:
         frequency === 'CUSTOM' ? parseInt(customCadence, 10) || undefined : undefined,
-      pricingMode,
       lookupRates: calculatedPricing.lookupRates ?? undefined,
     });
 
@@ -439,6 +426,37 @@ export default function PaymentStep() {
           'Missing price setup for this package. Contact support before submitting payment.'
       );
       return;
+    }
+
+    // Validate family category covers household when dependants are known
+    if (pricingApiData && customerData) {
+      const householdSize = householdSizeFromRegistrationForm({
+        spouses: customerData.spouses,
+        children: customerData.children,
+      });
+      const categoryCheck = validateSelectedFamilyCategory({
+        selectedCategoryKey: selectedCategory,
+        householdSize,
+        bands: pricingBandsFromApi(pricingApiData),
+      });
+      if (!categoryCheck.ok && categoryCheck.reason === 'UNDERSIZED') {
+        setError(
+          'Selected family category does not cover your household size. Choose a larger category.'
+        );
+        return;
+      }
+
+      const spouseCount = customerData.spouses.filter((s) => s.firstName?.trim()).length;
+      if (
+        additionalSpouse &&
+        !hasAdditionalSpousePremium(selectedCategory, spouseCount, {
+          optedIn: true,
+          householdKnown: true,
+        })
+      ) {
+        setError('Additional spouse premium only applies when there is more than one spouse.');
+        return;
+      }
     }
 
     // Validate plan and category selection
@@ -538,7 +556,6 @@ export default function PaymentStep() {
       const premium = installmentForSelection(frequency);
       const annualPremium = computeAnnualPremium({
         daily: calculatedPricing.totalDaily,
-        pricingMode,
         lookupRates: calculatedPricing.lookupRates ?? undefined,
       });
       const productName = `${packageName} ${selectedPlan.charAt(0).toUpperCase() + selectedPlan.slice(1)}`;
@@ -827,8 +844,7 @@ export default function PaymentStep() {
               <p>• Weekly installment: {calculatedPricing.totalWeekly} KES</p>
               {selectedFrequency && selectedFrequency !== 'DAILY' && selectedFrequency !== 'WEEKLY' && (
                 <p>
-                  • Selected installment: {installmentForSelection(selectedFrequency)} KES
-                  {pricingMode === 'extrapolate' ? ' (daily × cadence)' : ' (table rate)'}
+                  • Selected installment: {installmentForSelection(selectedFrequency)} KES (table rate)
                 </p>
               )}
               <p>
@@ -986,7 +1002,7 @@ export default function PaymentStep() {
                 KES
               </div>
               <p className="text-xs text-gray-500 mt-1">
-                Premium per payment period ({pricingMode === 'lookup' ? 'table lookup' : 'extrapolated from daily/weekly'})
+                Premium per payment period (stored table rate)
               </p>
             </div>
 

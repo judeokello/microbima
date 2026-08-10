@@ -27,6 +27,7 @@ import {
   createPolicyFromRecovery,
   createPolicyWithoutPayments,
   getPackagePlans,
+  getPackagePricingBySlug,
   type RecoveryCustomer,
   type Plan,
 } from '@/lib/api';
@@ -35,27 +36,13 @@ import {
   isFrequencySupportedByPackage,
   isPricingSubmitBlocked,
   nextInstallmentPremiumFormValue,
-  productPricingPath,
-  type PricingMode,
   type PricingRateBand,
 } from '@/lib/insurance-installment';
+import { mapPackagePricingToUi, type UiInsurancePricing } from '@/lib/package-pricing-ui';
 import { formatTransactionReferenceForDisplay } from '@/lib/transaction-reference-display';
 import { formatDate } from '@/lib/utils';
 import { Loader2, RefreshCw, Plus } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
-
-interface InsurancePricing {
-  packageSlug?: string;
-  pricingMode?: PricingMode;
-  plans: Record<
-    string,
-    {
-      name: string;
-      categories: Record<string, PricingRateBand & { display: string }>;
-      additional_spouse: PricingRateBand;
-    }
-  >;
-}
 
 export default function RecoveryPage() {
   const [customersWithPayments, setCustomersWithPayments] = useState<RecoveryCustomer[]>([]);
@@ -65,7 +52,7 @@ export default function RecoveryPage() {
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState<RecoveryCustomer | null>(null);
   const [plans, setPlans] = useState<Plan[]>([]);
-  const [pricingData, setPricingData] = useState<InsurancePricing | null>(null);
+  const [pricingData, setPricingData] = useState<UiInsurancePricing | null>(null);
   const [pricingLoadError, setPricingLoadError] = useState<string | null>(null);
   const [paymentFrequencies, setPaymentFrequencies] = useState<
     Array<{ frequency: string; installmentCount: number }>
@@ -148,11 +135,11 @@ export default function RecoveryPage() {
       if (!slug) {
         setPricingLoadError('Package slug is not configured.');
       } else {
-        const pricingRes = await fetch(productPricingPath(slug));
-        if (!pricingRes.ok) {
-          setPricingLoadError(`Pricing file not found for “${slug}”.`);
-        } else {
-          setPricingData((await pricingRes.json()) as InsurancePricing);
+        try {
+          const apiPricing = await getPackagePricingBySlug(slug);
+          setPricingData(mapPackagePricingToUi(apiPricing));
+        } catch {
+          setPricingLoadError(`Pricing not available for “${slug}”.`);
         }
       }
     } catch {
@@ -160,8 +147,6 @@ export default function RecoveryPage() {
       setPricingLoadError('Failed to load package pricing.');
     }
   };
-
-  const pricingMode: PricingMode = pricingData?.pricingMode ?? 'extrapolate';
 
   const calculatedPricing = useMemo(() => {
     if (!pricingData || !formData.selectedPlan || !formData.selectedCategory) {
@@ -213,7 +198,6 @@ export default function RecoveryPage() {
         frequency: formData.frequency,
         daily: calculatedPricing.totalDaily,
         weekly: calculatedPricing.totalWeekly,
-        pricingMode,
         lookupRates: calculatedPricing.lookupRates ?? undefined,
       });
       if (next == null) {
@@ -228,7 +212,6 @@ export default function RecoveryPage() {
     calculatedPricing.totalDaily,
     calculatedPricing.totalWeekly,
     calculatedPricing.lookupRates,
-    pricingMode,
   ]);
 
   const handleSubmit = async () => {
@@ -255,7 +238,6 @@ export default function RecoveryPage() {
     }
     const annualPremium = computeAnnualPremium({
       daily: calculatedPricing.totalDaily,
-      pricingMode,
       lookupRates: calculatedPricing.lookupRates ?? undefined,
     });
     const hasPayments = selectedCustomer.payments.length > 0;

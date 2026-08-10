@@ -6,15 +6,12 @@ import {
   isPricingSubmitBlocked,
   nextInstallmentPremiumFormValue,
   packageFrequencySelectOptions,
-  productPricingPath,
   resolveModifyExpectedInstallmentCount,
 } from '../src/lib/insurance-installment';
+import { mapPackagePricingToUi } from '../src/lib/package-pricing-ui';
+import type { PackagePricingData } from '../src/lib/api';
 
 describe('product-pricing UI helpers', () => {
-  it('builds pricing file path from slug', () => {
-    expect(productPricingPath('mfanisi-boda')).toBe('/product-pricing/mfanisi-boda-pricing.json');
-  });
-
   it('blocks submit when pricing is missing or errored', () => {
     expect(isPricingSubmitBlocked('Missing price setup', { plans: {} })).toBe(true);
     expect(isPricingSubmitBlocked(null, null)).toBe(true);
@@ -66,30 +63,55 @@ describe('product-pricing UI helpers', () => {
       isFrequencySupportedByPackage('DAILY', [{ frequency: 'DAILY', installmentCount: 276 }])
     ).toBe(true);
   });
+
+  it('maps API pricing to UI shape without pricingMode', () => {
+    const apiData: PackagePricingData = {
+      packageId: 1,
+      packageSlug: 'mfanisi-boda',
+      isPricingComplete: true,
+      isActive: true,
+      categories: [
+        { key: 'member_only', display: 'M', kind: 'MEMBER_ONLY' },
+        { key: 'additional_spouse', display: 'Spouse', kind: 'ADDITIONAL_SPOUSE' },
+      ],
+      plans: {
+        silver: {
+          planId: 10,
+          name: 'Silver',
+          rates: {
+            member_only: { daily: 56, monthly: 1765, annually: 17645 },
+            additional_spouse: { daily: 12, annually: 3789 },
+          },
+        },
+      },
+    };
+    const ui = mapPackagePricingToUi(apiData);
+    expect(ui).not.toHaveProperty('pricingMode');
+    expect(ui.plans.silver.categories.member_only.monthly).toBe(1765);
+    expect(ui.plans.silver.additional_spouse.daily).toBe(12);
+  });
 });
 
-describe('insurance-installment (UI pricing modes)', () => {
-  it('lookup mode uses table monthly rate', () => {
+describe('insurance-installment (lookup-only)', () => {
+  it('uses table monthly rate from lookupRates', () => {
     expect(
       computeInstallmentPremium({
         frequency: 'MONTHLY',
         daily: 56,
         weekly: 339,
-        pricingMode: 'lookup',
         lookupRates: { daily: 56, weekly: 339, monthly: 1470, annually: 17645 },
       })
     ).toBe(1470);
   });
 
-  it('extrapolate mode uses daily × cadence for monthly', () => {
+  it('returns 0 when lookup band missing for frequency', () => {
     expect(
       computeInstallmentPremium({
         frequency: 'MONTHLY',
         daily: 10,
         weekly: 70,
-        pricingMode: 'extrapolate',
       })
-    ).toBe(310);
+    ).toBe(0);
   });
 
   it('computes nominal horizon from installment count', () => {
@@ -104,20 +126,17 @@ describe('insurance-installment (UI pricing modes)', () => {
         frequency: 'DAILY',
         daily: 56,
         weekly: 339,
-        pricingMode: 'extrapolate',
+        lookupRates: { daily: 56 },
       })
     ).toBe('56');
   });
 
   it('returns null when premium form value already matches calculated installment', () => {
-    // Recovery dialog sync must bail out here — otherwise a new lookupRates object
-    // each render + unconditional setState causes Maximum update depth exceeded.
     expect(
       nextInstallmentPremiumFormValue('1470', {
         frequency: 'MONTHLY',
         daily: 56,
         weekly: 339,
-        pricingMode: 'lookup',
         lookupRates: { daily: 56, weekly: 339, monthly: 1470, annually: 17645 },
       })
     ).toBeNull();
