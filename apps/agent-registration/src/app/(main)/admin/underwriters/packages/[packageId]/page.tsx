@@ -1,16 +1,19 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { useRouter, useParams } from 'next/navigation';
+import { useRouter, useParams, useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { RefreshCw, Edit, Save, X, Plus } from 'lucide-react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { RefreshCw, Edit, Save, X, Plus, Zap } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
 import { supabase } from '@/lib/supabase';
+import { getPackagePricing, type PackagePricingData } from '@/lib/api';
+import { useAuth } from '@/hooks/useAuth';
 import * as Sentry from '@sentry/nextjs';
 import Image from 'next/image';
 import { TruncatedDescription } from '../../[underwriterId]/_components/truncated-description';
@@ -19,6 +22,8 @@ import CreatePlanDialog from './_components/create-plan-dialog';
 import EditPlanDialog, { type EditablePlan } from './_components/edit-plan-dialog';
 import MemberCardWithDownload from '@/components/member-cards/MemberCardWithDownload';
 import { SAMPLE_CARD_DATA } from '@/components/member-cards/sample-card-data';
+import PackagePricingGrid from './_components/package-pricing-grid';
+import PackageWizard, { type PackageWizardStep } from './_components/package-wizard';
 
 const CONFIGURABLE_FREQUENCIES = [
   { value: 'DAILY', label: 'Daily', min: 1, max: 365 },
@@ -116,9 +121,19 @@ interface PlansResponse {
 export default function PackageDetailPage() {
   const router = useRouter();
   const params = useParams();
+  const searchParams = useSearchParams();
   const packageId = parseInt(params.packageId as string);
+  const { isSetupAdmin } = useAuth();
+
+  const stepParam = searchParams.get('step');
+  const wizardStep: PackageWizardStep | null =
+    stepParam === '1' || stepParam === '2' || stepParam === '3'
+      ? (parseInt(stepParam, 10) as PackageWizardStep)
+      : null;
 
   const [pkg, setPkg] = useState<Package | null>(null);
+  const [pricing, setPricing] = useState<PackagePricingData | null>(null);
+  const [pricingWarning, setPricingWarning] = useState<string | null>(null);
   const [schemes, setSchemes] = useState<Scheme[]>([]);
   const [plans, setPlans] = useState<PackagePlan[]>([]);
   const [loading, setLoading] = useState(true);
@@ -129,6 +144,7 @@ export default function PackageDetailPage() {
   const [createPlanDialogOpen, setCreatePlanDialogOpen] = useState(false);
   const [editPlanDialogOpen, setEditPlanDialogOpen] = useState(false);
   const [planBeingEdited, setPlanBeingEdited] = useState<EditablePlan | null>(null);
+  const [activating, setActivating] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     slug: '',
@@ -235,11 +251,22 @@ export default function PackageDetailPage() {
     }
   }, [packageId]);
 
+  const fetchPricing = useCallback(async () => {
+    try {
+      const data = await getPackagePricing(packageId);
+      setPricing(data);
+      setPricingWarning(data.warning ?? null);
+    } catch (err) {
+      console.error('Error fetching pricing:', err);
+    }
+  }, [packageId]);
+
   useEffect(() => {
     fetchPackage();
     fetchSchemes();
     fetchPlans();
-  }, [fetchPackage, fetchSchemes, fetchPlans]);
+    fetchPricing();
+  }, [fetchPackage, fetchSchemes, fetchPlans, fetchPricing]);
 
   const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -376,15 +403,11 @@ export default function PackageDetailPage() {
         throw new Error('Select at least one payment frequency');
       }
 
-      if (formData.isActive && !plans.some((p) => p.isActive)) {
-        throw new Error('Package cannot be set to active without at least one active plan');
-      }
-
       const payload = {
         name: formData.name.trim(),
         slug,
         description: formData.description.trim(),
-        isActive: formData.isActive,
+        isActive: pkg?.isActive ?? false,
         paymentFrequencies,
       };
       const response = await fetch(`${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/product-management/packages/${packageId}`, {
@@ -408,6 +431,7 @@ export default function PackageDetailPage() {
 
       setEditing(false);
       fetchPackage();
+      fetchPricing();
     } catch (err) {
       console.error('Error updating package:', err);
       if (err instanceof Error) {
@@ -441,6 +465,307 @@ export default function PackageDetailPage() {
     setEditing(false);
   };
 
+  const handleActivate = async () => {
+    if (!pkg || !pricing?.isPricingComplete) return;
+    if (!plans.some((p) => p.isActive)) {
+      setError('Package cannot be activated without at least one active plan');
+      return;
+    }
+
+    setActivating(true);
+    setError(null);
+    try {
+      const token = await getSupabaseToken();
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/product-management/packages/${packageId}`,
+        {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+            'x-correlation-id': `req-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          },
+          body: JSON.stringify({ isActive: true }),
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error?.message ?? 'Failed to activate package');
+      }
+
+      await fetchPackage();
+      await fetchPricing();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to activate package');
+    } finally {
+      setActivating(false);
+    }
+  };
+
+  const goToWizardStep = (step: PackageWizardStep) => {
+    router.push(`/admin/underwriters/packages/${packageId}?step=${step}`);
+  };
+
+  const finishWizard = () => {
+    router.push(`/admin/underwriters/packages/${packageId}`);
+  };
+
+  const canActivate =
+    isSetupAdmin &&
+    pkg &&
+    !pkg.isActive &&
+    pricing?.isPricingComplete &&
+    plans.some((p) => p.isActive);
+
+  const packageInfoCard = (
+    <Card>
+      <CardHeader>
+        <CardTitle>Package Information</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <Label>Package Name</Label>
+            {editing && isSetupAdmin ? (
+              <Input
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                required
+                maxLength={100}
+              />
+            ) : (
+              <p className="text-sm font-medium">{pkg!.name}</p>
+            )}
+          </div>
+
+          <div>
+            <Label>Underwriter</Label>
+            <p className="text-sm font-medium">{pkg!.underwriterName ?? 'N/A'}</p>
+          </div>
+
+          <div className="md:col-span-2">
+            <Label htmlFor="package-description">Description</Label>
+            {editing && isSetupAdmin ? (
+              <textarea
+                id="package-description"
+                value={formData.description}
+                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                className="w-full min-h-[100px] px-3 py-2 border rounded-md"
+                placeholder="Enter package description"
+                aria-label="Package description"
+                required
+                maxLength={500}
+              />
+            ) : (
+              <div className="flex items-start gap-2">
+                <TruncatedDescription
+                  description={
+                    pkg!.description.length > 40
+                      ? pkg!.description.substring(0, 40) + '...'
+                      : pkg!.description
+                  }
+                  fullDescription={pkg!.description}
+                />
+              </div>
+            )}
+          </div>
+
+          <div>
+            <Label htmlFor="package-status">Status</Label>
+            <div className="flex items-center gap-2 flex-wrap">
+              <Badge
+                variant="outline"
+                className={
+                  pkg!.isActive
+                    ? 'bg-green-50 text-green-700 border-green-200'
+                    : 'bg-secondary text-secondary-foreground border-transparent'
+                }
+              >
+                {pkg!.isActive ? 'Active' : 'Inactive'}
+              </Badge>
+              {pricing && !pricing.isPricingComplete && (
+                <Badge variant="outline" className="bg-amber-50 text-amber-800 border-amber-200">
+                  Pricing incomplete
+                </Badge>
+              )}
+            </div>
+          </div>
+
+          <div>
+            <Label htmlFor="package-slug">Package slug</Label>
+            {editing && isSetupAdmin ? (
+              <Input
+                id="package-slug"
+                value={formData.slug}
+                onChange={(e) =>
+                  setFormData({
+                    ...formData,
+                    slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''),
+                  })
+                }
+                placeholder="mfanisi-go"
+                aria-label="Package slug"
+              />
+            ) : (
+              <p className="text-sm font-medium">{pkg!.slug ?? '—'}</p>
+            )}
+            <p className="text-xs text-muted-foreground mt-1">
+              Lowercase letters, numbers, hyphens.
+            </p>
+          </div>
+
+          <div className="md:col-span-2">
+            <Label>Payment frequencies</Label>
+            {editing && isSetupAdmin ? (
+              <div className="mt-2 space-y-2">
+                {CONFIGURABLE_FREQUENCIES.map((freq) => {
+                  const row = formData.frequencies[freq.value];
+                  return (
+                    <div key={freq.value} className="flex flex-wrap items-center gap-3 rounded-md border p-3">
+                      <div className="flex items-center gap-2 min-w-[140px]">
+                        <Checkbox
+                          id={`edit-freq-${freq.value}`}
+                          checked={row.enabled}
+                          onCheckedChange={(checked) =>
+                            setFormData({
+                              ...formData,
+                              frequencies: {
+                                ...formData.frequencies,
+                                [freq.value]: { ...row, enabled: checked === true },
+                              },
+                            })
+                          }
+                        />
+                        <Label htmlFor={`edit-freq-${freq.value}`} className="font-normal cursor-pointer">
+                          {freq.label}
+                        </Label>
+                      </div>
+                      <Input
+                        className="w-24"
+                        inputMode="numeric"
+                        disabled={!row.enabled}
+                        value={row.count}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            frequencies: {
+                              ...formData.frequencies,
+                              [freq.value]: {
+                                ...row,
+                                count: e.target.value.replace(/\D/g, '').slice(0, 3),
+                              },
+                            },
+                          })
+                        }
+                        aria-label={`${freq.label} installment count`}
+                      />
+                      <span className="text-xs text-muted-foreground">
+                        ({freq.min}–{freq.max})
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="mt-2 flex flex-wrap gap-2">
+                {(pkg!.paymentFrequencies ?? []).length === 0 ? (
+                  <p className="text-sm text-muted-foreground">None configured</p>
+                ) : (
+                  (pkg!.paymentFrequencies ?? []).map((pf) => (
+                    <Badge key={pf.frequency} variant="outline">
+                      {pf.frequency}: {pf.installmentCount}
+                    </Badge>
+                  ))
+                )}
+              </div>
+            )}
+          </div>
+
+          <div>
+            <Label>Created By</Label>
+            <p className="text-sm font-medium">{pkg!.createdByDisplayName ?? 'Unknown'}</p>
+          </div>
+
+          <div>
+            <Label>Created At</Label>
+            <p className="text-sm font-medium">
+              {pkg!.createdAt ? new Date(pkg!.createdAt).toLocaleString() : 'N/A'}
+            </p>
+          </div>
+
+          <div className="md:col-span-2">
+            <Label>Logo</Label>
+            {pkg!.logoPath ? (
+              <div className="mt-2">
+                <Image
+                  src={pkg!.logoPath}
+                  alt={`${pkg!.name} logo`}
+                  width={200}
+                  height={200}
+                  className="object-contain"
+                />
+              </div>
+            ) : null}
+            {editing && isSetupAdmin && (
+              <div className="mt-2">
+                <Input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleLogoUpload}
+                  disabled={uploadingLogo}
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Supported formats: JPEG, PNG, GIF, WebP. Max size: 5MB
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+
+  const pricingCard = pricing ? (
+    <Card>
+      <CardHeader>
+        <CardTitle>Package Pricing</CardTitle>
+        <CardDescription>
+          Configure rates by category, frequency, and plan. Double-click a cell to edit.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <PackagePricingGrid
+          packageId={packageId}
+          pricing={pricing}
+          readOnly={!isSetupAdmin}
+          onSaved={(saved) => {
+            setPricing(saved);
+            setPricingWarning(saved.warning ?? null);
+            fetchPlans();
+          }}
+          onWarning={setPricingWarning}
+        />
+      </CardContent>
+    </Card>
+  ) : null;
+
+  const utilizationPlaceholder = (
+    <Card>
+      <CardHeader>
+        <CardTitle>Product Utilization Configuration</CardTitle>
+        <CardDescription>
+          Placeholder for future utilization rules. No configuration required to finish.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <p className="text-sm text-muted-foreground">
+          Utilization settings will be available in a future release.
+        </p>
+      </CardContent>
+    </Card>
+  );
+
   if (loading && !pkg) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
@@ -468,34 +793,53 @@ export default function PackageDetailPage() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
           <h1 className="text-3xl font-bold">Package Details</h1>
           <p className="text-muted-foreground mt-2">
             View and manage package information
           </p>
         </div>
-        {!editing ? (
-          <Button onClick={() => setEditing(true)}>
-            <Edit className="h-4 w-4 mr-2" />
-            Edit
-          </Button>
-        ) : (
-          <div className="flex space-x-2">
-            <Button variant="outline" onClick={handleCancel}>
-              <X className="h-4 w-4 mr-2" />
-              Cancel
+        <div className="flex flex-wrap gap-2">
+          {canActivate && (
+            <Button onClick={handleActivate} disabled={activating}>
+              <Zap className="h-4 w-4 mr-2" />
+              {activating ? 'Activating...' : 'Activate Package'}
             </Button>
-            <Button onClick={handleSave} disabled={loading}>
-              <Save className="h-4 w-4 mr-2" />
-              Save
-            </Button>
-          </div>
-        )}
+          )}
+          {isSetupAdmin && !wizardStep && (
+            <>
+              {!editing ? (
+                <Button onClick={() => setEditing(true)}>
+                  <Edit className="h-4 w-4 mr-2" />
+                  Edit
+                </Button>
+              ) : (
+                <>
+                  <Button variant="outline" onClick={handleCancel}>
+                    <X className="h-4 w-4 mr-2" />
+                    Cancel
+                  </Button>
+                  <Button onClick={handleSave} disabled={loading}>
+                    <Save className="h-4 w-4 mr-2" />
+                    Save
+                  </Button>
+                </>
+              )}
+              <Button variant="outline" onClick={() => goToWizardStep(1)}>
+                Open wizard
+              </Button>
+            </>
+          )}
+        </div>
       </div>
 
-      {/* Error Message */}
+      {pricingWarning && (
+        <Alert className="border-amber-200 bg-amber-50">
+          <AlertDescription className="text-amber-900">{pricingWarning}</AlertDescription>
+        </Alert>
+      )}
+
       {error && (
         <Card className="border-red-200 bg-red-50">
           <CardContent className="pt-6">
@@ -504,215 +848,28 @@ export default function PackageDetailPage() {
         </Card>
       )}
 
-      {/* Package Details */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Package Information</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <Label>Package Name</Label>
-              {editing ? (
-                <Input
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  required
-                  maxLength={100}
-                />
-              ) : (
-                <p className="text-sm font-medium">{pkg.name}</p>
-              )}
-            </div>
+      {wizardStep && isSetupAdmin ? (
+        <PackageWizard
+          currentStep={wizardStep}
+          onBack={() => wizardStep > 1 && goToWizardStep((wizardStep - 1) as PackageWizardStep)}
+          onNext={() => wizardStep < 3 && goToWizardStep((wizardStep + 1) as PackageWizardStep)}
+          onFinish={finishWizard}
+          nextDisabled={wizardStep === 2 && !pricing?.isPricingComplete}
+          loading={loading || activating}
+        >
+          {wizardStep === 1 && packageInfoCard}
+          {wizardStep === 2 && pricingCard}
+          {wizardStep === 3 && utilizationPlaceholder}
+        </PackageWizard>
+      ) : (
+        <>
+          {packageInfoCard}
+          {pricingCard}
+        </>
+      )}
 
-            <div>
-              <Label>Underwriter</Label>
-              <p className="text-sm font-medium">{pkg.underwriterName ?? 'N/A'}</p>
-            </div>
-
-            <div className="md:col-span-2">
-              <Label htmlFor="package-description">Description</Label>
-              {editing ? (
-                <textarea
-                  id="package-description"
-                  value={formData.description}
-                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  className="w-full min-h-[100px] px-3 py-2 border rounded-md"
-                  placeholder="Enter package description"
-                  aria-label="Package description"
-                  required
-                  maxLength={500}
-                />
-              ) : (
-                <div className="flex items-start gap-2">
-                  <TruncatedDescription
-                    description={pkg.description.length > 40 ? pkg.description.substring(0, 40) + '...' : pkg.description}
-                    fullDescription={pkg.description}
-                  />
-                </div>
-              )}
-            </div>
-
-            <div>
-              <Label htmlFor="package-status">Status</Label>
-              {editing ? (
-                <select
-                  id="package-status"
-                  value={formData.isActive ? 'true' : 'false'}
-                  onChange={(e) => setFormData({ ...formData, isActive: e.target.value === 'true' })}
-                  className="w-full px-3 py-2 border rounded-md"
-                  aria-label="Package status"
-                >
-                  <option value="true">Active</option>
-                  <option value="false">Inactive</option>
-                </select>
-              ) : (
-                <Badge
-                  variant="outline"
-                  className={
-                    pkg.isActive
-                      ? 'bg-green-50 text-green-700 border-green-200'
-                      : 'bg-secondary text-secondary-foreground border-transparent'
-                  }
-                >
-                  {pkg.isActive ? 'Active' : 'Inactive'}
-                </Badge>
-              )}
-            </div>
-
-            <div>
-              <Label htmlFor="package-slug">Package slug</Label>
-              {editing ? (
-                <Input
-                  id="package-slug"
-                  value={formData.slug}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''),
-                    })
-                  }
-                  placeholder="mfanisi-go"
-                  aria-label="Package slug"
-                />
-              ) : (
-                <p className="text-sm font-medium">{pkg.slug ?? '—'}</p>
-              )}
-              <p className="text-xs text-muted-foreground mt-1">
-                Lowercase letters, numbers, hyphens.
-              </p>
-            </div>
-
-            <div className="md:col-span-2">
-              <Label>Payment frequencies</Label>
-              {editing ? (
-                <div className="mt-2 space-y-2">
-                  {CONFIGURABLE_FREQUENCIES.map((freq) => {
-                    const row = formData.frequencies[freq.value];
-                    return (
-                      <div key={freq.value} className="flex flex-wrap items-center gap-3 rounded-md border p-3">
-                        <div className="flex items-center gap-2 min-w-[140px]">
-                          <Checkbox
-                            id={`edit-freq-${freq.value}`}
-                            checked={row.enabled}
-                            onCheckedChange={(checked) =>
-                              setFormData({
-                                ...formData,
-                                frequencies: {
-                                  ...formData.frequencies,
-                                  [freq.value]: { ...row, enabled: checked === true },
-                                },
-                              })
-                            }
-                          />
-                          <Label htmlFor={`edit-freq-${freq.value}`} className="font-normal cursor-pointer">
-                            {freq.label}
-                          </Label>
-                        </div>
-                        <Input
-                          className="w-24"
-                          inputMode="numeric"
-                          disabled={!row.enabled}
-                          value={row.count}
-                          onChange={(e) =>
-                            setFormData({
-                              ...formData,
-                              frequencies: {
-                                ...formData.frequencies,
-                                [freq.value]: {
-                                  ...row,
-                                  count: e.target.value.replace(/\D/g, '').slice(0, 3),
-                                },
-                              },
-                            })
-                          }
-                          aria-label={`${freq.label} installment count`}
-                        />
-                        <span className="text-xs text-muted-foreground">
-                          ({freq.min}–{freq.max})
-                        </span>
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {(pkg.paymentFrequencies ?? []).length === 0 ? (
-                    <p className="text-sm text-muted-foreground">None configured</p>
-                  ) : (
-                    (pkg.paymentFrequencies ?? []).map((pf) => (
-                      <Badge key={pf.frequency} variant="outline">
-                        {pf.frequency}: {pf.installmentCount}
-                      </Badge>
-                    ))
-                  )}
-                </div>
-              )}
-            </div>
-
-            <div>
-              <Label>Created By</Label>
-              <p className="text-sm font-medium">{pkg.createdByDisplayName ?? 'Unknown'}</p>
-            </div>
-
-            <div>
-              <Label>Created At</Label>
-              <p className="text-sm font-medium">
-                {pkg.createdAt ? new Date(pkg.createdAt).toLocaleString() : 'N/A'}
-              </p>
-            </div>
-
-            <div className="md:col-span-2">
-              <Label>Logo</Label>
-              {pkg.logoPath ? (
-                <div className="mt-2">
-                  <Image
-                    src={pkg.logoPath}
-                    alt={`${pkg.name} logo`}
-                    width={200}
-                    height={200}
-                    className="object-contain"
-                  />
-                </div>
-              ) : null}
-              {editing && (
-                <div className="mt-2">
-                  <Input
-                    type="file"
-                    accept="image/*"
-                    onChange={handleLogoUpload}
-                    disabled={uploadingLogo}
-                  />
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Supported formats: JPEG, PNG, GIF, WebP. Max size: 5MB
-                  </p>
-                </div>
-              )}
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
+      {!wizardStep && (
+        <>
       {/* Plans */}
       <Card>
         <CardHeader>
@@ -724,7 +881,7 @@ export default function PackageDetailPage() {
                 needs at least one active plan before it can be set active.
               </CardDescription>
             </div>
-            <Button onClick={() => setCreatePlanDialogOpen(true)}>
+            <Button onClick={() => setCreatePlanDialogOpen(true)} disabled={!isSetupAdmin}>
               <Plus className="h-4 w-4 mr-2" />
               Add Plan
             </Button>
@@ -764,21 +921,23 @@ export default function PackageDetailPage() {
                         </Badge>
                       </TableCell>
                       <TableCell>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            setPlanBeingEdited({
-                              id: plan.id,
-                              name: plan.name,
-                              description: plan.description,
-                              isActive: plan.isActive,
-                            });
-                            setEditPlanDialogOpen(true);
-                          }}
-                        >
-                          <Edit className="h-4 w-4" />
-                        </Button>
+                        {isSetupAdmin && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              setPlanBeingEdited({
+                                id: plan.id,
+                                name: plan.name,
+                                description: plan.description,
+                                isActive: plan.isActive,
+                              });
+                              setEditPlanDialogOpen(true);
+                            }}
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                        )}
                       </TableCell>
                     </TableRow>
                   ))}
@@ -817,7 +976,7 @@ export default function PackageDetailPage() {
                 Schemes linked to this package
               </CardDescription>
             </div>
-            <Button onClick={() => setCreateSchemeDialogOpen(true)}>
+            <Button onClick={() => setCreateSchemeDialogOpen(true)} disabled={!isSetupAdmin}>
               <Plus className="h-4 w-4 mr-2" />
               Add Scheme
             </Button>
@@ -880,6 +1039,8 @@ export default function PackageDetailPage() {
           )}
         </CardContent>
       </Card>
+        </>
+      )}
 
       {/* Create Scheme Dialog */}
       <CreateSchemeDialog
@@ -899,6 +1060,7 @@ export default function PackageDetailPage() {
         onSuccess={() => {
           setCreatePlanDialogOpen(false);
           fetchPlans();
+          fetchPricing();
         }}
         packageId={packageId}
       />

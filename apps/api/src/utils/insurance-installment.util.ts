@@ -17,6 +17,7 @@ export type PricingRateBand = {
   daily?: number;
   weekly?: number;
   monthly?: number;
+  quarterly?: number;
   annually?: number;
 };
 
@@ -35,6 +36,8 @@ function lookupRateForFrequency(frequency: string, rates: PricingRateBand): numb
       return rates.weekly ?? null;
     case 'MONTHLY':
       return rates.monthly ?? null;
+    case 'QUARTERLY':
+      return rates.quarterly ?? null;
     case 'ANNUALLY':
       return rates.annually ?? null;
     default:
@@ -42,61 +45,42 @@ function lookupRateForFrequency(frequency: string, rates: PricingRateBand): numb
   }
 }
 
+/**
+ * Lookup-only installment premium from stored rate band for the selected frequency.
+ * Missing/invalid rates return 0 (do not invent amounts via daily × cadence).
+ */
 export function computeInstallmentPremium(params: {
   frequency: string;
-  daily: number;
-  weekly: number;
+  daily?: number;
+  weekly?: number;
   customDays?: number;
+  /** @deprecated Ignored — pricing is always lookup-only. */
   pricingMode?: PricingMode;
   lookupRates?: PricingRateBand;
 }): number {
-  const {
-    frequency,
-    daily,
-    weekly,
-    customDays,
-    pricingMode = 'extrapolate',
-    lookupRates,
-  } = params;
-
-  if (pricingMode === 'lookup') {
-    const rates = lookupRates ?? { daily, weekly };
-    const amount = lookupRateForFrequency(frequency, rates);
-    if (amount == null || amount <= 0) {
-      return 0;
-    }
-    return Math.round(amount * 100) / 100;
-  }
-
-  if (frequency === 'WEEKLY') {
-    return weekly;
-  }
-  const cadence = cadenceDaysForFrequency(frequency, customDays);
-  if (cadence <= 0 || daily <= 0) {
+  const { frequency, daily = 0, weekly = 0, lookupRates } = params;
+  const rates = lookupRates ?? { daily, weekly };
+  const amount = lookupRateForFrequency(frequency, rates);
+  if (amount == null || amount <= 0) {
     return 0;
   }
-  return Math.round(daily * cadence * 100) / 100;
+  return Math.round(amount * 100) / 100;
 }
 
 /**
  * Annual premium for Products / Payment summary (not the selected-frequency installment).
- * Prefers pricing `annually` band; extrapolate fallback is daily × 365.
+ * Requires stored `annually` band; returns 0 if missing (lookup-only).
  */
 export function computeAnnualPremium(params: {
-  daily: number;
+  daily?: number;
+  /** @deprecated Ignored — pricing is always lookup-only. */
   pricingMode?: PricingMode;
   lookupRates?: PricingRateBand;
 }): number {
-  const { daily, pricingMode = 'extrapolate', lookupRates } = params;
+  const { lookupRates } = params;
   const annuallyFromBand = lookupRates?.annually;
   if (annuallyFromBand != null && annuallyFromBand > 0) {
     return Math.round(annuallyFromBand * 100) / 100;
   }
-  if (pricingMode === 'lookup') {
-    return 0;
-  }
-  if (daily <= 0) {
-    return 0;
-  }
-  return Math.round(daily * 365 * 100) / 100;
+  return 0;
 }
