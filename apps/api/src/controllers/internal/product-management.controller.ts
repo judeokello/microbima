@@ -24,6 +24,7 @@ import {
   ApiBearerAuth,
 } from '@nestjs/swagger';
 import { ProductManagementService } from '../../services/product-management.service';
+import { PackagePricingService } from '../../services/package-pricing/package-pricing.service';
 import { SchemeContactService } from '../../services/scheme-contact.service';
 import {
   PackagesResponseDto,
@@ -68,6 +69,12 @@ import {
   PostpaidMpesaLookupResponseDto,
 } from '../../dto/postpaid-scheme-payments/postpaid-scheme-payment.dto';
 import { PaymentType } from '@prisma/client';
+import { SetupAdminOnly } from '../../decorators/ba-auth.decorator';
+import {
+  PutPackagePricingRequestDto,
+  CreatePricingCategoryRequestDto,
+  SuggestFillRequestDto,
+} from '../../dto/packages/package-pricing.dto';
 
 /**
  * Internal Product Management Controller
@@ -89,6 +96,7 @@ import { PaymentType } from '@prisma/client';
 export class ProductManagementController {
   constructor(
     private readonly productManagementService: ProductManagementService,
+    private readonly packagePricingService: PackagePricingService,
     private readonly schemeContactService: SchemeContactService,
     private readonly postpaidSchemePaymentService: PostpaidSchemePaymentService
   ) {}
@@ -186,10 +194,11 @@ export class ProductManagementController {
    * Create a new package
    */
   @Post('packages')
+  @SetupAdminOnly()
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
     summary: 'Create a new package',
-    description: 'Create a new package for an underwriter.',
+    description: 'Create a new package for an underwriter. Requires setup_admin.',
   })
   @ApiResponse({
     status: 201,
@@ -323,8 +332,9 @@ export class ProductManagementController {
   }
 
   @Post('packages/:packageId/plans')
+  @SetupAdminOnly()
   @HttpCode(HttpStatus.CREATED)
-  @ApiOperation({ summary: 'Create a plan for a package' })
+  @ApiOperation({ summary: 'Create a plan for a package (requires setup_admin)' })
   @ApiParam({ name: 'packageId', type: Number })
   @ApiResponse({ status: 201, type: PackagePlanDetailResponseDto })
   async createPackagePlan(
@@ -351,9 +361,10 @@ export class ProductManagementController {
   }
 
   @Put('packages/:packageId/plans/:planId')
+  @SetupAdminOnly()
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
-    summary: 'Update a package plan',
+    summary: 'Update a package plan (requires setup_admin)',
     description: 'Update description and/or active status. Plan name cannot be changed.',
   })
   @ApiParam({ name: 'packageId', type: Number })
@@ -522,6 +533,115 @@ export class ProductManagementController {
   }
 
   /**
+   * Get package pricing by slug (registration / modify / recovery)
+   */
+  @Get('packages/by-slug/:slug/pricing')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Get package pricing by slug' })
+  async getPackagePricingBySlug(
+    @Param('slug') slug: string,
+    @CorrelationId() correlationId?: string,
+  ) {
+    const data = await this.packagePricingService.getPricingBySlug(slug);
+    return {
+      status: HttpStatus.OK,
+      correlationId: correlationId ?? 'unknown',
+      message: 'Package pricing retrieved successfully',
+      data,
+    };
+  }
+
+  /**
+   * Get package pricing grid
+   */
+  @Get('packages/:packageId/pricing')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Get package pricing grid' })
+  async getPackagePricing(
+    @Param('packageId', ParseIntPipe) packageId: number,
+    @CorrelationId() correlationId?: string,
+  ) {
+    const data = await this.packagePricingService.getPricing(packageId);
+    return {
+      status: HttpStatus.OK,
+      correlationId: correlationId ?? 'unknown',
+      message: 'Package pricing retrieved successfully',
+      data,
+    };
+  }
+
+  /**
+   * Replace/upsert package pricing grid
+   */
+  @Put('packages/:packageId/pricing')
+  @SetupAdminOnly()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Replace/upsert package pricing (requires setup_admin)' })
+  async putPackagePricing(
+    @Param('packageId', ParseIntPipe) packageId: number,
+    @Body() body: PutPackagePricingRequestDto,
+    @UserId() userId: string,
+    @CorrelationId() correlationId?: string,
+  ) {
+    if (!userId) {
+      throw new Error('User ID not found in request');
+    }
+    const data = await this.packagePricingService.putPricing(packageId, body, userId);
+    return {
+      status: HttpStatus.OK,
+      correlationId: correlationId ?? 'unknown',
+      message: 'Package pricing saved successfully',
+      data,
+    };
+  }
+
+  /**
+   * Add a pricing category
+   */
+  @Post('packages/:packageId/pricing/categories')
+  @SetupAdminOnly()
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'Create a pricing category (requires setup_admin)' })
+  async createPackagePricingCategory(
+    @Param('packageId', ParseIntPipe) packageId: number,
+    @Body() body: CreatePricingCategoryRequestDto,
+    @UserId() userId: string,
+    @CorrelationId() correlationId?: string,
+  ) {
+    if (!userId) {
+      throw new Error('User ID not found in request');
+    }
+    const result = await this.packagePricingService.createCategory(packageId, body, userId);
+    return {
+      status: HttpStatus.CREATED,
+      correlationId: correlationId ?? 'unknown',
+      message: 'Pricing category created successfully',
+      data: result,
+    };
+  }
+
+  /**
+   * Suggest fill for empty pricing cells
+   */
+  @Post('packages/:packageId/pricing/suggest-fill')
+  @SetupAdminOnly()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Suggest fill for empty pricing cells (requires setup_admin)' })
+  async suggestPackagePricingFill(
+    @Param('packageId', ParseIntPipe) packageId: number,
+    @Body() body: SuggestFillRequestDto,
+    @CorrelationId() correlationId?: string,
+  ) {
+    const data = await this.packagePricingService.suggestFill(packageId, body);
+    return {
+      status: HttpStatus.OK,
+      correlationId: correlationId ?? 'unknown',
+      message: 'Suggest fill computed successfully',
+      data,
+    };
+  }
+
+  /**
    * Get package by ID
    */
   @Get('packages/:packageId/details')
@@ -570,10 +690,11 @@ export class ProductManagementController {
    * Update a package
    */
   @Put('packages/:packageId')
+  @SetupAdminOnly()
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
-    summary: 'Update a package',
-    description: 'Update an existing package. Only provided fields will be updated.',
+    summary: 'Update a package (requires setup_admin)',
+    description: 'Update an existing package. Only provided fields will be updated. Activation requires complete pricing.',
   })
   @ApiParam({
     name: 'packageId',

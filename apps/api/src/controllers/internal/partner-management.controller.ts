@@ -670,6 +670,35 @@ export class InternalPartnerManagementController {
   }
 
   /**
+   * Check whether the authenticated user is the bootstrap (root) user.
+   */
+  @Get('auth/is-bootstrap')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Check if current user is bootstrap (root) user',
+    description:
+      'Returns whether the authenticated user is the first user created in the system. Used to gate setup_admin role assignment in admin UI.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Bootstrap status retrieved',
+    schema: {
+      type: 'object',
+      properties: {
+        isBootstrap: { type: 'boolean', example: true },
+      },
+    },
+  })
+  async getIsBootstrap(
+    @UserId() userId: string,
+    @CorrelationId() correlationId: string,
+  ): Promise<{ isBootstrap: boolean }> {
+    this.logger.log(`[${correlationId}] Checking bootstrap status for user ${userId}`);
+    const isBootstrap = await this.partnerManagementService.isBootstrapUser(userId);
+    return { isBootstrap };
+  }
+
+  /**
    * Get Brand Ambassador roles
    */
   @Get('brand-ambassadors/:id/roles')

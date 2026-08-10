@@ -1,0 +1,407 @@
+openapi: 3.0.3
+info:
+  title: MicroBima Internal API — Package Pricing
+  version: 0.1.0
+  description: |
+    Package pricing categories and plan rates (drop-in replacement for static product-pricing JSON).
+    Base path assumes existing internal API prefix (e.g. /api/v1/internal).
+
+    Authz:
+    - GET pricing (by package id or by slug): authenticated admin/agent paths that already can run registration/payment; `setup_admin` not required.
+    - PUT pricing, POST categories, suggest-fill, activate package, create/edit plans/package metadata: require `setup_admin`.
+    - Grant/revoke `setup_admin`: root (bootstrap) user only (user-update APIs outside this file).
+    - Completing a pricing PUT MUST NOT auto-activate; activation remains an explicit package update with `isActive=true` when complete.
+servers:
+  - url: /api/v1/internal
+tags:
+  - name: PackagePricing
+paths:
+  /product-management/packages/{packageId}/pricing:
+    get:
+      tags: [PackagePricing]
+      summary: Get package pricing grid (drop-in shape for registration UI)
+      operationId: getPackagePricing
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/packageId'
+      responses:
+        '200':
+          description: Pricing payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessPackagePricing'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      tags: [PackagePricing]
+      summary: Replace/upsert pricing categories and rates (wizard step 2 save)
+      description: |
+        Requires `setup_admin`. Saving a complete grid does not set `isActive=true`.
+        If save leaves pricing incomplete and package was active → force inactive + warning.
+      operationId: putPackagePricing
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/packageId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PutPackagePricingRequest'
+      responses:
+        '200':
+          description: Saved pricing; may include deactivation warning; isActive unchanged unless incomplete-force
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessPackagePricing'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /product-management/packages/by-slug/{slug}/pricing:
+    get:
+      tags: [PackagePricing]
+      summary: Get pricing by package slug (registration / modify / recovery)
+      operationId: getPackagePricingBySlug
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Pricing payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessPackagePricing'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /product-management/packages/{packageId}/pricing/categories:
+    post:
+      tags: [PackagePricing]
+      summary: Add a pricing category (persists; may deactivate package)
+      description: Requires `setup_admin`. May force package inactive if pricing becomes incomplete.
+      operationId: createPackagePricingCategory
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/packageId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePricingCategoryRequest'
+      responses:
+        '201':
+          description: Category created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessPricingMutation'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /product-management/packages/{packageId}/pricing/suggest-fill:
+    post:
+      tags: [PackagePricing]
+      summary: Suggest amounts for empty cells from lower band × cadence
+      description: Requires `setup_admin`. Does not persist; client applies via PUT.
+      operationId: suggestPackagePricingFill
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/packageId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SuggestFillRequest'
+      responses:
+        '200':
+          description: Suggested cell amounts (not persisted until PUT)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessSuggestFill'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /product-management/packages/{packageId}:
+    put:
+      tags: [PackagePricing]
+      summary: Update package (existing); activation blocked if pricing incomplete
+      description: |
+        Existing endpoint. Mutate/activate requires `setup_admin`.
+        When isActive=true and pricing incomplete → 422.
+        When payment frequencies change such that pricing becomes incomplete → isActive forced false + warning.
+        Completing pricing elsewhere does not auto-activate; caller must set isActive=true explicitly when complete.
+      operationId: updatePackageWithPricingGate
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/packageId'
+      responses:
+        '200':
+          description: Package updated
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /product-management/packages/{packageId}/plans:
+    post:
+      tags: [PackagePricing]
+      summary: Create plan (existing); may deactivate package if pricing incomplete
+      description: Requires `setup_admin`. May force package inactive if pricing becomes incomplete.
+      operationId: createPackagePlanWithPricingGate
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/packageId'
+      responses:
+        '201':
+          description: Plan created; warning if package deactivated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessPricingMutation'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    packageId:
+      name: packageId
+      in: path
+      required: true
+      schema:
+        type: integer
+        minimum: 1
+
+  schemas:
+    PaymentFrequencyBand:
+      type: string
+      enum: [DAILY, WEEKLY, MONTHLY, QUARTERLY, ANNUALLY]
+
+    PricingCategoryKind:
+      type: string
+      enum: [MEMBER_ONLY, UP_TO_N, ADDITIONAL_SPOUSE]
+
+    RateBand:
+      type: object
+      additionalProperties: false
+      properties:
+        daily: { type: number, exclusiveMinimum: 0 }
+        weekly: { type: number, exclusiveMinimum: 0 }
+        monthly: { type: number, exclusiveMinimum: 0 }
+        quarterly: { type: number, exclusiveMinimum: 0 }
+        annually: { type: number, exclusiveMinimum: 0 }
+
+    PricingCategory:
+      type: object
+      required: [key, display, kind]
+      properties:
+        id: { type: integer }
+        key: { type: string }
+        display: { type: string }
+        kind: { $ref: '#/components/schemas/PricingCategoryKind' }
+        maxMembers: { type: integer, nullable: true }
+        sortOrder: { type: integer }
+
+    SoftLossWarning:
+      type: object
+      required: [planKey, categoryKey, frequency, amount, floorAmount]
+      properties:
+        planKey: { type: string }
+        categoryKey: { type: string }
+        frequency: { $ref: '#/components/schemas/PaymentFrequencyBand' }
+        amount: { type: number }
+        floorAmount: { type: number }
+        message: { type: string }
+
+    PackagePricingData:
+      type: object
+      required: [packageId, isPricingComplete, categories, plans]
+      properties:
+        packageId: { type: integer }
+        packageSlug: { type: string, nullable: true }
+        isPricingComplete: { type: boolean }
+        isActive: { type: boolean }
+        enabledFrequencies:
+          type: array
+          items: { $ref: '#/components/schemas/PaymentFrequencyBand' }
+        categories:
+          type: array
+          items: { $ref: '#/components/schemas/PricingCategory' }
+        plans:
+          type: object
+          additionalProperties:
+            type: object
+            required: [planId, name, rates]
+            properties:
+              planId: { type: integer }
+              name: { type: string }
+              isActive: { type: boolean }
+              rates:
+                type: object
+                description: Map categoryKey → RateBand (includes additional_spouse)
+                additionalProperties:
+                  $ref: '#/components/schemas/RateBand'
+        softLossWarnings:
+          type: array
+          items: { $ref: '#/components/schemas/SoftLossWarning' }
+        warning:
+          type: string
+          nullable: true
+          description: e.g. package deactivated due to incomplete pricing
+
+    PutPackagePricingRequest:
+      type: object
+      required: [categories, plans]
+      properties:
+        categories:
+          type: array
+          items:
+            type: object
+            required: [key, display, kind]
+            properties:
+              key: { type: string }
+              display: { type: string }
+              kind: { $ref: '#/components/schemas/PricingCategoryKind' }
+              maxMembers: { type: integer, nullable: true }
+              sortOrder: { type: integer }
+        plans:
+          type: object
+          additionalProperties:
+            type: object
+            required: [rates]
+            properties:
+              planId: { type: integer }
+              rates:
+                type: object
+                additionalProperties:
+                  $ref: '#/components/schemas/RateBand'
+
+    CreatePricingCategoryRequest:
+      type: object
+      required: [kind, display]
+      properties:
+        kind: { $ref: '#/components/schemas/PricingCategoryKind' }
+        display: { type: string }
+        key: { type: string, description: Optional; server may derive from kind/maxMembers }
+        maxMembers: { type: integer, description: Required for UP_TO_N }
+        sortOrder: { type: integer }
+
+    SuggestFillRequest:
+      type: object
+      required: [planId, categoryKey]
+      properties:
+        planId: { type: integer }
+        categoryKey: { type: string }
+        overwriteFilled: { type: boolean, default: false }
+
+    SuggestFillData:
+      type: object
+      required: [planId, categoryKey, suggested]
+      properties:
+        planId: { type: integer }
+        categoryKey: { type: string }
+        suggested: { $ref: '#/components/schemas/RateBand' }
+
+    SuccessPackagePricing:
+      type: object
+      required: [status, data]
+      properties:
+        status: { type: integer, example: 200 }
+        correlationId: { type: string }
+        message: { type: string }
+        data: { $ref: '#/components/schemas/PackagePricingData' }
+
+    SuccessPricingMutation:
+      type: object
+      required: [status, data]
+      properties:
+        status: { type: integer }
+        correlationId: { type: string }
+        message: { type: string }
+        data:
+          type: object
+          properties:
+            isPricingComplete: { type: boolean }
+            isActive: { type: boolean }
+            warning: { type: string, nullable: true }
+
+    SuccessSuggestFill:
+      type: object
+      required: [status, data]
+      properties:
+        status: { type: integer }
+        correlationId: { type: string }
+        data: { $ref: '#/components/schemas/SuggestFillData' }
+
+  responses:
+    ValidationError:
+      description: Validation failed
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: object
+                properties:
+                  code: { type: string, example: VALIDATION_ERROR }
+                  status: { type: integer, example: 422 }
+                  message: { type: string }
+                  details: { type: object }
+                  correlationId: { type: string }
+    NotFound:
+      description: Package not found
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: object
+                properties:
+                  code: { type: string, example: NOT_FOUND }
+                  status: { type: integer, example: 404 }
+                  message: { type: string }
+                  correlationId: { type: string }
+    Forbidden:
+      description: Authenticated but missing `setup_admin` (mutate) or insufficient role
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: object
+                properties:
+                  code: { type: string, example: AUTHORIZATION_ERROR }
+                  status: { type: integer, example: 403 }
+                  message: { type: string }
+                  correlationId: { type: string }

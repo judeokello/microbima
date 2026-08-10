@@ -16,6 +16,7 @@ import { Switch } from '@/components/ui/switch';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Loader2 } from 'lucide-react';
 import { updateBrandAmbassador, getPartners, getBrandAmbassadorRoles, BrandAmbassador, Partner, ROLES } from '@/lib/api';
+import { useIsBootstrap } from '@/hooks/useIsBootstrap';
 import { formatPhoneNumber, getPhoneValidationError } from '@/lib/phone-validation';
 import * as Sentry from '@sentry/nextjs';
 
@@ -47,6 +48,7 @@ export default function EditBADialog({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [phoneError, setPhoneError] = useState<string | null>(null);
+  const { isBootstrap, loading: bootstrapLoading } = useIsBootstrap();
 
   const loadPartners = useCallback(async () => {
     try {
@@ -277,7 +279,7 @@ export default function EditBADialog({
 
           <div className="space-y-3">
             <Label>User Roles *</Label>
-            {loadingRoles ? (
+            {loadingRoles || bootstrapLoading ? (
               <div className="flex items-center gap-2">
                 <Loader2 className="h-4 w-4 animate-spin" />
                 <span className="text-sm text-muted-foreground">Loading roles...</span>
@@ -318,6 +320,19 @@ export default function EditBADialog({
                       Registration Admin (can manage Agents and resolve MRs)
                     </Label>
                   </div>
+                  {isBootstrap && (
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="setup_admin"
+                        checked={formData.roles.includes(ROLES.SETUP_ADMIN)}
+                        onCheckedChange={(checked) => handleRoleToggle(ROLES.SETUP_ADMIN, checked as boolean)}
+                        disabled={formData.roles.length === 1 && formData.roles.includes(ROLES.SETUP_ADMIN)}
+                      />
+                      <Label htmlFor="setup_admin" className="text-sm font-normal">
+                        Setup Admin (can configure packages, pricing, and activation)
+                      </Label>
+                    </div>
+                  )}
                 </div>
                 <p className="text-sm text-muted-foreground">
                   Select one or more roles. User must have at least one role. Pair Customer Care with Agent for care users.

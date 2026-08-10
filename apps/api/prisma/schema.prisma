@@ -451,6 +451,12 @@ enum PaymentFrequency {
   CUSTOM
 }
 
+enum PackagePricingCategoryKind {
+  MEMBER_ONLY
+  UP_TO_N
+  ADDITIONAL_SPOUSE
+}
+
 enum PaymentType {
   MPESA
   SASAPAY
@@ -694,7 +700,7 @@ model Underwriter {
 model Package {
   id                 Int      @id @default(autoincrement())
   name               String   @db.VarChar(100)
-  /// Unique lowercase slug for pricing file lookup (e.g. mfanisi-go)
+  /// Unique lowercase slug for package identity / URLs
   slug               String?  @unique @db.VarChar(100)
   description        String   @db.VarChar(500)
   underwriterId      Int?
@@ -712,6 +718,7 @@ model Package {
   packagePlans               PackagePlan[]
   packagePaymentFrequencies  PackagePaymentFrequency[]
   packageProviders           PackageProvider[]
+  packagePricingCategories   PackagePricingCategory[]
   policies                   Policy[]
   policyNumberSequence       PolicyNumberSequence?
 
@@ -867,8 +874,9 @@ model PackagePlan {
   isActive    Boolean @default(true)
 
   // Relations
-  package  Package  @relation(fields: [packageId], references: [id])
+  package  Package           @relation(fields: [packageId], references: [id])
   policies Policy[]
+  rates    PackagePlanRate[]
 
   // Audit fields
   createdAt DateTime @default(now())
@@ -878,6 +886,48 @@ model PackagePlan {
 
   @@unique([packageId, name])
   @@map("package_plans")
+}
+
+/// Family / add-on pricing grouping for a package (Member only, Up to N, Additional spouse)
+model PackagePricingCategory {
+  id          Int                         @id @default(autoincrement())
+  packageId   Int
+  key         String                      @db.VarChar(50)
+  displayName String                      @db.VarChar(100)
+  kind        PackagePricingCategoryKind
+  maxMembers  Int?
+  sortOrder   Int                         @default(0)
+
+  package Package           @relation(fields: [packageId], references: [id], onDelete: Cascade)
+  rates   PackagePlanRate[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String?  @db.Uuid
+  updatedBy String?  @db.Uuid
+
+  @@unique([packageId, key])
+  @@map("package_pricing_categories")
+}
+
+/// Amount for one plan × pricing category × payment frequency (lookup-only)
+model PackagePlanRate {
+  id                        Int              @id @default(autoincrement())
+  packagePlanId             Int
+  packagePricingCategoryId  Int
+  frequency                 PaymentFrequency
+  amount                    Decimal          @db.Decimal(10, 2)
+
+  packagePlan            PackagePlan            @relation(fields: [packagePlanId], references: [id], onDelete: Cascade)
+  packagePricingCategory PackagePricingCategory @relation(fields: [packagePricingCategoryId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String?  @db.Uuid
+  updatedBy String?  @db.Uuid
+
+  @@unique([packagePlanId, packagePricingCategoryId, frequency])
+  @@map("package_plan_rates")
 }
 
 model PolicyMemberPrincipal {

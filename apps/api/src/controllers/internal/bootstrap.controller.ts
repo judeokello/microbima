@@ -47,7 +47,7 @@ export class BootstrapController {
         email: body.email,
         password: body.password,
         userMetadata: {
-          roles: ['registration_admin', 'brand_ambassador'],
+          roles: ['registration_admin', 'brand_ambassador', 'setup_admin'],
           displayName: body.displayName,
           phone: body.phone ?? '254722000999',
         },

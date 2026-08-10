@@ -24,6 +24,7 @@ interface CreatePackageDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSuccess: () => void;
+  onCreated?: (packageId: number) => void;
   underwriterId: number;
 }
 
@@ -31,6 +32,7 @@ export default function CreatePackageDialog({
   open,
   onOpenChange,
   onSuccess,
+  onCreated,
   underwriterId,
 }: CreatePackageDialogProps) {
   const [formData, setFormData] = useState({
@@ -217,6 +219,9 @@ export default function CreatePackageDialog({
       });
 
       onSuccess();
+      if (createdPackage.data?.id && onCreated) {
+        onCreated(createdPackage.data.id);
+      }
     } catch (err) {
       console.error('Error creating package:', err);
       if (err instanceof Error) {

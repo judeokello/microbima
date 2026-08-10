@@ -1,6 +1,7 @@
 /**
  * Maps payment frequency to cadence days (must match API PAYMENT_CADENCE).
  * CUSTOM requires an explicit cadenceDays argument.
+ * Pricing amounts are lookup-only (no extrapolate).
  */
 export const PAYMENT_CADENCE_DAYS: Record<string, number> = {
   DAILY: 1,
@@ -10,12 +11,11 @@ export const PAYMENT_CADENCE_DAYS: Record<string, number> = {
   ANNUALLY: 365,
 };
 
-export type PricingMode = 'extrapolate' | 'lookup';
-
 export type PricingRateBand = {
   daily?: number;
   weekly?: number;
   monthly?: number;
+  quarterly?: number;
   annually?: number;
 };
 
@@ -34,6 +34,8 @@ function lookupRateForFrequency(frequency: string, rates: PricingRateBand): numb
       return rates.weekly ?? null;
     case 'MONTHLY':
       return rates.monthly ?? null;
+    case 'QUARTERLY':
+      return rates.quarterly ?? null;
     case 'ANNUALLY':
       return rates.annually ?? null;
     default:
@@ -42,73 +44,36 @@ function lookupRateForFrequency(frequency: string, rates: PricingRateBand): numb
 }
 
 /**
- * Installment amount stored on Policy.premium.
- * - extrapolate: WEEKLY uses weekly rate; other frequencies use daily × cadence days.
- * - lookup: use table rate for the selected frequency (no daily×cadence).
+ * Installment amount stored on Policy.premium — lookup-only from stored band.
  */
 export function computeInstallmentPremium(params: {
   frequency: string;
-  daily: number;
-  weekly: number;
+  daily?: number;
+  weekly?: number;
   customDays?: number;
-  pricingMode?: PricingMode;
-  /** Full rate band when pricingMode is lookup (category + spouse already summed by caller, or pass categoryRates + spouseRates). */
   lookupRates?: PricingRateBand;
 }): number {
-  const {
-    frequency,
-    daily,
-    weekly,
-    customDays,
-    pricingMode = 'extrapolate',
-    lookupRates,
-  } = params;
-
-  if (pricingMode === 'lookup') {
-    const rates = lookupRates ?? { daily, weekly };
-    const amount = lookupRateForFrequency(frequency, rates);
-    if (amount == null || amount <= 0) {
-      return 0;
-    }
-    return Math.round(amount * 100) / 100;
-  }
-
-  if (frequency === 'WEEKLY') {
-    return weekly;
-  }
-  const cadence = cadenceDaysForFrequency(frequency, customDays);
-  if (cadence <= 0 || daily <= 0) {
+  const { frequency, daily = 0, weekly = 0, lookupRates } = params;
+  const rates = lookupRates ?? { daily, weekly };
+  const amount = lookupRateForFrequency(frequency, rates);
+  if (amount == null || amount <= 0) {
     return 0;
   }
-  return Math.round(daily * cadence * 100) / 100;
+  return Math.round(amount * 100) / 100;
 }
 
 /**
- * Annual premium for Products / Payment summary (not the selected-frequency installment).
- * Prefers pricing `annually` band; extrapolate fallback is daily × 365.
+ * Annual premium for Products / Payment summary — stored annually band only.
  */
 export function computeAnnualPremium(params: {
-  daily: number;
-  pricingMode?: PricingMode;
+  daily?: number;
   lookupRates?: PricingRateBand;
 }): number {
-  const { daily, pricingMode = 'extrapolate', lookupRates } = params;
-  const annuallyFromBand = lookupRates?.annually;
+  const annuallyFromBand = params.lookupRates?.annually;
   if (annuallyFromBand != null && annuallyFromBand > 0) {
     return Math.round(annuallyFromBand * 100) / 100;
   }
-  if (pricingMode === 'lookup') {
-    return 0;
-  }
-  if (daily <= 0) {
-    return 0;
-  }
-  return Math.round(daily * 365 * 100) / 100;
-}
-
-/** Path to package pricing JSON under public/. */
-export function productPricingPath(packageSlug: string): string {
-  return `/product-pricing/${packageSlug}-pricing.json`;
+  return 0;
 }
 
 /** Nominal payment end if coverage/payments start on `fromDate` (UTC calendar day adds). */

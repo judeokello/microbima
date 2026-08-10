@@ -197,6 +197,9 @@ describe('ProductManagementService - package slug & payment frequencies', () => 
             deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
             createMany: jest.fn().mockResolvedValue({ count: 2 }),
           },
+          packagePricingCategory: {
+            create: jest.fn().mockResolvedValue({ id: 1, key: 'member_only' }),
+          },
           policyNumberSequence: {
             create: jest.fn().mockResolvedValue({ packageId: 10, lastSequence: 0 }),
           },
@@ -224,6 +227,29 @@ describe('ProductManagementService - package slug & payment frequencies', () => 
         { frequency: PaymentFrequency.DAILY, installmentCount: 313 },
         { frequency: PaymentFrequency.WEEKLY, installmentCount: 52 },
       ]);
+    });
+  });
+
+  describe('updatePackage validation', () => {
+    it('rejects CUSTOM frequency on package update', async () => {
+      prismaMock.package.findUnique.mockResolvedValue({
+        id: 10,
+        name: 'MfanisiBoda',
+        slug: 'mfanisi-boda',
+        isActive: false,
+      });
+
+      await expect(
+        service.updatePackage(
+          10,
+          {
+            paymentFrequencies: [
+              { frequency: PaymentFrequency.CUSTOM, installmentCount: 10 },
+            ],
+          },
+          'corr-1'
+        )
+      ).rejects.toBeInstanceOf(ValidationException);
     });
   });
 

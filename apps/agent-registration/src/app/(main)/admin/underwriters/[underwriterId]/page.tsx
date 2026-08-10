@@ -14,6 +14,7 @@ import * as Sentry from '@sentry/nextjs';
 import Image from 'next/image';
 import { TruncatedDescription } from './_components/truncated-description';
 import CreatePackageDialog from './_components/create-package-dialog';
+import { useAuth } from '@/hooks/useAuth';
 
 interface Underwriter {
   id: number;
@@ -56,6 +57,7 @@ export default function UnderwriterDetailPage() {
   const router = useRouter();
   const params = useParams();
   const underwriterId = parseInt(params.underwriterId as string);
+  const { isSetupAdmin } = useAuth();
 
   const [underwriter, setUnderwriter] = useState<Underwriter | null>(null);
   const [packages, setPackages] = useState<Package[]>([]);
@@ -356,10 +358,12 @@ export default function UnderwriterDetailPage() {
           </p>
         </div>
         {!editing ? (
-          <Button onClick={() => setEditing(true)}>
-            <Edit className="h-4 w-4 mr-2" />
-            Edit
-          </Button>
+          isSetupAdmin ? (
+            <Button onClick={() => setEditing(true)}>
+              <Edit className="h-4 w-4 mr-2" />
+              Edit
+            </Button>
+          ) : null
         ) : (
           <div className="flex space-x-2">
             <Button variant="outline" onClick={handleCancel}>
@@ -531,10 +535,12 @@ export default function UnderwriterDetailPage() {
                 Packages linked to this underwriter
               </CardDescription>
             </div>
-            <Button onClick={() => setCreatePackageDialogOpen(true)}>
-              <Plus className="h-4 w-4 mr-2" />
-              Create Package
-            </Button>
+            {isSetupAdmin && (
+              <Button onClick={() => setCreatePackageDialogOpen(true)}>
+                <Plus className="h-4 w-4 mr-2" />
+                Create Package
+              </Button>
+            )}
           </div>
         </CardHeader>
         <CardContent>
@@ -589,6 +595,9 @@ export default function UnderwriterDetailPage() {
         onSuccess={() => {
           setCreatePackageDialogOpen(false);
           fetchPackages();
+        }}
+        onCreated={(packageId) => {
+          router.push(`/admin/underwriters/packages/${packageId}?step=2`);
         }}
         underwriterId={underwriterId}
       />
