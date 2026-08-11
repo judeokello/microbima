@@ -2078,6 +2078,8 @@ export type PackagePricingData = {
   isPricingComplete: boolean
   isActive: boolean
   enabledFrequencies?: string[]
+  /** Installment counts per frequency (e.g. DAILY:276). ANNUALLY defaults to 1. */
+  installmentCounts?: Record<string, number>
   categories: PackagePricingCategory[]
   plans: Record<
     string,
@@ -2122,6 +2124,8 @@ export type SuggestPackagePricingFillRequest = {
   planId: number
   categoryKey: string
   overwriteFilled?: boolean
+  /** Current UI rate band (prefer over DB-only when present). */
+  rates?: PackagePricingRateBand
 }
 
 async function packagePricingFetch<T>(

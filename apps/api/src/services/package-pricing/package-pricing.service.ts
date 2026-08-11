@@ -18,6 +18,7 @@ import { PACKAGE_PRICING_INCOMPLETE_DEACTIVATE_WARNING } from './package-pricing
 import {
   PACKAGE_PRICING_FREQUENCIES,
   rateBandKeyForFrequency,
+  buildInstallmentCounts,
   suggestFillFromLowerBand,
 } from '../../utils/package-pricing-cadence.util';
 import { PricingRateBand } from '../../utils/insurance-installment.util';
@@ -28,6 +29,8 @@ export type PackagePricingData = {
   isPricingComplete: boolean;
   isActive: boolean;
   enabledFrequencies: string[];
+  /** Installment counts per frequency (e.g. DAILY:276). ANNUALLY defaults to 1. */
+  installmentCounts: Record<string, number>;
   categories: Array<{
     id: number;
     key: string;
@@ -85,7 +88,10 @@ type LoadedPackage = {
     maxMembers: number | null;
     sortOrder: number;
   }>;
-  packagePaymentFrequencies: Array<{ frequency: PaymentFrequency }>;
+  packagePaymentFrequencies: Array<{
+    frequency: PaymentFrequency;
+    installmentCount: number;
+  }>;
 };
 
 @Injectable()
@@ -373,14 +379,24 @@ export class PackagePricingService {
       );
     }
 
-    const currentBand = this.ratesToBand(
+    const dbBand = this.ratesToBand(
       plan.rates.filter((r) => r.packagePricingCategory.key === body.categoryKey)
     );
+    const currentBand: PricingRateBand = body.rates
+      ? this.sanitizeSuggestedBand(body.rates)
+      : dbBand;
 
     const enabledFrequencies = pkg.packagePaymentFrequencies.map((f) => f.frequency);
+    const installmentCounts = buildInstallmentCounts(
+      pkg.packagePaymentFrequencies.map((f) => ({
+        frequency: f.frequency,
+        installmentCount: f.installmentCount,
+      }))
+    );
     const suggested = suggestFillFromLowerBand({
       rates: currentBand,
       enabledFrequencies,
+      installmentCounts,
       overwriteFilled: body.overwriteFilled ?? false,
     });
 
@@ -389,6 +405,23 @@ export class PackagePricingService {
       categoryKey: body.categoryKey,
       suggested,
     };
+  }
+
+  private sanitizeSuggestedBand(rates: {
+    daily?: number;
+    weekly?: number;
+    monthly?: number;
+    quarterly?: number;
+    annually?: number;
+  }): PricingRateBand {
+    const band: PricingRateBand = {};
+    for (const key of ['daily', 'weekly', 'monthly', 'quarterly', 'annually'] as const) {
+      const value = rates[key];
+      if (value != null && value > 0) {
+        band[key] = value;
+      }
+    }
+    return band;
   }
 
   private packageInclude(): Prisma.PackageInclude {
@@ -420,6 +453,13 @@ export class PackagePricingService {
     const enabledFrequencies = pkg.packagePaymentFrequencies
       .map((f) => f.frequency)
       .filter((f) => f !== PaymentFrequency.CUSTOM);
+
+    const installmentCounts = buildInstallmentCounts(
+      pkg.packagePaymentFrequencies.map((f) => ({
+        frequency: f.frequency,
+        installmentCount: f.installmentCount,
+      }))
+    );
 
     const categories = pkg.packagePricingCategories.map((c) => ({
       id: c.id,
@@ -477,6 +517,7 @@ export class PackagePricingService {
       isPricingComplete: completeness.isPricingComplete,
       isActive: pkg.isActive,
       enabledFrequencies,
+      installmentCounts,
       categories,
       plans,
     };

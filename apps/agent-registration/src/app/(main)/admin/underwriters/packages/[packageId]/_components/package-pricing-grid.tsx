@@ -20,6 +20,11 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { Loader2, Plus, AlertTriangle, Sparkles } from 'lucide-react';
 import {
   type PackagePricingCategory,
@@ -27,17 +32,18 @@ import {
   createPackagePricingCategory,
   getPackagePricing,
   putPackagePricing,
-  suggestPackagePricingFill,
 } from '@/lib/api';
 import { supabase } from '@/lib/supabase';
 import {
-  FREQUENCY_LABELS,
+  buildInstallmentCounts,
   findFinestRate,
+  frequencyRowLabel,
   getRateFromBand,
   gridFrequencies,
   isSoftLoss,
   rateBandKeyForFrequency,
   softLossFloorAmount,
+  suggestFillFromLowerBand,
 } from '@/lib/package-pricing-cadence.util';
 import type { PricingRateBand } from '@/lib/insurance-installment';
 
@@ -125,6 +131,16 @@ function toTitleCase(value: string): string {
     .join(' ');
 }
 
+function amountsEqual(a: number | null, b: number | null): boolean {
+  if (a == null && b == null) return true;
+  if (a == null || b == null) return false;
+  return a === b;
+}
+
+function clonePlans(plans: PackagePricingData['plans']): PackagePricingData['plans'] {
+  return structuredClone(plans);
+}
+
 export default function PackagePricingGrid({
   packageId,
   pricing,
@@ -136,6 +152,9 @@ export default function PackagePricingGrid({
     categories: pricing.categories,
     plans: pricing.plans,
   }));
+  const [baselinePlans, setBaselinePlans] = useState<PackagePricingData['plans']>(() =>
+    clonePlans(pricing.plans)
+  );
   const [editingCell, setEditingCell] = useState<EditingCell | null>(null);
   const [softLossHints, setSoftLossHints] = useState<SoftLossHint[]>([]);
   const [saving, setSaving] = useState(false);
@@ -157,13 +176,27 @@ export default function PackagePricingGrid({
       categories: pricing.categories,
       plans: pricing.plans,
     });
+    setBaselinePlans(clonePlans(pricing.plans));
     setDirty(false);
+    setSoftLossHints([]);
   }, [pricing]);
 
   const frequencies = useMemo(
     () => gridFrequencies(pricing.enabledFrequencies ?? []),
     [pricing.enabledFrequencies]
   );
+
+  const installmentCounts = useMemo(() => {
+    if (pricing.installmentCounts && Object.keys(pricing.installmentCounts).length > 0) {
+      return { ANNUALLY: 1, ...pricing.installmentCounts };
+    }
+    return buildInstallmentCounts(
+      (pricing.enabledFrequencies ?? []).map((frequency) => ({
+        frequency,
+        installmentCount: frequency === 'ANNUALLY' ? 1 : 0,
+      }))
+    );
+  }, [pricing.installmentCounts, pricing.enabledFrequencies]);
 
   const planEntries = useMemo(
     () =>
@@ -200,6 +233,7 @@ export default function PackagePricingGrid({
           finestAmount: finest.amount,
           coarserFrequency: frequency,
           coarserAmount: amount,
+          installmentCounts,
         })
       ) {
         return {
@@ -211,12 +245,32 @@ export default function PackagePricingGrid({
             finestFrequency: finest.frequency,
             finestAmount: finest.amount,
             coarserFrequency: frequency,
+            installmentCounts,
           }),
         };
       }
       return null;
     },
-    [frequencies]
+    [frequencies, installmentCounts]
+  );
+
+  const recomputeSoftLossForBand = useCallback(
+    (plans: PackagePricingData['plans'], planKey: string, categoryKey: string) => {
+      setSoftLossHints((prev) => {
+        const without = prev.filter(
+          (h) => !(h.planKey === planKey && h.categoryKey === categoryKey)
+        );
+        const nextHints: SoftLossHint[] = [];
+        for (const frequency of frequencies) {
+          const amount = getCellAmount(plans, planKey, categoryKey, frequency);
+          if (amount == null) continue;
+          const hint = checkSoftLossForCell(plans, planKey, categoryKey, frequency, amount);
+          if (hint) nextHints.push(hint);
+        }
+        return [...without, ...nextHints];
+      });
+    },
+    [checkSoftLossForCell, frequencies]
   );
 
   const commitEdit = (cell: EditingCell) => {
@@ -237,29 +291,7 @@ export default function PackagePricingGrid({
     setDirty(true);
     setEditingCell(null);
     setError(null);
-
-    if (parsed != null && parsed > 0) {
-      const hint = checkSoftLossForCell(
-        nextPlans,
-        cell.planKey,
-        cell.categoryKey,
-        cell.frequency,
-        parsed
-      );
-      if (hint) {
-        setSoftLossHints((prev) => {
-          const filtered = prev.filter(
-            (h) =>
-              !(
-                h.planKey === hint.planKey &&
-                h.categoryKey === hint.categoryKey &&
-                h.frequency === hint.frequency
-              )
-          );
-          return [...filtered, hint];
-        });
-      }
-    }
+    recomputeSoftLossForBand(nextPlans, cell.planKey, cell.categoryKey);
   };
 
   const handleSave = async () => {
@@ -291,7 +323,9 @@ export default function PackagePricingGrid({
         categories: saved.categories,
         plans: saved.plans,
       });
+      setBaselinePlans(clonePlans(saved.plans));
       setDirty(false);
+      setSoftLossHints([]);
       onSaved(saved);
       onWarning?.(saved.warning ?? null);
     } catch (err) {
@@ -301,13 +335,18 @@ export default function PackagePricingGrid({
     }
   };
 
-  const handleSuggestFill = async (planKey: string, categoryKey: string) => {
+  const handleSuggestFill = (planKey: string, categoryKey: string) => {
     const plan = local.plans[planKey];
     if (!plan) return;
 
     const band = plan.rates[categoryKey] ?? emptyBand();
     const hasFilled = frequencies.some((f) => getRateFromBand(band, f) != null);
     const hasEmpty = frequencies.some((f) => getRateFromBand(band, f) == null);
+
+    if (!hasFilled) {
+      setError('Enter a base rate first (e.g. Daily), then use Suggest fill');
+      return;
+    }
 
     if (!hasEmpty) {
       setError('All cells in this section already have values');
@@ -321,38 +360,43 @@ export default function PackagePricingGrid({
       if (!ok) return;
     }
 
-    try {
-      const result = await suggestPackagePricingFill(packageId, {
-        planId: plan.planId,
-        categoryKey,
-        overwriteFilled: false,
-      });
+    const suggested = suggestFillFromLowerBand({
+      rates: band,
+      enabledFrequencies: frequencies,
+      installmentCounts,
+      overwriteFilled: false,
+    });
 
-      const nextPlans = { ...local.plans };
-      const existingBand = { ...(nextPlans[planKey].rates[categoryKey] ?? emptyBand()) };
-      const suggested = result.suggested as PricingRateBand;
-
-      for (const freq of frequencies) {
-        const key = rateBandKeyForFrequency(freq);
-        if (!key) continue;
-        const existing = existingBand[key];
-        const suggestedVal = suggested[key];
-        if ((existing == null || existing <= 0) && suggestedVal != null && suggestedVal > 0) {
-          existingBand[key] = suggestedVal;
-        }
+    let filledAny = false;
+    const existingBand = { ...band };
+    for (const freq of frequencies) {
+      const key = rateBandKeyForFrequency(freq);
+      if (!key) continue;
+      const existing = existingBand[key];
+      const suggestedVal = suggested[key];
+      if ((existing == null || existing <= 0) && suggestedVal != null && suggestedVal > 0) {
+        existingBand[key] = suggestedVal;
+        filledAny = true;
       }
-
-      nextPlans[planKey] = {
-        ...nextPlans[planKey],
-        rates: { ...nextPlans[planKey].rates, [categoryKey]: existingBand },
-      };
-
-      setLocal((prev) => ({ ...prev, plans: nextPlans }));
-      setDirty(true);
-      setError(null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Suggest fill failed');
     }
+
+    if (!filledAny) {
+      setError('Could not suggest values from the current base rate');
+      return;
+    }
+
+    const nextPlans = {
+      ...local.plans,
+      [planKey]: {
+        ...plan,
+        rates: { ...plan.rates, [categoryKey]: existingBand },
+      },
+    };
+
+    setLocal((prev) => ({ ...prev, plans: nextPlans }));
+    setDirty(true);
+    setError(null);
+    recomputeSoftLossForBand(nextPlans, planKey, categoryKey);
   };
 
   const handleAddPlan = async () => {
@@ -567,8 +611,8 @@ export default function PackagePricingGrid({
               <TableBody>
                 {frequencies.map((frequency) => (
                   <TableRow key={frequency}>
-                    <TableCell className="font-medium">
-                      {FREQUENCY_LABELS[frequency] ?? frequency}
+                    <TableCell className="font-medium whitespace-nowrap">
+                      {frequencyRowLabel(frequency, installmentCounts[frequency])}
                     </TableCell>
                     {planEntries.map(([planKey]) => {
                       const isEditing =
@@ -582,6 +626,13 @@ export default function PackagePricingGrid({
                         category.key,
                         frequency
                       );
+                      const baselineAmount = getCellAmount(
+                        baselinePlans,
+                        planKey,
+                        category.key,
+                        frequency
+                      );
+                      const isEdited = !amountsEqual(amount, baselineAmount);
                       const softLoss = softLossForCell(planKey, category.key, frequency);
 
                       return (
@@ -602,7 +653,7 @@ export default function PackagePricingGrid({
                           }}
                         >
                           {isEditing && editingCell ? (
-                            <div className="space-y-1">
+                            <div className="space-y-1 w-24">
                               {editingCell.previousValue != null && (
                                 <span className="text-xs text-muted-foreground line-through block">
                                   {editingCell.previousValue}
@@ -610,13 +661,14 @@ export default function PackagePricingGrid({
                               )}
                               <Input
                                 autoFocus
-                                className="h-8 text-blue-600 font-semibold"
+                                className="h-8 w-24 text-blue-600 font-semibold"
                                 inputMode="decimal"
+                                maxLength={8}
                                 value={editingCell.draft}
                                 onChange={(e) =>
                                   setEditingCell({
                                     ...editingCell,
-                                    draft: e.target.value.replace(/[^\d.]/g, ''),
+                                    draft: e.target.value.replace(/[^\d.]/g, '').slice(0, 8),
                                   })
                                 }
                                 onBlur={() => commitEdit(editingCell)}
@@ -632,15 +684,38 @@ export default function PackagePricingGrid({
                               />
                             </div>
                           ) : (
-                            <div className="flex items-center gap-1">
-                              <span>{amount != null ? amount : '—'}</span>
-                              {softLoss && (
-                                <span
-                                  title={`Below floor (${softLoss.floorAmount}). Save is still allowed.`}
-                                  className="text-amber-600"
-                                >
-                                  <AlertTriangle className="h-4 w-4" />
+                            <div className="flex items-center gap-1 min-w-[5.5rem]">
+                              {isEdited && baselineAmount != null ? (
+                                <span className="flex items-baseline gap-1">
+                                  <span className="text-xs text-muted-foreground line-through">
+                                    {baselineAmount}
+                                  </span>
+                                  <span className="text-blue-600 font-semibold">
+                                    {amount ?? '—'}
+                                  </span>
                                 </span>
+                              ) : isEdited ? (
+                                <span className="text-amber-700 font-semibold">
+                                  {amount ?? '—'}
+                                </span>
+                              ) : (
+                                <span>{amount ?? '—'}</span>
+                              )}
+                              {softLoss && (
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <button
+                                      type="button"
+                                      className="text-amber-600 inline-flex"
+                                      aria-label={`Below floor (${softLoss.floorAmount}). Save is still allowed.`}
+                                    >
+                                      <AlertTriangle className="h-4 w-4" />
+                                    </button>
+                                  </TooltipTrigger>
+                                  <TooltipContent side="top">
+                                    Below floor ({softLoss.floorAmount}). Save is still allowed.
+                                  </TooltipContent>
+                                </Tooltip>
                               )}
                             </div>
                           )}

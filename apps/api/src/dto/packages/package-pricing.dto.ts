@@ -165,4 +165,22 @@ export class SuggestFillRequestDto {
   @IsOptional()
   @IsBoolean()
   overwriteFilled?: boolean;
+
+  /**
+   * Optional current rate band from the admin UI (unsaved edits).
+   * When provided, suggestions are based on these amounts instead of DB-only rates.
+   */
+  @ApiPropertyOptional({
+    description:
+      'Current UI rate band (daily/weekly/monthly/quarterly/annually). Prefer over DB when present.',
+  })
+  @IsOptional()
+  @IsObject()
+  rates?: {
+    daily?: number;
+    weekly?: number;
+    monthly?: number;
+    quarterly?: number;
+    annually?: number;
+  };
 }

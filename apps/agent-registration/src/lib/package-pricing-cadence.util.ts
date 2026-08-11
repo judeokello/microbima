@@ -1,5 +1,7 @@
 /**
- * Client-side cadence / soft-loss helpers for package pricing grid (mirrors API util).
+ * Client-side soft-loss / suggest-fill helpers for package pricing grid
+ * (mirrors apps/api/src/utils/package-pricing-cadence.util.ts).
+ * Uses package installment counts, not calendar cadence days.
  */
 
 import { PAYMENT_CADENCE_DAYS, type PricingRateBand } from './insurance-installment';
@@ -15,6 +17,8 @@ export const PACKAGE_PRICING_FREQUENCIES = [
 ] as const;
 
 export type PackagePricingFrequency = (typeof PACKAGE_PRICING_FREQUENCIES)[number];
+
+export type InstallmentCounts = Partial<Record<string, number>>;
 
 const RATE_BAND_KEYS: Record<PackagePricingFrequency, keyof PricingRateBand> = {
   DAILY: 'daily',
@@ -32,9 +36,40 @@ export const FREQUENCY_LABELS: Record<string, string> = {
   ANNUALLY: 'Annually',
 };
 
+const FREQUENCY_COUNT_UNITS: Record<string, string> = {
+  DAILY: 'days',
+  WEEKLY: 'weeks',
+  MONTHLY: 'months',
+  QUARTERLY: 'quarters',
+};
+
 export function cadenceDaysForPricingFrequency(frequency: string): number {
   if (frequency === 'CUSTOM') return 0;
   return PAYMENT_CADENCE_DAYS[frequency] ?? 0;
+}
+
+export function buildInstallmentCounts(
+  rows: Array<{ frequency: string; installmentCount: number }>
+): Record<string, number> {
+  const counts: Record<string, number> = { ANNUALLY: 1 };
+  for (const row of rows) {
+    if (row.frequency === 'CUSTOM') continue;
+    if (row.installmentCount > 0) {
+      counts[row.frequency] = row.installmentCount;
+    }
+  }
+  if (!counts.ANNUALLY || counts.ANNUALLY <= 0) {
+    counts.ANNUALLY = 1;
+  }
+  return counts;
+}
+
+export function frequencyRowLabel(frequency: string, count?: number | null): string {
+  const base = FREQUENCY_LABELS[frequency] ?? frequency;
+  if (count == null || count <= 0) return base;
+  if (frequency === 'ANNUALLY') return `${base} (${count})`;
+  const unit = FREQUENCY_COUNT_UNITS[frequency];
+  return unit ? `${base} (${count} ${unit})` : `${base} (${count})`;
 }
 
 export function rateBandKeyForFrequency(
@@ -58,13 +93,14 @@ export function softLossFloorAmount(params: {
   finestFrequency: string;
   finestAmount: number;
   coarserFrequency: string;
+  installmentCounts: InstallmentCounts;
 }): number {
-  const finestDays = cadenceDaysForPricingFrequency(params.finestFrequency);
-  const coarserDays = cadenceDaysForPricingFrequency(params.coarserFrequency);
-  if (finestDays <= 0 || coarserDays <= 0 || params.finestAmount <= 0) {
+  const finestCount = params.installmentCounts[params.finestFrequency] ?? 0;
+  const coarserCount = params.installmentCounts[params.coarserFrequency] ?? 0;
+  if (finestCount <= 0 || coarserCount <= 0 || params.finestAmount <= 0) {
     return 0;
   }
-  return Math.round(params.finestAmount * (coarserDays / finestDays) * 100) / 100;
+  return Math.round(params.finestAmount * (finestCount / coarserCount) * 100) / 100;
 }
 
 export function isSoftLoss(params: {
@@ -72,10 +108,62 @@ export function isSoftLoss(params: {
   finestAmount: number;
   coarserFrequency: string;
   coarserAmount: number;
+  installmentCounts: InstallmentCounts;
 }): boolean {
   const floor = softLossFloorAmount(params);
   if (floor <= 0 || params.coarserAmount <= 0) return false;
   return params.coarserAmount < floor;
+}
+
+export function suggestFillFromLowerBand(params: {
+  rates: PricingRateBand;
+  enabledFrequencies: string[];
+  installmentCounts: InstallmentCounts;
+  overwriteFilled?: boolean;
+}): PricingRateBand {
+  const {
+    rates,
+    enabledFrequencies,
+    installmentCounts,
+    overwriteFilled = false,
+  } = params;
+  const ordered = PACKAGE_PRICING_FREQUENCIES.filter(
+    (f) => enabledFrequencies.includes(f) || f === 'ANNUALLY'
+  );
+
+  let finestFrequency: string | null = null;
+  let finestAmount: number | null = null;
+  for (const freq of ordered) {
+    const amount = getRateFromBand(rates, freq);
+    if (amount != null) {
+      finestFrequency = freq;
+      finestAmount = amount;
+      break;
+    }
+  }
+
+  if (finestFrequency == null || finestAmount == null) {
+    return { ...rates };
+  }
+
+  const suggested: PricingRateBand = { ...rates };
+  for (const freq of ordered) {
+    if (freq === finestFrequency) continue;
+    const key = rateBandKeyForFrequency(freq);
+    if (!key) continue;
+    const existing = rates[key];
+    if (existing != null && existing > 0 && !overwriteFilled) continue;
+    const floor = softLossFloorAmount({
+      finestFrequency,
+      finestAmount,
+      coarserFrequency: freq,
+      installmentCounts,
+    });
+    if (floor > 0) {
+      suggested[key] = floor;
+    }
+  }
+  return suggested;
 }
 
 /** Grid row frequencies: enabled package freqs plus ANNUALLY always. */

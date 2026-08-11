@@ -597,7 +597,7 @@ export default function UnderwriterDetailPage() {
           fetchPackages();
         }}
         onCreated={(packageId) => {
-          router.push(`/admin/underwriters/packages/${packageId}?step=2`);
+          router.push(`/admin/underwriters/packages/${packageId}/pricing?step=2`);
         }}
         underwriterId={underwriterId}
       />

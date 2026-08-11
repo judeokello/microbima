@@ -37,9 +37,9 @@ describe('PackagePricingService', () => {
     slug: 'mfanisi-boda',
     isActive: false,
     packagePaymentFrequencies: [
-      { frequency: PaymentFrequency.DAILY },
-      { frequency: PaymentFrequency.WEEKLY },
-      { frequency: PaymentFrequency.MONTHLY },
+      { frequency: PaymentFrequency.DAILY, installmentCount: 276 },
+      { frequency: PaymentFrequency.WEEKLY, installmentCount: 39 },
+      { frequency: PaymentFrequency.MONTHLY, installmentCount: 9 },
     ],
     packagePricingCategories: [
       {
@@ -95,6 +95,12 @@ describe('PackagePricingService', () => {
         PaymentFrequency.WEEKLY,
         PaymentFrequency.MONTHLY,
       ]);
+      expect(result.installmentCounts).toEqual({
+        DAILY: 276,
+        WEEKLY: 39,
+        MONTHLY: 9,
+        ANNUALLY: 1,
+      });
     });
 
     it('throws NotFoundException when package missing', async () => {
@@ -196,6 +202,35 @@ describe('PackagePricingService', () => {
           'user-1'
         )
       ).rejects.toBeInstanceOf(ValidationException);
+    });
+  });
+
+  describe('suggestFill', () => {
+    it('uses UI rates when provided and installment counts for annual', async () => {
+      prismaMock.package.findUnique.mockResolvedValue(basePackage);
+
+      const result = await service.suggestFill(10, {
+        planId: 100,
+        categoryKey: 'member_only',
+        rates: { daily: 90 },
+      });
+
+      expect(result.suggested.annually).toBe(24840);
+      expect(result.suggested.weekly).toBe(Math.round(90 * (276 / 39) * 100) / 100);
+      expect(result.suggested.annually).not.toBe(90 * 365);
+    });
+
+    it('falls back to DB rates when UI rates omitted', async () => {
+      prismaMock.package.findUnique.mockResolvedValue(basePackage);
+
+      const result = await service.suggestFill(10, {
+        planId: 100,
+        categoryKey: 'member_only',
+      });
+
+      // DB has daily:56 and annually:17645 — does not overwrite annual; fills weekly
+      expect(result.suggested.annually).toBe(17645);
+      expect(result.suggested.weekly).toBe(Math.round(56 * (276 / 39) * 100) / 100);
     });
   });
 });

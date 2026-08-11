@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { RefreshCw, Edit, Save, X, Plus, Zap } from 'lucide-react';
+import { RefreshCw, Edit, Save, X, Plus, Zap, ArrowRight } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
 import { supabase } from '@/lib/supabase';
 import { getPackagePricing, type PackagePricingData } from '@/lib/api';
@@ -18,12 +18,14 @@ import * as Sentry from '@sentry/nextjs';
 import Image from 'next/image';
 import { TruncatedDescription } from '../../[underwriterId]/_components/truncated-description';
 import CreateSchemeDialog from './_components/create-scheme-dialog';
-import CreatePlanDialog from './_components/create-plan-dialog';
-import EditPlanDialog, { type EditablePlan } from './_components/edit-plan-dialog';
 import MemberCardWithDownload from '@/components/member-cards/MemberCardWithDownload';
 import { SAMPLE_CARD_DATA } from '@/components/member-cards/sample-card-data';
-import PackagePricingGrid from './_components/package-pricing-grid';
 import PackageWizard, { type PackageWizardStep } from './_components/package-wizard';
+import {
+  packageDetailPath,
+  packagePricingPath,
+  packageWizardPath,
+} from './_components/package-wizard-routes';
 
 const CONFIGURABLE_FREQUENCIES = [
   { value: 'DAILY', label: 'Daily', min: 1, max: 365 },
@@ -141,9 +143,6 @@ export default function PackageDetailPage() {
   const [editing, setEditing] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [createSchemeDialogOpen, setCreateSchemeDialogOpen] = useState(false);
-  const [createPlanDialogOpen, setCreatePlanDialogOpen] = useState(false);
-  const [editPlanDialogOpen, setEditPlanDialogOpen] = useState(false);
-  const [planBeingEdited, setPlanBeingEdited] = useState<EditablePlan | null>(null);
   const [activating, setActivating] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
@@ -504,12 +503,28 @@ export default function PackageDetailPage() {
   };
 
   const goToWizardStep = (step: PackageWizardStep) => {
-    router.push(`/admin/underwriters/packages/${packageId}?step=${step}`);
+    router.push(packageWizardPath(packageId, step));
   };
 
   const finishWizard = () => {
-    router.push(`/admin/underwriters/packages/${packageId}`);
+    router.push(packageDetailPath(packageId));
   };
+
+  // Pricing lives on a dedicated page — send step 2 there.
+  useEffect(() => {
+    if (wizardStep === 2) {
+      router.replace(packagePricingPath(packageId, 2));
+    }
+  }, [wizardStep, packageId, router]);
+
+  if (wizardStep === 2) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <RefreshCw className="h-8 w-8 animate-spin" />
+        <span className="ml-2">Opening pricing…</span>
+      </div>
+    );
+  }
 
   if (loading && !pkg) {
     return (
@@ -750,29 +765,38 @@ export default function PackageDetailPage() {
     </Card>
   );
 
-  const pricingCard = pricing ? (
+  const pricingNavCard = (
     <Card>
       <CardHeader>
-        <CardTitle>Package Pricing</CardTitle>
-        <CardDescription>
-          Configure rates by category, frequency, and plan. Double-click a cell to edit.
-        </CardDescription>
+        <div className="flex items-center justify-between gap-4 flex-wrap">
+          <div>
+            <CardTitle>Pricing & Plans</CardTitle>
+            <CardDescription>
+              Manage plan columns and rate grid on a dedicated page so this package view stays lean.
+            </CardDescription>
+          </div>
+          <Button onClick={() => router.push(packagePricingPath(packageId))}>
+            Open pricing
+            <ArrowRight className="h-4 w-4 ml-2" />
+          </Button>
+        </div>
       </CardHeader>
-      <CardContent>
-        <PackagePricingGrid
-          packageId={packageId}
-          pricing={pricing}
-          readOnly={!isSetupAdmin}
-          onSaved={(saved) => {
-            setPricing(saved);
-            setPricingWarning(saved.warning ?? null);
-            fetchPlans();
-          }}
-          onWarning={setPricingWarning}
-        />
+      <CardContent className="space-y-2 text-sm text-muted-foreground">
+        <p>
+          Pricing status:{' '}
+          <span className="font-medium text-foreground">
+            {pricing?.isPricingComplete ? 'Complete' : 'Incomplete'}
+          </span>
+        </p>
+        <p>
+          Plans:{' '}
+          <span className="font-medium text-foreground">
+            {plans.filter((p) => p.isActive).length} active / {plans.length} total
+          </span>
+        </p>
       </CardContent>
     </Card>
-  ) : null;
+  );
 
   const utilizationPlaceholder = (
     <Card>
@@ -853,100 +877,21 @@ export default function PackageDetailPage() {
           onBack={() => wizardStep > 1 && goToWizardStep((wizardStep - 1) as PackageWizardStep)}
           onNext={() => wizardStep < 3 && goToWizardStep((wizardStep + 1) as PackageWizardStep)}
           onFinish={finishWizard}
-          nextDisabled={wizardStep === 2 && !pricing?.isPricingComplete}
+          nextDisabled={false}
           loading={loading || activating}
         >
           {wizardStep === 1 && packageInfoCard}
-          {wizardStep === 2 && pricingCard}
           {wizardStep === 3 && utilizationPlaceholder}
         </PackageWizard>
       ) : (
         <>
           {packageInfoCard}
-          {pricingCard}
+          {pricingNavCard}
         </>
       )}
 
       {!wizardStep && (
         <>
-      {/* Plans */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle>Plans</CardTitle>
-              <CardDescription>
-                Plans for this package (names must match pricing file plan keys, e.g. Silver, Gold). A package
-                needs at least one active plan before it can be set active.
-              </CardDescription>
-            </div>
-            <Button onClick={() => setCreatePlanDialogOpen(true)} disabled={!isSetupAdmin}>
-              <Plus className="h-4 w-4 mr-2" />
-              Add Plan
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent>
-          {plans.length === 0 ? (
-            <div className="text-center py-8">
-              <p className="text-muted-foreground">No plans found</p>
-            </div>
-          ) : (
-            <div className="rounded-md border">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Description</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="w-[100px]">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {plans.map((plan) => (
-                    <TableRow key={plan.id}>
-                      <TableCell className="font-medium">{plan.name}</TableCell>
-                      <TableCell>{plan.description ?? '—'}</TableCell>
-                      <TableCell>
-                        <Badge
-                          variant="outline"
-                          className={
-                            plan.isActive
-                              ? 'bg-green-50 text-green-700 border-green-200'
-                              : 'bg-secondary text-secondary-foreground border-transparent'
-                          }
-                        >
-                          {plan.isActive ? 'Active' : 'Inactive'}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        {isSetupAdmin && (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => {
-                              setPlanBeingEdited({
-                                id: plan.id,
-                                name: plan.name,
-                                description: plan.description,
-                                isActive: plan.isActive,
-                              });
-                              setEditPlanDialogOpen(true);
-                            }}
-                          >
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
       {/* Card template preview */}
       <Card>
         <CardHeader>
@@ -1051,29 +996,6 @@ export default function PackageDetailPage() {
         }}
         packageId={packageId}
         paymentFrequencies={pkg?.paymentFrequencies}
-      />
-
-      <CreatePlanDialog
-        open={createPlanDialogOpen}
-        onOpenChange={setCreatePlanDialogOpen}
-        onSuccess={() => {
-          setCreatePlanDialogOpen(false);
-          fetchPlans();
-          fetchPricing();
-        }}
-        packageId={packageId}
-      />
-
-      <EditPlanDialog
-        open={editPlanDialogOpen}
-        onOpenChange={setEditPlanDialogOpen}
-        onSuccess={() => {
-          setEditPlanDialogOpen(false);
-          setPlanBeingEdited(null);
-          fetchPlans();
-        }}
-        packageId={packageId}
-        plan={planBeingEdited}
       />
     </div>
   );

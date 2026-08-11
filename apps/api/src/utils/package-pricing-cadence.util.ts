@@ -1,6 +1,7 @@
 /**
- * Soft-loss / suggest-fill cadence helpers for package pricing (lookup-only).
- * Cadence days align with PAYMENT_CADENCE_DAYS / PAYMENT_CADENCE (1/7/31/90/365).
+ * Soft-loss / suggest-fill helpers for package pricing (lookup-only).
+ * Floors and suggestions use package installment counts (e.g. DAILY:276, WEEKLY:39),
+ * not calendar cadence days (1/7/31/90/365).
  */
 
 import { PAYMENT_CADENCE_DAYS, PricingRateBand } from './insurance-installment.util';
@@ -18,6 +19,8 @@ export const PACKAGE_PRICING_FREQUENCIES = [
 
 export type PackagePricingFrequency = (typeof PACKAGE_PRICING_FREQUENCIES)[number];
 
+export type InstallmentCounts = Partial<Record<string, number>>;
+
 const RATE_BAND_KEYS: Record<PackagePricingFrequency, keyof PricingRateBand> = {
   DAILY: 'daily',
   WEEKLY: 'weekly',
@@ -29,6 +32,26 @@ const RATE_BAND_KEYS: Record<PackagePricingFrequency, keyof PricingRateBand> = {
 export function cadenceDaysForPricingFrequency(frequency: string): number {
   if (frequency === 'CUSTOM') return 0;
   return PAYMENT_CADENCE_DAYS[frequency] ?? 0;
+}
+
+/**
+ * Build installment-count map from package payment frequencies.
+ * ANNUALLY defaults to 1 when absent (annual amount is always required for completeness).
+ */
+export function buildInstallmentCounts(
+  rows: Array<{ frequency: string; installmentCount: number }>
+): Record<string, number> {
+  const counts: Record<string, number> = { ANNUALLY: 1 };
+  for (const row of rows) {
+    if (row.frequency === 'CUSTOM') continue;
+    if (row.installmentCount > 0) {
+      counts[row.frequency] = row.installmentCount;
+    }
+  }
+  if (!counts.ANNUALLY || counts.ANNUALLY <= 0) {
+    counts.ANNUALLY = 1;
+  }
+  return counts;
 }
 
 export function rateBandKeyForFrequency(
@@ -49,20 +72,26 @@ export function getRateFromBand(
 }
 
 /**
- * Soft-loss floor for a coarser frequency from the finest enabled band amount.
- * floor ≈ finestAmount × (coarserDays / finestDays), rounded to 2 decimals.
+ * Soft-loss floor for a coarser frequency from the finest band amount.
+ * floor ≈ finestAmount × (finestInstallmentCount / coarserInstallmentCount)
+ *
+ * Examples (DAILY:276, WEEKLY:39, ANNUALLY:1):
+ * - daily 90 → weekly floor = 90 × (276/39) ≈ 636.92
+ * - daily 90 → annually floor = 90 × (276/1) = 24840
+ * - weekly 631 → annual floor = 631 × (39/1) = 24609
  */
 export function softLossFloorAmount(params: {
   finestFrequency: string;
   finestAmount: number;
   coarserFrequency: string;
+  installmentCounts: InstallmentCounts;
 }): number {
-  const finestDays = cadenceDaysForPricingFrequency(params.finestFrequency);
-  const coarserDays = cadenceDaysForPricingFrequency(params.coarserFrequency);
-  if (finestDays <= 0 || coarserDays <= 0 || params.finestAmount <= 0) {
+  const finestCount = params.installmentCounts[params.finestFrequency] ?? 0;
+  const coarserCount = params.installmentCounts[params.coarserFrequency] ?? 0;
+  if (finestCount <= 0 || coarserCount <= 0 || params.finestAmount <= 0) {
     return 0;
   }
-  return Math.round(params.finestAmount * (coarserDays / finestDays) * 100) / 100;
+  return Math.round(params.finestAmount * (finestCount / coarserCount) * 100) / 100;
 }
 
 export function isSoftLoss(params: {
@@ -70,6 +99,7 @@ export function isSoftLoss(params: {
   finestAmount: number;
   coarserFrequency: string;
   coarserAmount: number;
+  installmentCounts: InstallmentCounts;
 }): boolean {
   const floor = softLossFloorAmount(params);
   if (floor <= 0 || params.coarserAmount <= 0) return false;
@@ -77,17 +107,23 @@ export function isSoftLoss(params: {
 }
 
 /**
- * Suggest fill empty cells from the finest present lower band × cadence.
+ * Suggest fill empty cells from the finest present lower band × installment counts.
  * Does not overwrite non-empty cells unless overwriteFilled is true.
  */
 export function suggestFillFromLowerBand(params: {
   rates: PricingRateBand;
   enabledFrequencies: string[];
+  installmentCounts: InstallmentCounts;
   overwriteFilled?: boolean;
 }): PricingRateBand {
-  const { rates, enabledFrequencies, overwriteFilled = false } = params;
-  const ordered = PACKAGE_PRICING_FREQUENCIES.filter((f) =>
-    enabledFrequencies.includes(f) || f === 'ANNUALLY'
+  const {
+    rates,
+    enabledFrequencies,
+    installmentCounts,
+    overwriteFilled = false,
+  } = params;
+  const ordered = PACKAGE_PRICING_FREQUENCIES.filter(
+    (f) => enabledFrequencies.includes(f) || f === 'ANNUALLY'
   );
 
   let finestFrequency: string | null = null;
@@ -116,6 +152,7 @@ export function suggestFillFromLowerBand(params: {
       finestFrequency,
       finestAmount,
       coarserFrequency: freq,
+      installmentCounts,
     });
     if (floor > 0) {
       suggested[key] = floor;
