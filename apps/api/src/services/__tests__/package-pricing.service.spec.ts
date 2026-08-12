@@ -56,6 +56,7 @@ describe('PackagePricingService', () => {
         id: 100,
         name: 'Silver',
         isActive: true,
+        sortOrder: 0,
         rates: [
           {
             frequency: PaymentFrequency.DAILY,

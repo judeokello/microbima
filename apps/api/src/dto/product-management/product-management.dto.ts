@@ -4,6 +4,8 @@ import {
   IsOptional,
   IsInt,
   IsBoolean,
+  IsArray,
+  ArrayMinSize,
   MinLength,
   MaxLength,
   Max,
@@ -90,6 +92,24 @@ export class PlanDto {
   })
   @IsOptional()
   isActive?: boolean;
+
+  @ApiProperty({
+    description: 'Display order within the package (0-based). Lower values appear first.',
+    example: 0,
+  })
+  sortOrder: number;
+}
+
+export class ReorderPackagePlansRequestDto {
+  @ApiProperty({
+    description: 'Plan IDs in the desired display order (must include every plan for the package)',
+    type: [Number],
+    example: [3, 1, 2, 4],
+  })
+  @IsArray()
+  @ArrayMinSize(1)
+  @IsInt({ each: true })
+  planIds: number[];
 }
 
 export class CreatePackagePlanRequestDto {

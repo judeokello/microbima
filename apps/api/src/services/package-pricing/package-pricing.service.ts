@@ -45,6 +45,7 @@ export type PackagePricingData = {
       planId: number;
       name: string;
       isActive: boolean;
+      sortOrder: number;
       rates: Record<string, PricingRateBand>;
     }
   >;
@@ -74,6 +75,7 @@ type LoadedPackage = {
     id: number;
     name: string;
     isActive: boolean;
+    sortOrder: number;
     rates: Array<{
       frequency: PaymentFrequency;
       amount: Prisma.Decimal;
@@ -434,7 +436,7 @@ export class PackagePricingService {
             },
           },
         },
-        orderBy: { name: 'asc' },
+        orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
       },
       packagePricingCategories: { orderBy: { sortOrder: 'asc' } },
       packagePaymentFrequencies: { orderBy: { frequency: 'asc' } },
@@ -507,6 +509,7 @@ export class PackagePricingService {
         planId: plan.id,
         name: plan.name,
         isActive: plan.isActive,
+        sortOrder: plan.sortOrder,
         rates: ratesByCategory,
       };
     }

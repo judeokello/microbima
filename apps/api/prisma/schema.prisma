@@ -876,6 +876,7 @@ model PackagePlan {
   description String? @db.VarChar(200)
   packageId   Int
   isActive    Boolean @default(true)
+  sortOrder   Int     @default(0)
 
   // Relations
   package  Package           @relation(fields: [packageId], references: [id])
@@ -889,6 +890,7 @@ model PackagePlan {
   updatedBy String   @db.Uuid
 
   @@unique([packageId, name])
+  @@index([packageId, sortOrder])
   @@map("package_plans")
 }
 

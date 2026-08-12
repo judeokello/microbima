@@ -204,7 +204,11 @@ export default function PackagePricingGrid({
         .filter((entry): entry is [string, NonNullable<(typeof local.plans)[string]>] =>
           entry[1] != null && typeof entry[1].name === 'string'
         )
-        .sort(([, a], [, b]) => a.name.localeCompare(b.name)),
+        .sort(([, a], [, b]) => {
+          const orderDiff = (a.sortOrder ?? 0) - (b.sortOrder ?? 0);
+          if (orderDiff !== 0) return orderDiff;
+          return a.name.localeCompare(b.name);
+        }),
     [local.plans]
   );
 

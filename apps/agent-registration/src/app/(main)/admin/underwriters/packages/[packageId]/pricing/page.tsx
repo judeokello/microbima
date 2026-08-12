@@ -4,10 +4,8 @@ import { useCallback, useEffect, useState } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { ArrowLeft, Edit, Plus, RefreshCw } from 'lucide-react';
+import { ArrowLeft, Plus, RefreshCw } from 'lucide-react';
 import { getPackagePricing, type PackagePricingData } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
@@ -15,21 +13,15 @@ import PackagePricingGrid from '../_components/package-pricing-grid';
 import PackageWizard, { type PackageWizardStep } from '../_components/package-wizard';
 import CreatePlanDialog from '../_components/create-plan-dialog';
 import EditPlanDialog, { type EditablePlan } from '../_components/edit-plan-dialog';
+import SortablePlansTable, { type SortablePlan } from '../_components/sortable-plans-table';
 import {
   packageDetailPath,
   packageWizardPath,
 } from '../_components/package-wizard-routes';
 
-interface PackagePlan {
-  id: number;
-  name: string;
-  description?: string;
-  isActive: boolean;
-}
-
 interface PlansResponse {
   status: number;
-  data: PackagePlan[];
+  data: SortablePlan[];
 }
 
 interface PackageSummary {
@@ -51,7 +43,7 @@ export default function PackagePricingPage() {
   const [pkgName, setPkgName] = useState<string | null>(null);
   const [pricing, setPricing] = useState<PackagePricingData | null>(null);
   const [pricingWarning, setPricingWarning] = useState<string | null>(null);
-  const [plans, setPlans] = useState<PackagePlan[]>([]);
+  const [plans, setPlans] = useState<SortablePlan[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [createPlanDialogOpen, setCreatePlanDialogOpen] = useState(false);
@@ -101,7 +93,12 @@ export default function PackagePricingPage() {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
       const data = (await response.json()) as PlansResponse;
-      setPlans(data.data ?? []);
+      setPlans(
+        (data.data ?? []).map((plan, index) => ({
+          ...plan,
+          sortOrder: plan.sortOrder ?? index,
+        }))
+      );
     } catch (err) {
       console.error('Error fetching plans:', err);
     }
@@ -146,6 +143,7 @@ export default function PackagePricingPage() {
             <CardTitle>Plans</CardTitle>
             <CardDescription>
               Plans for this package. At least one active plan is required before activation.
+              Drag to set the left-to-right order in the pricing table.
             </CardDescription>
           </div>
           {isSetupAdmin && (
@@ -162,57 +160,40 @@ export default function PackagePricingPage() {
             <p className="text-muted-foreground">No plans found</p>
           </div>
         ) : (
-          <div className="rounded-md border">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Description</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="w-[100px]">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {plans.map((plan) => (
-                  <TableRow key={plan.id}>
-                    <TableCell className="font-medium">{plan.name}</TableCell>
-                    <TableCell>{plan.description ?? '—'}</TableCell>
-                    <TableCell>
-                      <Badge
-                        variant="outline"
-                        className={
-                          plan.isActive
-                            ? 'bg-green-50 text-green-700 border-green-200'
-                            : 'bg-secondary text-secondary-foreground border-transparent'
-                        }
-                      >
-                        {plan.isActive ? 'Active' : 'Inactive'}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      {isSetupAdmin && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            setPlanBeingEdited({
-                              id: plan.id,
-                              name: plan.name,
-                              description: plan.description,
-                              isActive: plan.isActive,
-                            });
-                            setEditPlanDialogOpen(true);
-                          }}
-                        >
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
+          <SortablePlansTable
+            packageId={packageId}
+            plans={plans}
+            canReorder={Boolean(isSetupAdmin)}
+            canEdit={Boolean(isSetupAdmin)}
+            onEdit={(plan) => {
+              setPlanBeingEdited({
+                id: plan.id,
+                name: plan.name,
+                description: plan.description,
+                isActive: plan.isActive,
+              });
+              setEditPlanDialogOpen(true);
+            }}
+            onReordered={(next) => {
+              setError(null);
+              setPlans(next);
+              setPricing((prev) => {
+                if (!prev) return prev;
+                const nextPlans = { ...prev.plans };
+                for (const plan of next) {
+                  const key = plan.name.toLowerCase();
+                  if (nextPlans[key]) {
+                    nextPlans[key] = {
+                      ...nextPlans[key],
+                      sortOrder: plan.sortOrder,
+                    };
+                  }
+                }
+                return { ...prev, plans: nextPlans };
+              });
+            }}
+            onReorderError={(message) => setError(message)}
+          />
         )}
       </CardContent>
     </Card>

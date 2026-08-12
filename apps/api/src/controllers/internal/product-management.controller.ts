@@ -35,6 +35,7 @@ import {
   CreateTagResponseDto,
   CreatePackagePlanRequestDto,
   UpdatePackagePlanRequestDto,
+  ReorderPackagePlansRequestDto,
   PackagePlanDetailResponseDto,
 } from '../../dto/product-management/product-management.dto';
 import {
@@ -357,6 +358,39 @@ export class ProductManagementController {
       correlationId,
       message: 'Plan created successfully',
       data: plan,
+    };
+  }
+
+  @Put('packages/:packageId/plans/reorder')
+  @SetupAdminOnly()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Reorder package plans (requires setup_admin)',
+    description:
+      'Set display order for all plans in a package. Order determines left-to-right columns on the pricing grid.',
+  })
+  @ApiParam({ name: 'packageId', type: Number })
+  @ApiResponse({ status: 200, type: PlansResponseDto })
+  async reorderPackagePlans(
+    @Param('packageId', ParseIntPipe) packageId: number,
+    @Body() body: ReorderPackagePlansRequestDto,
+    @UserId() userId: string,
+    @CorrelationId() correlationId: string
+  ): Promise<PlansResponseDto> {
+    if (!userId) {
+      throw new Error('User ID not found in request');
+    }
+    const plans = await this.productManagementService.reorderPackagePlans(
+      packageId,
+      body.planIds,
+      userId,
+      correlationId
+    );
+    return {
+      status: HttpStatus.OK,
+      correlationId,
+      message: 'Plans reordered successfully',
+      data: plans,
     };
   }
 

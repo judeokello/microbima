@@ -148,6 +148,7 @@ describe('ProductManagementService - package pricing activate gate', () => {
                   id: 1,
                   name: 'Silver',
                   isActive: true,
+                  sortOrder: 0,
                   rates: [
                     {
                       frequency: PaymentFrequency.DAILY,

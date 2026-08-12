@@ -30,6 +30,7 @@ describe('ProductManagementService - auto-deactivate on incomplete pricing (US3)
     packagePlan: {
       count: jest.fn(),
       findFirst: jest.fn(),
+      findMany: jest.fn(),
       create: jest.fn(),
     },
     packagePaymentFrequency: {
@@ -53,11 +54,13 @@ describe('ProductManagementService - auto-deactivate on incomplete pricing (US3)
     it('deactivates active package and returns warning when new plan leaves pricing incomplete', async () => {
       prismaMock.package.findUnique.mockResolvedValue({ id: 10, isActive: true });
       prismaMock.packagePlan.findFirst.mockResolvedValue(null);
+      prismaMock.packagePlan.findMany.mockResolvedValue([{ sortOrder: 0 }]);
       prismaMock.packagePlan.create.mockResolvedValue({
         id: 2,
         name: 'Platinum',
         description: null,
         isActive: true,
+        sortOrder: 1,
       });
       loadPricingCompletenessInput.mockResolvedValue({
         plans: [
@@ -95,11 +98,13 @@ describe('ProductManagementService - auto-deactivate on incomplete pricing (US3)
     it('does not deactivate when pricing remains complete', async () => {
       prismaMock.package.findUnique.mockResolvedValue({ id: 10, isActive: true });
       prismaMock.packagePlan.findFirst.mockResolvedValue(null);
+      prismaMock.packagePlan.findMany.mockResolvedValue([{ sortOrder: 0 }]);
       prismaMock.packagePlan.create.mockResolvedValue({
         id: 2,
         name: 'Platinum',
         description: null,
         isActive: true,
+        sortOrder: 1,
       });
       loadPricingCompletenessInput.mockResolvedValue({
         plans: [
@@ -282,6 +287,7 @@ describe('PackagePricingService.createCategory auto-deactivate (US3)', () => {
             id: 1,
             name: 'Silver',
             isActive: true,
+            sortOrder: 0,
             rates: [
               {
                 frequency: PaymentFrequency.DAILY,

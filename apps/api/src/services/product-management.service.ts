@@ -392,10 +392,9 @@ export class ProductManagementService {
           name: true,
           description: true,
           isActive: true,
+          sortOrder: true,
         },
-        orderBy: {
-          name: 'asc',
-        },
+        orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
       });
 
       const plansDto = plans.map((plan) => ({
@@ -403,6 +402,7 @@ export class ProductManagementService {
         name: plan.name,
         description: plan.description ?? undefined,
         isActive: plan.isActive,
+        sortOrder: plan.sortOrder,
       }));
 
       this.logger.log(`[${correlationId}] Found ${plans.length} plans for package ${packageId}`);
@@ -453,12 +453,19 @@ export class ProductManagementService {
     }
 
     try {
+      const existingPlans = await this.prismaService.packagePlan.findMany({
+        where: { packageId },
+        select: { sortOrder: true },
+      });
+      const maxSort = existingPlans.reduce((m, p) => Math.max(m, p.sortOrder), -1);
+
       const plan = await this.prismaService.packagePlan.create({
         data: {
           packageId,
           name,
           description: trimOrNull(data.description ?? null),
           isActive: data.isActive ?? true,
+          sortOrder: maxSort + 1,
           createdBy: userId,
           updatedBy: userId,
         },
@@ -474,6 +481,7 @@ export class ProductManagementService {
         name: plan.name,
         description: plan.description ?? undefined,
         isActive: plan.isActive,
+        sortOrder: plan.sortOrder,
         packageIsActive: deactivateResult.isActive,
         ...(deactivateResult.warning ? { warning: deactivateResult.warning } : {}),
       };
@@ -537,7 +545,75 @@ export class ProductManagementService {
       name: updated.name,
       description: updated.description ?? undefined,
       isActive: updated.isActive,
+      sortOrder: updated.sortOrder,
     };
+  }
+
+  /**
+   * Persist display order for all plans in a package.
+   * `planIds` must be a permutation of every plan ID for the package.
+   */
+  async reorderPackagePlans(
+    packageId: number,
+    planIds: number[],
+    userId: string,
+    correlationId: string
+  ) {
+    this.logger.log(
+      `[${correlationId}] Reordering ${planIds.length} plans for package ${packageId}`
+    );
+
+    const packageExists = await this.prismaService.package.findUnique({
+      where: { id: packageId },
+      select: { id: true },
+    });
+    if (!packageExists) {
+      throw new NotFoundException(`Package with ID ${packageId} not found`);
+    }
+
+    if (new Set(planIds).size !== planIds.length) {
+      throw ValidationException.forField(
+        'planIds',
+        'Plan IDs must be unique',
+        ErrorCodes.VALIDATION_ERROR
+      );
+    }
+
+    const existing = await this.prismaService.packagePlan.findMany({
+      where: { packageId },
+      select: { id: true, name: true, description: true, isActive: true, sortOrder: true },
+      orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
+    });
+
+    const existingIds = new Set(existing.map((p) => p.id));
+    if (planIds.length !== existing.length || planIds.some((id) => !existingIds.has(id))) {
+      throw ValidationException.forField(
+        'planIds',
+        'planIds must include every plan for this package exactly once',
+        ErrorCodes.VALIDATION_ERROR
+      );
+    }
+
+    await this.prismaService.$transaction(
+      planIds.map((id, index) =>
+        this.prismaService.packagePlan.update({
+          where: { id },
+          data: { sortOrder: index, updatedBy: userId },
+        })
+      )
+    );
+
+    const byId = new Map(existing.map((p) => [p.id, p]));
+    return planIds.map((id, index) => {
+      const plan = byId.get(id)!;
+      return {
+        id: plan.id,
+        name: plan.name,
+        description: plan.description ?? undefined,
+        isActive: plan.isActive,
+        sortOrder: index,
+      };
+    });
   }
 
   /**
