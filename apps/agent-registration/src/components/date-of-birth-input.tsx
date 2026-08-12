@@ -1,58 +1,39 @@
 'use client';
 
-import { useMemo } from 'react';
-import { Label } from '@/components/ui/label';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+import { useMemo, useState } from 'react';
+import { format } from 'date-fns';
+import { enGB } from 'date-fns/locale';
+import { CalendarIcon } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Calendar } from '@/components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { cn } from '@/lib/utils';
 
-const MONTHS = [
-  { value: '01', label: 'January' },
-  { value: '02', label: 'February' },
-  { value: '03', label: 'March' },
-  { value: '04', label: 'April' },
-  { value: '05', label: 'May' },
-  { value: '06', label: 'June' },
-  { value: '07', label: 'July' },
-  { value: '08', label: 'August' },
-  { value: '09', label: 'September' },
-  { value: '10', label: 'October' },
-  { value: '11', label: 'November' },
-  { value: '12', label: 'December' },
-] as const;
-
-function daysInMonth(year: number, month: number): number {
-  return new Date(Date.UTC(year, month, 0)).getUTCDate();
-}
-
-function parseIsoDate(value: string | undefined): {
-  day: string;
-  month: string;
-  year: string;
-} {
-  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
-    return { day: '', month: '', year: '' };
+function parseIsoToLocalDate(value: string | undefined): Date | undefined {
+  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return undefined;
+  const [year, month, day] = value.split('-').map(Number);
+  const date = new Date(year, month - 1, day);
+  if (
+    date.getFullYear() !== year ||
+    date.getMonth() !== month - 1 ||
+    date.getDate() !== day
+  ) {
+    return undefined;
   }
-  const [year, month, day] = value.split('-');
-  return { day, month, year };
+  return date;
 }
 
-function toIsoDate(day: string, month: string, year: string): string {
-  if (!day || !month || !year) return '';
+function formatLocalToIso(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
 }
 
-function clampDay(day: string, month: string, year: string): string {
-  if (!day || !month || !year) return day;
-  const maxDay = daysInMonth(Number(year), Number(month));
-  const dayNum = Number(day);
-  if (!Number.isInteger(dayNum) || dayNum < 1) return day;
-  if (dayNum > maxDay) return String(maxDay).padStart(2, '0');
-  return day;
+function formatDisplay(value: string | undefined): string {
+  const date = parseIsoToLocalDate(value);
+  if (!date) return '';
+  return format(date, 'dd-MM-yyyy');
 }
 
 export interface DateOfBirthInputProps {
@@ -63,6 +44,7 @@ export interface DateOfBirthInputProps {
   maxDate?: string;
   minDate?: string;
   disabled?: boolean;
+  className?: string;
 }
 
 export default function DateOfBirthInput({
@@ -73,100 +55,74 @@ export default function DateOfBirthInput({
   maxDate,
   minDate,
   disabled = false,
+  className,
 }: DateOfBirthInputProps) {
-  const { day, month, year } = parseIsoDate(value);
+  const [open, setOpen] = useState(false);
+  const selected = parseIsoToLocalDate(value);
+  const min = useMemo(() => parseIsoToLocalDate(minDate), [minDate]);
+  const max = useMemo(
+    () => parseIsoToLocalDate(maxDate) ?? new Date(),
+    [maxDate]
+  );
 
-  const yearOptions = useMemo(() => {
-    const maxYear = maxDate
-      ? Number(maxDate.slice(0, 4))
-      : new Date().getUTCFullYear();
-    const minYear = minDate ? Number(minDate.slice(0, 4)) : maxYear - 120;
-    const years: number[] = [];
-    for (let y = maxYear; y >= minYear; y--) {
-      years.push(y);
-    }
-    return years;
-  }, [maxDate, minDate]);
+  const startMonth = useMemo(() => {
+    if (min) return new Date(min.getFullYear(), 0, 1);
+    return new Date(max.getFullYear() - 120, 0, 1);
+  }, [min, max]);
 
-  const dayOptions = useMemo(() => {
-    const y = year ? Number(year) : 2000;
-    const m = month ? Number(month) : 1;
-    const count = month && year ? daysInMonth(y, m) : 31;
-    return Array.from({ length: count }, (_, i) => String(i + 1).padStart(2, '0'));
-  }, [month, year]);
+  const endMonth = useMemo(() => {
+    return new Date(max.getFullYear(), 11, 31);
+  }, [max]);
 
-  const emitChange = (nextDay: string, nextMonth: string, nextYear: string) => {
-    const clampedDay = clampDay(nextDay, nextMonth, nextYear);
-    onChange(toIsoDate(clampedDay, nextMonth, nextYear));
-  };
+  const display = formatDisplay(value);
 
   return (
-    <div className="grid grid-cols-3 gap-2" id={id}>
-      <div className="space-y-1">
-        <Label htmlFor={`${id}-day`} className="text-xs text-muted-foreground">
-          Day{required ? ' *' : ''}
-        </Label>
-        <Select
-          value={day || undefined}
-          onValueChange={(nextDay) => emitChange(nextDay, month, year)}
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          id={id}
+          type="button"
+          variant="outline"
           disabled={disabled}
+          aria-required={required}
+          className={cn(
+            'w-full justify-start text-left font-normal',
+            !display && 'text-muted-foreground',
+            className
+          )}
         >
-          <SelectTrigger id={`${id}-day`} className="w-full">
-            <SelectValue placeholder="Day" />
-          </SelectTrigger>
-          <SelectContent>
-            {dayOptions.map((d) => (
-              <SelectItem key={d} value={d}>
-                {Number(d)}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      <div className="space-y-1">
-        <Label htmlFor={`${id}-month`} className="text-xs text-muted-foreground">
-          Month{required ? ' *' : ''}
-        </Label>
-        <Select
-          value={month || undefined}
-          onValueChange={(nextMonth) => emitChange(day, nextMonth, year)}
-          disabled={disabled}
-        >
-          <SelectTrigger id={`${id}-month`} className="w-full">
-            <SelectValue placeholder="Month" />
-          </SelectTrigger>
-          <SelectContent>
-            {MONTHS.map((m) => (
-              <SelectItem key={m.value} value={m.value}>
-                {m.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      <div className="space-y-1">
-        <Label htmlFor={`${id}-year`} className="text-xs text-muted-foreground">
-          Year{required ? ' *' : ''}
-        </Label>
-        <Select
-          value={year || undefined}
-          onValueChange={(nextYear) => emitChange(day, month, nextYear)}
-          disabled={disabled}
-        >
-          <SelectTrigger id={`${id}-year`} className="w-full">
-            <SelectValue placeholder="Year" />
-          </SelectTrigger>
-          <SelectContent>
-            {yearOptions.map((y) => (
-              <SelectItem key={y} value={String(y)}>
-                {y}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-    </div>
+          <CalendarIcon className="mr-2 h-4 w-4 shrink-0" />
+          {display || 'DD-MM-YYYY'}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-auto p-0" align="start">
+        <Calendar
+          mode="single"
+          locale={enGB}
+          captionLayout="dropdown"
+          selected={selected}
+          defaultMonth={selected ?? max}
+          startMonth={startMonth}
+          endMonth={endMonth}
+          disabled={(date) => {
+            if (min && date < new Date(min.getFullYear(), min.getMonth(), min.getDate())) {
+              return true;
+            }
+            if (date > new Date(max.getFullYear(), max.getMonth(), max.getDate())) {
+              return true;
+            }
+            return false;
+          }}
+          onSelect={(date) => {
+            if (!date) {
+              onChange('');
+              return;
+            }
+            onChange(formatLocalToIso(date));
+            setOpen(false);
+          }}
+        />
+      </PopoverContent>
+    </Popover>
   );
 }
