@@ -309,6 +309,7 @@ export default function PackagePricingPage() {
           setEditPlanDialogOpen(false);
           setPlanBeingEdited(null);
           fetchPlans();
+          fetchPricing();
         }}
         packageId={packageId}
         plan={planBeingEdited}

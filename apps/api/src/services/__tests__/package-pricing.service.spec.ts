@@ -36,6 +36,7 @@ describe('PackagePricingService', () => {
     id: 10,
     slug: 'mfanisi-boda',
     isActive: false,
+    maximumFamilySize: 8,
     packagePaymentFrequencies: [
       { frequency: PaymentFrequency.DAILY, installmentCount: 276 },
       { frequency: PaymentFrequency.WEEKLY, installmentCount: 39 },
@@ -217,7 +218,7 @@ describe('PackagePricingService', () => {
       });
 
       expect(result.suggested.annually).toBe(24840);
-      expect(result.suggested.weekly).toBe(Math.round(90 * (276 / 39) * 100) / 100);
+      expect(result.suggested.weekly).toBe(Math.round(90 * (276 / 39)));
       expect(result.suggested.annually).not.toBe(90 * 365);
     });
 
@@ -231,7 +232,7 @@ describe('PackagePricingService', () => {
 
       // DB has daily:56 and annually:17645 — does not overwrite annual; fills weekly
       expect(result.suggested.annually).toBe(17645);
-      expect(result.suggested.weekly).toBe(Math.round(56 * (276 / 39) * 100) / 100);
+      expect(result.suggested.weekly).toBe(Math.round(56 * (276 / 39)));
     });
   });
 });

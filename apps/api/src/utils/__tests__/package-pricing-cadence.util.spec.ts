@@ -29,7 +29,7 @@ describe('softLossFloorAmount', () => {
         coarserFrequency: 'WEEKLY',
         installmentCounts: MFANISI_COUNTS,
       })
-    ).toBe(Math.round(90 * (276 / 39) * 100) / 100);
+    ).toBe(Math.round(90 * (276 / 39)));
   });
 
   it('computes annual floor from daily × dailyCount', () => {
@@ -111,7 +111,7 @@ describe('suggestFillFromLowerBand', () => {
       enabledFrequencies: ['DAILY', 'WEEKLY'],
       installmentCounts: MFANISI_COUNTS,
     });
-    expect(suggested.weekly).toBe(Math.round(90 * (276 / 39) * 100) / 100);
+    expect(suggested.weekly).toBe(Math.round(90 * (276 / 39)));
     expect(suggested.annually).toBe(24840);
     expect(suggested.annually).not.toBe(90 * 365);
   });
@@ -133,5 +133,34 @@ describe('suggestFillFromLowerBand', () => {
       installmentCounts: MFANISI_COUNTS,
     });
     expect(suggested).toEqual({});
+  });
+
+  it('rounds suggestions to whole shillings and never below finest-derived floor', () => {
+    const suggested = suggestFillFromLowerBand({
+      rates: { annually: 33856 },
+      enabledFrequencies: ['DAILY', 'WEEKLY', 'MONTHLY', 'ANNUALLY'],
+      installmentCounts: buildInstallmentCounts([
+        { frequency: 'DAILY', installmentCount: 315 },
+        { frequency: 'WEEKLY', installmentCount: 40 },
+        { frequency: 'MONTHLY', installmentCount: 10 },
+        { frequency: 'ANNUALLY', installmentCount: 1 },
+      ]),
+    });
+    expect(suggested.daily).toBe(Math.round(33856 / 315));
+    expect(suggested.weekly).toBe(Math.round(33856 / 40));
+    expect(Number.isInteger(suggested.monthly)).toBe(true);
+    expect(suggested.monthly).toBeGreaterThanOrEqual(
+      softLossFloorAmount({
+        finestFrequency: 'DAILY',
+        finestAmount: suggested.daily!,
+        coarserFrequency: 'MONTHLY',
+        installmentCounts: {
+          DAILY: 315,
+          WEEKLY: 40,
+          MONTHLY: 10,
+          ANNUALLY: 1,
+        },
+      })
+    );
   });
 });

@@ -5,7 +5,6 @@ import {
   IsBoolean,
   IsEnum,
   IsInt,
-  IsNumber,
   IsObject,
   IsOptional,
   IsString,
@@ -32,32 +31,32 @@ export enum PackagePricingCategoryKindDto {
 export class RateBandDto {
   @ApiPropertyOptional({ example: 56 })
   @IsOptional()
-  @IsNumber()
-  @Min(0.01)
+  @IsInt()
+  @Min(1)
   daily?: number;
 
   @ApiPropertyOptional({ example: 392 })
   @IsOptional()
-  @IsNumber()
-  @Min(0.01)
+  @IsInt()
+  @Min(1)
   weekly?: number;
 
   @ApiPropertyOptional({ example: 1765 })
   @IsOptional()
-  @IsNumber()
-  @Min(0.01)
+  @IsInt()
+  @Min(1)
   monthly?: number;
 
   @ApiPropertyOptional({ example: 5295 })
   @IsOptional()
-  @IsNumber()
-  @Min(0.01)
+  @IsInt()
+  @Min(1)
   quarterly?: number;
 
   @ApiPropertyOptional({ example: 17645 })
   @IsOptional()
-  @IsNumber()
-  @Min(0.01)
+  @IsInt()
+  @Min(1)
   annually?: number;
 }
 

@@ -28,6 +28,7 @@ export type PackagePricingData = {
   packageSlug: string | null;
   isPricingComplete: boolean;
   isActive: boolean;
+  maximumFamilySize: number;
   enabledFrequencies: string[];
   /** Installment counts per frequency (e.g. DAILY:276). ANNUALLY defaults to 1. */
   installmentCounts: Record<string, number>;
@@ -71,6 +72,7 @@ type LoadedPackage = {
   id: number;
   slug: string | null;
   isActive: boolean;
+  maximumFamilySize: number;
   packagePlans: Array<{
     id: number;
     name: string;
@@ -229,6 +231,14 @@ export class PackagePricingService {
               );
             }
 
+            if (!Number.isInteger(amount)) {
+              throw ValidationException.forField(
+                `plans.${planKey}.rates.${categoryKey}.${bandKey}`,
+                'Amount must be a whole number (shillings)',
+                ErrorCodes.VALIDATION_ERROR
+              );
+            }
+
             await tx.packagePlanRate.upsert({
               where: {
                 packagePlanId_packagePricingCategoryId_frequency: {
@@ -270,7 +280,7 @@ export class PackagePricingService {
   }> {
     const pkg = await this.prisma.package.findUnique({
       where: { id: packageId },
-      select: { id: true, isActive: true },
+      select: { id: true, isActive: true, maximumFamilySize: true },
     });
     if (!pkg) {
       throw new NotFoundException(`Package with ID ${packageId} not found`);
@@ -282,6 +292,9 @@ export class PackagePricingService {
     if (kind === PackagePricingCategoryKind.UP_TO_N) {
       if (body.maxMembers == null || body.maxMembers < 2) {
         validationErrors['maxMembers'] = 'maxMembers >= 2 is required for UP_TO_N';
+      } else if (body.maxMembers > pkg.maximumFamilySize) {
+        validationErrors['maxMembers'] =
+          `maxMembers cannot exceed package maximumFamilySize (${pkg.maximumFamilySize})`;
       }
     }
 
@@ -420,7 +433,7 @@ export class PackagePricingService {
     for (const key of ['daily', 'weekly', 'monthly', 'quarterly', 'annually'] as const) {
       const value = rates[key];
       if (value != null && value > 0) {
-        band[key] = value;
+        band[key] = Math.round(value);
       }
     }
     return band;
@@ -519,6 +532,7 @@ export class PackagePricingService {
       packageSlug: pkg.slug,
       isPricingComplete: completeness.isPricingComplete,
       isActive: pkg.isActive,
+      maximumFamilySize: pkg.maximumFamilySize,
       enabledFrequencies,
       installmentCounts,
       categories,
@@ -534,7 +548,7 @@ export class PackagePricingService {
       if (rate.frequency === PaymentFrequency.CUSTOM) continue;
       const key = FREQ_TO_BAND[rate.frequency];
       if (key) {
-        band[key] = Number(rate.amount);
+        band[key] = Math.round(Number(rate.amount));
       }
     }
     return band;

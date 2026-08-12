@@ -328,6 +328,7 @@ export class ProductManagementService {
               id: true,
               schemeName: true,
               description: true,
+              parentsSupported: true,
             },
           },
         },
@@ -342,6 +343,7 @@ export class ProductManagementService {
         id: ps.scheme.id,
         name: ps.scheme.schemeName,
         description: ps.scheme.description,
+        parentsSupported: ps.scheme.parentsSupported,
         packageSchemeId: ps.id, // Include junction table ID for scheme assignment
       }));
 
@@ -500,7 +502,7 @@ export class ProductManagementService {
   async updatePackagePlan(
     packageId: number,
     planId: number,
-    data: { description?: string; isActive?: boolean },
+    data: { name?: string; description?: string; isActive?: boolean },
     userId: string,
     correlationId: string
   ) {
@@ -514,6 +516,28 @@ export class ProductManagementService {
       throw new NotFoundException(`Plan with ID ${planId} not found for package ${packageId}`);
     }
 
+    const validationErrors: Record<string, string> = {};
+
+    let nextName: string | undefined;
+    if (data.name !== undefined) {
+      nextName = toTitleCase(data.name);
+      if (!nextName) {
+        validationErrors['name'] = 'Plan name is required';
+      } else if (nextName.toLowerCase() !== plan.name.toLowerCase()) {
+        const duplicate = await this.prismaService.packagePlan.findFirst({
+          where: {
+            packageId,
+            name: { equals: nextName, mode: 'insensitive' },
+            NOT: { id: planId },
+          },
+          select: { id: true },
+        });
+        if (duplicate) {
+          validationErrors['name'] = 'A plan with this name already exists for this package';
+        }
+      }
+    }
+
     if (data.isActive === false && plan.isActive && plan.package.isActive) {
       const otherActive = await this.prismaService.packagePlan.count({
         where: {
@@ -523,30 +547,43 @@ export class ProductManagementService {
         },
       });
       if (otherActive < 1) {
-        throw ValidationException.forField(
-          'isActive',
-          'Cannot deactivate the last active plan while the package is active',
-          ErrorCodes.VALIDATION_ERROR
-        );
+        validationErrors['isActive'] =
+          'Cannot deactivate the last active plan while the package is active';
       }
     }
 
-    const updated = await this.prismaService.packagePlan.update({
-      where: { id: planId },
-      data: {
-        ...(data.description !== undefined && { description: trimOrNull(data.description) }),
-        ...(data.isActive !== undefined && { isActive: data.isActive }),
-        updatedBy: userId,
-      },
-    });
+    if (Object.keys(validationErrors).length > 0) {
+      throw ValidationException.withMultipleErrors(validationErrors);
+    }
 
-    return {
-      id: updated.id,
-      name: updated.name,
-      description: updated.description ?? undefined,
-      isActive: updated.isActive,
-      sortOrder: updated.sortOrder,
-    };
+    try {
+      const updated = await this.prismaService.packagePlan.update({
+        where: { id: planId },
+        data: {
+          ...(nextName !== undefined && { name: nextName }),
+          ...(data.description !== undefined && { description: trimOrNull(data.description) }),
+          ...(data.isActive !== undefined && { isActive: data.isActive }),
+          updatedBy: userId,
+        },
+      });
+
+      return {
+        id: updated.id,
+        name: updated.name,
+        description: updated.description ?? undefined,
+        isActive: updated.isActive,
+        sortOrder: updated.sortOrder,
+      };
+    } catch (error) {
+      if (error instanceof PrismaClientKnownRequestError && error.code === 'P2002') {
+        throw ValidationException.forField(
+          'name',
+          'A plan with this name already exists for this package',
+          ErrorCodes.VALIDATION_ERROR
+        );
+      }
+      throw error;
+    }
   }
 
   /**
@@ -816,6 +853,8 @@ export class ProductManagementService {
         underwriterId: pkg.underwriterId,
         underwriterName: pkg.underwriter?.name ?? null,
         isActive: pkg.isActive,
+        parentsSupported: pkg.parentsSupported,
+        maximumFamilySize: pkg.maximumFamilySize,
         logoPath: pkg.logoPath,
         cardTemplateName: pkg.cardTemplateName ?? null,
         paymentFrequencies: this.mapPaymentFrequencies(pkg.packagePaymentFrequencies),
@@ -848,6 +887,8 @@ export class ProductManagementService {
       description?: string;
       underwriterId?: number;
       isActive?: boolean;
+      parentsSupported?: boolean;
+      maximumFamilySize?: number;
       logoPath?: string;
       paymentFrequencies?: PaymentFrequencyInput[];
     },
@@ -862,6 +903,37 @@ export class ProductManagementService {
 
       if (!existing) {
         throw new NotFoundException(`Package with ID ${packageId} not found`);
+      }
+
+      if (data.maximumFamilySize !== undefined) {
+        if (
+          !Number.isInteger(data.maximumFamilySize) ||
+          data.maximumFamilySize < 2 ||
+          data.maximumFamilySize > 99
+        ) {
+          throw ValidationException.forField(
+            'maximumFamilySize',
+            'maximumFamilySize must be an integer between 2 and 99',
+            ErrorCodes.VALIDATION_ERROR
+          );
+        }
+        const upToNCategories = await this.prismaService.packagePricingCategory.findMany({
+          where: { packageId, kind: PackagePricingCategoryKind.UP_TO_N },
+          select: { key: true, maxMembers: true, displayName: true },
+        });
+        const blocking = upToNCategories.filter(
+          (c) => c.maxMembers != null && c.maxMembers > data.maximumFamilySize!
+        );
+        if (blocking.length > 0) {
+          const labels = blocking
+            .map((c) => c.displayName || c.key || `Up to ${c.maxMembers}`)
+            .join(', ');
+          throw ValidationException.forField(
+            'maximumFamilySize',
+            `Cannot set maximumFamilySize below existing Up to N categories (${labels}). Remove or edit those categories first.`,
+            ErrorCodes.VALIDATION_ERROR
+          );
+        }
       }
 
       let normalizedSlug: string | undefined;
@@ -925,6 +997,12 @@ export class ProductManagementService {
             ...(data.description !== undefined && { description: data.description.trim() }),
             ...(data.underwriterId !== undefined && { underwriterId: data.underwriterId }),
             ...(data.isActive !== undefined && { isActive: data.isActive }),
+            ...(data.parentsSupported !== undefined && {
+              parentsSupported: data.parentsSupported,
+            }),
+            ...(data.maximumFamilySize !== undefined && {
+              maximumFamilySize: data.maximumFamilySize,
+            }),
             ...(data.logoPath !== undefined && { logoPath: trimOrNull(data.logoPath) }),
           },
           include: {
@@ -940,6 +1018,21 @@ export class ProductManagementService {
             },
           },
         });
+
+        if (data.parentsSupported === false && existing.parentsSupported) {
+          const linkedSchemeIds = (
+            await tx.packageScheme.findMany({
+              where: { packageId },
+              select: { schemeId: true },
+            })
+          ).map((ps) => ps.schemeId);
+          if (linkedSchemeIds.length > 0) {
+            await tx.scheme.updateMany({
+              where: { id: { in: linkedSchemeIds }, parentsSupported: true },
+              data: { parentsSupported: false },
+            });
+          }
+        }
 
         if (frequencies) {
           await this.replacePackagePaymentFrequencies(tx, packageId, frequencies);
@@ -979,6 +1072,8 @@ export class ProductManagementService {
         underwriterId: pkg.underwriterId,
         underwriterName: pkg.underwriter?.name ?? null,
         isActive: packageIsActive,
+        parentsSupported: pkg.parentsSupported,
+        maximumFamilySize: pkg.maximumFamilySize,
         logoPath: pkg.logoPath,
         paymentFrequencies: this.mapPaymentFrequencies(pkg.packagePaymentFrequencies),
         createdBy: pkg.createdBy,
@@ -1211,6 +1306,7 @@ export class ProductManagementService {
         schemeName: scheme.schemeName,
         description: scheme.description,
         isActive: scheme.isActive,
+        parentsSupported: scheme.parentsSupported,
         isPostpaid: scheme.isPostpaid,
         frequency: scheme.frequency,
         paymentCadence: scheme.paymentCadence,
@@ -1291,6 +1387,7 @@ export class ProductManagementService {
       schemeName?: string;
       description?: string;
       isActive?: boolean;
+      parentsSupported?: boolean;
     },
     correlationId: string
   ) {
@@ -1300,10 +1397,30 @@ export class ProductManagementService {
       // Verify scheme exists
       const existing = await this.prismaService.scheme.findUnique({
         where: { id: schemeId },
+        include: {
+          packageSchemes: {
+            select: {
+              package: { select: { parentsSupported: true } },
+            },
+          },
+        },
       });
 
       if (!existing) {
         throw new NotFoundException(`Scheme with ID ${schemeId} not found`);
+      }
+
+      if (data.parentsSupported === true) {
+        const packageAllowsParents = existing.packageSchemes.some(
+          (ps) => ps.package.parentsSupported
+        );
+        if (!packageAllowsParents) {
+          throw ValidationException.forField(
+            'parentsSupported',
+            'Cannot enable parentsSupported: none of the linked packages support parents',
+            ErrorCodes.VALIDATION_ERROR
+          );
+        }
       }
 
       const scheme = await this.prismaService.scheme.update({
@@ -1312,6 +1429,9 @@ export class ProductManagementService {
           ...(data.schemeName !== undefined && { schemeName: data.schemeName.trim() }),
           ...(data.description !== undefined && { description: data.description.trim() }),
           ...(data.isActive !== undefined && { isActive: data.isActive }),
+          ...(data.parentsSupported !== undefined && {
+            parentsSupported: data.parentsSupported,
+          }),
         },
       });
 
@@ -1322,6 +1442,7 @@ export class ProductManagementService {
         schemeName: scheme.schemeName,
         description: scheme.description,
         isActive: scheme.isActive,
+        parentsSupported: scheme.parentsSupported,
         isPostpaid: scheme.isPostpaid,
         frequency: scheme.frequency,
         paymentCadence: scheme.paymentCadence,
@@ -1491,6 +1612,8 @@ export class ProductManagementService {
       description: string;
       underwriterId?: number;
       isActive?: boolean;
+      parentsSupported?: boolean;
+      maximumFamilySize: number;
       paymentFrequencies: PaymentFrequencyInput[];
     },
     userId: string,
@@ -1503,6 +1626,15 @@ export class ProductManagementService {
       const description = data.description.trim();
       const slug = normalizePackageSlug(data.slug);
       const frequencies = this.validatePaymentFrequenciesInput(data.paymentFrequencies);
+      const maximumFamilySize = data.maximumFamilySize;
+
+      if (!Number.isInteger(maximumFamilySize) || maximumFamilySize < 2 || maximumFamilySize > 99) {
+        throw ValidationException.forField(
+          'maximumFamilySize',
+          'maximumFamilySize is required and must be an integer between 2 and 99',
+          ErrorCodes.VALIDATION_ERROR
+        );
+      }
 
       if (!isValidPackageSlug(slug)) {
         throw ValidationException.forField(
@@ -1605,6 +1737,8 @@ export class ProductManagementService {
         underwriterId: pkg.underwriterId,
         underwriterName: pkg.underwriter?.name ?? null,
         isActive: pkg.isActive,
+        parentsSupported: pkg.parentsSupported,
+        maximumFamilySize: pkg.maximumFamilySize,
         logoPath: pkg.logoPath,
         paymentFrequencies: this.mapPaymentFrequencies(pkg.packagePaymentFrequencies),
         createdBy: pkg.createdBy,
@@ -1680,6 +1814,7 @@ export class ProductManagementService {
       schemeName: string;
       description: string;
       isActive?: boolean;
+      parentsSupported?: boolean;
       isPostpaid?: boolean;
       frequency?: PaymentFrequency;
       paymentCadence?: number;
@@ -1752,6 +1887,17 @@ export class ProductManagementService {
           validationErrors['generalSchemeWaitingPeriod'] = 'Waiting period must be between 0 and 9999';
         }
 
+        if (data.parentsSupported) {
+          const pkgParents = await this.prismaService.package.findUnique({
+            where: { id: data.packageId },
+            select: { parentsSupported: true },
+          });
+          if (!pkgParents?.parentsSupported) {
+            validationErrors['parentsSupported'] =
+              'Cannot enable parentsSupported: the package does not support parents';
+          }
+        }
+
         if (data.isPostpaid && data.frequency && !validationErrors['frequency']) {
           const supported = await this.prismaService.packagePaymentFrequency.findUnique({
             where: {
@@ -1817,6 +1963,7 @@ export class ProductManagementService {
               schemeName,
               description,
               isActive: data.isActive ?? true,
+              parentsSupported: data.parentsSupported ?? false,
               isPostpaid: data.isPostpaid ?? false,
               frequency: data.frequency ?? null,
               paymentCadence: calculatedPaymentCadence,
@@ -1858,6 +2005,7 @@ export class ProductManagementService {
           schemeName: createdScheme!.schemeName,
           description: createdScheme!.description,
           isActive: createdScheme!.isActive,
+          parentsSupported: createdScheme!.parentsSupported,
           isPostpaid: createdScheme!.isPostpaid,
           frequency: createdScheme!.frequency,
           paymentCadence: createdScheme!.paymentCadence,
@@ -1877,6 +2025,7 @@ export class ProductManagementService {
             schemeName,
             description,
             isActive: data.isActive ?? true,
+            parentsSupported: data.parentsSupported ?? false,
             isPostpaid: false,
             createdBy: userId,
           },
@@ -1901,6 +2050,7 @@ export class ProductManagementService {
           schemeName: scheme.schemeName,
           description: scheme.description,
           isActive: scheme.isActive,
+          parentsSupported: scheme.parentsSupported,
           isPostpaid: scheme.isPostpaid,
           frequency: scheme.frequency,
           paymentCadence: scheme.paymentCadence,

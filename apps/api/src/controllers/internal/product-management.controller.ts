@@ -399,7 +399,8 @@ export class ProductManagementController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Update a package plan (requires setup_admin)',
-    description: 'Update description and/or active status. Plan name cannot be changed.',
+    description:
+      'Update name, description, and/or active status. Plan names must remain unique within the package.',
   })
   @ApiParam({ name: 'packageId', type: Number })
   @ApiParam({ name: 'planId', type: Number })

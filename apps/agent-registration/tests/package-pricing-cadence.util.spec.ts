@@ -26,7 +26,23 @@ describe('package-pricing-cadence.util (FE)', () => {
       installmentCounts: MFANISI_COUNTS,
     });
     expect(suggested.annually).toBe(24840);
-    expect(suggested.weekly).toBe(Math.round(90 * (276 / 39) * 100) / 100);
+    expect(suggested.weekly).toBe(Math.round(90 * (276 / 39)));
+  });
+
+  it('rounds annual-derived suggestions to whole shillings', () => {
+    const counts = buildInstallmentCounts([
+      { frequency: 'DAILY', installmentCount: 315 },
+      { frequency: 'WEEKLY', installmentCount: 40 },
+      { frequency: 'MONTHLY', installmentCount: 10 },
+    ]);
+    const suggested = suggestFillFromLowerBand({
+      rates: { annually: 21793 },
+      enabledFrequencies: ['DAILY', 'WEEKLY', 'MONTHLY', 'ANNUALLY'],
+      installmentCounts: counts,
+    });
+    expect(suggested.daily).toBe(69);
+    expect(suggested.weekly).toBe(545);
+    expect(suggested.monthly).toBe(2179);
   });
 
   it('clears soft-loss once weekly is at or above installment floor', () => {

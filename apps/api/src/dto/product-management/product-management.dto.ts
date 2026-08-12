@@ -132,6 +132,13 @@ export class CreatePackagePlanRequestDto {
 }
 
 export class UpdatePackagePlanRequestDto {
+  @ApiProperty({ description: 'Plan name (stored as title case)', example: 'Silver', required: false })
+  @IsOptional()
+  @IsString()
+  @MinLength(1)
+  @MaxLength(200)
+  name?: string;
+
   @ApiProperty({ description: 'Plan description', example: 'Updated description', required: false })
   @IsOptional()
   @IsString()

@@ -2,6 +2,7 @@
  * Client-side soft-loss / suggest-fill helpers for package pricing grid
  * (mirrors apps/api/src/utils/package-pricing-cadence.util.ts).
  * Uses package installment counts, not calendar cadence days.
+ * Amounts are whole shillings (nearest integer).
  */
 
 import { PAYMENT_CADENCE_DAYS, type PricingRateBand } from './insurance-installment';
@@ -89,6 +90,10 @@ export function getRateFromBand(
   return value != null && value > 0 ? value : null;
 }
 
+/**
+ * Soft-loss floor for a coarser frequency from the finest band amount.
+ * Amounts are whole shillings (nearest integer).
+ */
 export function softLossFloorAmount(params: {
   finestFrequency: string;
   finestAmount: number;
@@ -100,7 +105,7 @@ export function softLossFloorAmount(params: {
   if (finestCount <= 0 || coarserCount <= 0 || params.finestAmount <= 0) {
     return 0;
   }
-  return Math.round(params.finestAmount * (finestCount / coarserCount) * 100) / 100;
+  return Math.round(params.finestAmount * (finestCount / coarserCount));
 }
 
 export function isSoftLoss(params: {
@@ -115,6 +120,10 @@ export function isSoftLoss(params: {
   return params.coarserAmount < floor;
 }
 
+/**
+ * Suggest fill empty cells from the finest present band × installment counts.
+ * Suggestions are whole shillings and never below the soft-loss floor.
+ */
 export function suggestFillFromLowerBand(params: {
   rates: PricingRateBand;
   enabledFrequencies: string[];
@@ -131,38 +140,75 @@ export function suggestFillFromLowerBand(params: {
     (f) => enabledFrequencies.includes(f) || f === 'ANNUALLY'
   );
 
-  let finestFrequency: string | null = null;
-  let finestAmount: number | null = null;
+  let baseFrequency: string | null = null;
+  let baseAmount: number | null = null;
   for (const freq of ordered) {
     const amount = getRateFromBand(rates, freq);
     if (amount != null) {
-      finestFrequency = freq;
-      finestAmount = amount;
+      baseFrequency = freq;
+      baseAmount = Math.round(amount);
       break;
     }
   }
 
-  if (finestFrequency == null || finestAmount == null) {
+  if (baseFrequency == null || baseAmount == null) {
     return { ...rates };
   }
 
   const suggested: PricingRateBand = { ...rates };
+  const filledKeys = new Set<keyof PricingRateBand>();
+  const baseKey = rateBandKeyForFrequency(baseFrequency);
+  if (baseKey) {
+    suggested[baseKey] = baseAmount;
+  }
+
   for (const freq of ordered) {
-    if (freq === finestFrequency) continue;
+    if (freq === baseFrequency) continue;
     const key = rateBandKeyForFrequency(freq);
     if (!key) continue;
     const existing = rates[key];
     if (existing != null && existing > 0 && !overwriteFilled) continue;
     const floor = softLossFloorAmount({
-      finestFrequency,
-      finestAmount,
+      finestFrequency: baseFrequency,
+      finestAmount: baseAmount,
       coarserFrequency: freq,
       installmentCounts,
     });
     if (floor > 0) {
       suggested[key] = floor;
+      filledKeys.add(key);
     }
   }
+
+  let finestFrequency: string | null = null;
+  let finestAmount: number | null = null;
+  for (const freq of ordered) {
+    const amount = getRateFromBand(suggested, freq);
+    if (amount != null) {
+      finestFrequency = freq;
+      finestAmount = Math.round(amount);
+      break;
+    }
+  }
+  if (finestFrequency != null && finestAmount != null) {
+    for (const freq of ordered) {
+      if (freq === finestFrequency) continue;
+      const key = rateBandKeyForFrequency(freq);
+      if (!key || !filledKeys.has(key)) continue;
+      const current = suggested[key];
+      if (current == null || current <= 0) continue;
+      const floor = softLossFloorAmount({
+        finestFrequency,
+        finestAmount,
+        coarserFrequency: freq,
+        installmentCounts,
+      });
+      if (floor > 0 && Math.round(current) < floor) {
+        suggested[key] = floor;
+      }
+    }
+  }
+
   return suggested;
 }
 

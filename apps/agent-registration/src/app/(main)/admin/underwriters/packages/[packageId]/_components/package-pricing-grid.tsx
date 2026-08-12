@@ -137,8 +137,25 @@ function amountsEqual(a: number | null, b: number | null): boolean {
   return a === b;
 }
 
+function roundBand(band: PricingRateBand): PricingRateBand {
+  const next: PricingRateBand = {};
+  for (const [key, value] of Object.entries(band) as Array<[keyof PricingRateBand, number | undefined]>) {
+    if (value != null && value > 0) {
+      next[key] = Math.round(value);
+    }
+  }
+  return next;
+}
+
 function clonePlans(plans: PackagePricingData['plans']): PackagePricingData['plans'] {
-  return structuredClone(plans);
+  const cloned = structuredClone(plans);
+  for (const plan of Object.values(cloned)) {
+    if (!plan) continue;
+    for (const [categoryKey, band] of Object.entries(plan.rates)) {
+      plan.rates[categoryKey] = roundBand(band);
+    }
+  }
+  return cloned;
 }
 
 export default function PackagePricingGrid({
@@ -150,7 +167,7 @@ export default function PackagePricingGrid({
 }: PackagePricingGridProps) {
   const [local, setLocal] = useState<EditablePricing>(() => ({
     categories: pricing.categories,
-    plans: pricing.plans,
+    plans: clonePlans(pricing.plans),
   }));
   const [baselinePlans, setBaselinePlans] = useState<PackagePricingData['plans']>(() =>
     clonePlans(pricing.plans)
@@ -174,7 +191,7 @@ export default function PackagePricingGrid({
   useEffect(() => {
     setLocal({
       categories: pricing.categories,
-      plans: pricing.plans,
+      plans: clonePlans(pricing.plans),
     });
     setBaselinePlans(clonePlans(pricing.plans));
     setDirty(false);
@@ -212,8 +229,33 @@ export default function PackagePricingGrid({
     [local.plans]
   );
 
-  const hasUpToN = local.categories.some((c) => c.kind === 'UP_TO_N');
   const hasSpouse = local.categories.some((c) => c.kind === 'ADDITIONAL_SPOUSE');
+  const maximumFamilySize = pricing.maximumFamilySize ?? 8;
+
+  const usedUpToNSizes = useMemo(
+    () =>
+      new Set(
+        local.categories
+          .filter((c) => c.kind === 'UP_TO_N' && c.maxMembers != null)
+          .map((c) => c.maxMembers as number)
+      ),
+    [local.categories]
+  );
+
+  const hasUpToNAtMaxFamilySize = local.categories.some(
+    (c) => c.kind === 'UP_TO_N' && c.maxMembers === maximumFamilySize
+  );
+
+  const availableUpToNSizes = useMemo(() => {
+    const available: number[] = [];
+    for (let n = 2; n <= maximumFamilySize; n++) {
+      if (!usedUpToNSizes.has(n)) available.push(n);
+    }
+    return available;
+  }, [maximumFamilySize, usedUpToNSizes]);
+
+  const canAddUpToN =
+    !hasUpToNAtMaxFamilySize && availableUpToNSizes.length > 0;
 
   const getSupabaseToken = async () => {
     const { data: session } = await supabase.auth.getSession();
@@ -278,9 +320,13 @@ export default function PackagePricingGrid({
   );
 
   const commitEdit = (cell: EditingCell) => {
-    const parsed = cell.draft.trim() === '' ? null : parseFloat(cell.draft);
-    if (cell.draft.trim() !== '' && (Number.isNaN(parsed) || (parsed != null && parsed <= 0))) {
-      setError('Enter a positive number or leave empty');
+    const trimmed = cell.draft.trim();
+    const parsed = trimmed === '' ? null : Number.parseInt(trimmed, 10);
+    if (
+      trimmed !== '' &&
+      (parsed == null || Number.isNaN(parsed) || !Number.isInteger(parsed) || parsed <= 0)
+    ) {
+      setError('Enter a whole number (shillings) greater than 0, or leave empty');
       return;
     }
 
@@ -325,7 +371,7 @@ export default function PackagePricingGrid({
       const saved = await putPackagePricing(packageId, body);
       setLocal({
         categories: saved.categories,
-        plans: saved.plans,
+        plans: clonePlans(saved.plans),
       });
       setBaselinePlans(clonePlans(saved.plans));
       setDirty(false);
@@ -435,7 +481,7 @@ export default function PackagePricingGrid({
       }
 
       const saved = await getPackagePricing(packageId);
-      setLocal({ categories: saved.categories, plans: saved.plans });
+      setLocal({ categories: saved.categories, plans: clonePlans(saved.plans) });
       setNewPlanName('');
       setAddPlanOpen(false);
       onSaved(saved);
@@ -451,6 +497,21 @@ export default function PackagePricingGrid({
     setAddingCategory(true);
     setError(null);
     try {
+      if (addCategoryKind === 'UP_TO_N') {
+        const parsedMax = parseInt(maxMembers, 10);
+        if (!Number.isInteger(parsedMax) || parsedMax < 2) {
+          throw new Error('Max members must be an integer of at least 2');
+        }
+        if (parsedMax > maximumFamilySize) {
+          throw new Error(
+            `Max members cannot exceed package maximum family size (${maximumFamilySize})`
+          );
+        }
+        if (usedUpToNSizes.has(parsedMax)) {
+          throw new Error(`An Up to ${parsedMax} category already exists`);
+        }
+      }
+
       const display =
         categoryDisplay.trim() ||
         (addCategoryKind === 'ADDITIONAL_SPOUSE'
@@ -476,7 +537,7 @@ export default function PackagePricingGrid({
       }));
       setAddCategoryOpen(false);
       setCategoryDisplay('');
-      setMaxMembers('5');
+      setMaxMembers(String(Math.min(5, maximumFamilySize)));
       onWarning?.(result.warning ?? null);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to add category');
@@ -535,19 +596,30 @@ export default function PackagePricingGrid({
                 <Plus className="h-4 w-4 mr-1" />
                 Add plan column
               </Button>
-              {!hasUpToN && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    setAddCategoryKind('UP_TO_N');
-                    setAddCategoryOpen(true);
-                  }}
-                >
-                  <Plus className="h-4 w-4 mr-1" />
-                  Add Up to N
-                </Button>
-              )}
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={!canAddUpToN}
+                title={
+                  !canAddUpToN
+                    ? hasUpToNAtMaxFamilySize
+                      ? `An Up to ${maximumFamilySize} category already exists (package max)`
+                      : 'No unused family sizes left between 2 and maximum family size'
+                    : undefined
+                }
+                onClick={() => {
+                  setAddCategoryKind('UP_TO_N');
+                  const defaultN =
+                    availableUpToNSizes.find((n) => n === 5) ??
+                    availableUpToNSizes[0] ??
+                    Math.min(5, maximumFamilySize);
+                  setMaxMembers(String(defaultN));
+                  setAddCategoryOpen(true);
+                }}
+              >
+                <Plus className="h-4 w-4 mr-1" />
+                Add Up to N
+              </Button>
               {!hasSpouse && (
                 <Button
                   variant="outline"
@@ -666,13 +738,13 @@ export default function PackagePricingGrid({
                               <Input
                                 autoFocus
                                 className="h-8 w-24 text-blue-600 font-semibold"
-                                inputMode="decimal"
+                                inputMode="numeric"
                                 maxLength={8}
                                 value={editingCell.draft}
                                 onChange={(e) =>
                                   setEditingCell({
                                     ...editingCell,
-                                    draft: e.target.value.replace(/[^\d.]/g, '').slice(0, 8),
+                                    draft: e.target.value.replace(/[^\d]/g, '').slice(0, 8),
                                   })
                                 }
                                 onBlur={() => commitEdit(editingCell)}
@@ -769,6 +841,9 @@ export default function PackagePricingGrid({
                     setMaxMembers(e.target.value.replace(/\D/g, '').slice(0, 2))
                   }
                 />
+                <p className="text-xs text-muted-foreground">
+                  Must be between 2 and {maximumFamilySize} (package maximum family size).
+                </p>
               </div>
             )}
             <div className="space-y-2">

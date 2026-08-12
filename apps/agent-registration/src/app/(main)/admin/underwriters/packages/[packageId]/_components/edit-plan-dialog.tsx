@@ -25,6 +25,15 @@ interface EditPlanDialogProps {
   plan: EditablePlan | null;
 }
 
+function toTitleCase(value: string): string {
+  return value
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(' ');
+}
+
 export default function EditPlanDialog({
   open,
   onOpenChange,
@@ -33,6 +42,7 @@ export default function EditPlanDialog({
   plan,
 }: EditPlanDialogProps) {
   const [formData, setFormData] = useState({
+    name: '',
     description: '',
     isActive: true,
   });
@@ -42,6 +52,7 @@ export default function EditPlanDialog({
   useEffect(() => {
     if (plan && open) {
       setFormData({
+        name: plan.name,
         description: plan.description ?? '',
         isActive: plan.isActive,
       });
@@ -61,6 +72,13 @@ export default function EditPlanDialog({
     setLoading(true);
 
     try {
+      const name = toTitleCase(formData.name);
+      if (!name) {
+        throw new Error('Plan name is required');
+      }
+      if (name.length > 200) {
+        throw new Error('Name must be at most 200 characters');
+      }
       const description = formData.description.trim();
       if (description.length > 200) {
         throw new Error('Description must be at most 200 characters');
@@ -77,6 +95,7 @@ export default function EditPlanDialog({
             'x-correlation-id': `req-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
           },
           body: JSON.stringify({
+            name,
             description,
             isActive: formData.isActive,
           }),
@@ -120,14 +139,20 @@ export default function EditPlanDialog({
         <DialogHeader>
           <DialogTitle>Edit Plan</DialogTitle>
           <DialogDescription>
-            Update description and active status. Plan name cannot be changed here (it must stay aligned with
-            pricing files).
+            Update name, description, and active status. Plan names must be unique within this package.
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <Label htmlFor="edit-plan-name">Name</Label>
-            <Input id="edit-plan-name" value={plan?.name ?? ''} disabled />
+            <Input
+              id="edit-plan-name"
+              value={formData.name}
+              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              placeholder="e.g. Silver"
+              maxLength={200}
+              required
+            />
           </div>
           <div>
             <Label htmlFor="edit-plan-description">Description</Label>
@@ -162,7 +187,7 @@ export default function EditPlanDialog({
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
               Cancel
             </Button>
-            <Button type="submit" disabled={loading || !plan}>
+            <Button type="submit" disabled={loading || !plan || !formData.name.trim()}>
               {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
               Save
             </Button>
