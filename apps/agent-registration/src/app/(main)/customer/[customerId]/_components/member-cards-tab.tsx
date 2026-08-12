@@ -2,11 +2,21 @@
 
 import { useEffect, useState } from 'react';
 import { getMemberCards } from '@/lib/api';
-import type { MemberCardsByPolicyItem } from '@/types/member-card';
+import {
+  MEMBER_CARDS_PENDING_PAYMENT_MESSAGE,
+  type MemberCardsByPolicyItem,
+} from '@/types/member-card';
 import MemberCardWithDownload from '@/components/member-cards/MemberCardWithDownload';
 
 interface MemberCardsTabProps {
   customerId: string;
+}
+
+function policyCardsAvailable(policy: MemberCardsByPolicyItem): boolean {
+  if (typeof policy.cardsAvailable === 'boolean') {
+    return policy.cardsAvailable;
+  }
+  return Boolean(policy.principal.memberNumber);
 }
 
 export default function MemberCardsTab({ customerId }: MemberCardsTabProps) {
@@ -68,19 +78,25 @@ export default function MemberCardsTab({ customerId }: MemberCardsTabProps) {
             {policy.packageName}
             {policy.policyNumber ? ` — ${policy.policyNumber}` : ''}
           </h3>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            <MemberCardWithDownload
-              data={policy.principal}
-              templateName={policy.cardTemplateName}
-            />
-            {policy.dependants.map((dep, idx) => (
+          {policyCardsAvailable(policy) ? (
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               <MemberCardWithDownload
-                key={idx}
-                data={dep}
+                data={policy.principal}
                 templateName={policy.cardTemplateName}
               />
-            ))}
-          </div>
+              {policy.dependants.map((dep, idx) => (
+                <MemberCardWithDownload
+                  key={idx}
+                  data={dep}
+                  templateName={policy.cardTemplateName}
+                />
+              ))}
+            </div>
+          ) : (
+            <p className="rounded-lg border border-dashed p-6 text-center text-muted-foreground">
+              {MEMBER_CARDS_PENDING_PAYMENT_MESSAGE}
+            </p>
+          )}
         </section>
       ))}
     </div>

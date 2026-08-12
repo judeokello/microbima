@@ -17,6 +17,7 @@ import {
 import { formatTransactionReferenceForDisplay } from '@/lib/transaction-reference-display';
 import { Loader2 } from 'lucide-react';
 import MemberCardWithDownload from '@/components/member-cards/MemberCardWithDownload';
+import { MEMBER_CARDS_PENDING_PAYMENT_MESSAGE } from '@/types/member-card';
 
 type Tab = 'details' | 'products' | 'payments' | 'member-cards';
 
@@ -358,27 +359,40 @@ function MemberCardsTab({ cards }: { cards: PortalMemberCardsResponse }) {
 
   return (
     <div className="space-y-8">
-      {cards.memberCardsByPolicy.map((policy) => (
-        <section key={policy.policyId} className="space-y-4">
-          <h3 className="text-base font-semibold text-[#1a1c1f]">
-            {policy.packageName}
-            {policy.policyNumber ? ` — ${policy.policyNumber}` : ''}
-          </h3>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            <MemberCardWithDownload
-              data={policy.principal}
-              templateName={policy.cardTemplateName}
-            />
-            {policy.dependants.map((dep, idx) => (
-              <MemberCardWithDownload
-                key={idx}
-                data={dep}
-                templateName={policy.cardTemplateName}
-              />
-            ))}
-          </div>
-        </section>
-      ))}
+      {cards.memberCardsByPolicy.map((policy) => {
+        const cardsAvailable =
+          typeof policy.cardsAvailable === 'boolean'
+            ? policy.cardsAvailable
+            : Boolean(policy.principal.memberNumber);
+
+        return (
+          <section key={policy.policyId} className="space-y-4">
+            <h3 className="text-base font-semibold text-[#1a1c1f]">
+              {policy.packageName}
+              {policy.policyNumber ? ` — ${policy.policyNumber}` : ''}
+            </h3>
+            {cardsAvailable ? (
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                <MemberCardWithDownload
+                  data={policy.principal}
+                  templateName={policy.cardTemplateName}
+                />
+                {policy.dependants.map((dep, idx) => (
+                  <MemberCardWithDownload
+                    key={idx}
+                    data={dep}
+                    templateName={policy.cardTemplateName}
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="rounded-2xl bg-white p-6 text-center shadow-sm ring-1 ring-[#d2c2cf]/20">
+                <p className="text-sm text-[#4f434e]">{MEMBER_CARDS_PENDING_PAYMENT_MESSAGE}</p>
+              </div>
+            )}
+          </section>
+        );
+      })}
     </div>
   );
 }

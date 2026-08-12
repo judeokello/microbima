@@ -1145,10 +1145,12 @@ export interface MemberCardsApiResponse {
   memberCardsByPolicy: Array<{
     policyId: string;
     policyNumber: string | null;
+    policyStatus?: string;
     packageId: number;
     packageName: string;
     cardTemplateName: string | null;
     schemeName: string;
+    cardsAvailable: boolean;
     principal: {
       schemeName: string;
       principalMemberName: string;

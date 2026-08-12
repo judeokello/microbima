@@ -83,6 +83,7 @@ import { SupabaseService } from './supabase.service';
 import { PaymentAccountNumberService } from './payment-account-number.service';
 import { assertKenyanPhoneForOndemandStk, normalizePhoneNumber } from '../utils/phone-number.util';
 import { hasGlobalCustomerAccess } from '../utils/roles.util';
+import { policyHasMemberCards } from '../utils/member-cards.util';
 import {
   buildSyntheticCustomerEmail,
   generatePortalRegistrationOtp,
@@ -3919,11 +3920,7 @@ export class CustomerService {
       include: {
         dependants: {
           where: { deletedAt: null },
-          include: {
-            policyMemberDependants: { orderBy: { createdAt: 'desc' }, take: 1 },
-          },
         },
-        policyMemberPrincipals: { orderBy: { createdAt: 'desc' }, take: 1 },
         policies: {
           include: {
             package: {
@@ -3933,6 +3930,8 @@ export class CustomerService {
                 cardTemplateName: true,
               },
             },
+            policyMemberPrincipals: true,
+            policyMemberDependants: true,
           },
         },
       },
@@ -3942,7 +3941,6 @@ export class CustomerService {
       throw new NotFoundException('Customer not found');
     }
 
-    const principalMember = customer.policyMemberPrincipals[0];
     const principalName = [customer.firstName, customer.middleName ?? '', customer.lastName]
       .filter(Boolean)
       .join(' ');
@@ -3954,6 +3952,12 @@ export class CustomerService {
 
     for (const policy of customer.policies) {
       const pkg = policy.package;
+      const principalMember = policy.policyMemberPrincipals[0] ?? null;
+      const cardsAvailable = policyHasMemberCards({
+        status: policy.status,
+        principalMemberNumber: principalMember?.memberNumber,
+      });
+
       const schemeCustomer = await this.prismaService.packageSchemeCustomer.findFirst({
         where: {
           customerId: customer.id,
@@ -3969,19 +3973,46 @@ export class CustomerService {
       });
       const schemeName = schemeCustomer?.packageScheme?.scheme?.schemeName ?? '—';
 
+      const emptyPrincipal: MemberCardDataDto = {
+        schemeName,
+        principalMemberName: principalName,
+        insuredMemberName: principalName,
+        memberNumber: null,
+        dateOfBirth: principalDob,
+        datePrinted: '',
+      };
+
+      if (!cardsAvailable || !principalMember) {
+        memberCardsByPolicy.push({
+          policyId: policy.id,
+          policyNumber: policy.policyNumber,
+          policyStatus: policy.status,
+          packageId: pkg.id,
+          packageName: pkg.name,
+          cardTemplateName: pkg.cardTemplateName ?? null,
+          schemeName,
+          cardsAvailable: false,
+          principal: emptyPrincipal,
+          dependants: [],
+        });
+        continue;
+      }
+
       const principalCard: MemberCardDataDto = {
         schemeName,
         principalMemberName: principalName,
         insuredMemberName: principalName,
-        memberNumber: principalMember?.memberNumber ?? null,
+        memberNumber: principalMember.memberNumber,
         dateOfBirth: principalDob,
-        datePrinted: principalMember?.createdAt
+        datePrinted: principalMember.createdAt
           ? this.formatDateDDMMYYYY(principalMember.createdAt)
           : '',
       };
 
       const dependantCards: MemberCardDataDto[] = customer.dependants.map((d) => {
-        const memberDependant = d.policyMemberDependants[0];
+        const memberDependant = policy.policyMemberDependants.find(
+          (pmd) => pmd.dependantId === d.id
+        );
         const fullName = [d.firstName, d.middleName ?? '', d.lastName].filter(Boolean).join(' ');
         const dob = d.dateOfBirth ? this.formatDateDDMMYYYY(d.dateOfBirth) : '';
         return {
@@ -4004,6 +4035,7 @@ export class CustomerService {
         packageName: pkg.name,
         cardTemplateName: pkg.cardTemplateName ?? null,
         schemeName,
+        cardsAvailable: true,
         principal: principalCard,
         dependants: dependantCards,
       });

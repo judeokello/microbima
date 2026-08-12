@@ -680,7 +680,7 @@ export class InternalCustomerController {
   @ApiOperation({
     summary: 'Get member cards by policy (Internal)',
     description:
-      'Returns member cards data grouped by policy. Access same as customer detail page.',
+      'Returns member cards data grouped by policy. Cards are omitted until the policy is activated and member numbers are assigned (after premium payment). Access same as customer detail page.',
   })
   @ApiParam({ name: 'customerId', description: 'Customer ID' })
   @ApiResponse({ status: 200, description: 'Member cards grouped by policy' })

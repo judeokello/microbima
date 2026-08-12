@@ -6,6 +6,7 @@ import { SupabaseService } from '../../services/supabase.service';
 import { MessagingService } from '../messaging/messaging.service';
 import { ValidationException } from '../../exceptions/validation.exception';
 import { notDetachedPaymentWhere } from '../../utils/policy-payment-filters';
+import { policyHasMemberCards } from '../../utils/member-cards.util';
 import {
   computeMissedInstallments,
   computePaidInstallments,
@@ -389,14 +390,12 @@ export class CustomerPortalService {
       include: {
         dependants: {
           where: { deletedAt: null },
-          include: {
-            policyMemberDependants: { orderBy: { createdAt: 'desc' }, take: 1 },
-          },
         },
-        policyMemberPrincipals: { orderBy: { createdAt: 'desc' }, take: 1 },
         policies: {
           include: {
             package: { select: { id: true, name: true, cardTemplateName: true } },
+            policyMemberPrincipals: true,
+            policyMemberDependants: true,
           },
         },
       },
@@ -419,37 +418,67 @@ export class CustomerPortalService {
     };
 
     const memberCardsByPolicy = customer.policies.map((policy) => {
-      const principalMember = customer.policyMemberPrincipals[0];
+      const principalMember = policy.policyMemberPrincipals[0] ?? null;
       const principalDob = formatDDMMYYYY(customer.dateOfBirth);
+      const cardsAvailable = policyHasMemberCards({
+        status: policy.status,
+        principalMemberNumber: principalMember?.memberNumber,
+      });
+      const emptyPrincipal = {
+        schemeName: policy.package.name,
+        principalMemberName: principalName,
+        insuredMemberName: principalName,
+        memberNumber: null as string | null,
+        dateOfBirth: principalDob,
+        datePrinted: '',
+      };
+
+      if (!cardsAvailable || !principalMember) {
+        return {
+          policyId: policy.id,
+          policyNumber: policy.policyNumber,
+          policyStatus: policy.status,
+          packageId: policy.packageId,
+          packageName: policy.package.name,
+          cardTemplateName: policy.package.cardTemplateName,
+          schemeName: policy.package.name,
+          cardsAvailable: false,
+          principal: emptyPrincipal,
+          dependants: [],
+        };
+      }
+
       const principalEntry = {
         schemeName: policy.package.name,
         principalMemberName: principalName,
         insuredMemberName: principalName,
-        memberNumber: principalMember?.memberNumber ?? null,
+        memberNumber: principalMember.memberNumber,
         dateOfBirth: principalDob,
-        datePrinted: formatDDMMYYYY(new Date()),
+        datePrinted: formatDDMMYYYY(principalMember.createdAt),
       };
 
       const dependants = customer.dependants.map((dep) => {
+        const depMember = policy.policyMemberDependants.find((pmd) => pmd.dependantId === dep.id);
         const depName = [dep.firstName, dep.middleName ?? '', dep.lastName].filter(Boolean).join(' ');
-        const depMember = dep.policyMemberDependants[0];
         return {
           schemeName: policy.package.name,
           principalMemberName: principalName,
           insuredMemberName: depName,
           memberNumber: depMember?.memberNumber ?? null,
           dateOfBirth: formatDDMMYYYY(dep.dateOfBirth),
-          datePrinted: formatDDMMYYYY(new Date()),
+          datePrinted: formatDDMMYYYY(depMember?.createdAt ?? null),
         };
       });
 
       return {
         policyId: policy.id,
         policyNumber: policy.policyNumber,
+        policyStatus: policy.status,
         packageId: policy.packageId,
         packageName: policy.package.name,
         cardTemplateName: policy.package.cardTemplateName,
         schemeName: policy.package.name,
+        cardsAvailable: true,
         principal: principalEntry,
         dependants,
       };

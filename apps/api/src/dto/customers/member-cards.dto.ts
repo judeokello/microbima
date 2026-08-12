@@ -48,6 +48,12 @@ export class MemberCardsByPolicyItemDto {
   @ApiProperty({ description: 'Scheme name for this policy' })
   schemeName: string;
 
+  @ApiProperty({
+    description:
+      'False when members have not been created yet (e.g. PENDING_ACTIVATION). UI must not render cards.',
+  })
+  cardsAvailable: boolean;
+
   @ApiProperty({ description: 'Card data for principal', type: MemberCardDataDto })
   principal: MemberCardDataDto;
 

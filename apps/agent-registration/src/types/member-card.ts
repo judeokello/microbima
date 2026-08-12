@@ -16,13 +16,18 @@ export interface MemberCardData {
 export interface MemberCardsByPolicyItem {
   policyId: string;
   policyNumber: string | null;
+  policyStatus?: string;
   packageId: number;
   packageName: string;
   cardTemplateName: string | null;
   schemeName: string;
+  cardsAvailable: boolean;
   principal: MemberCardData;
   dependants: MemberCardData[];
 }
+
+export const MEMBER_CARDS_PENDING_PAYMENT_MESSAGE =
+  'Member cards will be available after policy premium payment';
 
 /**
  * Response from GET /internal/customers/:customerId/member-cards
