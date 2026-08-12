@@ -19,7 +19,7 @@ import { CustomerMapper } from '../mappers/customer.mapper';
 import { CreatePrincipalMemberRequestDto } from '../dto/principal-member/create-principal-member-request.dto';
 import { CreatePrincipalMemberResponseDto } from '../dto/principal-member/create-principal-member-response.dto';
 import { BeneficiaryData } from '../entities/beneficiary.entity';
-import { Gender, IdType, DependantRelationship, PaymentFrequency, PaymentStatus } from '@prisma/client';
+import { Gender, IdType, DependantRelationship, PaymentFrequency, PaymentStatus, ParentRelationship } from '@prisma/client';
 import { PrincipalMemberDto } from '../dto/principal-member/principal-member.dto';
 import { AddDependantsRequestDto } from '../dto/dependants/add-dependants-request.dto';
 import { AddDependantsResponseDto } from '../dto/dependants/add-dependants-response.dto';
@@ -28,6 +28,7 @@ import { AddBeneficiariesRequestDto } from '../dto/beneficiaries/add-beneficiari
 import { AddBeneficiariesResponseDto } from '../dto/beneficiaries/add-beneficiaries-response.dto';
 import { GetBeneficiariesResponseDto } from '../dto/beneficiaries/get-beneficiaries-response.dto';
 import { ChildDto } from '../dto/family-members/child.dto';
+import { ParentDto } from '../dto/family-members/parent.dto';
 import { SpouseDto } from '../dto/family-members/spouse.dto';
 import { BeneficiaryDto } from '../dto/family-members/beneficiary.dto';
 import { SharedMapperUtils } from '../mappers/shared.mapper.utils';
@@ -119,6 +120,43 @@ export class CustomerService {
       age--;
     }
     return age >= 18 && age < 25;
+  }
+
+  /**
+   * Max 4 parents total; at most 2 of any ParentRelationship value.
+   */
+  private validateParentsPayload(parents: ParentDto[]): void {
+    const validationErrors: Record<string, string> = {};
+    if (parents.length > 4) {
+      validationErrors['parents'] = 'A maximum of 4 parents is allowed';
+    }
+    const counts = new Map<ParentRelationship, number>();
+    for (const parent of parents) {
+      const next = (counts.get(parent.relationship) ?? 0) + 1;
+      counts.set(parent.relationship, next);
+      if (next > 2) {
+        validationErrors['parents.relationship'] =
+          `Relationship ${parent.relationship} cannot be used more than twice`;
+      }
+      if (!parent.firstName?.trim()) {
+        validationErrors['parents.firstName'] = 'Parent first name is required';
+      }
+      if (!parent.lastName?.trim()) {
+        validationErrors['parents.lastName'] = 'Parent last name is required';
+      }
+      if (!parent.dateOfBirth) {
+        validationErrors['parents.dateOfBirth'] = 'Parent date of birth is required';
+      }
+      if (!parent.gender) {
+        validationErrors['parents.gender'] = 'Parent gender is required';
+      }
+      if (!parent.idType || !parent.idNumber?.trim()) {
+        validationErrors['parents.idNumber'] = 'Parent ID type and number are required';
+      }
+    }
+    if (Object.keys(validationErrors).length > 0) {
+      throw ValidationException.withMultipleErrors(validationErrors);
+    }
   }
 
   constructor(
@@ -497,6 +535,49 @@ export class CustomerService {
           },
           orderBy: { createdAt: 'desc' },
           take: createRequest.spouses.length,
+        });
+      }
+
+      if (createRequest.parents && createRequest.parents.length > 0) {
+        this.validateParentsPayload(createRequest.parents);
+
+        const packageSchemeForParents = await this.prismaService.packageScheme.findUnique({
+          where: { id: packageSchemeId },
+          include: {
+            scheme: { select: { parentsSupported: true } },
+            package: { select: { parentsSupported: true } },
+          },
+        });
+        if (
+          !packageSchemeForParents?.scheme?.parentsSupported ||
+          !packageSchemeForParents?.package?.parentsSupported
+        ) {
+          throw ValidationException.forField(
+            'parents',
+            'Parents can only be registered when the package and scheme support parents',
+            ErrorCodes.VALIDATION_ERROR
+          );
+        }
+
+        const parentsData = createRequest.parents.map((parent: ParentDto) => {
+          const mappedIdType = SharedMapperUtils.mapIdTypeFromDto(parent.idType);
+          const trimmedIdNumber = parent.idNumber?.trim();
+          return {
+            customerId: createdCustomer.id,
+            firstName: parent.firstName,
+            middleName: parent.middleName ?? null,
+            lastName: parent.lastName,
+            dateOfBirth: parent.dateOfBirth ? new Date(parent.dateOfBirth) : null,
+            gender: SharedMapperUtils.mapGenderFromDto(parent.gender),
+            idType: trimmedIdNumber ? mappedIdType : null,
+            idNumber: trimmedIdNumber ?? null,
+            relationship: parent.relationship,
+            createdByPartnerId: partnerId,
+          };
+        });
+
+        await this.prismaService.customerParent.createMany({
+          data: parentsData,
         });
       }
 

@@ -17,6 +17,7 @@ import { addBeneficiaries, BeneficiaryData } from '@/lib/api';
 import { useParams } from 'next/navigation';
 import { formatPhoneNumber, getPhoneValidationError } from '@/lib/phone-validation';
 import { getIdNumberValidationError, ID_NUMBER_MAX_LENGTH } from '@/lib/id-number-validation';
+import DateOfBirthInput from '@/components/date-of-birth-input';
 import * as Sentry from '@sentry/nextjs';
 
 interface AddBeneficiaryDialogProps {
@@ -258,12 +259,11 @@ export default function AddBeneficiaryDialog({
             </div>
 
             <div>
-              <Label htmlFor="dateOfBirth">Date of Birth</Label>
-              <Input
+              <Label>Date of Birth</Label>
+              <DateOfBirthInput
                 id="dateOfBirth"
-                type="date"
                 value={formData.dateOfBirth}
-                onChange={(e) => setFormData({ ...formData, dateOfBirth: e.target.value })}
+                onChange={(value) => setFormData({ ...formData, dateOfBirth: value })}
               />
             </div>
 

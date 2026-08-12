@@ -45,6 +45,12 @@ export class SchemeDetailDto {
   isActive: boolean;
 
   @ApiProperty({
+    description: 'Whether parent details are captured at registration for this scheme',
+    example: false,
+  })
+  parentsSupported: boolean;
+
+  @ApiProperty({
     description: 'Whether the scheme is postpaid (payment after service)',
     example: false,
     required: false,
@@ -184,6 +190,17 @@ export class CreateSchemeRequestDto {
   isActive?: boolean;
 
   @ApiProperty({
+    description:
+      'Whether parent details are captured at registration (only allowed when package.parentsSupported is true)',
+    example: false,
+    required: false,
+    default: false,
+  })
+  @IsOptional()
+  @IsBoolean()
+  parentsSupported?: boolean;
+
+  @ApiProperty({
     description: 'Whether the scheme is postpaid (payment after service)',
     example: false,
     required: false,
@@ -275,6 +292,16 @@ export class UpdateSchemeRequestDto {
   @IsOptional()
   @IsBoolean()
   isActive?: boolean;
+
+  @ApiProperty({
+    description:
+      'Whether parent details are captured at registration (only allowed when package.parentsSupported is true)',
+    example: false,
+    required: false,
+  })
+  @IsOptional()
+  @IsBoolean()
+  parentsSupported?: boolean;
 
   @ApiProperty({
     description: 'Whether the scheme is postpaid (payment after service)',

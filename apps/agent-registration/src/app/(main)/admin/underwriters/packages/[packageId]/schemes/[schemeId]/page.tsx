@@ -22,6 +22,7 @@ interface Scheme {
   schemeName: string;
   description: string;
   isActive: boolean;
+  parentsSupported?: boolean;
   isPostpaid: boolean;
   frequency?: string | null;
   paymentCadence?: number | null;
@@ -114,6 +115,7 @@ export default function SchemeDetailPage() {
   const schemeId = parseInt(params.schemeId as string);
 
   const [scheme, setScheme] = useState<Scheme | null>(null);
+  const [packageParentsSupported, setPackageParentsSupported] = useState(false);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [pagination, setPagination] = useState<CustomersResponse['pagination'] | null>(null);
   const [loading, setLoading] = useState(true);
@@ -125,6 +127,7 @@ export default function SchemeDetailPage() {
     schemeName: '',
     description: '',
     isActive: true,
+    parentsSupported: false,
     generalSchemeWaitingPeriod: '',
   });
 
@@ -198,6 +201,7 @@ export default function SchemeDetailPage() {
         schemeName: data.data.schemeName,
         description: data.data.description,
         isActive: data.data.isActive,
+        parentsSupported: data.data.parentsSupported ?? false,
         generalSchemeWaitingPeriod:
           data.data.generalSchemeWaitingPeriod != null
             ? String(data.data.generalSchemeWaitingPeriod)
@@ -222,6 +226,26 @@ export default function SchemeDetailPage() {
       setLoading(false);
     }
   }, [schemeId, packageId]);
+
+  const fetchPackageParentsSupported = useCallback(async () => {
+    try {
+      const token = await getSupabaseToken();
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/product-management/packages/${packageId}/details`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'x-correlation-id': `req-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          },
+        }
+      );
+      if (!response.ok) return;
+      const data = await response.json();
+      setPackageParentsSupported(Boolean(data.data?.parentsSupported));
+    } catch (err) {
+      console.error('Error fetching package parentsSupported:', err);
+    }
+  }, [packageId]);
 
   const fetchCustomers = useCallback(async () => {
     try {
@@ -296,7 +320,8 @@ export default function SchemeDetailPage() {
   useEffect(() => {
     fetchScheme();
     fetchContacts();
-  }, [fetchScheme, fetchContacts]);
+    fetchPackageParentsSupported();
+  }, [fetchScheme, fetchContacts, fetchPackageParentsSupported]);
 
   useEffect(() => {
     fetchCustomers();
@@ -318,6 +343,9 @@ export default function SchemeDetailPage() {
         schemeName: formData.schemeName.trim(),
         description: formData.description.trim(),
         isActive: formData.isActive,
+        ...(packageParentsSupported
+          ? { parentsSupported: formData.parentsSupported }
+          : {}),
       };
       const response = await fetch(`${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/product-management/schemes/${schemeId}`, {
         method: 'PUT',
@@ -387,6 +415,7 @@ export default function SchemeDetailPage() {
         schemeName: scheme.schemeName,
         description: scheme.description,
         isActive: scheme.isActive,
+        parentsSupported: scheme.parentsSupported ?? false,
         generalSchemeWaitingPeriod:
           scheme.generalSchemeWaitingPeriod != null
             ? String(scheme.generalSchemeWaitingPeriod)
@@ -885,6 +914,32 @@ export default function SchemeDetailPage() {
                 </div>
               )}
             </div>
+
+            {packageParentsSupported && (
+              <div>
+                <Label htmlFor="parentsSupported">Supports parents</Label>
+                {editing ? (
+                  <div className="flex items-center space-x-2 mt-2">
+                    <input
+                      type="checkbox"
+                      id="parentsSupported"
+                      checked={formData.parentsSupported}
+                      onChange={(e) =>
+                        setFormData({ ...formData, parentsSupported: e.target.checked })
+                      }
+                      className="h-4 w-4"
+                    />
+                    <Label htmlFor="parentsSupported" className="font-normal cursor-pointer">
+                      Capture parent details at registration
+                    </Label>
+                  </div>
+                ) : (
+                  <p className="text-sm font-medium">
+                    {scheme.parentsSupported ? 'Yes' : 'No'}
+                  </p>
+                )}
+              </div>
+            )}
 
             <div>
               <Label htmlFor="generalSchemeWaitingPeriod">Waiting period (days)</Label>

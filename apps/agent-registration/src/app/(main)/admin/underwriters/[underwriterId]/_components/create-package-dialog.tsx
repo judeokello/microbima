@@ -40,6 +40,8 @@ export default function CreatePackageDialog({
     slug: '',
     description: '',
     isActive: false,
+    parentsSupported: false,
+    maximumFamilySize: '8',
     logo: null as File | null,
     frequencies: {
       DAILY: { enabled: true, count: '276' },
@@ -101,6 +103,10 @@ export default function CreatePackageDialog({
       }
 
       const paymentFrequencies = buildPaymentFrequencies();
+      const maximumFamilySize = parseInt(formData.maximumFamilySize, 10);
+      if (!Number.isInteger(maximumFamilySize) || maximumFamilySize < 2 || maximumFamilySize > 99) {
+        throw new Error('Maximum family size must be a whole number between 2 and 99');
+      }
       const token = await getSupabaseToken();
       let logoPath: string | undefined;
 
@@ -117,6 +123,8 @@ export default function CreatePackageDialog({
           description,
           underwriterId: underwriterId,
           isActive: formData.isActive,
+          parentsSupported: formData.parentsSupported,
+          maximumFamilySize,
           paymentFrequencies,
         }),
       });
@@ -208,6 +216,8 @@ export default function CreatePackageDialog({
         slug: '',
         description: '',
         isActive: false,
+        parentsSupported: false,
+        maximumFamilySize: '8',
         logo: null,
         frequencies: {
           DAILY: { enabled: true, count: '276' },
@@ -316,6 +326,46 @@ export default function CreatePackageDialog({
                   Active (packages are created as inactive by default)
                 </Label>
               </div>
+            </div>
+
+            <div>
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="parentsSupported"
+                  checked={formData.parentsSupported}
+                  onCheckedChange={(checked) =>
+                    setFormData({ ...formData, parentsSupported: checked === true })
+                  }
+                />
+                <Label htmlFor="parentsSupported" className="font-normal cursor-pointer">
+                  Parents Supported
+                </Label>
+              </div>
+              <p className="text-xs text-muted-foreground mt-1 ml-6">
+                Allow schemes under this package to capture parent details at registration.
+              </p>
+            </div>
+
+            <div>
+              <Label htmlFor="maximumFamilySize">Maximum Family Size *</Label>
+              <Input
+                id="maximumFamilySize"
+                type="number"
+                inputMode="numeric"
+                min={2}
+                max={99}
+                required
+                value={formData.maximumFamilySize}
+                onChange={(e) =>
+                  setFormData({
+                    ...formData,
+                    maximumFamilySize: e.target.value.replace(/\D/g, '').slice(0, 2),
+                  })
+                }
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Minimum 2. Caps Up to N pricing categories for this package.
+              </p>
             </div>
 
             <div className="space-y-3">

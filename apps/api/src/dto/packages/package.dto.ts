@@ -86,6 +86,18 @@ export class PackageDetailDto {
   isActive: boolean;
 
   @ApiProperty({
+    description: 'Whether schemes under this package may enable parent details at registration',
+    example: false,
+  })
+  parentsSupported: boolean;
+
+  @ApiProperty({
+    description: 'Maximum family size; UP_TO_N pricing categories cannot exceed this',
+    example: 8,
+  })
+  maximumFamilySize: number;
+
+  @ApiProperty({
     description: 'Path to the logo file',
     example: '/logos/underwriters/1/packages/1.png',
     required: false,
@@ -179,6 +191,25 @@ export class CreatePackageRequestDto {
   isActive?: boolean;
 
   @ApiProperty({
+    description: 'Whether schemes may enable parent details at registration',
+    example: false,
+    required: false,
+    default: false,
+  })
+  @IsOptional()
+  @IsBoolean()
+  parentsSupported?: boolean;
+
+  @ApiProperty({
+    description: 'Maximum family size for UP_TO_N pricing bands (required, >= 2)',
+    example: 8,
+  })
+  @IsInt()
+  @Min(2)
+  @Max(99)
+  maximumFamilySize: number;
+
+  @ApiProperty({
     description: 'Supported payment frequencies (at least one; CUSTOM not allowed)',
     type: [PackagePaymentFrequencyDto],
   })
@@ -240,6 +271,28 @@ export class UpdatePackageRequestDto {
   @IsOptional()
   @IsBoolean()
   isActive?: boolean;
+
+  @ApiProperty({
+    description:
+      'Whether schemes may enable parent details. When set to false, all linked schemes with parentsSupported=true are also set to false.',
+    example: false,
+    required: false,
+  })
+  @IsOptional()
+  @IsBoolean()
+  parentsSupported?: boolean;
+
+  @ApiProperty({
+    description:
+      'Maximum family size for UP_TO_N bands. Cannot be lower than any existing UP_TO_N maxMembers.',
+    example: 8,
+    required: false,
+  })
+  @IsOptional()
+  @IsInt()
+  @Min(2)
+  @Max(99)
+  maximumFamilySize?: number;
 
   @ApiProperty({
     description: 'Path to the logo file',

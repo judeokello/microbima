@@ -6,6 +6,7 @@ import { PrincipalMemberDto } from './principal-member.dto';
 import { BeneficiaryDto } from '../family-members/beneficiary.dto';
 import { ChildDto } from '../family-members/child.dto';
 import { SpouseDto } from '../family-members/spouse.dto';
+import { ParentDto } from '../family-members/parent.dto';
 
 export class CreatePrincipalMemberRequestDto {
   @ApiProperty({
@@ -63,6 +64,18 @@ export class CreatePrincipalMemberRequestDto {
   @ValidateNested({ each: true })
   @Type(() => SpouseDto)
   spouses?: SpouseDto[];
+
+  @ApiProperty({
+    description:
+      'Optional parent / parent-in-law details (when scheme.parentsSupported). Max 4; at most 2 per relationship.',
+    type: [ParentDto],
+    required: false,
+  })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => ParentDto)
+  parents?: ParentDto[];
 
   @ApiProperty({
     description: 'Optional referral information indicating who referred this principal member',

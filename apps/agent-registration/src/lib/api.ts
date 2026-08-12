@@ -431,6 +431,16 @@ export interface CustomerRegistrationRequest {
     idNumber?: string
     verificationRequired?: boolean
   }>
+  parents?: Array<{
+    firstName: string
+    lastName: string
+    middleName?: string
+    dateOfBirth: string
+    gender: string
+    idType: string
+    idNumber: string
+    relationship: 'MOTHER' | 'FATHER' | 'MOTHER_IN_LAW' | 'FATHER_IN_LAW'
+  }>
   beneficiaries?: Array<{
     firstName: string
     lastName: string
@@ -1773,6 +1783,8 @@ export interface Package {
   name: string
   slug?: string | null
   isActive?: boolean
+  parentsSupported?: boolean
+  maximumFamilySize?: number
   paymentFrequencies?: Array<{ frequency: string; installmentCount: number }>
 }
 
@@ -1781,6 +1793,7 @@ export interface Scheme {
   name: string
   description?: string
   isActive?: boolean
+  parentsSupported?: boolean
   /** Junction id for scheme assignment (PackageScheme.id); use as value when updating customer scheme */
   packageSchemeId?: number
 }
@@ -2079,6 +2092,8 @@ export type PackagePricingData = {
   packageSlug?: string | null
   isPricingComplete: boolean
   isActive: boolean
+  /** Max family size for UP_TO_N categories (from package.maximumFamilySize). */
+  maximumFamilySize?: number
   enabledFrequencies?: string[]
   /** Installment counts per frequency (e.g. DAILY:276). ANNUALLY defaults to 1. */
   installmentCounts?: Record<string, number>

@@ -116,6 +116,9 @@ model Customer {
   // Dependants
   dependants Dependant[]
 
+  // Parents (mother/father / in-laws) — separate from dependants
+  parents CustomerParent[]
+
   // Beneficiaries
   beneficiaries Beneficiary[]
 
@@ -211,6 +214,33 @@ model Dependant {
   updatedAt DateTime @updatedAt
 
   @@map("dependants")
+}
+
+/// Parent / parent-in-law details for a customer (when scheme.parentsSupported)
+model CustomerParent {
+  id         String   @id @default(uuid()) @db.Uuid
+  customerId String   @db.Uuid
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  firstName    String            @db.VarChar(50)
+  middleName   String?           @db.VarChar(50)
+  lastName     String            @db.VarChar(50)
+  dateOfBirth  DateTime?         @db.Date
+  gender       Gender?
+  idType       IdType?
+  idNumber     String?           @db.VarChar(20)
+  relationship ParentRelationship
+
+  createdByPartnerId Int
+
+  deletedAt DateTime? @db.Timestamptz
+  deletedBy String?   @db.Uuid
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([customerId])
+  @@map("customer_parents")
 }
 
 model Beneficiary {
@@ -409,6 +439,13 @@ enum DependantRelationship {
   SIBLING
   FRIEND
   OTHER
+}
+
+enum ParentRelationship {
+  MOTHER
+  FATHER
+  MOTHER_IN_LAW
+  FATHER_IN_LAW
 }
 
 enum Gender {
@@ -705,6 +742,10 @@ model Package {
   description        String   @db.VarChar(500)
   underwriterId      Int?
   isActive           Boolean  @default(true)
+  /// Whether schemes under this package may enable parent dependants
+  parentsSupported   Boolean  @default(false)
+  /// Ceiling for UP_TO_N pricing categories (maxMembers must be <= this)
+  maximumFamilySize  Int      @default(8)
   policyNumberFormat String?  @db.VarChar(200)
   memberNumberFormat String?  @db.VarChar(200)
   logoPath           String?  @db.VarChar(200)
@@ -807,6 +848,8 @@ model Scheme {
   schemeName  String  @db.VarChar(100)
   description String  @db.VarChar(300)
   isActive    Boolean @default(true)
+  /// When true (and package.parentsSupported), BA registration captures parent details
+  parentsSupported Boolean @default(false)
 
   // Postpaid scheme fields
   isPostpaid      Boolean           @default(false)

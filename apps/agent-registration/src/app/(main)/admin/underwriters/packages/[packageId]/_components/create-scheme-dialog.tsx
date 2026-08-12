@@ -33,6 +33,8 @@ interface CreateSchemeDialogProps {
   packageId: number;
   /** Package-supported frequencies (no CUSTOM). */
   paymentFrequencies?: Array<{ frequency: string; installmentCount: number }>;
+  /** When true, show Supports parents checkbox. */
+  packageParentsSupported?: boolean;
 }
 
 export default function CreateSchemeDialog({
@@ -41,12 +43,14 @@ export default function CreateSchemeDialog({
   onSuccess,
   packageId,
   paymentFrequencies = [],
+  packageParentsSupported = false,
 }: CreateSchemeDialogProps) {
   const [formData, setFormData] = useState({
     schemeName: '',
     description: '',
     generalSchemeWaitingPeriod: '',
     isActive: true,
+    parentsSupported: false,
     isPostpaid: false,
     frequency: '' as string,
     startDate: '',
@@ -129,6 +133,7 @@ export default function CreateSchemeDialog({
         isActive: boolean;
         packageId: number;
         generalSchemeWaitingPeriod: number;
+        parentsSupported?: boolean;
         isPostpaid?: boolean;
         frequency?: string;
         startDate?: string;
@@ -139,6 +144,10 @@ export default function CreateSchemeDialog({
         packageId: packageId,
         generalSchemeWaitingPeriod,
       };
+
+      if (packageParentsSupported) {
+        payload.parentsSupported = formData.parentsSupported;
+      }
 
       if (formData.isPostpaid) {
         payload.isPostpaid = true;
@@ -185,6 +194,7 @@ export default function CreateSchemeDialog({
         description: '',
         generalSchemeWaitingPeriod: '',
         isActive: true,
+        parentsSupported: false,
         isPostpaid: false,
         frequency: '',
         startDate: '',
@@ -280,6 +290,28 @@ export default function CreateSchemeDialog({
                 </Label>
               </div>
             </div>
+
+            {packageParentsSupported && (
+              <div>
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    id="parentsSupported"
+                    checked={formData.parentsSupported}
+                    onChange={(e) =>
+                      setFormData({ ...formData, parentsSupported: e.target.checked })
+                    }
+                    className="h-4 w-4"
+                  />
+                  <Label htmlFor="parentsSupported" className="font-normal cursor-pointer">
+                    Supports parents
+                  </Label>
+                </div>
+                <p className="text-xs text-gray-500 mt-1 ml-6">
+                  Capture parent / parent-in-law details during customer registration
+                </p>
+              </div>
+            )}
 
             <div>
               <div className="flex items-center space-x-2">

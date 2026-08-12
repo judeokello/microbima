@@ -50,6 +50,8 @@ interface Package {
   underwriterId?: number | null;
   underwriterName?: string | null;
   isActive: boolean;
+  parentsSupported?: boolean;
+  maximumFamilySize?: number;
   logoPath?: string | null;
   cardTemplateName?: string | null;
   paymentFrequencies?: PaymentFrequencyRow[];
@@ -149,6 +151,8 @@ export default function PackageDetailPage() {
     slug: '',
     description: '',
     isActive: true,
+    parentsSupported: false,
+    maximumFamilySize: '8',
     frequencies: emptyFrequencyForm(),
   });
 
@@ -181,6 +185,8 @@ export default function PackageDetailPage() {
         slug: data.data.slug ?? '',
         description: data.data.description,
         isActive: data.data.isActive,
+        parentsSupported: data.data.parentsSupported ?? false,
+        maximumFamilySize: String(data.data.maximumFamilySize ?? 8),
         frequencies: frequenciesToForm(data.data.paymentFrequencies),
       });
     } catch (err) {
@@ -377,10 +383,8 @@ export default function PackageDetailPage() {
 
   const handleSave = async () => {
     try {
-      setLoading(true);
       setError(null);
 
-      const token = await getSupabaseToken();
       const slug = formData.slug.trim().toLowerCase();
       if (!slug || !SLUG_REGEX.test(slug)) {
         throw new Error('Slug must be lowercase letters, numbers, and hyphens only');
@@ -402,11 +406,31 @@ export default function PackageDetailPage() {
         throw new Error('Select at least one payment frequency');
       }
 
+      const maximumFamilySize = parseInt(formData.maximumFamilySize, 10);
+      if (!Number.isInteger(maximumFamilySize) || maximumFamilySize < 2 || maximumFamilySize > 99) {
+        throw new Error('Maximum family size must be a whole number between 2 and 99');
+      }
+
+      if (
+        pkg?.parentsSupported &&
+        !formData.parentsSupported &&
+        !window.confirm(
+          'Turning off Parents Supported will set parentsSupported=false on all schemes under this package that currently have it enabled. Continue?'
+        )
+      ) {
+        return;
+      }
+
+      setLoading(true);
+      const token = await getSupabaseToken();
+
       const payload = {
         name: formData.name.trim(),
         slug,
         description: formData.description.trim(),
         isActive: pkg?.isActive ?? false,
+        parentsSupported: formData.parentsSupported,
+        maximumFamilySize,
         paymentFrequencies,
       };
       const response = await fetch(`${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/product-management/packages/${packageId}`, {
@@ -458,6 +482,8 @@ export default function PackageDetailPage() {
         slug: pkg.slug ?? '',
         description: pkg.description,
         isActive: pkg.isActive,
+        parentsSupported: pkg.parentsSupported ?? false,
+        maximumFamilySize: String(pkg.maximumFamilySize ?? 8),
         frequencies: frequenciesToForm(pkg.paymentFrequencies),
       });
     }
@@ -629,6 +655,54 @@ export default function PackageDetailPage() {
                 </Badge>
               )}
             </div>
+          </div>
+
+          <div>
+            <Label htmlFor="parentsSupported">Parents Supported</Label>
+            {editing && isSetupAdmin ? (
+              <div className="flex items-center space-x-2 mt-2">
+                <Checkbox
+                  id="parentsSupported"
+                  checked={formData.parentsSupported}
+                  onCheckedChange={(checked) =>
+                    setFormData({ ...formData, parentsSupported: checked === true })
+                  }
+                />
+                <Label htmlFor="parentsSupported" className="font-normal cursor-pointer">
+                  Allow schemes to capture parent details
+                </Label>
+              </div>
+            ) : (
+              <p className="text-sm font-medium">
+                {pkg.parentsSupported ? 'Yes' : 'No'}
+              </p>
+            )}
+          </div>
+
+          <div>
+            <Label htmlFor="maximumFamilySize">Maximum Family Size</Label>
+            {editing && isSetupAdmin ? (
+              <Input
+                id="maximumFamilySize"
+                type="number"
+                inputMode="numeric"
+                min={2}
+                max={99}
+                value={formData.maximumFamilySize}
+                onChange={(e) =>
+                  setFormData({
+                    ...formData,
+                    maximumFamilySize: e.target.value.replace(/\D/g, '').slice(0, 2),
+                  })
+                }
+                aria-label="Maximum family size"
+              />
+            ) : (
+              <p className="text-sm font-medium">{pkg.maximumFamilySize ?? '—'}</p>
+            )}
+            <p className="text-xs text-muted-foreground mt-1">
+              Caps Up to N pricing categories (minimum 2).
+            </p>
           </div>
 
           <div>
@@ -996,6 +1070,7 @@ export default function PackageDetailPage() {
         }}
         packageId={packageId}
         paymentFrequencies={pkg?.paymentFrequencies}
+        packageParentsSupported={pkg?.parentsSupported ?? false}
       />
     </div>
   );

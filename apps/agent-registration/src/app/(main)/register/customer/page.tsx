@@ -15,6 +15,16 @@ import { Plus, Trash2, Loader2, CheckCircle, LayoutDashboard } from 'lucide-reac
 import { createCustomer, createAgentRegistration, CustomerRegistrationRequest } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
 import { useBrandAmbassador } from '@/hooks/useBrandAmbassador';
+import DateOfBirthInput from '@/components/date-of-birth-input';
+
+type ParentRelationship = 'MOTHER' | 'FATHER' | 'MOTHER_IN_LAW' | 'FATHER_IN_LAW';
+
+const PARENT_RELATIONSHIP_OPTIONS: Array<{ value: ParentRelationship; label: string }> = [
+  { value: 'MOTHER', label: 'Mother' },
+  { value: 'FATHER', label: 'Father' },
+  { value: 'MOTHER_IN_LAW', label: 'Mother-in-Law' },
+  { value: 'FATHER_IN_LAW', label: 'Father-in-Law' },
+];
 
 // Mock data for form state
 interface CustomerFormData {
@@ -52,6 +62,16 @@ interface CustomerFormData {
     idType: string;
     idNumber: string;
   }>;
+  parents: Array<{
+    firstName: string;
+    middleName: string;
+    lastName: string;
+    gender: string;
+    dateOfBirth: string;
+    idType: string;
+    idNumber: string;
+    relationship: ParentRelationship | '';
+  }>;
 }
 
 // Helper functions for date validation (currently unused but kept for future use)
@@ -79,6 +99,17 @@ const mapIdTypeToBackend = (frontendIdType: string): string => {
     'ALIEN': 'alien',
     'BIRTH_CERTIFICATE': 'passport', // Map birth certificate to passport for now
     'MILITARY': 'national', // Map military to national for now
+  };
+  return mapping[frontendIdType] ?? 'national';
+};
+
+const mapParentIdTypeToBackend = (frontendIdType: string): string => {
+  const mapping: Record<string, string> = {
+    'NATIONAL_ID': 'national',
+    'PASSPORT': 'passport',
+    'ALIEN': 'alien',
+    'BIRTH_CERTIFICATE': 'birth_certificate',
+    'MILITARY': 'military',
   };
   return mapping[frontendIdType] ?? 'national';
 };
@@ -128,6 +159,7 @@ const initialFormData: CustomerFormData = {
   idNumber: '',
   spouses: [],
   children: [],
+  parents: [],
 };
 
 export default function CustomerStep() {
@@ -142,10 +174,13 @@ export default function CustomerStep() {
 
   // Package and scheme selection state
   const [packages, setPackages] = useState<Array<{id: number, name: string}>>([]);
-  const [schemes, setSchemes] = useState<Array<{id: number, name: string, description?: string, packageSchemeId?: number}>>([]);
+  const [schemes, setSchemes] = useState<Array<{id: number, name: string, description?: string, packageSchemeId?: number, parentsSupported?: boolean}>>([]);
   const [selectedPackageId, setSelectedPackageId] = useState<number | null>(null);
   const [selectedSchemeId, setSelectedSchemeId] = useState<number | null>(null);
   const [loadingSchemes, setLoadingSchemes] = useState(false);
+  const selectedSchemeParentsSupported = Boolean(
+    schemes.find((s) => s.id === selectedSchemeId)?.parentsSupported
+  );
 
   // Date constraints - set after mount to avoid server/client hydration mismatch (new Date() differs by timezone)
   const [minDateAdults, setMinDateAdults] = useState<string | undefined>(undefined);
@@ -265,6 +300,7 @@ export default function CustomerStep() {
     setSelectedPackageId(packageId);
     setSelectedSchemeId(null); // Reset scheme when package changes
     setSchemes([]); // Clear schemes
+    setFormData((prev) => ({ ...prev, parents: [] }));
     fetchSchemes(packageId);
     localStorage.setItem('lastSelectedPackageId', value);
     localStorage.removeItem('lastSelectedSchemeId'); // Clear saved scheme
@@ -275,6 +311,10 @@ export default function CustomerStep() {
     const schemeId = parseInt(value);
     setSelectedSchemeId(schemeId);
     localStorage.setItem('lastSelectedSchemeId', value);
+    const scheme = schemes.find((s) => s.id === schemeId);
+    if (!scheme?.parentsSupported) {
+      setFormData((prev) => ({ ...prev, parents: [] }));
+    }
   };
 
   const handleInputChange = (field: keyof CustomerFormData, value: string) => {
@@ -331,6 +371,53 @@ export default function CustomerStep() {
       children: prev.children.map((child, i) =>
         i === index ? { ...child, [field]: value } : child
       )
+    }));
+  };
+
+  const relationshipUsageCount = (relationship: ParentRelationship | '', excludeIndex?: number) => {
+    if (!relationship) return 0;
+    return formData.parents.filter(
+      (parent, index) => index !== excludeIndex && parent.relationship === relationship
+    ).length;
+  };
+
+  const addParent = () => {
+    if (formData.parents.length >= 4) return;
+    setFormData((prev) => ({
+      ...prev,
+      parents: [
+        ...prev.parents,
+        {
+          firstName: '',
+          middleName: '',
+          lastName: '',
+          gender: 'MALE',
+          dateOfBirth: '',
+          idType: 'NATIONAL_ID',
+          idNumber: '',
+          relationship: '',
+        },
+      ],
+    }));
+  };
+
+  const removeParent = (index: number) => {
+    setFormData((prev) => ({
+      ...prev,
+      parents: prev.parents.filter((_, i) => i !== index),
+    }));
+  };
+
+  const handleParentChange = (
+    index: number,
+    field: keyof CustomerFormData['parents'][0],
+    value: string
+  ) => {
+    setFormData((prev) => ({
+      ...prev,
+      parents: prev.parents.map((parent, i) =>
+        i === index ? { ...parent, [field]: value } : parent
+      ),
     }));
   };
 
@@ -483,6 +570,49 @@ export default function CustomerStep() {
       }
     }
 
+    if (selectedSchemeParentsSupported) {
+      for (let i = 0; i < formData.parents.length; i++) {
+        const parent = formData.parents[i];
+        if (!parent.firstName.trim()) {
+          setError(`Parent ${i + 1} first name is required`);
+          return;
+        }
+        if (!parent.lastName.trim()) {
+          setError(`Parent ${i + 1} last name is required`);
+          return;
+        }
+        if (!parent.dateOfBirth) {
+          setError(`Parent ${i + 1} date of birth is required`);
+          return;
+        }
+        if (!parent.gender) {
+          setError(`Parent ${i + 1} gender is required`);
+          return;
+        }
+        if (!parent.idType) {
+          setError(`Parent ${i + 1} ID type is required`);
+          return;
+        }
+        if (!parent.idNumber.trim()) {
+          setError(`Parent ${i + 1} ID number is required`);
+          return;
+        }
+        const parentIdError = getIdNumberValidationError(parent.idNumber, true);
+        if (parentIdError) {
+          setError(`Parent ${i + 1}: ${parentIdError}`);
+          return;
+        }
+        if (!parent.relationship) {
+          setError(`Parent ${i + 1} relationship is required`);
+          return;
+        }
+        if (relationshipUsageCount(parent.relationship) > 2) {
+          setError(`Relationship ${parent.relationship} can be used at most twice`);
+          return;
+        }
+      }
+    }
+
     // All validation passed, now set submitting and proceed
     setIsSubmitting(true);
 
@@ -539,6 +669,19 @@ export default function CustomerStep() {
           // verificationRequired is calculated automatically by the backend based on child's age
           // idType and idNumber are omitted (will be null/undefined in API)
         })) : undefined,
+        parents:
+          selectedSchemeParentsSupported && formData.parents.length > 0
+            ? formData.parents.map((parent) => ({
+                firstName: toTitleCase(parent.firstName),
+                lastName: toTitleCase(parent.lastName),
+                middleName: parent.middleName ? toTitleCase(parent.middleName) : undefined,
+                dateOfBirth: parent.dateOfBirth,
+                gender: parent.gender.toLowerCase(),
+                idType: mapParentIdTypeToBackend(parent.idType),
+                idNumber: parent.idNumber.trim(),
+                relationship: parent.relationship as ParentRelationship,
+              }))
+            : undefined,
       };
 
       // Step 1: Create customer
@@ -730,13 +873,13 @@ export default function CustomerStep() {
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
-              <Label htmlFor="dateOfBirth">Date of Birth *</Label>
-              <Input
+              <Label>Date of Birth *</Label>
+              <DateOfBirthInput
                 id="dateOfBirth"
-                type="date"
                 value={formData.dateOfBirth}
-                onChange={(e) => handleInputChange('dateOfBirth', e.target.value)}
-                max={minDateAdults}
+                onChange={(value) => handleInputChange('dateOfBirth', value)}
+                maxDate={minDateAdults}
+                required
               />
             </div>
             <div>
@@ -900,13 +1043,12 @@ export default function CustomerStep() {
                     </Select>
                   </div>
                   <div>
-                    <Label htmlFor={`spouseDateOfBirth_${spouseIndex}`}>Date of Birth</Label>
-                    <Input
+                    <Label>Date of Birth</Label>
+                    <DateOfBirthInput
                       id={`spouseDateOfBirth_${spouseIndex}`}
-                      type="date"
                       value={spouse.dateOfBirth}
-                      onChange={(e) => handleSpouseChange(spouseIndex, 'dateOfBirth', e.target.value)}
-                      max={minDateAdults}
+                      onChange={(value) => handleSpouseChange(spouseIndex, 'dateOfBirth', value)}
+                      maxDate={minDateAdults}
                     />
                   </div>
                   <div>
@@ -1028,14 +1170,13 @@ export default function CustomerStep() {
                     </Select>
                   </div>
                   <div>
-                    <Label htmlFor={`childDateOfBirth${index}`}>Date of Birth</Label>
-                    <Input
+                    <Label>Date of Birth</Label>
+                    <DateOfBirthInput
                       id={`childDateOfBirth${index}`}
-                      type="date"
                       value={child.dateOfBirth}
-                      onChange={(e) => handleChildChange(index, 'dateOfBirth', e.target.value)}
-                      max={maxDateChildren}
-                      min={minDateChildren}
+                      onChange={(value) => handleChildChange(index, 'dateOfBirth', value)}
+                      maxDate={maxDateChildren}
+                      minDate={minDateChildren}
                     />
                   </div>
                   <div className="flex items-end">
@@ -1051,6 +1192,152 @@ export default function CustomerStep() {
               </div>
             ))}
           </div>
+
+          {selectedSchemeParentsSupported && (
+            <>
+              <Separator />
+
+              <div>
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-semibold">
+                    Parents details ({formData.parents.length}/4)
+                  </h3>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={addParent}
+                    disabled={formData.parents.length >= 4}
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Parent
+                  </Button>
+                </div>
+
+                {formData.parents.map((parent, index) => (
+                  <div key={index} className="mb-6">
+                    <h4 className="text-md font-medium mb-4">Parent {index + 1}</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 border rounded-lg">
+                      <div>
+                        <Label htmlFor={`parentFirstName${index}`}>First Name *</Label>
+                        <Input
+                          id={`parentFirstName${index}`}
+                          value={parent.firstName}
+                          onChange={(e) => handleParentChange(index, 'firstName', e.target.value)}
+                          placeholder="Enter first name"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor={`parentMiddleName${index}`}>Middle Name</Label>
+                        <Input
+                          id={`parentMiddleName${index}`}
+                          value={parent.middleName}
+                          onChange={(e) => handleParentChange(index, 'middleName', e.target.value)}
+                          placeholder="Enter middle name"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor={`parentLastName${index}`}>Last Name *</Label>
+                        <Input
+                          id={`parentLastName${index}`}
+                          value={parent.lastName}
+                          onChange={(e) => handleParentChange(index, 'lastName', e.target.value)}
+                          placeholder="Enter last name"
+                        />
+                      </div>
+                      <div>
+                        <Label>Date of Birth *</Label>
+                        <DateOfBirthInput
+                          id={`parentDateOfBirth${index}`}
+                          value={parent.dateOfBirth}
+                          onChange={(value) => handleParentChange(index, 'dateOfBirth', value)}
+                          maxDate={minDateAdults}
+                          required
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor={`parentGender${index}`}>Gender *</Label>
+                        <Select
+                          value={parent.gender}
+                          onValueChange={(value) => handleParentChange(index, 'gender', value)}
+                        >
+                          <SelectTrigger id={`parentGender${index}`}>
+                            <SelectValue placeholder="Select gender" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="MALE">Male</SelectItem>
+                            <SelectItem value="FEMALE">Female</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <Label htmlFor={`parentRelationship${index}`}>Relationship *</Label>
+                        <Select
+                          value={parent.relationship || undefined}
+                          onValueChange={(value) =>
+                            handleParentChange(index, 'relationship', value)
+                          }
+                        >
+                          <SelectTrigger id={`parentRelationship${index}`}>
+                            <SelectValue placeholder="Select relationship" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {PARENT_RELATIONSHIP_OPTIONS.map((option) => (
+                              <SelectItem
+                                key={option.value}
+                                value={option.value}
+                                disabled={
+                                  relationshipUsageCount(option.value, index) >= 2
+                                }
+                              >
+                                {option.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <Label htmlFor={`parentIdType${index}`}>ID Type *</Label>
+                        <Select
+                          value={parent.idType}
+                          onValueChange={(value) => handleParentChange(index, 'idType', value)}
+                        >
+                          <SelectTrigger id={`parentIdType${index}`}>
+                            <SelectValue placeholder="Select ID type" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="NATIONAL_ID">National ID</SelectItem>
+                            <SelectItem value="PASSPORT">Passport</SelectItem>
+                            <SelectItem value="ALIEN">Alien ID</SelectItem>
+                            <SelectItem value="BIRTH_CERTIFICATE">Birth Certificate</SelectItem>
+                            <SelectItem value="MILITARY">Military ID</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <Label htmlFor={`parentIdNumber${index}`}>ID Number *</Label>
+                        <Input
+                          id={`parentIdNumber${index}`}
+                          value={parent.idNumber}
+                          onChange={(e) => handleParentChange(index, 'idNumber', e.target.value)}
+                          placeholder="Enter ID number"
+                          maxLength={ID_NUMBER_MAX_LENGTH}
+                        />
+                      </div>
+                      <div className="flex items-end">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => removeParent(index)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
         </CardContent>
       </Card>
 

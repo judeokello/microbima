@@ -57,6 +57,7 @@ describe('ProductManagementService - package slug & payment frequencies', () => 
             name: 'MfanisiBoda',
             slug: 'mfanisi-boda',
             description: 'Boda product',
+            maximumFamilySize: 8,
             paymentFrequencies: [],
           },
           'user-1',
@@ -72,6 +73,7 @@ describe('ProductManagementService - package slug & payment frequencies', () => 
             name: 'MfanisiBoda',
             slug: 'mfanisi-boda',
             description: 'Boda product',
+            maximumFamilySize: 8,
             paymentFrequencies: [
               { frequency: PaymentFrequency.CUSTOM, installmentCount: 10 },
             ],
@@ -89,6 +91,7 @@ describe('ProductManagementService - package slug & payment frequencies', () => 
             name: 'MfanisiBoda',
             slug: 'Mfanisi_Boda',
             description: 'Boda product',
+            maximumFamilySize: 8,
             paymentFrequencies: [
               { frequency: PaymentFrequency.DAILY, installmentCount: 313 },
             ],
@@ -106,6 +109,7 @@ describe('ProductManagementService - package slug & payment frequencies', () => 
             name: 'MfanisiBoda',
             slug: 'mfanisi-boda',
             description: 'Boda product',
+            maximumFamilySize: 8,
             paymentFrequencies: [
               { frequency: PaymentFrequency.WEEKLY, installmentCount: 53 },
             ],
@@ -127,6 +131,7 @@ describe('ProductManagementService - package slug & payment frequencies', () => 
             name: 'MfanisiBoda',
             slug: 'mfanisi-boda',
             description: 'Boda product',
+            maximumFamilySize: 8,
             paymentFrequencies: [
               { frequency: PaymentFrequency.DAILY, installmentCount: 313 },
             ],
@@ -151,6 +156,7 @@ describe('ProductManagementService - package slug & payment frequencies', () => 
             name: 'MfanisiBoda',
             slug: 'mfanisi-boda',
             description: 'Boda product',
+            maximumFamilySize: 8,
             underwriterId: 1,
             paymentFrequencies: [
               { frequency: PaymentFrequency.DAILY, installmentCount: 313 },
@@ -212,6 +218,7 @@ describe('ProductManagementService - package slug & payment frequencies', () => 
           name: 'MfanisiBoda',
           slug: 'MFANISI-BODA',
           description: 'Boda product',
+            maximumFamilySize: 8,
           underwriterId: 1,
           paymentFrequencies: [
             { frequency: PaymentFrequency.DAILY, installmentCount: 313 },
