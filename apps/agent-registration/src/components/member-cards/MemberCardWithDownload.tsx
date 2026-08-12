@@ -3,6 +3,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { toPng } from 'html-to-image';
 import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { Download } from 'lucide-react';
 import type { MemberCardData } from '@/types/member-card';
 import { getCardTemplateComponent } from './card-template-registry';
@@ -29,6 +34,8 @@ export default function MemberCardWithDownload({
     string | null | 'loading'
   >('loading');
   const canvasRefForDownload = useRef<HTMLCanvasElement | null>(null);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewSrc, setPreviewSrc] = useState<string | null>(null);
 
   const name = templateName?.trim();
 
@@ -66,6 +73,29 @@ export default function MemberCardWithDownload({
 
   const handleCanvasReady = useCallback((canvas: HTMLCanvasElement) => {
     canvasRefForDownload.current = canvas;
+  }, []);
+
+  const openPreview = useCallback(async () => {
+    if (canvasRefForDownload.current) {
+      setPreviewSrc(canvasRefForDownload.current.toDataURL('image/png'));
+      setPreviewOpen(true);
+      return;
+    }
+    if (cardRef.current) {
+      try {
+        const dataUrl = await toPng(cardRef.current, {
+          cacheBust: true,
+          pixelRatio: 2,
+        });
+        setPreviewSrc(dataUrl);
+        setPreviewOpen(true);
+      } catch (err) {
+        console.error('Failed to open card preview', err);
+      }
+      return;
+    }
+    setPreviewSrc(null);
+    setPreviewOpen(true);
   }, []);
 
   const handleDownload = async () => {
@@ -115,6 +145,41 @@ export default function MemberCardWithDownload({
       </Button>
     ) : null;
 
+  const previewDialog = (
+    <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
+      <DialogContent
+        showCloseButton={false}
+        className="max-h-[95vh] w-auto max-w-[min(96vw,56rem)] border-none bg-transparent p-0 shadow-none sm:max-w-[min(96vw,56rem)]"
+        aria-describedby={undefined}
+        onInteractOutside={() => setPreviewOpen(false)}
+        onPointerDownOutside={() => setPreviewOpen(false)}
+      >
+        <DialogTitle className="sr-only">Member card preview</DialogTitle>
+        {previewSrc ? (
+          <img
+            src={previewSrc}
+            alt={`Member card for ${data.insuredMemberName}`}
+            className="mx-auto max-h-[90vh] w-auto max-w-full rounded-lg object-contain shadow-2xl"
+          />
+        ) : effectiveTemplateName ? (
+          <div className="mx-auto w-full max-w-3xl">
+            <ImageBasedMemberCard
+              templateName={effectiveTemplateName}
+              data={data}
+            />
+          </div>
+        ) : (
+          <div className="mx-auto w-full max-w-md">
+            {(() => {
+              const CardTemplate = getCardTemplateComponent(null);
+              return <CardTemplate data={data} />;
+            })()}
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+
   if (effectiveTemplateName === 'loading') {
     return (
       <div className="space-y-2">
@@ -140,15 +205,23 @@ export default function MemberCardWithDownload({
   if (effectiveTemplateName) {
     return (
       <div className="space-y-2">
-        <div ref={cardRef}>
-          <ImageBasedMemberCard
-            templateName={effectiveTemplateName}
-            data={data}
-            className={className}
-            onCanvasReady={handleCanvasReady}
-          />
-        </div>
+        <button
+          type="button"
+          className="block w-full cursor-zoom-in rounded-lg text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          onClick={openPreview}
+          aria-label={`Enlarge member card for ${data.insuredMemberName}`}
+        >
+          <div ref={cardRef} className="pointer-events-none">
+            <ImageBasedMemberCard
+              templateName={effectiveTemplateName}
+              data={data}
+              className={className}
+              onCanvasReady={handleCanvasReady}
+            />
+          </div>
+        </button>
         {renderDownloadButton()}
+        {previewDialog}
       </div>
     );
   }
@@ -156,10 +229,18 @@ export default function MemberCardWithDownload({
   const CardTemplate = getCardTemplateComponent(null);
   return (
     <div className="space-y-2">
-      <div ref={cardRef}>
-        <CardTemplate data={data} className={className} />
-      </div>
+      <button
+        type="button"
+        className="block w-full cursor-zoom-in rounded-lg text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        onClick={openPreview}
+        aria-label={`Enlarge member card for ${data.insuredMemberName}`}
+      >
+        <div ref={cardRef} className="pointer-events-none">
+          <CardTemplate data={data} className={className} />
+        </div>
+      </button>
       {renderDownloadButton()}
+      {previewDialog}
     </div>
   );
 }
