@@ -1,5 +1,15 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsString, IsBoolean, IsOptional, IsInt, MaxLength, Min, IsEnum, Max } from 'class-validator';
+import {
+  IsString,
+  IsBoolean,
+  IsOptional,
+  IsInt,
+  MaxLength,
+  Min,
+  IsEnum,
+  Max,
+  IsDateString,
+} from 'class-validator';
 import { PaymentFrequency } from '@prisma/client';
 
 export class SchemeDetailDto {
@@ -62,6 +72,27 @@ export class SchemeDetailDto {
     required: false,
   })
   paymentAcNumber?: string | null;
+
+  @ApiProperty({
+    description: 'Postpaid scheme / policy start date (UTC)',
+    example: '2026-07-07T00:00:00.000Z',
+    required: false,
+  })
+  startDate?: string | null;
+
+  @ApiProperty({
+    description: 'Postpaid scheme coverage end date (start + 1 year − 1 day)',
+    example: '2027-07-06T00:00:00.000Z',
+    required: false,
+  })
+  endDate?: string | null;
+
+  @ApiProperty({
+    description: 'Nominal last installment date from package payment frequencies',
+    example: '2027-03-31T00:00:00.000Z',
+    required: false,
+  })
+  nominalPaymentPeriodEndDate?: string | null;
 
   @ApiProperty({
     description: 'Waiting period in days before treatment access (package-scheme link)',
@@ -182,6 +213,16 @@ export class CreateSchemeRequestDto {
   @Min(1)
   @Max(999)
   paymentCadence?: number;
+
+  @ApiProperty({
+    description:
+      'Policy / scheme start date for postpaid schemes (ISO date or datetime). Required when isPostpaid is true.',
+    example: '2026-07-07',
+    required: false,
+  })
+  @IsOptional()
+  @IsDateString()
+  startDate?: string;
 
   @ApiProperty({
     description: 'Package ID to link the scheme to',

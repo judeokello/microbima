@@ -18,6 +18,7 @@ import { PaymentMessagingService } from '../modules/messaging/payment-messaging.
 import { PolicyLifecycleMessagingService } from '../modules/messaging/policy-lifecycle-messaging.service';
 import { LctSyncService } from '../modules/lct/lct-sync.service';
 import { policyDatesFromPayment, policyEndDateFromStart } from '../utils/policy-dates.util';
+import { resolvePostpaidMemberPolicyDates } from '../utils/postpaid-scheme-dates.util';
 import { assertPolicyMayBecomeActive } from '../utils/policy-activation-gate.util';
 import { hasGlobalCustomerAccess } from '../utils/roles.util';
 import { notDetachedPaymentWhere } from '../utils/policy-payment-filters';
@@ -1306,16 +1307,59 @@ export class PolicyService {
   /**
    * Resolve policy start/end dates.
    * Prepaid: earliest completed payment on the policy.
-   * Postpaid: earliest completed bulk-upload payment (postpaid_scheme_payment_item)
-   *           — the first CSV upload this member contributed to, not scheme-wide payments
-   *           they were absent from.
+   * Postpaid with scheme.startDate: member inherits scheme coverage dates;
+   *   start = scheme.start if joined on/before scheme start, else join day.
+   * Postpaid legacy (no scheme.startDate): earliest completed bulk-upload payment.
    */
   private async resolvePolicyDates(
-    policy: { id: string; createdAt: Date },
+    policy: { id: string; customerId: string; packageId: number; createdAt: Date },
     isPostpaidScheme: boolean,
     tx: Prisma.TransactionClient,
     correlationId: string
-  ): Promise<{ startDate: Date; endDate: Date }> {
+  ): Promise<{
+    startDate: Date;
+    endDate: Date;
+    nominalPaymentPeriodEndDate?: Date | null;
+  }> {
+    if (isPostpaidScheme) {
+      const enrollment = await tx.packageSchemeCustomer.findFirst({
+        where: {
+          customerId: policy.customerId,
+          packageScheme: { packageId: policy.packageId },
+        },
+        select: {
+          createdAt: true,
+          packageScheme: {
+            select: {
+              scheme: {
+                select: {
+                  startDate: true,
+                  endDate: true,
+                  nominalPaymentPeriodEndDate: true,
+                },
+              },
+            },
+          },
+        },
+      });
+
+      const scheme = enrollment?.packageScheme?.scheme;
+      const inherited = resolvePostpaidMemberPolicyDates({
+        schemeStartDate: scheme?.startDate,
+        schemeEndDate: scheme?.endDate,
+        schemeNominalPaymentPeriodEndDate: scheme?.nominalPaymentPeriodEndDate,
+        memberJoinedAt: enrollment?.createdAt ?? policy.createdAt,
+      });
+
+      if (inherited) {
+        this.logger.log(
+          `[${correlationId}] Postpaid policy ${policy.id}: dates from scheme ` +
+            `(memberStart=${inherited.startDate.toISOString()}, schemeStart=${scheme?.startDate?.toISOString() ?? 'n/a'})`
+        );
+        return inherited;
+      }
+    }
+
     const firstPayment = await tx.policyPayment.findFirst({
       where: {
         policyId: policy.id,
@@ -1338,7 +1382,7 @@ export class PolicyService {
 
     if (isPostpaidScheme) {
       this.logger.log(
-        `[${correlationId}] Postpaid policy ${policy.id}: start date from first bulk-upload payment ${firstPayment.transactionReference} at ${firstPayment.actualPaymentDate.toISOString()}`
+        `[${correlationId}] Postpaid policy ${policy.id}: legacy start date from first bulk-upload payment ${firstPayment.transactionReference} at ${firstPayment.actualPaymentDate.toISOString()}`
       );
     }
 
@@ -1439,9 +1483,20 @@ export class PolicyService {
               updateData.startDate = resolvedDates.startDate;
             }
             if (!policy.endDate) {
-              updateData.endDate = policy.startDate
-                ? policyEndDateFromStart(policy.startDate)
-                : resolvedDates.endDate;
+              // Postpaid with scheme coverage: inherit scheme end; else year − 1 day from start
+              updateData.endDate =
+                isPostpaidScheme && resolvedDates.endDate
+                  ? resolvedDates.endDate
+                  : policy.startDate
+                    ? policyEndDateFromStart(policy.startDate)
+                    : resolvedDates.endDate;
+            }
+            if (
+              !policy.nominalPaymentPeriodEndDate &&
+              resolvedDates.nominalPaymentPeriodEndDate != null
+            ) {
+              updateData.nominalPaymentPeriodEndDate =
+                resolvedDates.nominalPaymentPeriodEndDate;
             }
           }
 
@@ -1451,6 +1506,7 @@ export class PolicyService {
             (updateData.endDate as Date | undefined) ?? policy.endDate ?? null;
           if (
             !policy.nominalPaymentPeriodEndDate &&
+            !(updateData.nominalPaymentPeriodEndDate as Date | undefined) &&
             effectiveStart &&
             policy.expectedInstallmentCount != null &&
             policy.expectedInstallmentCount > 0 &&
@@ -1502,9 +1558,10 @@ export class PolicyService {
           );
         }
 
-        // Set start and end dates from first completed payment when missing
+        // Set start and end dates when missing (scheme inheritance for postpaid, else first payment)
         let startDate = policy.startDate;
         let endDate = policy.endDate;
+        let nominalPaymentPeriodEndDate = policy.nominalPaymentPeriodEndDate;
 
         if (!startDate || !endDate) {
           const resolvedDates = await this.resolvePolicyDates(
@@ -1516,15 +1573,22 @@ export class PolicyService {
 
           startDate ??= resolvedDates.startDate;
           endDate ??= startDate
-            ? policyEndDateFromStart(startDate)
+            ? (isPostpaidScheme && resolvedDates.endDate
+                ? resolvedDates.endDate
+                : policyEndDateFromStart(startDate))
             : resolvedDates.endDate;
+          if (
+            !nominalPaymentPeriodEndDate &&
+            resolvedDates.nominalPaymentPeriodEndDate != null
+          ) {
+            nominalPaymentPeriodEndDate = resolvedDates.nominalPaymentPeriodEndDate;
+          }
 
           this.logger.log(
             `[${correlationId}] Set policy dates - start: ${startDate.toISOString()}, end: ${endDate.toISOString()}`
           );
         }
 
-        let nominalPaymentPeriodEndDate = policy.nominalPaymentPeriodEndDate;
         if (
           !nominalPaymentPeriodEndDate &&
           startDate &&

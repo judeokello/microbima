@@ -13,6 +13,7 @@ import {
   normalizePackageSlug,
   validateInstallmentCount,
 } from '../utils/package-payment-frequency.util';
+import { derivePostpaidSchemeCoverageDates } from '../utils/postpaid-scheme-dates.util';
 import * as Sentry from '@sentry/nestjs';
 import { evaluatePackagePricingCompleteness } from './package-pricing/package-pricing-completeness';
 import { PACKAGE_PRICING_INCOMPLETE_DEACTIVATE_WARNING } from './package-pricing/package-pricing.constants';
@@ -1138,6 +1139,10 @@ export class ProductManagementService {
         frequency: scheme.frequency,
         paymentCadence: scheme.paymentCadence,
         paymentAcNumber: scheme.paymentAcNumber,
+        startDate: scheme.startDate?.toISOString() ?? null,
+        endDate: scheme.endDate?.toISOString() ?? null,
+        nominalPaymentPeriodEndDate:
+          scheme.nominalPaymentPeriodEndDate?.toISOString() ?? null,
         packageId,
         generalSchemeWaitingPeriod: generalSchemeWaitingPeriod ?? null,
         createdBy: scheme.createdBy,
@@ -1245,6 +1250,10 @@ export class ProductManagementService {
         frequency: scheme.frequency,
         paymentCadence: scheme.paymentCadence,
         paymentAcNumber: scheme.paymentAcNumber,
+        startDate: scheme.startDate?.toISOString() ?? null,
+        endDate: scheme.endDate?.toISOString() ?? null,
+        nominalPaymentPeriodEndDate:
+          scheme.nominalPaymentPeriodEndDate?.toISOString() ?? null,
         createdBy: scheme.createdBy,
         createdAt: scheme.createdAt.toISOString(),
         updatedAt: scheme.updatedAt.toISOString(),
@@ -1598,6 +1607,7 @@ export class ProductManagementService {
       isPostpaid?: boolean;
       frequency?: PaymentFrequency;
       paymentCadence?: number;
+      startDate?: string;
       packageId?: number;
       generalSchemeWaitingPeriod?: number;
     },
@@ -1630,6 +1640,10 @@ export class ProductManagementService {
 
       // Validate postpaid requirements
       let calculatedPaymentCadence: number | null = null;
+      let postpaidCoverage: ReturnType<typeof derivePostpaidSchemeCoverageDates> | null =
+        null;
+      let packageInstallmentCount: number | null = null;
+
       if (data.isPostpaid) {
         if (!data.frequency) {
           validationErrors['frequency'] = 'Payment frequency is required for postpaid schemes';
@@ -1640,6 +1654,16 @@ export class ProductManagementService {
           calculatedPaymentCadence = PAYMENT_CADENCE[data.frequency];
           if (!calculatedPaymentCadence) {
             validationErrors['frequency'] = `Invalid payment frequency: ${data.frequency}`;
+          }
+        }
+
+        if (!data.startDate?.trim()) {
+          validationErrors['startDate'] =
+            'Policy start date is required for postpaid schemes';
+        } else {
+          const parsedStart = new Date(data.startDate);
+          if (Number.isNaN(parsedStart.getTime())) {
+            validationErrors['startDate'] = 'Policy start date must be a valid date';
           }
         }
       }
@@ -1660,13 +1684,42 @@ export class ProductManagementService {
                 frequency: data.frequency,
               },
             },
-            select: { id: true },
+            select: { id: true, installmentCount: true },
           });
           if (!supported) {
             validationErrors['frequency'] =
               'Payment frequency is not supported for this package';
+          } else if (supported.installmentCount <= 0) {
+            validationErrors['frequency'] =
+              'Package payment frequency installment count must be greater than zero';
+          } else {
+            packageInstallmentCount = supported.installmentCount;
           }
         }
+      }
+
+      if (
+        data.isPostpaid &&
+        !validationErrors['frequency'] &&
+        !validationErrors['startDate'] &&
+        data.startDate &&
+        calculatedPaymentCadence &&
+        packageInstallmentCount != null &&
+        packageInstallmentCount > 0
+      ) {
+        postpaidCoverage = derivePostpaidSchemeCoverageDates({
+          startDate: new Date(data.startDate),
+          expectedInstallmentCount: packageInstallmentCount,
+          paymentCadence: calculatedPaymentCadence,
+        });
+      } else if (
+        data.isPostpaid &&
+        data.packageId &&
+        !validationErrors['frequency'] &&
+        packageInstallmentCount == null
+      ) {
+        validationErrors['frequency'] =
+          'Package payment frequency installment count is required to compute scheme dates';
       }
 
       if (Object.keys(validationErrors).length > 0) {
@@ -1692,6 +1745,10 @@ export class ProductManagementService {
               frequency: data.frequency ?? null,
               paymentCadence: calculatedPaymentCadence,
               paymentAcNumber: paymentAcNumber ?? null,
+              startDate: postpaidCoverage?.startDate ?? null,
+              endDate: postpaidCoverage?.endDate ?? null,
+              nominalPaymentPeriodEndDate:
+                postpaidCoverage?.nominalPaymentPeriodEndDate ?? null,
               createdBy: userId,
             },
           });
@@ -1729,6 +1786,10 @@ export class ProductManagementService {
           frequency: createdScheme!.frequency,
           paymentCadence: createdScheme!.paymentCadence,
           paymentAcNumber: createdScheme!.paymentAcNumber,
+          startDate: createdScheme!.startDate?.toISOString() ?? null,
+          endDate: createdScheme!.endDate?.toISOString() ?? null,
+          nominalPaymentPeriodEndDate:
+            createdScheme!.nominalPaymentPeriodEndDate?.toISOString() ?? null,
           createdBy: createdScheme!.createdBy,
           createdAt: createdScheme!.createdAt.toISOString(),
           updatedAt: createdScheme!.updatedAt.toISOString(),
@@ -1768,6 +1829,10 @@ export class ProductManagementService {
           frequency: scheme.frequency,
           paymentCadence: scheme.paymentCadence,
           paymentAcNumber: scheme.paymentAcNumber,
+          startDate: scheme.startDate?.toISOString() ?? null,
+          endDate: scheme.endDate?.toISOString() ?? null,
+          nominalPaymentPeriodEndDate:
+            scheme.nominalPaymentPeriodEndDate?.toISOString() ?? null,
           createdBy: scheme.createdBy,
           createdAt: scheme.createdAt.toISOString(),
           updatedAt: scheme.updatedAt.toISOString(),

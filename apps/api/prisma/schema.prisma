@@ -813,6 +813,10 @@ model Scheme {
   frequency       PaymentFrequency?
   paymentCadence  Int?
   paymentAcNumber String?           @unique @db.VarChar(50)
+  /// Coverage / billing epoch for postpaid (UI: Policy start date). Nullable until backfill.
+  startDate                      DateTime?
+  endDate                        DateTime?
+  nominalPaymentPeriodEndDate    DateTime?
 
   // Relations
   packageSchemes           PackageScheme[]

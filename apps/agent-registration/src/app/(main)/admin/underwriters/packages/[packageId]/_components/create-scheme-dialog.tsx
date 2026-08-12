@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,6 +9,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Loader2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import * as Sentry from '@sentry/nextjs';
+import {
+  cadenceDaysForFrequency,
+  derivePostpaidSchemeDateLabels,
+} from '@/lib/insurance-installment';
 
 const FREQUENCY_LABELS: Record<string, string> = {
   DAILY: 'Daily',
@@ -17,6 +21,10 @@ const FREQUENCY_LABELS: Record<string, string> = {
   QUARTERLY: 'Quarterly',
   ANNUALLY: 'Yearly',
 };
+
+function formatUtcDateLabel(d: Date): string {
+  return d.toISOString().slice(0, 10);
+}
 
 interface CreateSchemeDialogProps {
   open: boolean;
@@ -41,7 +49,7 @@ export default function CreateSchemeDialog({
     isActive: true,
     isPostpaid: false,
     frequency: '' as string,
-    paymentCadence: '' as string,
+    startDate: '',
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -50,6 +58,32 @@ export default function CreateSchemeDialog({
     value: pf.frequency,
     label: FREQUENCY_LABELS[pf.frequency] ?? pf.frequency,
   }));
+
+  const selectedFrequencyConfig = paymentFrequencies.find(
+    (pf) => pf.frequency === formData.frequency
+  );
+  const paymentCadence = formData.frequency
+    ? cadenceDaysForFrequency(formData.frequency)
+    : 0;
+
+  const derivedDates = useMemo(() => {
+    if (!formData.isPostpaid || !formData.startDate || !selectedFrequencyConfig) {
+      return null;
+    }
+    if (selectedFrequencyConfig.installmentCount <= 0 || paymentCadence <= 0) {
+      return null;
+    }
+    return derivePostpaidSchemeDateLabels({
+      startDateYmd: formData.startDate,
+      installmentCount: selectedFrequencyConfig.installmentCount,
+      paymentCadence,
+    });
+  }, [
+    formData.isPostpaid,
+    formData.startDate,
+    selectedFrequencyConfig,
+    paymentCadence,
+  ]);
 
   const getSupabaseToken = async () => {
     const { data: session } = await supabase.auth.getSession();
@@ -81,6 +115,9 @@ export default function CreateSchemeDialog({
         if (!paymentFrequencies.some((pf) => pf.frequency === formData.frequency)) {
           throw new Error('Selected frequency is not supported for this package');
         }
+        if (!formData.startDate.trim()) {
+          throw new Error('Policy start date is required for postpaid schemes');
+        }
       }
 
       const token = await getSupabaseToken();
@@ -94,7 +131,7 @@ export default function CreateSchemeDialog({
         generalSchemeWaitingPeriod: number;
         isPostpaid?: boolean;
         frequency?: string;
-        paymentCadence?: number;
+        startDate?: string;
       } = {
         schemeName,
         description,
@@ -106,6 +143,7 @@ export default function CreateSchemeDialog({
       if (formData.isPostpaid) {
         payload.isPostpaid = true;
         payload.frequency = formData.frequency;
+        payload.startDate = formData.startDate.trim();
       }
 
       const response = await fetch(`${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/product-management/schemes`, {
@@ -149,7 +187,7 @@ export default function CreateSchemeDialog({
         isActive: true,
         isPostpaid: false,
         frequency: '',
-        paymentCadence: '',
+        startDate: '',
       });
 
       onSuccess();
@@ -249,7 +287,14 @@ export default function CreateSchemeDialog({
                   type="checkbox"
                   id="isPostpaid"
                   checked={formData.isPostpaid}
-                  onChange={(e) => setFormData({ ...formData, isPostpaid: e.target.checked, frequency: '', paymentCadence: '' })}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      isPostpaid: e.target.checked,
+                      frequency: '',
+                      startDate: '',
+                    })
+                  }
                   className="h-4 w-4"
                 />
                 <Label htmlFor="isPostpaid" className="font-normal cursor-pointer">
@@ -262,30 +307,63 @@ export default function CreateSchemeDialog({
             </div>
 
             {formData.isPostpaid && (
-              <div>
-                <Label htmlFor="frequency">Payment Frequency *</Label>
-                {frequencyOptions.length === 0 ? (
-                  <p className="text-sm text-amber-800 mt-1">
-                    This package has no supported payment frequencies. Configure them on the package first.
+              <>
+                <div>
+                  <Label htmlFor="frequency">Payment Frequency *</Label>
+                  {frequencyOptions.length === 0 ? (
+                    <p className="text-sm text-amber-800 mt-1">
+                      This package has no supported payment frequencies. Configure them on the package first.
+                    </p>
+                  ) : (
+                    <Select
+                      value={formData.frequency}
+                      onValueChange={(value) => setFormData({ ...formData, frequency: value })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select frequency" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {frequencyOptions.map((option) => (
+                          <SelectItem key={option.value} value={option.value}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                </div>
+
+                <div>
+                  <Label htmlFor="startDate">Policy start date *</Label>
+                  <Input
+                    id="startDate"
+                    type="date"
+                    value={formData.startDate}
+                    onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
+                    required
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Coverage / billing start for this postpaid scheme (stored as scheme start date).
                   </p>
-                ) : (
-                  <Select
-                    value={formData.frequency}
-                    onValueChange={(value) => setFormData({ ...formData, frequency: value })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select frequency" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {frequencyOptions.map((option) => (
-                        <SelectItem key={option.value} value={option.value}>
-                          {option.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                </div>
+
+                {formData.startDate && (
+                  <div className="rounded-md border border-gray-200 bg-gray-50 px-3 py-2 space-y-1">
+                    <p className="text-sm text-gray-800">
+                      <span className="font-medium">Policy end date:</span>{' '}
+                      {derivedDates
+                        ? formatUtcDateLabel(derivedDates.endDate)
+                        : '—'}
+                    </p>
+                    {derivedDates && (
+                      <p className="text-sm text-gray-800">
+                        <span className="font-medium">Nominal payment period end date:</span>{' '}
+                        {formatUtcDateLabel(derivedDates.nominalPaymentPeriodEndDate)}
+                      </p>
+                    )}
+                  </div>
                 )}
-              </div>
+              </>
             )}
           </div>
 
@@ -320,4 +398,3 @@ export default function CreateSchemeDialog({
     </Dialog>
   );
 }
-

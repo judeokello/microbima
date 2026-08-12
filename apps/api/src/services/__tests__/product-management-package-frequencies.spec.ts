@@ -265,6 +265,7 @@ describe('ProductManagementService - package slug & payment frequencies', () => 
             description: 'Postpaid scheme',
             isPostpaid: true,
             frequency: PaymentFrequency.QUARTERLY,
+            startDate: '2026-07-07',
             packageId: 10,
             generalSchemeWaitingPeriod: 0,
           },
@@ -285,6 +286,7 @@ describe('ProductManagementService - package slug & payment frequencies', () => 
             isPostpaid: true,
             frequency: PaymentFrequency.CUSTOM,
             paymentCadence: 10,
+            startDate: '2026-07-07',
             packageId: 10,
             generalSchemeWaitingPeriod: 0,
           },
@@ -292,6 +294,104 @@ describe('ProductManagementService - package slug & payment frequencies', () => 
           'corr-1'
         )
       ).rejects.toBeInstanceOf(ValidationException);
+    });
+
+    it('rejects postpaid scheme without policy start date', async () => {
+      prismaMock.scheme.findFirst.mockResolvedValue(null);
+      prismaMock.packagePaymentFrequency.findUnique.mockResolvedValue({
+        id: 1,
+        installmentCount: 39,
+      });
+
+      await expect(
+        service.createScheme(
+          {
+            schemeName: 'ALTO Scheme',
+            description: 'Postpaid scheme',
+            isPostpaid: true,
+            frequency: PaymentFrequency.WEEKLY,
+            packageId: 10,
+            generalSchemeWaitingPeriod: 0,
+          },
+          'user-1',
+          'corr-1'
+        )
+      ).rejects.toBeInstanceOf(ValidationException);
+    });
+
+    it('creates postpaid scheme with derived coverage dates', async () => {
+      const createdScheme = {
+        id: 42,
+        schemeName: 'ALTO Scheme',
+        description: 'Postpaid scheme',
+        isActive: true,
+        isPostpaid: true,
+        frequency: PaymentFrequency.WEEKLY,
+        paymentCadence: 7,
+        paymentAcNumber: 'G999',
+        startDate: new Date(Date.UTC(2026, 6, 7)),
+        endDate: new Date(Date.UTC(2027, 6, 6)),
+        nominalPaymentPeriodEndDate: new Date(Date.UTC(2027, 2, 30)),
+        createdBy: 'user-1',
+        createdAt: new Date('2026-08-12T00:00:00.000Z'),
+        updatedAt: new Date('2026-08-12T00:00:00.000Z'),
+      };
+
+      prismaMock.scheme.findFirst
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(createdScheme);
+      prismaMock.packagePaymentFrequency.findUnique.mockResolvedValue({
+        id: 1,
+        installmentCount: 39,
+      });
+      paymentAccountNumberServiceMock.generateForScheme.mockResolvedValue('G999');
+
+      let schemeCreateData: Record<string, unknown> | undefined;
+      prismaMock.$transaction.mockImplementation(async (cb: (tx: unknown) => Promise<unknown>) => {
+        const tx = {
+          scheme: {
+            create: jest.fn().mockImplementation(({ data }: { data: Record<string, unknown> }) => {
+              schemeCreateData = data;
+              return Promise.resolve({
+                ...createdScheme,
+                ...data,
+              });
+            }),
+          },
+          packageScheme: {
+            create: jest.fn().mockResolvedValue({ id: 1 }),
+          },
+        };
+        return cb(tx);
+      });
+
+      const result = await service.createScheme(
+        {
+          schemeName: 'ALTO Scheme',
+          description: 'Postpaid scheme',
+          isPostpaid: true,
+          frequency: PaymentFrequency.WEEKLY,
+          startDate: '2026-07-07',
+          packageId: 10,
+          generalSchemeWaitingPeriod: 14,
+        },
+        'user-1',
+        'corr-1'
+      );
+
+      expect((schemeCreateData?.startDate as Date).toISOString()).toBe(
+        '2026-07-07T00:00:00.000Z'
+      );
+      expect((schemeCreateData?.endDate as Date).toISOString()).toBe(
+        '2027-07-06T00:00:00.000Z'
+      );
+      expect((schemeCreateData?.nominalPaymentPeriodEndDate as Date).toISOString()).toBe(
+        '2027-03-30T00:00:00.000Z'
+      );
+      expect(result.startDate).toBe('2026-07-07T00:00:00.000Z');
+      expect(result.endDate).toBe('2027-07-06T00:00:00.000Z');
+      expect(result.nominalPaymentPeriodEndDate).toBe('2027-03-30T00:00:00.000Z');
+      expect(result.paymentAcNumber).toBe('G999');
     });
   });
 });

@@ -76,16 +76,90 @@ export function computeAnnualPremium(params: {
   return 0;
 }
 
+/** Coverage end: start + 1 calendar year − 1 day (UTC). */
+export function policyEndDateFromStart(startDate: Date): Date {
+  const endDate = new Date(
+    Date.UTC(startDate.getUTCFullYear(), startDate.getUTCMonth(), startDate.getUTCDate())
+  );
+  endDate.setUTCFullYear(endDate.getUTCFullYear() + 1);
+  endDate.setUTCDate(endDate.getUTCDate() - 1);
+  return endDate;
+}
+
 /** Nominal payment end if coverage/payments start on `fromDate` (UTC calendar day adds). */
 export function computeNominalHorizonFromToday(
   expectedInstallmentCount: number,
   paymentCadence: number,
   fromDate: Date = new Date()
 ): Date {
+  const start = new Date(
+    Date.UTC(fromDate.getUTCFullYear(), fromDate.getUTCMonth(), fromDate.getUTCDate())
+  );
   const steps = Math.max(0, expectedInstallmentCount - 1);
-  const end = new Date(fromDate);
+  const end = new Date(start);
   end.setUTCDate(end.getUTCDate() + steps * paymentCadence);
-  return end;
+  const coverageEnd = policyEndDateFromStart(start);
+  return end.getTime() > coverageEnd.getTime() ? coverageEnd : end;
+}
+
+/** Derive postpaid scheme end + nominal labels from start + package frequency config. */
+export function derivePostpaidSchemeDateLabels(params: {
+  startDateYmd: string;
+  installmentCount: number;
+  paymentCadence: number;
+}): { endDate: Date; nominalPaymentPeriodEndDate: Date } | null {
+  const raw = params.startDateYmd.trim();
+  if (!raw) return null;
+  const start = new Date(`${raw}T00:00:00.000Z`);
+  if (Number.isNaN(start.getTime())) return null;
+  if (params.installmentCount <= 0 || params.paymentCadence <= 0) return null;
+  return {
+    endDate: policyEndDateFromStart(start),
+    nominalPaymentPeriodEndDate: computeNominalHorizonFromToday(
+      params.installmentCount,
+      params.paymentCadence,
+      start
+    ),
+  };
+}
+
+function utcCalendarDay(d: Date): Date {
+  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+}
+
+/**
+ * Member policy dates for postpaid schemes (mirrors API resolvePostpaidMemberPolicyDates):
+ * join on/before scheme start → scheme start; later join → join day;
+ * end + nominal inherited from scheme when present.
+ */
+export function resolvePostpaidMemberPolicyDates(params: {
+  schemeStartDate: Date | null | undefined;
+  schemeEndDate: Date | null | undefined;
+  schemeNominalPaymentPeriodEndDate: Date | null | undefined;
+  memberJoinedAt: Date;
+}): {
+  startDate: Date;
+  endDate: Date;
+  nominalPaymentPeriodEndDate: Date | null;
+} | null {
+  if (params.schemeStartDate == null) return null;
+
+  const schemeStart = utcCalendarDay(params.schemeStartDate);
+  const joined = utcCalendarDay(params.memberJoinedAt);
+  const startDate =
+    joined.getTime() > schemeStart.getTime() ? joined : schemeStart;
+
+  const endDate =
+    params.schemeEndDate != null
+      ? utcCalendarDay(params.schemeEndDate)
+      : policyEndDateFromStart(startDate);
+
+  const nominalPaymentPeriodEndDate =
+    params.schemeNominalPaymentPeriodEndDate != null
+      ? utcCalendarDay(params.schemeNominalPaymentPeriodEndDate)
+      : null;
+
+  return { startDate, endDate, nominalPaymentPeriodEndDate };
 }
 
 export type PackagePaymentFrequencyOption = {
