@@ -9,12 +9,12 @@ describe('policy-display.util', () => {
   const end = new Date(Date.UTC(2027, 2, 30, 12, 45, 0));
   const deactivatedAt = new Date(Date.UTC(2026, 6, 21, 20, 34, 0));
 
-  it('formats dates with year', () => {
-    expect(formatPolicyLabelDate(start)).toBe('31 Mar 2026');
-    expect(formatPolicyTermRange(start, end)).toBe('31 Mar 2026–30 Mar 2027');
+  it('formats dates with two-digit year', () => {
+    expect(formatPolicyLabelDate(start)).toBe('31 Mar 26');
+    expect(formatPolicyTermRange(start, end)).toBe('31 Mar 26–30 Mar 27');
   });
 
-  it('labels active/suspended with term range and year', () => {
+  it('labels active/suspended with term range and two-digit year', () => {
     expect(
       buildPolicyDisplayText({
         packageName: 'Mfanisi Go',
@@ -23,7 +23,7 @@ describe('policy-display.util', () => {
         startDate: start,
         endDate: end,
       })
-    ).toBe('Mfanisi Go - Silver (SUSPENDED, 31 Mar 2026–30 Mar 2027)');
+    ).toBe('Mfanisi Go - Silver (SUSPENDED, 31 Mar 26–30 Mar 27)');
   });
 
   it('labels deactivated with term and off date', () => {
@@ -37,7 +37,7 @@ describe('policy-display.util', () => {
         deactivatedAt,
       })
     ).toBe(
-      'Mfanisi Go - Silver (DEACTIVATED, 31 Mar 2026–30 Mar 2027, off 21 Jul 2026)'
+      'Mfanisi Go - Silver (DEACTIVATED, 31 Mar 26–30 Mar 27, off 21 Jul 26)'
     );
   });
 });

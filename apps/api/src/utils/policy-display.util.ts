@@ -2,15 +2,15 @@ import type { PolicyStatus } from '@prisma/client';
 
 const MONTHS_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
-/** Format UTC date as `DD Mon YYYY` for policy dropdown labels. */
+/** Format UTC date as `DD Mon YY` for policy dropdown labels. */
 export function formatPolicyLabelDate(date: Date): string {
   const day = date.getUTCDate();
   const month = MONTHS_SHORT[date.getUTCMonth()] ?? '';
-  const year = date.getUTCFullYear();
+  const year = String(date.getUTCFullYear() % 100).padStart(2, '0');
   return `${day} ${month} ${year}`;
 }
 
-/** Term span for dropdown: `31 Mar 2026–30 Mar 2027`. */
+/** Term span for dropdown: `31 Mar 26–30 Mar 27`. */
 export function formatPolicyTermRange(
   startDate?: Date | null,
   endDate?: Date | null
