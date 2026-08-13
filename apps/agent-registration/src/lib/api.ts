@@ -944,6 +944,21 @@ export interface CustomerDetailData {
     deletedBy?: string | null
     deletedByDisplayName?: string | null
   }>
+  parents: Array<{
+    id: string
+    firstName: string
+    middleName?: string
+    lastName: string
+    dateOfBirth?: string
+    gender?: string
+    idType?: string
+    idNumber?: string
+    relationship: 'MOTHER' | 'FATHER' | 'MOTHER_IN_LAW' | 'FATHER_IN_LAW'
+    deletedAt?: string | null
+    deletedBy?: string | null
+    deletedByDisplayName?: string | null
+  }>
+  parentsSupported: boolean
   policies: Array<{
     id: string
     policyNumber: string
@@ -1587,6 +1602,116 @@ export async function deleteDependant(dependantId: string): Promise<void> {
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}))
     throw new Error(errorData.error?.message ?? `HTTP ${response.status}: ${response.statusText}`)
+  }
+}
+
+export type ParentRelationship = 'MOTHER' | 'FATHER' | 'MOTHER_IN_LAW' | 'FATHER_IN_LAW'
+
+export interface ParentData {
+  firstName: string
+  middleName?: string
+  lastName: string
+  dateOfBirth: string
+  gender: string
+  idType: string
+  idNumber: string
+  relationship: ParentRelationship
+}
+
+export interface UpdateParentData {
+  firstName?: string
+  middleName?: string
+  lastName?: string
+  dateOfBirth?: string
+  gender?: string
+  idType?: string
+  idNumber?: string
+  relationship?: ParentRelationship
+}
+
+function throwApiError(errorData: {
+  error?: { message?: string; details?: Record<string, string> }
+}, status: number, statusText: string): never {
+  if (errorData.error?.details && typeof errorData.error.details === 'object') {
+    const messages = Object.values(errorData.error.details).map(String)
+    throw new Error(messages.join('\n'))
+  }
+  throw new Error(errorData.error?.message ?? `HTTP ${status}: ${statusText}`)
+}
+
+export async function addParents(
+  customerId: string,
+  parents: ParentData[]
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const token = await getSupabaseToken()
+    const response = await fetch(
+      `${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/customers/${customerId}/parents`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+          'x-correlation-id': `add-parents-${Date.now()}`,
+        },
+        body: JSON.stringify({
+          correlationId: `add-parents-${Date.now()}`,
+          parents,
+        }),
+      }
+    )
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      throwApiError(errorData, response.status, response.statusText)
+    }
+    return { success: true }
+  } catch (error) {
+    console.error('Error adding parents:', error)
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to add parent',
+    }
+  }
+}
+
+export async function updateParent(
+  parentId: string,
+  data: UpdateParentData
+): Promise<void> {
+  const token = await getSupabaseToken()
+  const response = await fetch(
+    `${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/customers/parents/${parentId}`,
+    {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+        'x-correlation-id': `update-parent-${Date.now()}`,
+      },
+      body: JSON.stringify(data),
+    }
+  )
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}))
+    throwApiError(errorData, response.status, response.statusText)
+  }
+}
+
+export async function deleteParent(parentId: string): Promise<void> {
+  const token = await getSupabaseToken()
+  const response = await fetch(
+    `${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/customers/parents/${parentId}`,
+    {
+      method: 'DELETE',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'x-correlation-id': `delete-parent-${Date.now()}`,
+      },
+    }
+  )
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}))
+    throwApiError(errorData, response.status, response.statusText)
   }
 }
 

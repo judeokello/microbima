@@ -75,6 +75,8 @@ import { LctSyncService } from '../modules/lct/lct-sync.service';
 import { MissingRequirementService } from './missing-requirement.service';
 import { UpdateDependantDto } from '../dto/dependants/update-dependant.dto';
 import { UpdateBeneficiaryDto } from '../dto/beneficiaries/update-beneficiary.dto';
+import { AddParentsRequestDto } from '../dto/parents/add-parents-request.dto';
+import { UpdateParentDto } from '../dto/parents/update-parent.dto';
 import {
   CONFIRMED_PAYMENT_STATUSES,
   notDetachedPaymentWhere,
@@ -157,6 +159,54 @@ export class CustomerService {
     }
     if (Object.keys(validationErrors).length > 0) {
       throw ValidationException.withMultipleErrors(validationErrors);
+    }
+  }
+
+  private validateParentRelationshipLimits(
+    relationships: ParentRelationship[]
+  ): void {
+    if (relationships.length > 4) {
+      throw ValidationException.forField(
+        'parents',
+        'A maximum of 4 parents is allowed',
+        ErrorCodes.VALIDATION_ERROR
+      );
+    }
+    const counts = new Map<ParentRelationship, number>();
+    for (const relationship of relationships) {
+      const next = (counts.get(relationship) ?? 0) + 1;
+      counts.set(relationship, next);
+      if (next > 2) {
+        throw ValidationException.forField(
+          'parents.relationship',
+          `Relationship ${relationship} cannot be used more than twice`,
+          ErrorCodes.VALIDATION_ERROR
+        );
+      }
+    }
+  }
+
+  private async assertCustomerParentsSupported(customerId: string): Promise<void> {
+    const schemeCustomer = await this.prismaService.packageSchemeCustomer.findFirst({
+      where: { customerId },
+      include: {
+        packageScheme: {
+          include: {
+            scheme: { select: { parentsSupported: true } },
+            package: { select: { parentsSupported: true } },
+          },
+        },
+      },
+    });
+    if (
+      !schemeCustomer?.packageScheme.scheme.parentsSupported ||
+      !schemeCustomer.packageScheme.package.parentsSupported
+    ) {
+      throw ValidationException.forField(
+        'parents',
+        'Parents can only be registered when the package and scheme support parents',
+        ErrorCodes.VALIDATION_ERROR
+      );
     }
   }
 
@@ -2473,6 +2523,7 @@ export class CustomerService {
               },
             },
           },
+          parents: true,
           policyMemberPrincipals: {
             orderBy: { createdAt: 'desc' },
             take: 1,
@@ -2499,6 +2550,17 @@ export class CustomerService {
               partnerCustomerId: true,
             },
           },
+          packageSchemeCustomers: {
+            take: 1,
+            include: {
+              packageScheme: {
+                include: {
+                  scheme: { select: { parentsSupported: true } },
+                  package: { select: { parentsSupported: true } },
+                },
+              },
+            },
+          },
         },
       });
 
@@ -2521,13 +2583,16 @@ export class CustomerService {
 
       const principalMember = customer.policyMemberPrincipals[0];
 
-      // Resolve deletedBy display names for beneficiaries and dependants
+      // Resolve deletedBy display names for beneficiaries, dependants, and parents
       const deletedByIds = new Set<string>();
       for (const b of customer.beneficiaries) {
         if (b.deletedBy) deletedByIds.add(b.deletedBy);
       }
       for (const d of customer.dependants) {
         if (d.deletedBy) deletedByIds.add(d.deletedBy);
+      }
+      for (const p of customer.parents) {
+        if (p.deletedBy) deletedByIds.add(p.deletedBy);
       }
       const deletedByDisplayNames = new Map<string, string>();
       await Promise.all(
@@ -2576,6 +2641,28 @@ export class CustomerService {
         };
       });
 
+      // Map parents (include deleted with resolved display name)
+      const parents = customer.parents.map((p) => ({
+        id: p.id,
+        firstName: p.firstName,
+        middleName: p.middleName ?? undefined,
+        lastName: p.lastName,
+        dateOfBirth: p.dateOfBirth ? p.dateOfBirth.toISOString().split('T')[0] : undefined,
+        gender: p.gender ? SharedMapperUtils.mapGenderToDto(p.gender) : undefined,
+        idType: p.idType ? SharedMapperUtils.mapIdTypeToDto(p.idType) : undefined,
+        idNumber: p.idNumber ?? undefined,
+        relationship: p.relationship,
+        deletedAt: p.deletedAt?.toISOString() ?? null,
+        deletedBy: p.deletedBy ?? null,
+        deletedByDisplayName: p.deletedBy ? deletedByDisplayNames.get(p.deletedBy) ?? null : null,
+      }));
+
+      const schemeLink = customer.packageSchemeCustomers[0];
+      const parentsSupported = Boolean(
+        schemeLink?.packageScheme.scheme.parentsSupported &&
+          schemeLink?.packageScheme.package.parentsSupported
+      );
+
       // Map policies
       const policies = customer.policies.map((p) => ({
         id: p.id,
@@ -2598,6 +2685,8 @@ export class CustomerService {
         },
         beneficiaries,
         dependants,
+        parents,
+        parentsSupported,
         policies,
       };
 
@@ -3832,6 +3921,186 @@ export class CustomerService {
     await this.lctSyncService.onDependantSoftDeleted(dependantId, correlationId);
 
     this.logger.log(`[${correlationId}] Soft deleted dependant ${dependantId} by user ${userId}`);
+  }
+
+  /**
+   * Add parents to an existing customer (partner-scoped, requires parentsSupported)
+   */
+  async addParents(
+    customerId: string,
+    addRequest: AddParentsRequestDto,
+    partnerId: number,
+    correlationId: string
+  ): Promise<{ added: number }> {
+    this.logger.log(
+      `[${correlationId}] Adding ${addRequest.parents.length} parent(s) to customer ${customerId}`
+    );
+
+    this.validateParentsPayload(addRequest.parents);
+    await this.assertCustomerParentsSupported(customerId);
+
+    const customer = await this.prismaService.customer.findFirst({
+      where: {
+        id: customerId,
+        createdByPartnerId: partnerId,
+        partnerCustomers: {
+          some: { partnerId },
+        },
+      },
+    });
+    if (!customer) {
+      throw new NotFoundException('Customer not found or not accessible to this partner');
+    }
+
+    const existing = await this.prismaService.customerParent.findMany({
+      where: { customerId, deletedAt: null },
+      select: { relationship: true },
+    });
+    this.validateParentRelationshipLimits([
+      ...existing.map((p) => p.relationship),
+      ...addRequest.parents.map((p) => p.relationship),
+    ]);
+
+    await this.prismaService.customerParent.createMany({
+      data: addRequest.parents.map((parent) => {
+        const mappedIdType = SharedMapperUtils.mapIdTypeFromDto(parent.idType);
+        const trimmedIdNumber = parent.idNumber?.trim();
+        return {
+          customerId,
+          firstName: parent.firstName.trim(),
+          middleName: parent.middleName?.trim() ? parent.middleName.trim() : null,
+          lastName: parent.lastName.trim(),
+          dateOfBirth: parent.dateOfBirth ? new Date(parent.dateOfBirth) : null,
+          gender: SharedMapperUtils.mapGenderFromDto(parent.gender),
+          idType: trimmedIdNumber ? mappedIdType : null,
+          idNumber: trimmedIdNumber ?? null,
+          relationship: parent.relationship,
+          createdByPartnerId: partnerId,
+        };
+      }),
+    });
+
+    this.logger.log(
+      `[${correlationId}] Successfully added ${addRequest.parents.length} parent(s) to customer ${customerId}`
+    );
+    return { added: addRequest.parents.length };
+  }
+
+  async updateParent(
+    parentId: string,
+    updateData: UpdateParentDto,
+    userId: string,
+    userRoles: string[],
+    correlationId: string
+  ): Promise<unknown> {
+    this.logger.log(`[${correlationId}] Updating parent ${parentId}`);
+
+    const parent = await this.prismaService.customerParent.findUnique({
+      where: { id: parentId },
+    });
+    if (!parent) {
+      throw new NotFoundException('Parent not found');
+    }
+    if (parent.deletedAt) {
+      throw new BadRequestException('Cannot update a deleted parent');
+    }
+
+    const canAccess = await this.canUserAccessCustomer(parent.customerId, userId, userRoles);
+    if (!canAccess) {
+      throw new NotFoundException('Parent not found or not accessible');
+    }
+
+    if (updateData.relationship !== undefined && updateData.relationship !== parent.relationship) {
+      const siblings = await this.prismaService.customerParent.findMany({
+        where: { customerId: parent.customerId, deletedAt: null, NOT: { id: parentId } },
+        select: { relationship: true },
+      });
+      this.validateParentRelationshipLimits([
+        ...siblings.map((p) => p.relationship),
+        updateData.relationship,
+      ]);
+    }
+
+    const updatePayload: Prisma.CustomerParentUpdateInput = {};
+    if (updateData.firstName !== undefined) updatePayload.firstName = updateData.firstName.trim();
+    if (updateData.middleName !== undefined) {
+      updatePayload.middleName = updateData.middleName.trim() ? updateData.middleName.trim() : null;
+    }
+    if (updateData.lastName !== undefined) updatePayload.lastName = updateData.lastName.trim();
+    if (updateData.dateOfBirth !== undefined) {
+      updatePayload.dateOfBirth = updateData.dateOfBirth
+        ? new Date(updateData.dateOfBirth)
+        : null;
+    }
+    if (updateData.gender !== undefined) {
+      updatePayload.gender = SharedMapperUtils.mapGenderFromDto(updateData.gender);
+    }
+    if (updateData.idType !== undefined) {
+      updatePayload.idType = SharedMapperUtils.mapIdTypeFromDto(updateData.idType);
+    }
+    if (updateData.idNumber !== undefined) {
+      const trimmedIdNumber = updateData.idNumber?.trim();
+      updatePayload.idNumber =
+        trimmedIdNumber && trimmedIdNumber.length > 0 ? trimmedIdNumber : null;
+    }
+    if (updateData.relationship !== undefined) {
+      updatePayload.relationship = updateData.relationship;
+    }
+
+    const updated = await this.prismaService.customerParent.update({
+      where: { id: parentId },
+      data: updatePayload,
+    });
+
+    return {
+      id: updated.id,
+      firstName: updated.firstName,
+      middleName: updated.middleName ?? undefined,
+      lastName: updated.lastName,
+      dateOfBirth: updated.dateOfBirth
+        ? updated.dateOfBirth.toISOString().split('T')[0]
+        : undefined,
+      gender: updated.gender ? SharedMapperUtils.mapGenderToDto(updated.gender) : undefined,
+      idType: updated.idType ? SharedMapperUtils.mapIdTypeToDto(updated.idType) : undefined,
+      idNumber: updated.idNumber ?? undefined,
+      relationship: updated.relationship,
+    };
+  }
+
+  async softDeleteParent(
+    parentId: string,
+    userId: string,
+    userRoles: string[],
+    correlationId: string
+  ): Promise<void> {
+    if (!userRoles.includes('registration_admin')) {
+      throw new NotFoundException('Parent not found or not accessible');
+    }
+
+    const parent = await this.prismaService.customerParent.findUnique({
+      where: { id: parentId },
+    });
+    if (!parent) {
+      throw new NotFoundException('Parent not found');
+    }
+
+    const canAccess = await this.canUserAccessCustomer(parent.customerId, userId, userRoles);
+    if (!canAccess) {
+      throw new NotFoundException('Parent not found or not accessible');
+    }
+    if (parent.deletedAt) {
+      throw new BadRequestException('Parent is already deleted');
+    }
+
+    await this.prismaService.customerParent.update({
+      where: { id: parentId },
+      data: {
+        deletedAt: new Date(),
+        deletedBy: userId,
+      },
+    });
+
+    this.logger.log(`[${correlationId}] Soft deleted parent ${parentId} by user ${userId}`);
   }
 
   /**

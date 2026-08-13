@@ -57,6 +57,8 @@ import { UpdateDependantDto } from '../../dto/dependants/update-dependant.dto';
 import { UpdateBeneficiaryDto } from '../../dto/beneficiaries/update-beneficiary.dto';
 import { AddDependantsRequestDto } from '../../dto/dependants/add-dependants-request.dto';
 import { AddDependantsResponseDto } from '../../dto/dependants/add-dependants-response.dto';
+import { AddParentsRequestDto } from '../../dto/parents/add-parents-request.dto';
+import { UpdateParentDto } from '../../dto/parents/update-parent.dto';
 import { CorrelationId } from '../../decorators/correlation-id.decorator';
 import { PartnerId } from '../../decorators/api-key.decorator';
 import { AdminOnly } from '../../decorators/ba-auth.decorator';
@@ -1211,6 +1213,87 @@ export class InternalCustomerController {
     const userId = req.user?.id ?? 'system';
     const userRoles = req.user?.roles ?? [];
     await this.customerService.softDeleteDependant(dependantId, userId, userRoles, correlationId);
+  }
+
+  @Post(':customerId/parents')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({
+    summary: 'Add parents (Internal)',
+    description:
+      'Adds parent / parent-in-law records to a customer when package and scheme support parents.',
+  })
+  @ApiParam({ name: 'customerId', description: 'Customer ID' })
+  @ApiResponse({ status: 201, description: 'Parents added successfully' })
+  async addParents(
+    @Param('customerId') customerId: string,
+    @Body() addRequest: AddParentsRequestDto,
+    @CorrelationId() correlationId: string,
+    @Req() req: Request,
+  ): Promise<ApiResponseDto<{ added: number }>> {
+    const userId = req.user?.id ?? 'system';
+    const baInfo = await this.partnerManagementService.getBrandAmbassadorByUserId(userId);
+    const result = await this.customerService.addParents(
+      customerId,
+      addRequest,
+      baInfo.partnerId,
+      correlationId
+    );
+    return {
+      status: HttpStatus.CREATED,
+      correlationId,
+      message: 'Parents added successfully',
+      data: result,
+    };
+  }
+
+  @Put('parents/:parentId')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Update parent (Internal)',
+    description: 'Updates an existing parent / parent-in-law record.',
+  })
+  @ApiParam({ name: 'parentId', description: 'Parent ID' })
+  @ApiResponse({ status: 200, description: 'Parent updated successfully' })
+  async updateParent(
+    @Param('parentId') parentId: string,
+    @Body() updateRequest: UpdateParentDto,
+    @CorrelationId() correlationId: string,
+    @Req() req: Request,
+  ): Promise<ApiResponseDto<unknown>> {
+    const userId = req.user?.id ?? 'system';
+    const userRoles = req.user?.roles ?? [];
+    const result = await this.customerService.updateParent(
+      parentId,
+      updateRequest,
+      userId,
+      userRoles,
+      correlationId
+    );
+    return {
+      status: HttpStatus.OK,
+      correlationId,
+      message: 'Parent updated successfully',
+      data: result,
+    };
+  }
+
+  @Delete('parents/:parentId')
+  @AdminOnly()
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({
+    summary: 'Soft delete parent (Internal - Admin only)',
+    description: 'Soft deletes a parent record. Only registration_admin can perform this action.',
+  })
+  @ApiParam({ name: 'parentId', description: 'Parent ID' })
+  @ApiResponse({ status: 204, description: 'Parent soft deleted successfully' })
+  async deleteParent(
+    @Param('parentId') parentId: string,
+    @CorrelationId() correlationId: string,
+    @Req() req: Request,
+  ): Promise<void> {
+    const userId = req.user?.id ?? 'system';
+    const userRoles = req.user?.roles ?? [];
+    await this.customerService.softDeleteParent(parentId, userId, userRoles, correlationId);
   }
 
   /**

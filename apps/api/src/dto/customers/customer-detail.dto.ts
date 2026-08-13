@@ -1,6 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsString, IsOptional, IsArray, ValidateNested } from 'class-validator';
+import { IsString, IsOptional, IsArray, ValidateNested, IsBoolean, IsEnum } from 'class-validator';
 import { Type } from 'class-transformer';
+import { ParentRelationship } from '@prisma/client';
 import { PrincipalMemberDto } from '../principal-member/principal-member.dto';
 
 export class PolicySummaryDto {
@@ -279,6 +280,97 @@ export class DependantSummaryDto {
   deletedByDisplayName?: string | null;
 }
 
+export class ParentSummaryDto {
+  @ApiProperty({
+    description: 'Parent ID',
+    example: '123e4567-e89b-12d3-a456-426614174000',
+  })
+  @IsString()
+  id: string;
+
+  @ApiProperty({ description: 'First name', example: 'Jane' })
+  @IsString()
+  firstName: string;
+
+  @ApiProperty({ description: 'Middle name', example: 'Ann', required: false })
+  @IsOptional()
+  @IsString()
+  middleName?: string;
+
+  @ApiProperty({ description: 'Last name', example: 'Doe' })
+  @IsString()
+  lastName: string;
+
+  @ApiProperty({
+    description: 'Date of birth',
+    example: '1960-05-12',
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  dateOfBirth?: string;
+
+  @ApiProperty({
+    description: 'Gender',
+    example: 'female',
+    enum: ['male', 'female'],
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  gender?: string;
+
+  @ApiProperty({
+    description: 'ID type',
+    example: 'national',
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  idType?: string;
+
+  @ApiProperty({
+    description: 'ID number',
+    example: '11223344',
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  idNumber?: string;
+
+  @ApiProperty({
+    description: 'Relationship to the principal member',
+    enum: ParentRelationship,
+    example: ParentRelationship.MOTHER,
+  })
+  @IsEnum(ParentRelationship)
+  relationship: ParentRelationship;
+
+  @ApiProperty({
+    description: 'When parent was soft-deleted (ISO 8601)',
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  deletedAt?: string | null;
+
+  @ApiProperty({
+    description: 'User ID who deleted',
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  deletedBy?: string | null;
+
+  @ApiProperty({
+    description: 'Display name of user who deleted',
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  deletedByDisplayName?: string | null;
+}
+
 export class CustomerDetailDataDto {
   @ApiProperty({
     description: 'Customer information',
@@ -313,6 +405,23 @@ export class CustomerDetailDataDto {
   @ValidateNested({ each: true })
   @Type(() => DependantSummaryDto)
   dependants: DependantSummaryDto[];
+
+  @ApiProperty({
+    description: 'List of parents / parents-in-law',
+    type: [ParentSummaryDto],
+  })
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => ParentSummaryDto)
+  parents: ParentSummaryDto[];
+
+  @ApiProperty({
+    description:
+      'Whether parent details are supported for this customer (package and scheme both enable parents)',
+    example: false,
+  })
+  @IsBoolean()
+  parentsSupported: boolean;
 
   @ApiProperty({
     description: 'List of customer policies',

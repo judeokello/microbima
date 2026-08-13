@@ -12,6 +12,7 @@ import CustomerInfoSection from '../../../customer/[customerId]/_components/cust
 import NextOfKinSection from '../../../customer/[customerId]/_components/next-of-kin-section';
 import SpouseSection from '../../../customer/[customerId]/_components/spouse-section';
 import ChildrenSection from '../../../customer/[customerId]/_components/children-section';
+import ParentsSection from '../../../customer/[customerId]/_components/parents-section';
 import PaymentsTab from '../../../customer/[customerId]/_components/payments-tab';
 import MemberCardsTab from '../../../customer/[customerId]/_components/member-cards-tab';
 import MessagingTab from '../../../customer/[customerId]/_components/messaging-tab';
@@ -162,6 +163,15 @@ export default function CustomerDetailPage() {
             canAdd={canEdit}
             onUpdate={loadCustomerDetails}
           />
+
+          {customerData.parentsSupported && (
+            <ParentsSection
+              parents={customerData.parents ?? []}
+              canEdit={canEdit}
+              canAdd={canEdit}
+              onUpdate={loadCustomerDetails}
+            />
+          )}
 
           <NextOfKinSection
             beneficiaries={customerData.beneficiaries}

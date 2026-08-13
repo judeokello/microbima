@@ -12,6 +12,7 @@ import CustomerInfoSection from './_components/customer-info-section';
 import NextOfKinSection from './_components/next-of-kin-section';
 import SpouseSection from './_components/spouse-section';
 import ChildrenSection from './_components/children-section';
+import ParentsSection from './_components/parents-section';
 import PaymentsTab from './_components/payments-tab';
 import MemberCardsTab from './_components/member-cards-tab';
 import ProductsTab from './_components/products-tab';
@@ -126,13 +127,6 @@ export default function CustomerDetailPage() {
             onUpdate={loadCustomerDetails}
           />
 
-          <NextOfKinSection
-            beneficiaries={customerData.beneficiaries}
-            canEdit={canEdit}
-            canAdd={canEdit}
-            onUpdate={loadCustomerDetails}
-          />
-
           <SpouseSection
             dependants={customerData.dependants.filter((d) => d.relationship === 'SPOUSE')}
             canEdit={canEdit}
@@ -142,6 +136,22 @@ export default function CustomerDetailPage() {
 
           <ChildrenSection
             dependants={customerData.dependants.filter((d) => d.relationship === 'CHILD')}
+            canEdit={canEdit}
+            canAdd={canEdit}
+            onUpdate={loadCustomerDetails}
+          />
+
+          {customerData.parentsSupported && (
+            <ParentsSection
+              parents={customerData.parents ?? []}
+              canEdit={canEdit}
+              canAdd={canEdit}
+              onUpdate={loadCustomerDetails}
+            />
+          )}
+
+          <NextOfKinSection
+            beneficiaries={customerData.beneficiaries}
             canEdit={canEdit}
             canAdd={canEdit}
             onUpdate={loadCustomerDetails}
