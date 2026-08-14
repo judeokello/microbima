@@ -26,6 +26,7 @@ portion of it.
 | 7 | Agent identity | **`suitecrmUserId` stored on `BrandAmbassador`**, matched by email once at link time | See section 7. |
 | 8 | Passwords | **Independent credentials** in Supabase and SuiteCRM (no password sync) | Password mirroring (VTiger plan) means the API handles plaintext passwords. SSO (SAML/LDAP) is the future path if two logins become annoying. |
 | 9 | Scale target | **~5 concurrent call agents** | No supervisor dashboards, wallboards, or presence management in our workspace; HelloDuty's own portal covers monitoring. |
+| 10 | WhatsApp channel | **Integrated into the agent workspace** (Inbox tab), not a standalone app; own Meta WhatsApp Business API (WABA) account. **Proposed: direct Meta Cloud API integration** (pending one HelloDuty question — see section 13). | Same agents, same phone-based customer lookup (`wa_id` is the phone number), same wrap-up/ticketing flow. HelloDuty's WhatsApp offering centers on their agent interface, which we are not using. |
 
 ## 3. Architecture
 
@@ -247,7 +248,62 @@ HelloDuty answers) are pushed as late as possible.
 - Both: on hangup, log Call activity (direction, duration, outcome, recording URL) to
   SuiteCRM, linked to Contact and Case; missed/abandoned calls create follow-up entries.
 
-## 11. Out of scope (deliberately)
+### Step 5 — WhatsApp channel (parallel track after Steps 1–3)
+
+- **Inbound conversations:** Meta Cloud API webhook controller under
+  `apps/api/src/controllers/webhooks/`; new Prisma models (`Conversation`,
+  `ConversationMessage`); Socket.IO push to the workspace; **Inbox tab** in the
+  workspace (unassigned queue + "mine", chat pane, same customer 360 side panel).
+  Claim-based assignment ("Take" button) — no routing engine at 5 agents. Same wrap-up
+  flow → SuiteCRM Case + Note (optionally with transcript) on the Contact.
+- **Outbound notifications:** WhatsApp as a third channel (`WHATSAPP`) in the existing
+  messaging module — same outbox/worker/template pattern as SMS/EMAIL, with a Meta
+  template approval-status field on templates.
+- **Media handling:** received media (e.g. photographed ID documents) attachable from
+  the inbox to the customer's KYC / missing-requirement records.
+
+## 11. WhatsApp channel design
+
+### Who terminates the WABA connection (decision pending)
+
+A WABA number's message stream flows to exactly one connected application:
+
+- **Path 1 — via HelloDuty:** our WABA connects to their platform; inbound messages
+  land on their servers and must be relayed to us via their APIs/webhooks; outbound
+  goes back through their API. Adds a middleman whose main WhatsApp deliverable (their
+  agent UI) we are not using.
+- **Path 2 — direct Meta Cloud API (recommended):** our WABA connects straight to our
+  API. Webhooks deliver inbound messages directly; outbound via the Graph API. No
+  intermediary; Meta conversation pricing applies either way.
+
+Voice remains with HelloDuty regardless — this decision is WhatsApp-only.
+
+### Interface model
+
+- **Agent-facing conversations: integrated Inbox tab in the workspace** (not a
+  standalone app). Rationale: `wa_id` (WhatsApp sender ID) is the customer's phone
+  number in E.164, so the Step 1 phone-lookup foundation resolves chats to customers
+  with zero extra work; the same 5 agents handle calls and chats; the webhook →
+  API → Socket.IO → workspace pipeline is shared with Variant B screen-pops. Unlike
+  calls, one agent works several chats concurrently — the tab layout embraces this.
+- **Proactive outbound: existing messaging module**, not the workspace. WhatsApp
+  notifications (payment reminders, policy confirmations) are template messages sent
+  through the same outbox/worker/campaign tooling as SMS.
+
+### WhatsApp platform constraints
+
+- **24-hour customer service window:** free-form agent replies are only allowed within
+  24 hours of the customer's last message. Outside the window — including all proactive
+  outbound — only Meta-pre-approved **template messages** may be sent. This reinforces
+  the conversations-vs-notifications split.
+- **Conversation storage:** chats are real-time operational data and live in core
+  (new models); SuiteCRM receives the summary (Case/Note per conversation), mirroring
+  the call flow.
+- **Number choice (open):** the WhatsApp number can be the same MSISDN as the voice
+  line (one number for customers to save; registration OTP arrives as a voice call
+  through the HelloDuty IVR) or a separate number.
+
+## 12. Out of scope (deliberately)
 
 - Native ticketing in MicroBima.
 - Bidirectional contact sync / CRM-initiated customer edits.
@@ -258,13 +314,21 @@ HelloDuty answers) are pushed as late as possible.
   covers monitoring).
 - Windows/Electron desktop app (web workspace; desktop softphone only as Variant B
   audio fallback).
+- WhatsApp chatbot / AI automation in front of agents (revisit after the manned inbox
+  ships).
 
-## 12. Open items
+## 13. Open items
 
 1. HelloDuty questionnaire (section 4) — determines Variant A vs B for Step 4.
-2. SuiteCRM instance readiness: OAuth2 client created, Studio custom fields added,
+2. HelloDuty WhatsApp question: if we bring our own WABA but not their agent interface,
+   do they expose inbound-message webhooks and a send API, and at what cost / added
+   value? Answer decides Path 1 vs Path 2 (section 11); default is Path 2 (direct
+   Meta Cloud API).
+3. SuiteCRM instance readiness: OAuth2 client created, Studio custom fields added,
    agent accounts created with Supabase-matching emails, synced-field permissions
    locked for staff roles.
-3. Decide canonical phone storage format and audit existing data before the Step 1
+4. Decide canonical phone storage format and audit existing data before the Step 1
    migration.
-4. Confirm middle-name folding convention for Contact sync.
+5. Confirm middle-name folding convention for Contact sync.
+6. WhatsApp number choice: same MSISDN as the voice line vs a separate number
+   (section 11).
