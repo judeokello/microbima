@@ -656,6 +656,37 @@ export class ProductManagementController {
   }
 
   /**
+   * Convert an Up to N pricing category into Member only (in place).
+   */
+  @Post('packages/:packageId/pricing/categories/:categoryId/convert-to-member-only')
+  @SetupAdminOnly()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Convert an Up to N category to Member only (requires setup_admin)',
+  })
+  async convertPackagePricingCategoryToMemberOnly(
+    @Param('packageId', ParseIntPipe) packageId: number,
+    @Param('categoryId', ParseIntPipe) categoryId: number,
+    @UserId() userId: string,
+    @CorrelationId() correlationId?: string,
+  ) {
+    if (!userId) {
+      throw new Error('User ID not found in request');
+    }
+    const data = await this.packagePricingService.convertCategoryToMemberOnly(
+      packageId,
+      categoryId,
+      userId
+    );
+    return {
+      status: HttpStatus.OK,
+      correlationId: correlationId ?? 'unknown',
+      message: 'Pricing category converted to Member only',
+      data,
+    };
+  }
+
+  /**
    * Suggest fill for empty pricing cells
    */
   @Post('packages/:packageId/pricing/suggest-fill')

@@ -367,6 +367,78 @@ export class PackagePricingService {
     };
   }
 
+  /**
+   * Convert an Up to N band into the required Member only band in place.
+   * Rates stay on the same category row (FK by id); only kind/key/maxMembers change.
+   */
+  async convertCategoryToMemberOnly(
+    packageId: number,
+    categoryId: number,
+    userId: string
+  ): Promise<PackagePricingData> {
+    const pkg = await this.prisma.package.findUnique({
+      where: { id: packageId },
+      include: { packagePricingCategories: true },
+    });
+    if (!pkg) {
+      throw new NotFoundException(`Package with ID ${packageId} not found`);
+    }
+
+    const target = pkg.packagePricingCategories.find((c) => c.id === categoryId);
+    if (!target) {
+      throw new NotFoundException(
+        `Pricing category ${categoryId} not found on package ${packageId}`
+      );
+    }
+
+    if (target.kind === PackagePricingCategoryKind.MEMBER_ONLY) {
+      return this.getPricing(packageId);
+    }
+
+    if (target.kind !== PackagePricingCategoryKind.UP_TO_N) {
+      throw ValidationException.forField(
+        'kind',
+        'Only an Up to N category can be converted to Member only',
+        ErrorCodes.VALIDATION_ERROR
+      );
+    }
+
+    const existingMemberOnly = pkg.packagePricingCategories.find(
+      (c) => c.kind === PackagePricingCategoryKind.MEMBER_ONLY
+    );
+    if (existingMemberOnly) {
+      throw ValidationException.forField(
+        'kind',
+        'A Member only category already exists on this package',
+        ErrorCodes.VALIDATION_ERROR
+      );
+    }
+
+    const keyTaken = pkg.packagePricingCategories.find(
+      (c) => c.key === 'member_only' && c.id !== categoryId
+    );
+    if (keyTaken) {
+      throw ValidationException.forField(
+        'key',
+        'Category key "member_only" is already in use',
+        ErrorCodes.VALIDATION_ERROR
+      );
+    }
+
+    await this.prisma.packagePricingCategory.update({
+      where: { id: categoryId },
+      data: {
+        kind: PackagePricingCategoryKind.MEMBER_ONLY,
+        key: 'member_only',
+        maxMembers: null,
+        displayName: target.displayName.trim() || 'M',
+        updatedBy: userId,
+      },
+    });
+
+    return this.getPricing(packageId);
+  }
+
   async suggestFill(
     packageId: number,
     body: SuggestFillRequestDto

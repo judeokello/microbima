@@ -30,6 +30,7 @@ import {
   type PackagePricingCategory,
   type PackagePricingData,
   createPackagePricingCategory,
+  convertPackagePricingCategoryToMemberOnly,
   getPackagePricing,
   putPackagePricing,
 } from '@/lib/api';
@@ -183,10 +184,13 @@ export default function PackagePricingGrid({
   const [addingPlan, setAddingPlan] = useState(false);
 
   const [addCategoryOpen, setAddCategoryOpen] = useState(false);
-  const [addCategoryKind, setAddCategoryKind] = useState<'UP_TO_N' | 'ADDITIONAL_SPOUSE'>('UP_TO_N');
+  const [addCategoryKind, setAddCategoryKind] = useState<
+    'MEMBER_ONLY' | 'UP_TO_N' | 'ADDITIONAL_SPOUSE'
+  >('UP_TO_N');
   const [categoryDisplay, setCategoryDisplay] = useState('');
   const [maxMembers, setMaxMembers] = useState('5');
   const [addingCategory, setAddingCategory] = useState(false);
+  const [convertingCategoryId, setConvertingCategoryId] = useState<number | null>(null);
 
   useEffect(() => {
     setLocal({
@@ -230,6 +234,7 @@ export default function PackagePricingGrid({
   );
 
   const hasSpouse = local.categories.some((c) => c.kind === 'ADDITIONAL_SPOUSE');
+  const hasMemberOnly = local.categories.some((c) => c.kind === 'MEMBER_ONLY');
   const maximumFamilySize = pricing.maximumFamilySize ?? 8;
 
   const usedUpToNSizes = useMemo(
@@ -514,9 +519,11 @@ export default function PackagePricingGrid({
 
       const display =
         categoryDisplay.trim() ||
-        (addCategoryKind === 'ADDITIONAL_SPOUSE'
-          ? 'Additional spouse'
-          : `Up to ${maxMembers}`);
+        (addCategoryKind === 'MEMBER_ONLY'
+          ? 'M'
+          : addCategoryKind === 'ADDITIONAL_SPOUSE'
+            ? 'Additional spouse'
+            : `Up to ${maxMembers}`);
 
       const body =
         addCategoryKind === 'UP_TO_N'
@@ -525,10 +532,15 @@ export default function PackagePricingGrid({
               display,
               maxMembers: parseInt(maxMembers, 10),
             }
-          : {
-              kind: 'ADDITIONAL_SPOUSE' as const,
-              display,
-            };
+          : addCategoryKind === 'MEMBER_ONLY'
+            ? {
+                kind: 'MEMBER_ONLY' as const,
+                display,
+              }
+            : {
+                kind: 'ADDITIONAL_SPOUSE' as const,
+                display,
+              };
 
       const result = await createPackagePricingCategory(packageId, body);
       setLocal((prev) => ({
@@ -543,6 +555,40 @@ export default function PackagePricingGrid({
       setError(err instanceof Error ? err.message : 'Failed to add category');
     } finally {
       setAddingCategory(false);
+    }
+  };
+
+  const handleConvertToMemberOnly = async (category: PackagePricingCategory) => {
+    if (category.id == null) {
+      setError('This category cannot be converted until it has been saved');
+      return;
+    }
+    if (dirty) {
+      setError('Save or discard unsaved pricing changes before converting a category');
+      return;
+    }
+    const maxLabel = category.maxMembers ?? 'N';
+    const confirmed = window.confirm(
+      `Convert “${category.display}” (Up to ${maxLabel}) into the required Member only band? Existing rates are kept. Households of 2 or more will then use the next Up to N band.`
+    );
+    if (!confirmed) return;
+
+    setConvertingCategoryId(category.id);
+    setError(null);
+    try {
+      const saved = await convertPackagePricingCategoryToMemberOnly(packageId, category.id);
+      setLocal({
+        categories: saved.categories,
+        plans: clonePlans(saved.plans),
+      });
+      setBaselinePlans(clonePlans(saved.plans));
+      setDirty(false);
+      onSaved(saved);
+      onWarning?.(saved.warning ?? null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to convert category');
+    } finally {
+      setConvertingCategoryId(null);
     }
   };
 
@@ -587,6 +633,16 @@ export default function PackagePricingGrid({
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       )}
+      {!readOnly && !hasMemberOnly && (
+        <Alert>
+          <AlertTriangle className="h-4 w-4" />
+          <AlertDescription>
+            Member only is required to complete pricing. Convert an existing Up to
+            N band (if it was meant to be principal-only) or add a Member only
+            category.
+          </AlertDescription>
+        </Alert>
+      )}
 
       <div className="flex flex-wrap gap-2 items-center justify-between">
         <div className="flex flex-wrap gap-2">
@@ -596,6 +652,20 @@ export default function PackagePricingGrid({
                 <Plus className="h-4 w-4 mr-1" />
                 Add plan column
               </Button>
+              {!hasMemberOnly && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setAddCategoryKind('MEMBER_ONLY');
+                    setCategoryDisplay('M');
+                    setAddCategoryOpen(true);
+                  }}
+                >
+                  <Plus className="h-4 w-4 mr-1" />
+                  Add Member only
+                </Button>
+              )}
               <Button
                 variant="outline"
                 size="sm"
@@ -656,6 +726,24 @@ export default function PackagePricingGrid({
                 {category.kind === 'ADDITIONAL_SPOUSE' && 'Additional spouse'}
               </p>
             </div>
+            {!readOnly && !hasMemberOnly && category.kind === 'UP_TO_N' && category.id != null && (
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={convertingCategoryId != null || dirty}
+                title={
+                  dirty
+                    ? 'Save pricing changes before converting this category'
+                    : undefined
+                }
+                onClick={() => handleConvertToMemberOnly(category)}
+              >
+                {convertingCategoryId === category.id && (
+                  <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                )}
+                Convert to Member only
+              </Button>
+            )}
           </div>
 
           <div className="rounded-md border overflow-x-auto">
@@ -823,10 +911,16 @@ export default function PackagePricingGrid({
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              {addCategoryKind === 'UP_TO_N' ? 'Add Up to N category' : 'Add spouse category'}
+              {addCategoryKind === 'MEMBER_ONLY'
+                ? 'Add Member only category'
+                : addCategoryKind === 'UP_TO_N'
+                  ? 'Add Up to N category'
+                  : 'Add spouse category'}
             </DialogTitle>
             <DialogDescription>
-              Optional pricing band for family sizes or additional spouse.
+              {addCategoryKind === 'MEMBER_ONLY'
+                ? 'Required principal-only pricing band. Every package needs exactly one.'
+                : 'Optional pricing band for family sizes or additional spouse.'}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
@@ -853,9 +947,11 @@ export default function PackagePricingGrid({
                 value={categoryDisplay}
                 onChange={(e) => setCategoryDisplay(e.target.value)}
                 placeholder={
-                  addCategoryKind === 'ADDITIONAL_SPOUSE'
-                    ? 'Additional spouse'
-                    : `Up to ${maxMembers}`
+                  addCategoryKind === 'MEMBER_ONLY'
+                    ? 'M'
+                    : addCategoryKind === 'ADDITIONAL_SPOUSE'
+                      ? 'Additional spouse'
+                      : `Up to ${maxMembers}`
                 }
               />
             </div>

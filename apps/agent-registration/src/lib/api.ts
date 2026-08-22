@@ -2351,6 +2351,16 @@ export async function createPackagePricingCategory(
   })
 }
 
+export async function convertPackagePricingCategoryToMemberOnly(
+  packageId: number,
+  categoryId: number
+): Promise<PackagePricingData> {
+  return packagePricingFetch(
+    `/packages/${packageId}/pricing/categories/${categoryId}/convert-to-member-only`,
+    { method: 'POST' }
+  )
+}
+
 // Policy Creation API
 
 export interface CreatePolicyRequest {
