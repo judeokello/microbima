@@ -58,8 +58,16 @@ export function computeMissedInstallments(params: {
   paymentCadenceDays: number;
   installmentAmount: number;
   paidExact: number;
+  expectedInstallmentCount?: number | null;
 }): InstallmentCountDisplay {
-  const { policyStart, asOfUtc, paymentCadenceDays, installmentAmount, paidExact } = params;
+  const {
+    policyStart,
+    asOfUtc,
+    paymentCadenceDays,
+    installmentAmount,
+    paidExact,
+    expectedInstallmentCount,
+  } = params;
   if (
     policyStart == null ||
     paymentCadenceDays <= 0 ||
@@ -72,6 +80,7 @@ export function computeMissedInstallments(params: {
     statementGenerationUtc: asOfUtc,
     paymentCadenceDays,
     installmentAmount,
+    expectedInstallmentCount,
   });
   const missedExact = Math.max(0, periods - paidExact);
   return formatInstallmentCount(missedExact);

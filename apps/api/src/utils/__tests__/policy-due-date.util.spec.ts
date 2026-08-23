@@ -6,9 +6,11 @@ import {
   isPolicyEndDatePassed,
   nextUnpaidExpectedDueDate,
   oneMonthPremiumAmount,
+  outstandingArrears,
   twoWeekUpfrontAmount,
   utcCalendarDaysBetween,
 } from '../policy-due-date.util';
+import { INACTIVE_AFTER_SUSPENDED_DAYS } from '../../constants/policy-lifecycle.constants';
 
 describe('policy-due-date.util', () => {
   describe('ceilCadencePeriods / restore amounts', () => {
@@ -75,6 +77,57 @@ describe('policy-due-date.util', () => {
       expect(isPolicyEndDatePassed(end, new Date(Date.UTC(2026, 5, 1, 10, 15, 0)))).toBe(true);
       expect(isPolicyEndDatePassed(end, new Date(Date.UTC(2026, 4, 31)))).toBe(false);
       expect(utcCalendarDaysBetween(new Date(Date.UTC(2026, 0, 1)), new Date(Date.UTC(2026, 0, 31)))).toBe(30);
+    });
+  });
+
+  describe('outstandingArrears with expectedInstallmentCount', () => {
+    it('caps arrears at money target (no phantom missed after schedule complete)', () => {
+      const start = new Date(Date.UTC(2025, 10, 1));
+      const asOf = new Date(Date.UTC(2026, 7, 23));
+      const phantom = outstandingArrears({
+        policyStart: start,
+        paymentCadenceDays: 1,
+        installmentAmount: 152,
+        paidThroughAsOf: 41952,
+        asOfUtc: asOf,
+      });
+      expect(phantom).toBeGreaterThan(0);
+
+      const capped = outstandingArrears({
+        policyStart: start,
+        paymentCadenceDays: 1,
+        installmentAmount: 152,
+        paidThroughAsOf: 41952,
+        asOfUtc: asOf,
+        expectedInstallmentCount: 276,
+      });
+      expect(capped).toBe(0);
+    });
+
+    it('still reports remaining arrears when under money target past schedule', () => {
+      const start = new Date(Date.UTC(2025, 10, 1));
+      const asOf = new Date(Date.UTC(2026, 7, 23));
+      const arrears = outstandingArrears({
+        policyStart: start,
+        paymentCadenceDays: 1,
+        installmentAmount: 152,
+        paidThroughAsOf: 40000,
+        asOfUtc: asOf,
+        expectedInstallmentCount: 276,
+      });
+      expect(arrears).toBe(1952);
+    });
+  });
+
+  describe('inactive after suspended threshold', () => {
+    it('uses 15 days suspended before auto-inactive (~30 from first overdue)', () => {
+      expect(INACTIVE_AFTER_SUSPENDED_DAYS).toBe(15);
+      const suspendedAt = new Date(Date.UTC(2026, 6, 1));
+      expect(utcCalendarDaysBetween(suspendedAt, new Date(Date.UTC(2026, 6, 15)))).toBe(14);
+      expect(utcCalendarDaysBetween(suspendedAt, new Date(Date.UTC(2026, 6, 16)))).toBe(15);
+      expect(utcCalendarDaysBetween(suspendedAt, new Date(Date.UTC(2026, 6, 16)))).toBeGreaterThanOrEqual(
+        INACTIVE_AFTER_SUSPENDED_DAYS
+      );
     });
   });
 });

@@ -66,12 +66,16 @@ import {
   SUSPEND_TEMPLATE,
 } from '../modules/messaging/policy-lifecycle-messaging.service';
 import { LctSyncService } from '../modules/lct/lct-sync.service';
-import { utcDayStart, utcDayEnd, sumConfirmedPaidThroughAsOf, computeExpectedPremiumThroughAsOf } from '../utils/premium-statement-math';
+import { utcDayStart, utcDayEnd, sumConfirmedPaidThroughAsOf, computeExpectedPremiumThroughAsOf, isPremiumMoneyComplete } from '../utils/premium-statement-math';
 import {
   CONFIRMED_PAYMENT_STATUSES,
   confirmedActivePaymentWhere,
   notDetachedPaymentWhere,
 } from '../utils/policy-payment-filters';
+import {
+  INACTIVE_AFTER_SUSPENDED_DAYS,
+  SUSPEND_OVERDUE_AFTER_DAYS,
+} from '../constants/policy-lifecycle.constants';
 
 /** Well-known actor UUID for SYSTEM / payment-lifecycle automated transitions. */
 export const LIFECYCLE_SYSTEM_ACTOR_ID = '00000000-0000-0000-0000-000000000001';
@@ -89,6 +93,39 @@ export class PolicyLifecycleService {
     private readonly lifecycleMessaging: PolicyLifecycleMessagingService,
     private readonly lctSyncService: LctSyncService
   ) {}
+
+  /**
+   * Persist premiumCompleted when prepaid money target is met.
+   * Returns true when the policy should be treated as premium-complete (skip suspend/inactive).
+   */
+  private async syncPremiumCompletedFlag(params: {
+    policyId: string;
+    premiumCompleted: boolean;
+    paidTotal: number;
+    expectedInstallmentCount: number | null | undefined;
+    installmentAmount: number;
+    asOfUtc: Date;
+  }): Promise<boolean> {
+    if (params.premiumCompleted) {
+      return true;
+    }
+    const complete = isPremiumMoneyComplete({
+      paidTotal: params.paidTotal,
+      expectedInstallmentCount: params.expectedInstallmentCount,
+      installmentAmount: params.installmentAmount,
+    });
+    if (!complete) {
+      return false;
+    }
+    await this.prisma.policy.update({
+      where: { id: params.policyId },
+      data: {
+        premiumCompleted: true,
+        premiumCompletedAt: params.asOfUtc,
+      },
+    });
+    return true;
+  }
 
   assertAdmin(userRoles: string[]): void {
     if (userRoles.includes(ADMIN_ROLE)) return;
@@ -274,6 +311,8 @@ export class PolicyLifecycleService {
         productName: true,
         premium: true,
         paymentCadence: true,
+        expectedInstallmentCount: true,
+        premiumCompleted: true,
         startDate: true,
         endDate: true,
         inGracePeriod: true,
@@ -318,12 +357,30 @@ export class PolicyLifecycleService {
         CONFIRMED_PAYMENT_STATUSES
       );
 
+      if (
+        await this.syncPremiumCompletedFlag({
+          policyId: policy.id,
+          premiumCompleted: policy.premiumCompleted,
+          paidTotal: paidThroughAsOf,
+          expectedInstallmentCount: policy.expectedInstallmentCount,
+          installmentAmount,
+          asOfUtc,
+        })
+      ) {
+        if (policy.inGracePeriod) {
+          await this.clearGraceOverlay(policy, correlationId);
+          graceCleared += 1;
+        }
+        continue;
+      }
+
       const nextDue = nextUnpaidExpectedDueDate({
         policyStart: policy.startDate,
         paymentCadenceDays: policy.paymentCadence,
         installmentAmount,
         paidThroughAsOf,
         asOfUtc,
+        expectedInstallmentCount: policy.expectedInstallmentCount,
       });
       const overdue = daysOverdue({ nextUnpaidDueDate: nextDue, asOfUtc });
       const arrears = outstandingArrears({
@@ -332,6 +389,7 @@ export class PolicyLifecycleService {
         installmentAmount,
         paidThroughAsOf,
         asOfUtc,
+        expectedInstallmentCount: policy.expectedInstallmentCount,
       });
 
       // Fully current or not yet overdue → clear grace if set
@@ -344,7 +402,7 @@ export class PolicyLifecycleService {
       }
 
       // Overdue >14 → leave for suspend evaluation (US3)
-      if (overdue > 14) {
+      if (overdue > SUSPEND_OVERDUE_AFTER_DAYS) {
         continue;
       }
 
@@ -505,6 +563,8 @@ export class PolicyLifecycleService {
         productName: true,
         premium: true,
         paymentCadence: true,
+        expectedInstallmentCount: true,
+        premiumCompleted: true,
         startDate: true,
         endDate: true,
         inGracePeriod: true,
@@ -535,12 +595,27 @@ export class PolicyLifecycleService {
         policy.policyPayments,
         asOfUtc
       );
+
+      if (
+        await this.syncPremiumCompletedFlag({
+          policyId: policy.id,
+          premiumCompleted: policy.premiumCompleted,
+          paidTotal: paidThroughAsOf,
+          expectedInstallmentCount: policy.expectedInstallmentCount,
+          installmentAmount,
+          asOfUtc,
+        })
+      ) {
+        continue;
+      }
+
       const arrears = outstandingArrears({
         policyStart: policy.startDate,
         paymentCadenceDays: policy.paymentCadence,
         installmentAmount,
         paidThroughAsOf,
         asOfUtc,
+        expectedInstallmentCount: policy.expectedInstallmentCount,
       });
       // Never suspend (or SMS) when premium accrued-to-date is fully paid.
       if (arrears <= 0) continue;
@@ -551,9 +626,10 @@ export class PolicyLifecycleService {
         installmentAmount,
         paidThroughAsOf,
         asOfUtc,
+        expectedInstallmentCount: policy.expectedInstallmentCount,
       });
       const overdue = daysOverdue({ nextUnpaidDueDate: nextDue, asOfUtc });
-      if (overdue <= 14) continue;
+      if (overdue <= SUSPEND_OVERDUE_AFTER_DAYS) continue;
 
       await this.prisma.$transaction(async (tx) => {
         if (policy.inGracePeriod) {
@@ -626,7 +702,7 @@ export class PolicyLifecycleService {
   }
 
   /**
-   * Suspended ≥30 days before end → Inactive.
+   * Suspended ≥15 days before end → Inactive (~30 days from first overdue total).
    */
   async evaluateInactiveForSuspendedPolicies(
     asOfUtc: Date = new Date(),
@@ -643,7 +719,20 @@ export class PolicyLifecycleService {
         productName: true,
         endDate: true,
         suspendedAt: true,
+        premium: true,
+        paymentCadence: true,
+        expectedInstallmentCount: true,
+        premiumCompleted: true,
+        startDate: true,
         customer: { select: { firstName: true } },
+        policyPayments: {
+          where: notDetachedPaymentWhere(),
+          select: {
+            amount: true,
+            paymentStatus: true,
+            expectedPaymentDate: true,
+          },
+        },
       },
     });
 
@@ -654,8 +743,31 @@ export class PolicyLifecycleService {
       if (!policy.suspendedAt) continue;
       if (isPolicyEndDatePassed(policy.endDate, asOfUtc)) continue;
 
+      const installmentAmount = Number(policy.premium);
+      if (policy.startDate && policy.paymentCadence > 0 && installmentAmount > 0) {
+        const paidThroughAsOf = this.paidThroughAsOf(
+          policy.startDate,
+          policy.policyPayments,
+          asOfUtc
+        );
+        if (
+          await this.syncPremiumCompletedFlag({
+            policyId: policy.id,
+            premiumCompleted: policy.premiumCompleted,
+            paidTotal: paidThroughAsOf,
+            expectedInstallmentCount: policy.expectedInstallmentCount,
+            installmentAmount,
+            asOfUtc,
+          })
+        ) {
+          continue;
+        }
+      } else if (policy.premiumCompleted) {
+        continue;
+      }
+
       const daysSuspended = utcCalendarDaysBetween(policy.suspendedAt, asOfUtc);
-      if (daysSuspended < 30) continue;
+      if (daysSuspended < INACTIVE_AFTER_SUSPENDED_DAYS) continue;
 
       await this.prisma.$transaction(async (tx) => {
         await this.statusChangeService.recordPolicyChange({
@@ -1069,12 +1181,21 @@ export class PolicyLifecycleService {
       policy.policyPayments,
       asOfUtc
     );
+    await this.syncPremiumCompletedFlag({
+      policyId: policy.id,
+      premiumCompleted: policy.premiumCompleted,
+      paidTotal: paidThroughAsOf,
+      expectedInstallmentCount: policy.expectedInstallmentCount,
+      installmentAmount,
+      asOfUtc,
+    });
     const arrears = outstandingArrears({
       policyStart: policy.startDate,
       paymentCadenceDays: policy.paymentCadence,
       installmentAmount,
       paidThroughAsOf,
       asOfUtc,
+      expectedInstallmentCount: policy.expectedInstallmentCount,
     });
     const endPassed = isPolicyEndDatePassed(policy.endDate, asOfUtc);
 
@@ -1127,6 +1248,7 @@ export class PolicyLifecycleService {
         statementGenerationUtc: asOfUtc,
         paymentCadenceDays: policy.paymentCadence,
         installmentAmount,
+        expectedInstallmentCount: policy.expectedInstallmentCount,
       });
       const coverageNeeded = expectedPremium + twoWeek;
       const canRestore = paidThroughAsOf >= coverageNeeded;
@@ -1183,6 +1305,7 @@ export class PolicyLifecycleService {
         statementGenerationUtc: asOfUtc,
         paymentCadenceDays: policy.paymentCadence,
         installmentAmount,
+        expectedInstallmentCount: policy.expectedInstallmentCount,
       });
       const oneMonth = amountRequiredToRestoreInactive({
         paymentCadenceDays: policy.paymentCadence,
@@ -1287,6 +1410,7 @@ export class PolicyLifecycleService {
       installmentAmount,
       paidThroughAsOf,
       asOfUtc,
+      expectedInstallmentCount: policy.expectedInstallmentCount,
     });
     const nextDue = nextUnpaidExpectedDueDate({
       policyStart: policy.startDate,
@@ -1294,6 +1418,7 @@ export class PolicyLifecycleService {
       installmentAmount,
       paidThroughAsOf,
       asOfUtc,
+      expectedInstallmentCount: policy.expectedInstallmentCount,
     });
     const overdue = daysOverdue({ nextUnpaidDueDate: nextDue, asOfUtc });
 
@@ -1406,6 +1531,7 @@ export class PolicyLifecycleService {
       installmentAmount,
       paidThroughAsOf: paidWithoutLast,
       asOfUtc,
+      expectedInstallmentCount: policy.expectedInstallmentCount,
     });
     return Math.max(0, lastAmt - arrearsWithoutLast);
   }
@@ -1880,6 +2006,7 @@ export class PolicyLifecycleService {
       installmentAmount,
       paidThroughAsOf,
       asOfUtc,
+      expectedInstallmentCount: source.expectedInstallmentCount,
     });
     const twoWeek = amountRequiredToRestoreSuspended({
       paymentCadenceDays: source.paymentCadence,
@@ -1891,6 +2018,7 @@ export class PolicyLifecycleService {
       statementGenerationUtc: asOfUtc,
       paymentCadenceDays: source.paymentCadence,
       installmentAmount,
+      expectedInstallmentCount: source.expectedInstallmentCount,
     });
     if (paidThroughAsOf < expectedPremium + twoWeek) {
       const required = amountRequiredToRestoreSuspended({

@@ -4,7 +4,9 @@ import {
   computeExpectedPremiumThroughAsOf,
   computeMissedOrExcess,
   computePremiumDueAndExcess,
+  computePremiumMoneyTarget,
   formatMissedPaymentsAmountSide,
+  isPremiumMoneyComplete,
   isUtcCalendarDayBefore,
   parseYmdToUtcEnd,
   parseYmdToUtcStart,
@@ -86,6 +88,73 @@ describe('premium-statement-math', () => {
       });
       expect(periods).toBe(2);
       expect(expectedPremium).toBe(400);
+    });
+
+    it('caps periods at expectedInstallmentCount so calendar days past schedule do not invent debt', () => {
+      // Nathaniel-style: daily 152, eic 276 → money target 41952; far past nominal end
+      const policyStart = new Date(Date.UTC(2025, 10, 1, 0, 0, 0)); // 2025-11-01
+      const asOfFarPast = new Date(Date.UTC(2026, 7, 23, 12, 0, 0)); // ~295 days later
+      const uncapped = computeExpectedPremiumThroughAsOf({
+        policyStart,
+        statementGenerationUtc: asOfFarPast,
+        paymentCadenceDays: 1,
+        installmentAmount: 152,
+      });
+      expect(uncapped.periods).toBeGreaterThan(276);
+      expect(uncapped.expectedPremium).toBeGreaterThan(41952);
+
+      const capped = computeExpectedPremiumThroughAsOf({
+        policyStart,
+        statementGenerationUtc: asOfFarPast,
+        paymentCadenceDays: 1,
+        installmentAmount: 152,
+        expectedInstallmentCount: 276,
+      });
+      expect(capped.periods).toBe(276);
+      expect(capped.expectedPremium).toBe(41952);
+    });
+
+    it('does not raise periods when calendar periods are below eic', () => {
+      const policyStart = new Date(Date.UTC(2025, 0, 1, 0, 0, 0));
+      const asOf = new Date(Date.UTC(2025, 0, 10, 12, 0, 0));
+      const { periods, expectedPremium } = computeExpectedPremiumThroughAsOf({
+        policyStart,
+        statementGenerationUtc: asOf,
+        paymentCadenceDays: 1,
+        installmentAmount: 100,
+        expectedInstallmentCount: 276,
+      });
+      expect(periods).toBe(10);
+      expect(expectedPremium).toBe(1000);
+    });
+  });
+
+  describe('computePremiumMoneyTarget / isPremiumMoneyComplete', () => {
+    it('returns eic × premium for prepaid targets', () => {
+      expect(computePremiumMoneyTarget(276, 152)).toBe(41952);
+    });
+
+    it('returns null when eic or premium cannot form a target', () => {
+      expect(computePremiumMoneyTarget(null, 152)).toBeNull();
+      expect(computePremiumMoneyTarget(276, 0)).toBeNull();
+      expect(computePremiumMoneyTarget(0, 152)).toBeNull();
+    });
+
+    it('is complete when paid covers money target (Nathaniel paid in full)', () => {
+      expect(
+        isPremiumMoneyComplete({
+          paidTotal: 41952,
+          expectedInstallmentCount: 276,
+          installmentAmount: 152,
+        })
+      ).toBe(true);
+      expect(
+        isPremiumMoneyComplete({
+          paidTotal: 41951,
+          expectedInstallmentCount: 276,
+          installmentAmount: 152,
+        })
+      ).toBe(false);
     });
   });
 
@@ -180,6 +249,38 @@ describe('premium-statement-math', () => {
           confirmedStatuses: CONFIRMED,
         })
       ).toBeNull();
+    });
+
+    it('shows zero missed when paid equals money target even far past schedule', () => {
+      const start = new Date(Date.UTC(2025, 10, 1, 0, 0, 0));
+      const asOf = new Date(Date.UTC(2026, 7, 23, 12, 0, 0));
+      const payments = [
+        {
+          amount: 41952,
+          paymentStatus: PaymentStatus.COMPLETED,
+          expectedPaymentDate: utcDayStart(2025, 10, 1),
+        },
+      ];
+      const withoutCap = computeMissedOrExcess({
+        policyStart: start,
+        asOfUtc: asOf,
+        paymentCadenceDays: 1,
+        installmentAmount: 152,
+        payments,
+        confirmedStatuses: CONFIRMED,
+      });
+      expect(withoutCap!.premiumDue).toBeGreaterThan(0);
+
+      const withCap = computeMissedOrExcess({
+        policyStart: start,
+        asOfUtc: asOf,
+        paymentCadenceDays: 1,
+        installmentAmount: 152,
+        payments,
+        confirmedStatuses: CONFIRMED,
+        expectedInstallmentCount: 276,
+      });
+      expect(withCap).toEqual({ premiumDue: 0, excessAmount: 0 });
     });
   });
 

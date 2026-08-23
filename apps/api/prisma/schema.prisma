@@ -339,6 +339,9 @@ model Policy {
   expectedInstallmentCount Int?
   /// Nominal last installment date (set at activation); capped by endDate
   nominalPaymentPeriodEndDate DateTime?
+  /// True when confirmed paid >= expectedInstallmentCount × premium (prepaid money target)
+  premiumCompleted   Boolean   @default(false)
+  premiumCompletedAt DateTime?
 
   /// Denormalized; source of truth is EntityStatusChange
   deactivatedAt DateTime?
@@ -348,7 +351,7 @@ model Policy {
   graceEnteredAt       DateTime?
   /// Anchor: next unpaid expected due date that opened this overdue episode
   overdueAnchorDueDate DateTime?
-  /// When status became SUSPENDED (for >30 day → INACTIVE clock before end)
+  /// When status became SUSPENDED (for ≥15 day → INACTIVE clock before end)
   suspendedAt          DateTime?
   /// When status became INACTIVE
   inactivatedAt        DateTime?

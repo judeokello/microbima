@@ -2839,6 +2839,7 @@ export class CustomerService {
         paymentCadenceDays: p.paymentCadence,
         installmentAmount: premiumNum,
         paidExact: paid.exact,
+        expectedInstallmentCount: p.expectedInstallmentCount,
       });
 
       list.push({
@@ -2959,6 +2960,7 @@ export class CustomerService {
       paymentCadenceDays: policy.paymentCadence,
       installmentAmount: premiumNum,
       paidExact: paid.exact,
+      expectedInstallmentCount: policy.expectedInstallmentCount,
     });
 
     const missedPaymentsAmount = this.buildMissedPaymentsAmount(
@@ -3107,6 +3109,7 @@ export class CustomerService {
       startDate: Date | null;
       premium: Prisma.Decimal;
       paymentCadence: number;
+      expectedInstallmentCount?: number | null;
       policyPayments: Array<{
         expectedPaymentDate: Date;
         amount: Prisma.Decimal;
@@ -3142,6 +3145,7 @@ export class CustomerService {
       installmentAmount: premiumNum,
       payments,
       confirmedStatuses,
+      expectedInstallmentCount: policy.expectedInstallmentCount,
     });
     const allTime = formatMissedPaymentsAmountSide(allTimeResult);
 
@@ -3156,6 +3160,7 @@ export class CustomerService {
           installmentAmount: premiumNum,
           payments,
           confirmedStatuses,
+          expectedInstallmentCount: policy.expectedInstallmentCount,
         });
         filtered = formatMissedPaymentsAmountSide(filteredResult);
       }

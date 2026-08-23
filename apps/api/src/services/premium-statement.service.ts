@@ -199,6 +199,7 @@ export class PremiumStatementService {
       statementGenerationUtc: generatedAt,
       paymentCadenceDays: cadence,
       installmentAmount: premiumNum,
+      expectedInstallmentCount: policy.expectedInstallmentCount,
     });
 
     const ps = policy.startDate;

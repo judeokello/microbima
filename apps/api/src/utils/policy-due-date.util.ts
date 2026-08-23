@@ -54,6 +54,7 @@ export function nextUnpaidExpectedDueDate(params: {
   installmentAmount: number;
   paidThroughAsOf: number;
   asOfUtc?: Date;
+  expectedInstallmentCount?: number | null;
 }): Date {
   const asOf = params.asOfUtc ?? new Date();
   const start = utcDayStart(
@@ -66,6 +67,7 @@ export function nextUnpaidExpectedDueDate(params: {
     statementGenerationUtc: asOf,
     paymentCadenceDays: params.paymentCadenceDays,
     installmentAmount: params.installmentAmount,
+    expectedInstallmentCount: params.expectedInstallmentCount,
   });
 
   const { premiumDue } = computePremiumDueAndExcess(expectedPremium, params.paidThroughAsOf);
@@ -99,6 +101,7 @@ export function outstandingArrears(params: {
   installmentAmount: number;
   paidThroughAsOf: number;
   asOfUtc?: Date;
+  expectedInstallmentCount?: number | null;
 }): number {
   const asOf = params.asOfUtc ?? new Date();
   const { expectedPremium } = computeExpectedPremiumThroughAsOf({
@@ -106,6 +109,7 @@ export function outstandingArrears(params: {
     statementGenerationUtc: asOf,
     paymentCadenceDays: params.paymentCadenceDays,
     installmentAmount: params.installmentAmount,
+    expectedInstallmentCount: params.expectedInstallmentCount,
   });
   return computePremiumDueAndExcess(expectedPremium, params.paidThroughAsOf).premiumDue;
 }

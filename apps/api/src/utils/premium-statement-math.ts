@@ -29,14 +29,51 @@ export function parseYmdToUtcEnd(yyyyMmDd: string): Date {
 }
 
 /**
- * Expected premium through statement as-of (generation calendar day end UTC), per research:
+ * Prepaid term money target = expectedInstallmentCount × installment.
+ * Returns null when eic/premium cannot form a target (e.g. postpaid premium 0).
+ */
+export function computePremiumMoneyTarget(
+  expectedInstallmentCount: number | null | undefined,
+  installmentAmount: number
+): number | null {
+  if (
+    expectedInstallmentCount == null ||
+    expectedInstallmentCount <= 0 ||
+    !Number.isFinite(installmentAmount) ||
+    installmentAmount <= 0
+  ) {
+    return null;
+  }
+  return expectedInstallmentCount * installmentAmount;
+}
+
+/** True when confirmed paid covers the prepaid money target. */
+export function isPremiumMoneyComplete(params: {
+  paidTotal: number;
+  expectedInstallmentCount: number | null | undefined;
+  installmentAmount: number;
+}): boolean {
+  const target = computePremiumMoneyTarget(
+    params.expectedInstallmentCount,
+    params.installmentAmount
+  );
+  if (target == null) return false;
+  return params.paidTotal + 1e-9 >= target;
+}
+
+/**
+ * Expected premium through statement as-of (generation calendar day end UTC):
  * periods = floor(inclusiveDays / paymentCadenceDays), expected = periods × installmentAmount.
+ * When expectedInstallmentCount is set, periods (and thus expected) are capped so calendar
+ * days past the schedule cannot invent debt beyond the prepaid money target.
+ * Payments may still arrive before or after nominalPaymentPeriodEndDate.
  */
 export function computeExpectedPremiumThroughAsOf(params: {
   policyStart: Date;
   statementGenerationUtc: Date;
   paymentCadenceDays: number;
   installmentAmount: number;
+  expectedInstallmentCount?: number | null;
 }): { inclusiveDays: number; periods: number; expectedPremium: number } {
   const policyStartStart = utcDayStart(
     params.policyStart.getUTCFullYear(),
@@ -49,7 +86,14 @@ export function computeExpectedPremiumThroughAsOf(params: {
     params.statementGenerationUtc.getUTCDate()
   );
   const inclusiveDays = Math.max(0, utcInclusiveCalendarDays(policyStartStart, asOfEnd));
-  const periods = Math.floor(inclusiveDays / params.paymentCadenceDays);
+  let periods = Math.floor(inclusiveDays / params.paymentCadenceDays);
+  if (
+    params.expectedInstallmentCount != null &&
+    params.expectedInstallmentCount > 0 &&
+    periods > params.expectedInstallmentCount
+  ) {
+    periods = params.expectedInstallmentCount;
+  }
   const expectedPremium = periods * params.installmentAmount;
   return { inclusiveDays, periods, expectedPremium };
 }
@@ -94,6 +138,7 @@ export function computeMissedOrExcess(params: {
   installmentAmount: number;
   payments: Array<{ amount: unknown; paymentStatus: string; expectedPaymentDate: Date }>;
   confirmedStatuses: readonly string[];
+  expectedInstallmentCount?: number | null;
 }): { premiumDue: number; excessAmount: number } | null {
   if (params.paymentCadenceDays <= 0 || params.installmentAmount <= 0) {
     return null;
@@ -113,6 +158,7 @@ export function computeMissedOrExcess(params: {
     statementGenerationUtc: params.asOfUtc,
     paymentCadenceDays: params.paymentCadenceDays,
     installmentAmount: params.installmentAmount,
+    expectedInstallmentCount: params.expectedInstallmentCount,
   });
   const paidThroughAsOf = sumConfirmedPaidThroughAsOf(
     params.payments,
