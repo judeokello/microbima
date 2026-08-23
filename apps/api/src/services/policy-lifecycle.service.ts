@@ -1367,6 +1367,7 @@ export class PolicyLifecycleService {
         productName: true,
         premium: true,
         paymentCadence: true,
+        expectedInstallmentCount: true,
         startDate: true,
         endDate: true,
         status: true,
@@ -1508,6 +1509,7 @@ export class PolicyLifecycleService {
     policy: {
       startDate: Date | null;
       paymentCadence: number;
+      expectedInstallmentCount?: number | null;
       policyPayments: Array<{
         amount: unknown;
         paymentStatus: string;
