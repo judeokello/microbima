@@ -6,6 +6,7 @@ import { Pencil } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { getCustomerStatusDisplay } from '@/lib/customer-display';
+import { ViewIdNumber } from '@/components/view-id-number/view-id-number';
 import EditCustomerDialog from './edit-customer-dialog';
 
 interface CustomerInfoSectionProps {
@@ -115,7 +116,13 @@ export default function CustomerInfoSection({ customer, canEdit, onUpdate }: Cus
             </div>
             <div>
               <label className="text-sm font-medium text-gray-500">ID Number</label>
-              <p className="text-gray-900">{customer.idNumber}</p>
+              <div className="text-gray-900">
+                <ViewIdNumber
+                  customerId={customer.id}
+                  entityKind="CUSTOMER"
+                  maskedValue={customer.idNumber}
+                />
+              </div>
             </div>
             <div>
               <label className="text-sm font-medium text-gray-500">Member Number</label>

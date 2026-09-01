@@ -21,6 +21,7 @@ import { policyDatesFromPayment, policyEndDateFromStart } from '../utils/policy-
 import { resolvePostpaidMemberPolicyDates } from '../utils/postpaid-scheme-dates.util';
 import { assertPolicyMayBecomeActive } from '../utils/policy-activation-gate.util';
 import { hasGlobalCustomerAccess } from '../utils/roles.util';
+import { maskIdNumberOrEmpty } from '../utils/id-number-masking';
 import { notDetachedPaymentWhere } from '../utils/policy-payment-filters';
 import { computeNominalPaymentPeriodEndDate } from '../utils/package-payment-frequency.util';
 import { ValidationException } from '../exceptions/validation.exception';
@@ -1870,7 +1871,7 @@ export class PolicyService {
       customersWithoutPolicy.push({
         id: customer.id,
         fullName,
-        idNumber: customer.idNumber ?? '',
+        idNumber: maskIdNumberOrEmpty(customer.idNumber),
         packageId: psc.packageScheme.package.id,
         packageName: psc.packageScheme.package.name,
         payments: customerPayments,
@@ -1987,7 +1988,7 @@ export class PolicyService {
       result.push({
         id: customer.id,
         fullName,
-        idNumber: customer.idNumber ?? '',
+        idNumber: maskIdNumberOrEmpty(customer.idNumber),
         packageId: psc.packageScheme.package.id,
         packageName: psc.packageScheme.package.name,
         payments: [],
@@ -2278,7 +2279,7 @@ export class PolicyService {
           customerId: customer.id,
           fullName,
           phoneNumber: customer.phoneNumber,
-          idNumber: customer.idNumber,
+          idNumber: maskIdNumberOrEmpty(customer.idNumber),
           dependantCount,
           policyId: null,
           policyNumber: null,
@@ -2308,7 +2309,7 @@ export class PolicyService {
           customerId: customer.id,
           fullName,
           phoneNumber: customer.phoneNumber,
-          idNumber: customer.idNumber,
+          idNumber: maskIdNumberOrEmpty(customer.idNumber),
           dependantCount,
           policyId: policy.id,
           policyNumber: policy.policyNumber ?? null,

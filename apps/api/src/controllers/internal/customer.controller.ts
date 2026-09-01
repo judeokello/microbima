@@ -65,6 +65,11 @@ import { AdminOnly } from '../../decorators/ba-auth.decorator';
 import { Request, Response } from 'express';
 import { ApiResponseDto } from '../../dto/common/api-response.dto';
 import { SchemeDetailResponseDto } from '../../dto/schemes/scheme.dto';
+import { IdNumberRevealService } from '../../services/id-number-reveal.service';
+import {
+  RevealIdNumberRequestDto,
+  RevealIdNumberResponseDto,
+} from '../../dto/customers/reveal-id-number.dto';
 
 /**
  * Internal Customer Controller
@@ -87,6 +92,7 @@ export class InternalCustomerController {
     private readonly customerService: CustomerService,
     private readonly partnerManagementService: PartnerManagementService,
     private readonly prismaService: PrismaService,
+    private readonly idNumberRevealService: IdNumberRevealService,
   ) {}
 
   /**
@@ -672,6 +678,54 @@ export class InternalCustomerController {
     const userId = req.user?.id ?? 'system';
     const userRoles = req.user?.roles ?? [];
     return this.customerService.getCustomerDetails(customerId, userId, userRoles, correlationId);
+  }
+
+  /**
+   * Reveal a full ID number for a customer or family member (30s client display).
+   */
+  @Post(':customerId/id-number/reveal')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Reveal ID number (Internal)',
+    description:
+      'Returns the full ID number for the principal customer or a family member. List and detail APIs return masked values; call this only when a user clicks View ID.',
+  })
+  @ApiParam({
+    name: 'customerId',
+    description: 'Customer ID',
+    example: '123e4567-e89b-12d3-a456-426614174000',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'ID number retrieved successfully',
+    type: RevealIdNumberResponseDto,
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Customer, family member, or ID number not found',
+  })
+  async revealIdNumber(
+    @Param('customerId') customerId: string,
+    @Body() body: RevealIdNumberRequestDto,
+    @CorrelationId() correlationId: string,
+    @Req() req: Request,
+  ): Promise<RevealIdNumberResponseDto> {
+    const userId = req.user?.id ?? 'system';
+    const userRoles = req.user?.roles ?? [];
+    const data = await this.idNumberRevealService.reveal({
+      customerId,
+      entityKind: body.entityKind,
+      entityId: body.entityId,
+      userId,
+      userRoles,
+      correlationId,
+    });
+    return {
+      status: HttpStatus.OK,
+      correlationId,
+      message: 'ID number retrieved successfully',
+      data,
+    };
   }
 
   /**

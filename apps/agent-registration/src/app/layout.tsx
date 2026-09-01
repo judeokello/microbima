@@ -8,6 +8,7 @@ import { EnvironmentIndicator } from "@/components/environment-indicator";
 import { APP_CONFIG } from "@/config/app-config";
 import { getPreference } from "@/server/server-actions";
 import { PreferencesStoreProvider } from "@/stores/preferences/preferences-provider";
+import { RevealIdProvider } from "@/components/view-id-number/reveal-id-provider";
 import { THEME_MODE_VALUES, THEME_PRESET_VALUES, type ThemePreset, type ThemeMode } from "@/types/preferences/theme";
 
 import "./globals.css";
@@ -32,9 +33,11 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
     >
       <body className={`${inter.className} min-h-screen antialiased`}>
         <PreferencesStoreProvider themeMode={themeMode} themePreset={themePreset}>
-          <EnvironmentIndicator />
-          {children}
-          <Toaster />
+          <RevealIdProvider>
+            <EnvironmentIndicator />
+            {children}
+            <Toaster />
+          </RevealIdProvider>
         </PreferencesStoreProvider>
       </body>
     </html>

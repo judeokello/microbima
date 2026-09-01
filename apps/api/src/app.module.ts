@@ -69,6 +69,7 @@ import { LctStorageService } from './modules/lct/lct-storage.service';
 import { InternalLctExportsController } from './controllers/internal/lct-exports.controller';
 import { HealthcareProvidersController } from './controllers/internal/healthcare-providers.controller';
 import { HealthcareProviderService } from './services/healthcare-provider.service';
+import { IdNumberRevealService } from './services/id-number-reveal.service';
 
 @Module({
   imports: [
@@ -89,7 +90,7 @@ import { HealthcareProviderService } from './services/healthcare-provider.servic
     CustomerPortalModule,
   ],
   controllers: [AppController, CustomerController, InternalCustomerController, InternalPartnerManagementController, PublicPartnerManagementController, SupabaseTestController, ConnectionMonitorController, SosController, AgentRegistrationController, BootstrapController, ProductManagementController, PolicyController, PolicyLifecycleController, PolicyLifecycleOpsController, UnderwriterController, UserController, MpesaPaymentsController, MpesaIpnController, MpesaStkPushController, MpesaStkPushPublicController, RecoveryController, TestCustomersController, InternalLctExportsController, HealthcareProvidersController],
-  providers: [AppService, ExternalIntegrationsService, CustomerService, PartnerManagementService, SupabaseService, SosService, AgentRegistrationService, MissingRequirementService, ProductManagementService, PackagePricingService, PolicyService, PolicyLifecycleService, PolicyLifecycleJobService, EntityStatusChangeService, UnderwriterService, MpesaPaymentsService, PaymentAccountNumberService, SchemeContactService, PostpaidSchemePaymentService, MpesaIpnService, MpesaStkPushService, MpesaDarajaApiService, MpesaErrorMapperService, TestCustomersService, BootstrapUserService, IpWhitelistGuard, RootOnlyGuard, BAAuthorizationGuard, PaymentStatusGateway, PremiumStatementService, LctSyncService, LctExportService, LctStorageService, HealthcareProviderService],
+  providers: [AppService, ExternalIntegrationsService, CustomerService, PartnerManagementService, SupabaseService, SosService, AgentRegistrationService, MissingRequirementService, ProductManagementService, PackagePricingService, PolicyService, PolicyLifecycleService, PolicyLifecycleJobService, EntityStatusChangeService, UnderwriterService, MpesaPaymentsService, PaymentAccountNumberService, SchemeContactService, PostpaidSchemePaymentService, MpesaIpnService, MpesaStkPushService, MpesaDarajaApiService, MpesaErrorMapperService, TestCustomersService, BootstrapUserService, IpWhitelistGuard, RootOnlyGuard, BAAuthorizationGuard, PaymentStatusGateway, PremiumStatementService, LctSyncService, LctExportService, LctStorageService, HealthcareProviderService, IdNumberRevealService],
   exports: [PrismaModule], // Export PrismaModule so middleware can access PrismaService
 })
 export class AppModule implements NestModule {

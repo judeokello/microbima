@@ -17,6 +17,7 @@ import {
 import EditBeneficiaryDialog from './edit-beneficiary-dialog';
 import AddBeneficiaryDialog from './add-beneficiary-dialog';
 import { deleteBeneficiary } from '@/lib/api';
+import { ViewIdNumber } from '@/components/view-id-number/view-id-number';
 
 interface NextOfKinSectionProps {
   beneficiaries: Array<{
@@ -198,7 +199,14 @@ export default function NextOfKinSection({ beneficiaries, canEdit, canAdd, onUpd
                     </div>
                     <div>
                       <label className="text-sm font-medium text-gray-500">ID Number</label>
-                      <p className="text-gray-900">{beneficiary.idNumber}</p>
+                      <div className="text-gray-900">
+                        <ViewIdNumber
+                          customerId={customerId}
+                          entityKind="BENEFICIARY"
+                          entityId={beneficiary.id}
+                          maskedValue={beneficiary.idNumber}
+                        />
+                      </div>
                     </div>
                     {isDeleted && beneficiary.deletedByDisplayName && beneficiary.deletedAt && (
                       <div className="col-span-full mt-2 text-sm text-gray-500">

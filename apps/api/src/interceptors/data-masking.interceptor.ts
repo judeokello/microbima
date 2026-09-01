@@ -7,6 +7,7 @@ import {
 import { Observable } from 'rxjs';
 import { map } from 'rxjs/operators';
 import * as Sentry from '@sentry/nestjs';
+import { maskIdNumberForDisplay } from '../utils/id-number-masking';
 
 export interface BAUser {
   id: string;
@@ -124,9 +125,9 @@ export class DataMaskingInterceptor implements NestInterceptor {
         ? this.maskEmail(customerObj.email)
         : customerObj.email,
 
-      // Mask ID number (show last 4 digits)
+      // Mask ID number (first 2 + last 2); skip if already masked
       idNumber: customerObj.idNumber && typeof customerObj.idNumber === 'string'
-        ? this.maskIdNumber(customerObj.idNumber)
+        ? (maskIdNumberForDisplay(customerObj.idNumber) ?? customerObj.idNumber)
         : customerObj.idNumber,
 
       // Keep other fields as-is (firstName, lastName, etc. are needed for BA operations)
@@ -160,17 +161,5 @@ export class DataMaskingInterceptor implements NestInterceptor {
 
     const maskedLocal = localPart.substring(0, 2) + '*'.repeat(localPart.length - 2);
     return `${maskedLocal}@${domain}`;
-  }
-
-  /**
-   * Mask ID number - show last 4 digits
-   */
-  private maskIdNumber(idNumber: string): string {
-    if (!idNumber || idNumber.length <= 4) {
-      return idNumber;
-    }
-
-    const masked = '*'.repeat(idNumber.length - 4);
-    return masked + idNumber.slice(-4);
   }
 }

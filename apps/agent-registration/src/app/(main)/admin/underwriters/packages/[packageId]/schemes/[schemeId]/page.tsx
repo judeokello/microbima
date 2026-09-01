@@ -15,6 +15,7 @@ import * as Sentry from '@sentry/nextjs';
 import { formatDate } from '@/lib/utils';
 import { getCustomerStatusDisplay } from '@/lib/customer-display';
 import { getPolicyStatusDisplay } from '@/lib/policy-display';
+import { ViewIdNumber } from '@/components/view-id-number/view-id-number';
 import { formatTransactionReferenceForDisplay } from '@/lib/transaction-reference-display';
 import { TruncatedDescription } from '../../../../[underwriterId]/_components/truncated-description';
 import { validatePhoneNumber } from '@/lib/phone-validation';
@@ -1096,7 +1097,11 @@ export default function SchemeDetailPage() {
                           {renderStatusBadge(customer.customerStatus, 'customer')}
                         </TableCell>
                         <TableCell>
-                          {customer.idNumber}
+                          <ViewIdNumber
+                            customerId={customer.id}
+                            entityKind="CUSTOMER"
+                            maskedValue={customer.idNumber}
+                          />
                         </TableCell>
                         <TableCell>
                           {getMissingDataIcon(customer.hasMissingRequirements)}

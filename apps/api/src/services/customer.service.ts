@@ -85,6 +85,7 @@ import { SupabaseService } from './supabase.service';
 import { PaymentAccountNumberService } from './payment-account-number.service';
 import { assertKenyanPhoneForOndemandStk, normalizePhoneNumber } from '../utils/phone-number.util';
 import { hasGlobalCustomerAccess } from '../utils/roles.util';
+import { maskIdNumberForDisplay, maskIdNumberOrEmpty } from '../utils/id-number-masking';
 import { policyHasMemberCards } from '../utils/member-cards.util';
 import {
   buildSyntheticCustomerEmail,
@@ -1619,7 +1620,7 @@ export class CustomerService {
         gender: customer.gender?.toLowerCase() ?? 'unknown',
         createdAt: customer.createdAt.toISOString(),
         idType: customer.idType,
-        idNumber: customer.idNumber, // Unmasked
+        idNumber: maskIdNumberOrEmpty(customer.idNumber),
         hasMissingRequirements: customer.hasMissingRequirements,
       }));
 
@@ -2057,7 +2058,7 @@ export class CustomerService {
 
       const baMap = new Map(brandAmbassadors.map(ba => [ba.userId, ba.displayName]));
 
-      // Transform data for admin view (unmasked)
+      // Transform data for admin view (ID numbers masked; CSV export stays full)
       const transformedCustomers = customers.map(customer => ({
         id: customer.id,
         fullName: this.formatFullName(customer.firstName, customer.middleName, customer.lastName),
@@ -2066,7 +2067,7 @@ export class CustomerService {
         createdAt: customer.createdAt.toISOString(),
         registeredBy: customer.createdBy ? (baMap.get(customer.createdBy) ?? 'Unknown') : 'Unknown',
         idType: customer.idType,
-        idNumber: customer.idNumber,
+        idNumber: maskIdNumberOrEmpty(customer.idNumber),
         hasMissingRequirements: customer.hasMissingRequirements,
       }));
 
@@ -2314,7 +2315,7 @@ export class CustomerService {
           id: customer.id,
           fullName: this.formatFullName(customer.firstName, customer.middleName, customer.lastName),
           idType: customer.idType,
-          idNumber: customer.idNumber,
+          idNumber: maskIdNumberOrEmpty(customer.idNumber),
           phoneNumber: customer.phoneNumber,
           email: customer.email ?? undefined,
           numberOfSpouses,
@@ -2612,7 +2613,7 @@ export class CustomerService {
         phoneNumber: b.phoneNumber ?? undefined,
         gender: b.gender ? SharedMapperUtils.mapGenderToDto(b.gender) : undefined,
         idType: SharedMapperUtils.mapIdTypeToDto(b.idType),
-        idNumber: b.idNumber ?? undefined,
+        idNumber: maskIdNumberForDisplay(b.idNumber) ?? undefined,
         deletedAt: b.deletedAt?.toISOString() ?? null,
         deletedBy: b.deletedBy ?? null,
         deletedByDisplayName: b.deletedBy ? deletedByDisplayNames.get(b.deletedBy) ?? null : null,
@@ -2630,7 +2631,7 @@ export class CustomerService {
           phoneNumber: d.phoneNumber ?? undefined,
           gender: d.gender ? SharedMapperUtils.mapGenderToDto(d.gender) : undefined,
           idType: d.idType ? SharedMapperUtils.mapIdTypeToDto(d.idType) : undefined,
-          idNumber: d.idNumber ?? undefined,
+          idNumber: maskIdNumberForDisplay(d.idNumber) ?? undefined,
           relationship: d.relationship,
           verificationRequired: d.verificationRequired ?? false,
           memberNumber: memberDependant?.memberNumber ?? null,
@@ -2650,7 +2651,7 @@ export class CustomerService {
         dateOfBirth: p.dateOfBirth ? p.dateOfBirth.toISOString().split('T')[0] : undefined,
         gender: p.gender ? SharedMapperUtils.mapGenderToDto(p.gender) : undefined,
         idType: p.idType ? SharedMapperUtils.mapIdTypeToDto(p.idType) : undefined,
-        idNumber: p.idNumber ?? undefined,
+        idNumber: maskIdNumberForDisplay(p.idNumber) ?? undefined,
         relationship: p.relationship,
         deletedAt: p.deletedAt?.toISOString() ?? null,
         deletedBy: p.deletedBy ?? null,
@@ -2676,6 +2677,7 @@ export class CustomerService {
         customer: {
           ...customerDto,
           id: customer.id,
+          idNumber: maskIdNumberOrEmpty(customer.idNumber),
           createdAt: customer.createdAt.toISOString(),
           createdBy: customer.createdBy ?? undefined,
           createdByDisplayName: createdByDisplayName,

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -16,6 +16,7 @@ import { Loader2 } from 'lucide-react';
 import { updateCustomer, UpdateCustomerData } from '@/lib/api';
 import { formatPhoneNumber, getPhoneValidationError } from '@/lib/phone-validation';
 import { getIdNumberValidationError, ID_NUMBER_MAX_LENGTH } from '@/lib/id-number-validation';
+import { useRevealedIdForEdit } from '@/components/view-id-number/use-revealed-id-for-edit';
 import * as Sentry from '@sentry/nextjs';
 
 interface EditCustomerDialogProps {
@@ -112,6 +113,19 @@ export default function EditCustomerDialog({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [phoneError, setPhoneError] = useState<string | null>(null);
+  const revealedIdNumber = useRevealedIdForEdit({
+    open,
+    customerId: customer.id,
+    entityKind: 'CUSTOMER',
+    maskedValue: customer.idNumber,
+  });
+
+  useEffect(() => {
+    if (!open) return;
+    if (revealedIdNumber && !revealedIdNumber.includes('*')) {
+      setFormData((prev) => ({ ...prev, idNumber: revealedIdNumber }));
+    }
+  }, [open, revealedIdNumber]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

@@ -16,7 +16,9 @@ import { Loader2 } from 'lucide-react';
 import { ParentRelationship, updateParent } from '@/lib/api';
 import { getIdNumberValidationError, ID_NUMBER_MAX_LENGTH } from '@/lib/id-number-validation';
 import DateOfBirthInput from '@/components/date-of-birth-input';
+import { useRevealedIdForEdit } from '@/components/view-id-number/use-revealed-id-for-edit';
 import * as Sentry from '@sentry/nextjs';
+import { useParams } from 'next/navigation';
 
 const PARENT_RELATIONSHIP_OPTIONS: Array<{ value: ParentRelationship; label: string }> = [
   { value: 'MOTHER', label: 'Mother' },
@@ -85,6 +87,8 @@ export default function EditParentDialog({
   onSuccess,
   relationshipUsage,
 }: EditParentDialogProps) {
+  const params = useParams();
+  const customerId = params.customerId as string;
   const maxDateAdults = useMemo(() => getMaxDateAdults(), []);
   const [formData, setFormData] = useState({
     firstName: '',
@@ -98,6 +102,13 @@ export default function EditParentDialog({
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const revealedIdNumber = useRevealedIdForEdit({
+    open,
+    customerId,
+    entityKind: 'PARENT',
+    entityId: parent.id,
+    maskedValue: parent.idNumber,
+  });
 
   useEffect(() => {
     if (!open) return;
@@ -108,11 +119,14 @@ export default function EditParentDialog({
       dateOfBirth: parent.dateOfBirth ?? '',
       gender: (parent.gender ?? '').toUpperCase(),
       idType: mapIdTypeFromBackend(parent.idType),
-      idNumber: parent.idNumber ?? '',
+      idNumber:
+        revealedIdNumber && !revealedIdNumber.includes('*')
+          ? revealedIdNumber
+          : (parent.idNumber ?? ''),
       relationship: parent.relationship,
     });
     setError(null);
-  }, [open, parent]);
+  }, [open, parent, revealedIdNumber]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

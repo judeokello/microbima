@@ -15,6 +15,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { deleteParent, ParentRelationship } from '@/lib/api';
+import { ViewIdNumber } from '@/components/view-id-number/view-id-number';
 import AddParentDialog from './add-parent-dialog';
 import EditParentDialog from './edit-parent-dialog';
 
@@ -202,7 +203,14 @@ export default function ParentsSection({
                       </div>
                       <div>
                         <label className="text-sm font-medium text-gray-500">ID Number</label>
-                        <p className="text-gray-900">{parent.idNumber ?? 'N/A'}</p>
+                        <div className="text-gray-900">
+                          <ViewIdNumber
+                            customerId={customerId}
+                            entityKind="PARENT"
+                            entityId={parent.id}
+                            maskedValue={parent.idNumber}
+                          />
+                        </div>
                       </div>
                       {isDeleted && parent.deletedByDisplayName && parent.deletedAt && (
                         <div className="col-span-full mt-2 text-sm text-gray-500">

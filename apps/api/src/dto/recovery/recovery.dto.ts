@@ -35,7 +35,7 @@ export class CustomerWithoutPolicyDto {
   @ApiProperty({ description: 'Full name' })
   fullName: string;
 
-  @ApiProperty({ description: 'ID number' })
+  @ApiProperty({ description: 'ID number (masked; use reveal endpoint for the full value)' })
   idNumber: string;
 
   @ApiProperty({ description: 'Package ID from customer scheme' })
@@ -125,7 +125,7 @@ export class MemberNumberReconciliationRowDto {
   @ApiProperty({ description: 'Phone number' })
   phoneNumber: string;
 
-  @ApiProperty({ description: 'ID number' })
+  @ApiProperty({ description: 'ID number (masked; use reveal endpoint for the full value)' })
   idNumber: string;
 
   @ApiProperty({ description: 'Count of dependants (from dependants table)' })

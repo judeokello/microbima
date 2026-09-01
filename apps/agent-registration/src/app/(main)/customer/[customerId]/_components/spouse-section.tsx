@@ -18,6 +18,7 @@ import {
 import EditDependantDialog from './edit-dependant-dialog';
 import AddSpouseDialog from './add-spouse-dialog';
 import { deleteDependant } from '@/lib/api';
+import { ViewIdNumber } from '@/components/view-id-number/view-id-number';
 
 interface SpouseSectionProps {
   dependants: Array<{
@@ -219,7 +220,14 @@ export default function SpouseSection({ dependants, canEdit, canAdd, onUpdate }:
                   {dependant.idNumber && (
                     <div>
                       <label className="text-sm font-medium text-gray-500">ID Number</label>
-                      <p className="text-gray-900">{dependant.idNumber}</p>
+                      <div className="text-gray-900">
+                        <ViewIdNumber
+                          customerId={customerId}
+                          entityKind="SPOUSE"
+                          entityId={dependant.id}
+                          maskedValue={dependant.idNumber}
+                        />
+                      </div>
                     </div>
                   )}
                   <div>

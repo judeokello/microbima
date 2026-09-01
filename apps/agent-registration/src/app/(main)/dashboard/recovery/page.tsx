@@ -41,6 +41,7 @@ import {
 import { mapPackagePricingToUi, type UiInsurancePricing } from '@/lib/package-pricing-ui';
 import { formatTransactionReferenceForDisplay } from '@/lib/transaction-reference-display';
 import { formatDate } from '@/lib/utils';
+import { ViewIdNumber } from '@/components/view-id-number/view-id-number';
 import { Loader2, RefreshCw, Plus } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 
@@ -320,7 +321,15 @@ export default function RecoveryPage() {
                       <div>
                         <CardTitle className="text-lg">{c.fullName}</CardTitle>
                         <CardDescription>
-                          ID: {c.idNumber} | Package: {c.packageName}
+                          <span className="inline-flex items-center gap-1 flex-wrap">
+                            ID:{' '}
+                            <ViewIdNumber
+                              customerId={c.id}
+                              entityKind="CUSTOMER"
+                              maskedValue={c.idNumber}
+                            />
+                            {' '}| Package: {c.packageName}
+                          </span>
                           <br />
                           Registered: {formatDate(c.registeredAt)}
                           {' · '}
@@ -358,7 +367,15 @@ export default function RecoveryPage() {
                       <div>
                         <CardTitle className="text-lg">{c.fullName}</CardTitle>
                         <CardDescription>
-                          ID: {c.idNumber} | Package: {c.packageName}
+                          <span className="inline-flex items-center gap-1 flex-wrap">
+                            ID:{' '}
+                            <ViewIdNumber
+                              customerId={c.id}
+                              entityKind="CUSTOMER"
+                              maskedValue={c.idNumber}
+                            />
+                            {' '}| Package: {c.packageName}
+                          </span>
                           <br />
                           Registered: {formatDate(c.registeredAt)}
                           {' · '}
@@ -385,8 +402,17 @@ export default function RecoveryPage() {
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Create Policy</DialogTitle>
-            <DialogDescription>
-              {selectedCustomer?.fullName} - {selectedCustomer?.idNumber}
+            <DialogDescription asChild>
+              <div>
+                {selectedCustomer?.fullName}{' '}
+                {selectedCustomer && (
+                  <ViewIdNumber
+                    customerId={selectedCustomer.id}
+                    entityKind="CUSTOMER"
+                    maskedValue={selectedCustomer.idNumber}
+                  />
+                )}
+              </div>
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">

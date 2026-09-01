@@ -1231,6 +1231,41 @@ export async function getCustomerDetails(customerId: string): Promise<CustomerDe
   }
 }
 
+export type IdNumberEntityKind = 'CUSTOMER' | 'SPOUSE' | 'CHILD' | 'PARENT' | 'BENEFICIARY'
+
+export async function revealIdNumber(
+  customerId: string,
+  entityKind: IdNumberEntityKind,
+  entityId?: string
+): Promise<string> {
+  const token = await getSupabaseToken()
+  const response = await fetch(
+    `${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/customers/${customerId}/id-number/reveal`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+        'x-correlation-id': `id-reveal-${Date.now()}`,
+      },
+      body: JSON.stringify({
+        entityKind,
+        ...(entityKind === 'CUSTOMER' ? {} : { entityId }),
+      }),
+    }
+  )
+  if (!response.ok) {
+    const errorData = await response.json()
+    throw new Error(errorData.error?.message ?? `HTTP ${response.status}: ${response.statusText}`)
+  }
+  const json = await response.json()
+  const idNumber = json.data?.idNumber
+  if (typeof idNumber !== 'string' || !idNumber.trim()) {
+    throw new Error('ID number not returned')
+  }
+  return idNumber
+}
+
 export async function getCustomerPolicies(customerId: string): Promise<CustomerPoliciesResponse> {
   try {
     const token = await getSupabaseToken()

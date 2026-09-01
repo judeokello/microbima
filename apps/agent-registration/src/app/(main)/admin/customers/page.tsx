@@ -11,6 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { CheckCircle, XCircle, Download, RefreshCw } from 'lucide-react';
 import { formatDate, formatPhoneNumber } from '@/lib/utils';
+import { ViewIdNumber } from '@/components/view-id-number/view-id-number';
 import { supabase } from '@/lib/supabase';
 
 interface AdminCustomer {
@@ -375,7 +376,11 @@ export default function AdminCustomersPage() {
                           {customer.idType}
                         </TableCell>
                         <TableCell>
-                          {customer.idNumber}
+                          <ViewIdNumber
+                            customerId={customer.id}
+                            entityKind="CUSTOMER"
+                            maskedValue={customer.idNumber}
+                          />
                         </TableCell>
                         <TableCell>
                           {getMissingDataIcon(customer.hasMissingRequirements)}

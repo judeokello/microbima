@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useParams } from 'next/navigation';
 import {
   Dialog,
   DialogContent,
@@ -16,6 +17,7 @@ import { Loader2 } from 'lucide-react';
 import { updateDependant, UpdateDependantData } from '@/lib/api';
 import { formatPhoneNumber, getPhoneValidationError } from '@/lib/phone-validation';
 import { getIdNumberValidationError, ID_NUMBER_MAX_LENGTH } from '@/lib/id-number-validation';
+import { useRevealedIdForEdit } from '@/components/view-id-number/use-revealed-id-for-edit';
 import * as Sentry from '@sentry/nextjs';
 
 interface EditDependantDialogProps {
@@ -113,6 +115,8 @@ export default function EditDependantDialog({
   onOpenChange,
   onSuccess,
 }: EditDependantDialogProps) {
+  const params = useParams();
+  const customerId = params.customerId as string;
   const [formData, setFormData] = useState<UpdateDependantData>({
     firstName: dependant.firstName,
     middleName: dependant.middleName,
@@ -126,6 +130,20 @@ export default function EditDependantDialog({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [phoneError, setPhoneError] = useState<string | null>(null);
+  const revealedIdNumber = useRevealedIdForEdit({
+    open,
+    customerId,
+    entityKind: dependant.relationship?.toUpperCase() === 'SPOUSE' ? 'SPOUSE' : 'CHILD',
+    entityId: dependant.id,
+    maskedValue: dependant.idNumber,
+  });
+
+  useEffect(() => {
+    if (!open) return;
+    if (revealedIdNumber && !revealedIdNumber.includes('*')) {
+      setFormData((prev) => ({ ...prev, idNumber: revealedIdNumber }));
+    }
+  }, [open, revealedIdNumber]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

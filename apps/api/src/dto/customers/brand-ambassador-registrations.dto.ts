@@ -52,7 +52,7 @@ export class BrandAmbassadorRegistrationDto {
   idType: string;
 
   @ApiProperty({
-    description: 'ID number',
+    description: 'ID number (masked; use reveal endpoint for the full value)',
     example: '12345678',
   })
   idNumber: string;
