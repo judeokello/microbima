@@ -379,10 +379,18 @@ export class SchemeCustomerDto {
   createdAt: string;
 
   @ApiProperty({
-    description: 'ID Type',
-    example: 'NATIONAL_ID',
+    description: 'Customer status',
+    example: 'ACTIVE',
   })
-  idType: string;
+  customerStatus: string;
+
+  @ApiProperty({
+    description: 'Current policy status for this scheme package',
+    example: 'ACTIVE',
+    required: false,
+    nullable: true,
+  })
+  policyStatus: string | null;
 
   @ApiProperty({
     description: 'ID Number',

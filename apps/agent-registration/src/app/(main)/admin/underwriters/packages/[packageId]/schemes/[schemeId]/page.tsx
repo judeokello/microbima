@@ -13,6 +13,8 @@ import { RefreshCw, Edit, Save, X, CheckCircle, XCircle, Plus, Trash2 } from 'lu
 import { supabase } from '@/lib/supabase';
 import * as Sentry from '@sentry/nextjs';
 import { formatDate } from '@/lib/utils';
+import { getCustomerStatusDisplay } from '@/lib/customer-display';
+import { getPolicyStatusDisplay } from '@/lib/policy-display';
 import { formatTransactionReferenceForDisplay } from '@/lib/transaction-reference-display';
 import { TruncatedDescription } from '../../../../[underwriterId]/_components/truncated-description';
 import { validatePhoneNumber } from '@/lib/phone-validation';
@@ -57,7 +59,8 @@ interface Customer {
   phoneNumber: string;
   gender: string;
   createdAt: string;
-  idType: string;
+  customerStatus: string;
+  policyStatus: string | null;
   idNumber: string;
   hasMissingRequirements: boolean;
 }
@@ -804,6 +807,19 @@ export default function SchemeDetailPage() {
     );
   };
 
+  const renderStatusBadge = (status: string | null, kind: 'policy' | 'customer') => {
+    if (!status) {
+      return <span className="text-muted-foreground">—</span>;
+    }
+    const { label, className } =
+      kind === 'policy' ? getPolicyStatusDisplay(status) : getCustomerStatusDisplay(status);
+    return (
+      <Badge variant="outline" className={className}>
+        {label}
+      </Badge>
+    );
+  };
+
   if (loading && !scheme) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
@@ -1044,7 +1060,8 @@ export default function SchemeDetailPage() {
                       <TableHead>Phone Number</TableHead>
                       <TableHead>Gender</TableHead>
                       <TableHead>Registration Date</TableHead>
-                      <TableHead>ID Type</TableHead>
+                      <TableHead>Policy Status</TableHead>
+                      <TableHead>Customer Status</TableHead>
                       <TableHead>ID Number</TableHead>
                       <TableHead>Data Complete?</TableHead>
                     </TableRow>
@@ -1073,7 +1090,10 @@ export default function SchemeDetailPage() {
                           {formatDate(customer.createdAt)}
                         </TableCell>
                         <TableCell>
-                          {customer.idType}
+                          {renderStatusBadge(customer.policyStatus, 'policy')}
+                        </TableCell>
+                        <TableCell>
+                          {renderStatusBadge(customer.customerStatus, 'customer')}
                         </TableCell>
                         <TableCell>
                           {customer.idNumber}

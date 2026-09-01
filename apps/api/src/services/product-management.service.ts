@@ -1530,6 +1530,11 @@ export class ProductManagementService {
             },
           },
           include: {
+            packageScheme: {
+              select: {
+                packageId: true,
+              },
+            },
             customer: {
               select: {
                 id: true,
@@ -1539,9 +1544,21 @@ export class ProductManagementService {
                 phoneNumber: true,
                 gender: true,
                 createdAt: true,
-                idType: true,
+                status: true,
                 idNumber: true,
                 hasMissingRequirements: true,
+                policies: {
+                  where: {
+                    supersededByPolicyId: null,
+                  },
+                  select: {
+                    status: true,
+                    packageId: true,
+                  },
+                  orderBy: {
+                    createdAt: 'desc',
+                  },
+                },
               },
             },
           },
@@ -1563,18 +1580,25 @@ export class ProductManagementService {
       const totalPages = Math.ceil(totalCount / validatedPageSize);
 
       // Transform data for response
-      const customers = packageSchemeCustomers.map((psc) => ({
-        id: psc.customer.id,
-        firstName: psc.customer.firstName,
-        middleName: psc.customer.middleName ?? undefined,
-        lastName: psc.customer.lastName,
-        phoneNumber: psc.customer.phoneNumber,
-        gender: psc.customer.gender?.toLowerCase() ?? 'unknown',
-        createdAt: psc.customer.createdAt.toISOString(),
-        idType: psc.customer.idType,
-        idNumber: psc.customer.idNumber,
-        hasMissingRequirements: psc.customer.hasMissingRequirements,
-      }));
+      const customers = packageSchemeCustomers.map((psc) => {
+        const currentPolicy = psc.customer.policies.find(
+          (policy) => policy.packageId === psc.packageScheme.packageId
+        );
+
+        return {
+          id: psc.customer.id,
+          firstName: psc.customer.firstName,
+          middleName: psc.customer.middleName ?? undefined,
+          lastName: psc.customer.lastName,
+          phoneNumber: psc.customer.phoneNumber,
+          gender: psc.customer.gender?.toLowerCase() ?? 'unknown',
+          createdAt: psc.customer.createdAt.toISOString(),
+          customerStatus: psc.customer.status,
+          policyStatus: currentPolicy?.status ?? null,
+          idNumber: psc.customer.idNumber,
+          hasMissingRequirements: psc.customer.hasMissingRequirements,
+        };
+      });
 
       this.logger.log(`[${correlationId}] Found ${customers.length} customers for scheme ${schemeId}`);
 
