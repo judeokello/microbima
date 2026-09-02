@@ -86,6 +86,11 @@ import { PaymentAccountNumberService } from './payment-account-number.service';
 import { assertKenyanPhoneForOndemandStk, normalizePhoneNumber } from '../utils/phone-number.util';
 import { hasGlobalCustomerAccess } from '../utils/roles.util';
 import { maskIdNumberForDisplay, maskIdNumberOrEmpty } from '../utils/id-number-masking';
+import {
+  maskDateOfBirthForDisplay,
+  maskPhoneNumberForDisplay,
+  maskPhoneNumberOrEmpty,
+} from '../utils/pii-display-masking';
 import { policyHasMemberCards } from '../utils/member-cards.util';
 import {
   buildSyntheticCustomerEmail,
@@ -1616,7 +1621,7 @@ export class CustomerService {
         firstName: customer.firstName,
         middleName: customer.middleName ?? undefined,
         lastName: customer.lastName,
-        phoneNumber: customer.phoneNumber, // Unmasked
+        phoneNumber: maskPhoneNumberOrEmpty(customer.phoneNumber), // Masked; reveal via View icon
         gender: customer.gender?.toLowerCase() ?? 'unknown',
         createdAt: customer.createdAt.toISOString(),
         idType: customer.idType,
@@ -2062,7 +2067,7 @@ export class CustomerService {
       const transformedCustomers = customers.map(customer => ({
         id: customer.id,
         fullName: this.formatFullName(customer.firstName, customer.middleName, customer.lastName),
-        phoneNumber: customer.phoneNumber,
+        phoneNumber: maskPhoneNumberOrEmpty(customer.phoneNumber),
         gender: customer.gender?.toLowerCase() ?? 'unknown',
         createdAt: customer.createdAt.toISOString(),
         registeredBy: customer.createdBy ? (baMap.get(customer.createdBy) ?? 'Unknown') : 'Unknown',
@@ -2316,7 +2321,7 @@ export class CustomerService {
           fullName: this.formatFullName(customer.firstName, customer.middleName, customer.lastName),
           idType: customer.idType,
           idNumber: maskIdNumberOrEmpty(customer.idNumber),
-          phoneNumber: customer.phoneNumber,
+          phoneNumber: maskPhoneNumberOrEmpty(customer.phoneNumber),
           email: customer.email ?? undefined,
           numberOfSpouses,
           numberOfChildren,
@@ -2609,8 +2614,8 @@ export class CustomerService {
         firstName: b.firstName,
         middleName: b.middleName ?? undefined,
         lastName: b.lastName,
-        dateOfBirth: b.dateOfBirth ? b.dateOfBirth.toISOString().split('T')[0] : undefined,
-        phoneNumber: b.phoneNumber ?? undefined,
+        dateOfBirth: maskDateOfBirthForDisplay(b.dateOfBirth) ?? undefined,
+        phoneNumber: maskPhoneNumberForDisplay(b.phoneNumber) ?? undefined,
         gender: b.gender ? SharedMapperUtils.mapGenderToDto(b.gender) : undefined,
         idType: SharedMapperUtils.mapIdTypeToDto(b.idType),
         idNumber: maskIdNumberForDisplay(b.idNumber) ?? undefined,
@@ -2627,8 +2632,8 @@ export class CustomerService {
           firstName: d.firstName,
           middleName: d.middleName ?? undefined,
           lastName: d.lastName,
-          dateOfBirth: d.dateOfBirth ? d.dateOfBirth.toISOString().split('T')[0] : undefined,
-          phoneNumber: d.phoneNumber ?? undefined,
+          dateOfBirth: maskDateOfBirthForDisplay(d.dateOfBirth) ?? undefined,
+          phoneNumber: maskPhoneNumberForDisplay(d.phoneNumber) ?? undefined,
           gender: d.gender ? SharedMapperUtils.mapGenderToDto(d.gender) : undefined,
           idType: d.idType ? SharedMapperUtils.mapIdTypeToDto(d.idType) : undefined,
           idNumber: maskIdNumberForDisplay(d.idNumber) ?? undefined,
@@ -2648,7 +2653,7 @@ export class CustomerService {
         firstName: p.firstName,
         middleName: p.middleName ?? undefined,
         lastName: p.lastName,
-        dateOfBirth: p.dateOfBirth ? p.dateOfBirth.toISOString().split('T')[0] : undefined,
+        dateOfBirth: maskDateOfBirthForDisplay(p.dateOfBirth) ?? undefined,
         gender: p.gender ? SharedMapperUtils.mapGenderToDto(p.gender) : undefined,
         idType: p.idType ? SharedMapperUtils.mapIdTypeToDto(p.idType) : undefined,
         idNumber: maskIdNumberForDisplay(p.idNumber) ?? undefined,
@@ -2678,6 +2683,8 @@ export class CustomerService {
           ...customerDto,
           id: customer.id,
           idNumber: maskIdNumberOrEmpty(customer.idNumber),
+          phoneNumber: maskPhoneNumberForDisplay(customer.phoneNumber) ?? undefined,
+          dateOfBirth: maskDateOfBirthForDisplay(customer.dateOfBirth) ?? customerDto.dateOfBirth,
           createdAt: customer.createdAt.toISOString(),
           createdBy: customer.createdBy ?? undefined,
           createdByDisplayName: createdByDisplayName,

@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Search, X, Check, Loader2 } from 'lucide-react';
 import { searchCustomers, CustomerSearchResult, CustomerSearchPagination } from '@/lib/api';
-import { ViewIdNumber } from '@/components/view-id-number/view-id-number';
+import { ViewIdNumber, ViewPhoneNumber } from '@/components/view-id-number/view-id-number';
 
 export default function CustomerSearchPage() {
   const router = useRouter();
@@ -243,7 +243,13 @@ export default function CustomerSearchPage() {
                               maskedValue={customer.idNumber}
                             />
                           </TableCell>
-                          <TableCell>{customer.phoneNumber}</TableCell>
+                          <TableCell>
+                            <ViewPhoneNumber
+                              customerId={customer.id}
+                              entityKind="CUSTOMER"
+                              maskedValue={customer.phoneNumber}
+                            />
+                          </TableCell>
                           <TableCell>{customer.email ?? '-'}</TableCell>
                           <TableCell className="text-center">
                             {customer.numberOfSpouses}

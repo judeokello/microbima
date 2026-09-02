@@ -1,7 +1,6 @@
 'use client'
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
-import { ID_NUMBER_REVEAL_MS } from '@/lib/id-number-reveal'
 
 type RevealState = {
   key: string | null
@@ -12,7 +11,7 @@ type RevealIdContextValue = {
   revealedKey: string | null
   revealedValue: string | null
   isRevealingKey: string | null
-  reveal: (key: string, fetcher: () => Promise<string>) => Promise<void>
+  reveal: (key: string, fetcher: () => Promise<string>, durationMs: number) => Promise<void>
   hide: () => void
 }
 
@@ -38,7 +37,7 @@ export function RevealIdProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const reveal = useCallback(
-    async (key: string, fetcher: () => Promise<string>) => {
+    async (key: string, fetcher: () => Promise<string>, durationMs: number) => {
       if (timerRef.current) {
         clearTimeout(timerRef.current)
         timerRef.current = null
@@ -51,7 +50,7 @@ export function RevealIdProvider({ children }: { children: ReactNode }) {
         timerRef.current = setTimeout(() => {
           setState({ key: null, value: null })
           timerRef.current = null
-        }, ID_NUMBER_REVEAL_MS)
+        }, durationMs)
       } finally {
         setIsRevealingKey((current) => (current === key ? null : current))
       }

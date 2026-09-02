@@ -11,7 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { CheckCircle, XCircle, RefreshCw } from 'lucide-react';
 import { formatDate } from '@/lib/utils';
-import { ViewIdNumber } from '@/components/view-id-number/view-id-number';
+import { ViewIdNumber, ViewPhoneNumber } from '@/components/view-id-number/view-id-number';
 import { supabase } from '@/lib/supabase';
 
 interface BrandAmbassadorRegistration {
@@ -252,7 +252,11 @@ export default function RegistrationsPage() {
                           </span>
                         </TableCell>
                         <TableCell>
-                          {registration.phoneNumber}
+                          <ViewPhoneNumber
+                            customerId={registration.id}
+                            entityKind="CUSTOMER"
+                            maskedValue={registration.phoneNumber}
+                          />
                         </TableCell>
                         <TableCell>
                           <Badge variant={getGenderBadgeVariant(registration.gender)}>

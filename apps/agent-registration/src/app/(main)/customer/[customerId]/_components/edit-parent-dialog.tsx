@@ -16,7 +16,7 @@ import { Loader2 } from 'lucide-react';
 import { ParentRelationship, updateParent } from '@/lib/api';
 import { getIdNumberValidationError, ID_NUMBER_MAX_LENGTH } from '@/lib/id-number-validation';
 import DateOfBirthInput from '@/components/date-of-birth-input';
-import { useRevealedIdForEdit } from '@/components/view-id-number/use-revealed-id-for-edit';
+import { useRevealedFieldForEdit, useRevealedIdForEdit } from '@/components/view-id-number/use-revealed-id-for-edit';
 import * as Sentry from '@sentry/nextjs';
 import { useParams } from 'next/navigation';
 
@@ -109,6 +109,14 @@ export default function EditParentDialog({
     entityId: parent.id,
     maskedValue: parent.idNumber,
   });
+  const revealedDateOfBirth = useRevealedFieldForEdit({
+    open,
+    customerId,
+    entityKind: 'PARENT',
+    entityId: parent.id,
+    field: 'DATE_OF_BIRTH',
+    maskedValue: parent.dateOfBirth,
+  });
 
   useEffect(() => {
     if (!open) return;
@@ -116,7 +124,12 @@ export default function EditParentDialog({
       firstName: parent.firstName,
       middleName: parent.middleName ?? '',
       lastName: parent.lastName,
-      dateOfBirth: parent.dateOfBirth ?? '',
+      dateOfBirth:
+        revealedDateOfBirth && /^\d{4}-\d{2}-\d{2}$/.test(revealedDateOfBirth)
+          ? revealedDateOfBirth
+          : /^\d{4}-\d{2}-\d{2}$/.test(parent.dateOfBirth ?? '')
+            ? (parent.dateOfBirth ?? '')
+            : '',
       gender: (parent.gender ?? '').toUpperCase(),
       idType: mapIdTypeFromBackend(parent.idType),
       idNumber:
@@ -126,7 +139,7 @@ export default function EditParentDialog({
       relationship: parent.relationship,
     });
     setError(null);
-  }, [open, parent, revealedIdNumber]);
+  }, [open, parent, revealedIdNumber, revealedDateOfBirth]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

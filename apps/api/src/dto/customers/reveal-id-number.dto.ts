@@ -9,9 +9,15 @@ export enum IdNumberEntityKind {
   BENEFICIARY = 'BENEFICIARY',
 }
 
+export enum PiiRevealField {
+  ID_NUMBER = 'ID_NUMBER',
+  PHONE = 'PHONE',
+  DATE_OF_BIRTH = 'DATE_OF_BIRTH',
+}
+
 export class RevealIdNumberRequestDto {
   @ApiProperty({
-    description: 'Whose ID number to reveal',
+    description: 'Whose value to reveal',
     enum: IdNumberEntityKind,
     example: IdNumberEntityKind.CUSTOMER,
   })
@@ -25,14 +31,29 @@ export class RevealIdNumberRequestDto {
   @IsOptional()
   @IsUUID()
   entityId?: string;
+
+  @ApiPropertyOptional({
+    description: 'Which field to reveal. Defaults to ID_NUMBER.',
+    enum: PiiRevealField,
+    example: PiiRevealField.ID_NUMBER,
+  })
+  @IsOptional()
+  @IsEnum(PiiRevealField)
+  field?: PiiRevealField;
 }
 
 export class RevealIdNumberDataDto {
   @ApiProperty({
-    description: 'Full ID number',
+    description: 'Full unmasked value',
     example: '12345678',
   })
-  idNumber: string;
+  value: string;
+
+  @ApiPropertyOptional({
+    description: 'Full ID number when field is ID_NUMBER',
+    example: '12345678',
+  })
+  idNumber?: string;
 }
 
 export class RevealIdNumberResponseDto {
@@ -42,7 +63,7 @@ export class RevealIdNumberResponseDto {
   @ApiProperty({ example: 'req-123' })
   correlationId: string;
 
-  @ApiProperty({ example: 'ID number retrieved successfully' })
+  @ApiProperty({ example: 'Value retrieved successfully' })
   message: string;
 
   @ApiProperty({ type: RevealIdNumberDataDto })

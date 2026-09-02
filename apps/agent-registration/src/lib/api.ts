@@ -1232,10 +1232,12 @@ export async function getCustomerDetails(customerId: string): Promise<CustomerDe
 }
 
 export type IdNumberEntityKind = 'CUSTOMER' | 'SPOUSE' | 'CHILD' | 'PARENT' | 'BENEFICIARY'
+export type PiiRevealField = 'ID_NUMBER' | 'PHONE' | 'DATE_OF_BIRTH'
 
-export async function revealIdNumber(
+export async function revealPii(
   customerId: string,
   entityKind: IdNumberEntityKind,
+  field: PiiRevealField,
   entityId?: string
 ): Promise<string> {
   const token = await getSupabaseToken()
@@ -1246,10 +1248,11 @@ export async function revealIdNumber(
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${token}`,
-        'x-correlation-id': `id-reveal-${Date.now()}`,
+        'x-correlation-id': `pii-reveal-${Date.now()}`,
       },
       body: JSON.stringify({
         entityKind,
+        field,
         ...(entityKind === 'CUSTOMER' ? {} : { entityId }),
       }),
     }
@@ -1259,11 +1262,19 @@ export async function revealIdNumber(
     throw new Error(errorData.error?.message ?? `HTTP ${response.status}: ${response.statusText}`)
   }
   const json = await response.json()
-  const idNumber = json.data?.idNumber
-  if (typeof idNumber !== 'string' || !idNumber.trim()) {
-    throw new Error('ID number not returned')
+  const value = json.data?.value ?? json.data?.idNumber
+  if (typeof value !== 'string' || !value.trim()) {
+    throw new Error('Value not returned')
   }
-  return idNumber
+  return value
+}
+
+export async function revealIdNumber(
+  customerId: string,
+  entityKind: IdNumberEntityKind,
+  entityId?: string
+): Promise<string> {
+  return revealPii(customerId, entityKind, 'ID_NUMBER', entityId)
 }
 
 export async function getCustomerPolicies(customerId: string): Promise<CustomerPoliciesResponse> {

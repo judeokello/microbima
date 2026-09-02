@@ -3,7 +3,13 @@ import { DependantRelationship } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { ValidationException } from '../exceptions/validation.exception';
 import { hasGlobalCustomerAccess } from '../utils/roles.util';
-import { IdNumberEntityKind } from '../dto/customers/reveal-id-number.dto';
+import { IdNumberEntityKind, PiiRevealField } from '../dto/customers/reveal-id-number.dto';
+
+type PiiRow = {
+  idNumber?: string | null;
+  phoneNumber?: string | null;
+  dateOfBirth?: Date | null;
+};
 
 @Injectable()
 export class IdNumberRevealService {
@@ -15,29 +21,32 @@ export class IdNumberRevealService {
     customerId: string;
     entityKind: IdNumberEntityKind;
     entityId: string | undefined;
+    field: PiiRevealField | undefined;
     userId: string;
     userRoles: string[];
     correlationId: string;
-  }): Promise<{ idNumber: string }> {
+  }): Promise<{ value: string; idNumber?: string }> {
     const { customerId, entityKind, entityId, userId, userRoles, correlationId } = params;
+    const field = params.field ?? PiiRevealField.ID_NUMBER;
 
     const canAccess = await this.canUserAccessCustomer(customerId, userId, userRoles);
     if (!canAccess) {
       throw new NotFoundException('Customer not found or not accessible');
     }
 
-    const idNumber = await this.resolveIdNumber(customerId, entityKind, entityId);
-    if (!idNumber) {
+    const row = await this.resolveRow(customerId, entityKind, entityId);
+    const value = this.pickField(row, field);
+    if (!value) {
       this.logger.log(
-        `[${correlationId}] ID number reveal found no value customer=${customerId} kind=${entityKind}`
+        `[${correlationId}] PII reveal found no value customer=${customerId} kind=${entityKind} field=${field}`
       );
-      throw new NotFoundException('ID number not found');
+      throw new NotFoundException('Value not found');
     }
 
     this.logger.log(
-      `[${correlationId}] ID number revealed customer=${customerId} kind=${entityKind}`
+      `[${correlationId}] PII revealed customer=${customerId} kind=${entityKind} field=${field}`
     );
-    return { idNumber };
+    return field === PiiRevealField.ID_NUMBER ? { value, idNumber: value } : { value };
   }
 
   private async canUserAccessCustomer(
@@ -63,20 +72,38 @@ export class IdNumberRevealService {
 
   private nonemptyTrim(value: string | null | undefined): string | null {
     const trimmed = value?.trim();
-    return trimmed ? trimmed : null;
+    if (!trimmed) {
+      return null;
+    }
+    return trimmed;
   }
 
-  private async resolveIdNumber(
+  private pickField(row: PiiRow | null, field: PiiRevealField): string | null {
+    if (!row) {
+      return null;
+    }
+    if (field === PiiRevealField.ID_NUMBER) {
+      return this.nonemptyTrim(row.idNumber);
+    }
+    if (field === PiiRevealField.PHONE) {
+      return this.nonemptyTrim(row.phoneNumber);
+    }
+    if (!row.dateOfBirth) {
+      return null;
+    }
+    return row.dateOfBirth.toISOString().split('T')[0];
+  }
+
+  private async resolveRow(
     customerId: string,
     entityKind: IdNumberEntityKind,
     entityId: string | undefined
-  ): Promise<string | null> {
+  ): Promise<PiiRow | null> {
     if (entityKind === IdNumberEntityKind.CUSTOMER) {
-      const customer = await this.prisma.customer.findUnique({
+      return this.prisma.customer.findUnique({
         where: { id: customerId },
-        select: { idNumber: true },
+        select: { idNumber: true, phoneNumber: true, dateOfBirth: true },
       });
-      return this.nonemptyTrim(customer?.idNumber);
     }
 
     if (!entityId) {
@@ -88,29 +115,26 @@ export class IdNumberRevealService {
         entityKind === IdNumberEntityKind.SPOUSE
           ? DependantRelationship.SPOUSE
           : DependantRelationship.CHILD;
-      const dependant = await this.prisma.dependant.findFirst({
+      return this.prisma.dependant.findFirst({
         where: {
           id: entityId,
           customerId,
           relationship,
         },
-        select: { idNumber: true },
+        select: { idNumber: true, phoneNumber: true, dateOfBirth: true },
       });
-      return this.nonemptyTrim(dependant?.idNumber);
     }
 
     if (entityKind === IdNumberEntityKind.PARENT) {
-      const parent = await this.prisma.customerParent.findFirst({
+      return this.prisma.customerParent.findFirst({
         where: { id: entityId, customerId },
-        select: { idNumber: true },
+        select: { idNumber: true, dateOfBirth: true },
       });
-      return this.nonemptyTrim(parent?.idNumber);
     }
 
-    const beneficiary = await this.prisma.beneficiary.findFirst({
+    return this.prisma.beneficiary.findFirst({
       where: { id: entityId, customerId },
-      select: { idNumber: true },
+      select: { idNumber: true, phoneNumber: true, dateOfBirth: true },
     });
-    return this.nonemptyTrim(beneficiary?.idNumber);
   }
 }

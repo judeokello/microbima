@@ -22,6 +22,7 @@ import { resolvePostpaidMemberPolicyDates } from '../utils/postpaid-scheme-dates
 import { assertPolicyMayBecomeActive } from '../utils/policy-activation-gate.util';
 import { hasGlobalCustomerAccess } from '../utils/roles.util';
 import { maskIdNumberOrEmpty } from '../utils/id-number-masking';
+import { maskPhoneNumberOrEmpty } from '../utils/pii-display-masking';
 import { notDetachedPaymentWhere } from '../utils/policy-payment-filters';
 import { computeNominalPaymentPeriodEndDate } from '../utils/package-payment-frequency.util';
 import { ValidationException } from '../exceptions/validation.exception';
@@ -2278,7 +2279,7 @@ export class PolicyService {
         rows.push({
           customerId: customer.id,
           fullName,
-          phoneNumber: customer.phoneNumber,
+          phoneNumber: maskPhoneNumberOrEmpty(customer.phoneNumber),
           idNumber: maskIdNumberOrEmpty(customer.idNumber),
           dependantCount,
           policyId: null,
@@ -2308,7 +2309,7 @@ export class PolicyService {
         rows.push({
           customerId: customer.id,
           fullName,
-          phoneNumber: customer.phoneNumber,
+          phoneNumber: maskPhoneNumberOrEmpty(customer.phoneNumber),
           idNumber: maskIdNumberOrEmpty(customer.idNumber),
           dependantCount,
           policyId: policy.id,

@@ -9,6 +9,7 @@ import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
 import { PAYMENT_CADENCE } from '../constants/payment-cadence.constants';
 import { trimOrNull, toTitleCase } from '../utils/string.util';
 import { maskIdNumberOrEmpty } from '../utils/id-number-masking';
+import { maskPhoneNumberOrEmpty } from '../utils/pii-display-masking';
 import {
   isValidPackageSlug,
   normalizePackageSlug,
@@ -1591,7 +1592,7 @@ export class ProductManagementService {
           firstName: psc.customer.firstName,
           middleName: psc.customer.middleName ?? undefined,
           lastName: psc.customer.lastName,
-          phoneNumber: psc.customer.phoneNumber,
+          phoneNumber: maskPhoneNumberOrEmpty(psc.customer.phoneNumber),
           gender: psc.customer.gender?.toLowerCase() ?? 'unknown',
           createdAt: psc.customer.createdAt.toISOString(),
           customerStatus: psc.customer.status,

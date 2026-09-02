@@ -27,7 +27,7 @@ import {
   type MemberNumberReconciliationRow,
 } from '@/lib/api';
 import { Loader2, RefreshCw, ChevronDown, ChevronRight, Pencil } from 'lucide-react';
-import { ViewIdNumber } from '@/components/view-id-number/view-id-number';
+import { ViewIdNumber, ViewPhoneNumber } from '@/components/view-id-number/view-id-number';
 import { Fragment } from 'react';
 
 export default function MemberNumberReconciliationPage() {
@@ -173,7 +173,13 @@ export default function MemberNumberReconciliationPage() {
                           )}
                         </TableCell>
                         <TableCell>{row.fullName}</TableCell>
-                        <TableCell>{row.phoneNumber}</TableCell>
+                        <TableCell>
+                          <ViewPhoneNumber
+                            customerId={row.customerId}
+                            entityKind="CUSTOMER"
+                            maskedValue={row.phoneNumber}
+                          />
+                        </TableCell>
                         <TableCell>
                           <ViewIdNumber
                             customerId={row.customerId}

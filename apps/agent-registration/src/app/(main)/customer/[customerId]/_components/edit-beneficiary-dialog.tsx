@@ -17,7 +17,7 @@ import { updateBeneficiary, UpdateBeneficiaryData } from '@/lib/api';
 import { useParams } from 'next/navigation';
 import { formatPhoneNumber, getPhoneValidationError } from '@/lib/phone-validation';
 import { getIdNumberValidationError, ID_NUMBER_MAX_LENGTH } from '@/lib/id-number-validation';
-import { useRevealedIdForEdit } from '@/components/view-id-number/use-revealed-id-for-edit';
+import { useRevealedFieldForEdit, useRevealedIdForEdit } from '@/components/view-id-number/use-revealed-id-for-edit';
 import * as Sentry from '@sentry/nextjs';
 
 interface EditBeneficiaryDialogProps {
@@ -106,13 +106,34 @@ export default function EditBeneficiaryDialog({
     entityId: beneficiary.id,
     maskedValue: beneficiary.idNumber,
   });
+  const revealedPhone = useRevealedFieldForEdit({
+    open,
+    customerId: actualCustomerId,
+    entityKind: 'BENEFICIARY',
+    entityId: beneficiary.id,
+    field: 'PHONE',
+    maskedValue: beneficiary.phoneNumber,
+  });
+  const revealedDateOfBirth = useRevealedFieldForEdit({
+    open,
+    customerId: actualCustomerId,
+    entityKind: 'BENEFICIARY',
+    entityId: beneficiary.id,
+    field: 'DATE_OF_BIRTH',
+    maskedValue: beneficiary.dateOfBirth,
+  });
 
   useEffect(() => {
     if (!open) return;
-    if (revealedIdNumber && !revealedIdNumber.includes('*')) {
-      setFormData((prev) => ({ ...prev, idNumber: revealedIdNumber }));
-    }
-  }, [open, revealedIdNumber]);
+    setFormData((prev) => ({
+      ...prev,
+      ...(revealedIdNumber && !revealedIdNumber.includes('*') ? { idNumber: revealedIdNumber } : {}),
+      ...(revealedPhone && !revealedPhone.includes('*') ? { phoneNumber: revealedPhone } : {}),
+      ...(revealedDateOfBirth && /^\d{4}-\d{2}-\d{2}$/.test(revealedDateOfBirth)
+        ? { dateOfBirth: revealedDateOfBirth }
+        : {}),
+    }));
+  }, [open, revealedIdNumber, revealedPhone, revealedDateOfBirth]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

@@ -681,14 +681,14 @@ export class InternalCustomerController {
   }
 
   /**
-   * Reveal a full ID number for a customer or family member (30s client display).
+   * Reveal a full ID number, phone number, or date of birth (client auto-hides).
    */
   @Post(':customerId/id-number/reveal')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
-    summary: 'Reveal ID number (Internal)',
+    summary: 'Reveal masked PII (Internal)',
     description:
-      'Returns the full ID number for the principal customer or a family member. List and detail APIs return masked values; call this only when a user clicks View ID.',
+      'Returns the full ID number, phone number, or date of birth for the principal customer or a family member. List and detail APIs return masked values; call this only when a user clicks the view icon.',
   })
   @ApiParam({
     name: 'customerId',
@@ -716,6 +716,7 @@ export class InternalCustomerController {
       customerId,
       entityKind: body.entityKind,
       entityId: body.entityId,
+      field: body.field,
       userId,
       userRoles,
       correlationId,
@@ -723,7 +724,7 @@ export class InternalCustomerController {
     return {
       status: HttpStatus.OK,
       correlationId,
-      message: 'ID number retrieved successfully',
+      message: 'Value retrieved successfully',
       data,
     };
   }

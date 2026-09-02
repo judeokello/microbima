@@ -6,7 +6,7 @@ import { Pencil } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { getCustomerStatusDisplay } from '@/lib/customer-display';
-import { ViewIdNumber } from '@/components/view-id-number/view-id-number';
+import { ViewDateOfBirth, ViewIdNumber, ViewPhoneNumber } from '@/components/view-id-number/view-id-number';
 import EditCustomerDialog from './edit-customer-dialog';
 
 interface CustomerInfoSectionProps {
@@ -90,7 +90,13 @@ export default function CustomerInfoSection({ customer, canEdit, onUpdate }: Cus
             </div>
             <div>
               <label className="text-sm font-medium text-gray-500">Date of Birth</label>
-              <p className="text-gray-900">{formatDate(customer.dateOfBirth)}</p>
+              <div className="text-gray-900">
+                <ViewDateOfBirth
+                  customerId={customer.id}
+                  entityKind="CUSTOMER"
+                  maskedValue={customer.dateOfBirth}
+                />
+              </div>
             </div>
             {customer.email && (
               <div>
@@ -101,7 +107,13 @@ export default function CustomerInfoSection({ customer, canEdit, onUpdate }: Cus
             {customer.phoneNumber && (
               <div>
                 <label className="text-sm font-medium text-gray-500">Phone Number</label>
-                <p className="text-gray-900">{customer.phoneNumber}</p>
+                <div className="text-gray-900">
+                  <ViewPhoneNumber
+                    customerId={customer.id}
+                    entityKind="CUSTOMER"
+                    maskedValue={customer.phoneNumber}
+                  />
+                </div>
               </div>
             )}
             {customer.gender && (

@@ -15,7 +15,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { deleteParent, ParentRelationship } from '@/lib/api';
-import { ViewIdNumber } from '@/components/view-id-number/view-id-number';
+import { ViewDateOfBirth, ViewIdNumber } from '@/components/view-id-number/view-id-number';
 import AddParentDialog from './add-parent-dialog';
 import EditParentDialog from './edit-parent-dialog';
 
@@ -77,19 +77,6 @@ export default function ParentsSection({
     }
     return usage;
   }, [activeParents]);
-
-  const formatDate = (dateString?: string) => {
-    if (!dateString) return 'N/A';
-    try {
-      return new Date(dateString).toLocaleDateString('en-US', {
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-      });
-    } catch {
-      return dateString;
-    }
-  };
 
   const formatIdType = (idType?: string) => {
     if (!idType) return 'N/A';
@@ -181,7 +168,14 @@ export default function ParentsSection({
                       </div>
                       <div>
                         <label className="text-sm font-medium text-gray-500">Date of Birth</label>
-                        <p className="text-gray-900">{formatDate(parent.dateOfBirth)}</p>
+                        <div className="text-gray-900">
+                          <ViewDateOfBirth
+                            customerId={customerId}
+                            entityKind="PARENT"
+                            entityId={parent.id}
+                            maskedValue={parent.dateOfBirth}
+                          />
+                        </div>
                       </div>
                       <div>
                         <label className="text-sm font-medium text-gray-500">Gender</label>

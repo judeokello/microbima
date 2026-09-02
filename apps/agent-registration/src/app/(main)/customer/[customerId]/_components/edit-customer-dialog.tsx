@@ -16,7 +16,7 @@ import { Loader2 } from 'lucide-react';
 import { updateCustomer, UpdateCustomerData } from '@/lib/api';
 import { formatPhoneNumber, getPhoneValidationError } from '@/lib/phone-validation';
 import { getIdNumberValidationError, ID_NUMBER_MAX_LENGTH } from '@/lib/id-number-validation';
-import { useRevealedIdForEdit } from '@/components/view-id-number/use-revealed-id-for-edit';
+import { useRevealedFieldForEdit, useRevealedIdForEdit } from '@/components/view-id-number/use-revealed-id-for-edit';
 import * as Sentry from '@sentry/nextjs';
 
 interface EditCustomerDialogProps {
@@ -119,13 +119,32 @@ export default function EditCustomerDialog({
     entityKind: 'CUSTOMER',
     maskedValue: customer.idNumber,
   });
+  const revealedPhone = useRevealedFieldForEdit({
+    open,
+    customerId: customer.id,
+    entityKind: 'CUSTOMER',
+    field: 'PHONE',
+    maskedValue: customer.phoneNumber,
+  });
+  const revealedDateOfBirth = useRevealedFieldForEdit({
+    open,
+    customerId: customer.id,
+    entityKind: 'CUSTOMER',
+    field: 'DATE_OF_BIRTH',
+    maskedValue: customer.dateOfBirth,
+  });
 
   useEffect(() => {
     if (!open) return;
-    if (revealedIdNumber && !revealedIdNumber.includes('*')) {
-      setFormData((prev) => ({ ...prev, idNumber: revealedIdNumber }));
-    }
-  }, [open, revealedIdNumber]);
+    setFormData((prev) => ({
+      ...prev,
+      ...(revealedIdNumber && !revealedIdNumber.includes('*') ? { idNumber: revealedIdNumber } : {}),
+      ...(revealedPhone && !revealedPhone.includes('*') ? { phoneNumber: revealedPhone } : {}),
+      ...(revealedDateOfBirth && /^\d{4}-\d{2}-\d{2}$/.test(revealedDateOfBirth)
+        ? { dateOfBirth: revealedDateOfBirth }
+        : {}),
+    }));
+  }, [open, revealedIdNumber, revealedPhone, revealedDateOfBirth]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

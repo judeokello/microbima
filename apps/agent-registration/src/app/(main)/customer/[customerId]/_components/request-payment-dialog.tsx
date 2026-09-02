@@ -28,6 +28,7 @@ import {
   type OndemandStkMode,
 } from '@/lib/api';
 import { formatPhoneNumber, validatePhoneNumber } from '@/lib/phone-validation';
+import { useRevealedFieldForEdit } from '@/components/view-id-number/use-revealed-id-for-edit';
 import { usePaymentStatus, type PaymentStatusUpdate } from '@/hooks/usePaymentStatus';
 import { mapStkGatewayStatusToSpecVocabulary } from '@/lib/payment-status-vocabulary';
 import * as Sentry from '@sentry/nextjs';
@@ -83,6 +84,13 @@ export default function RequestPaymentDialog({
   const [stkPushEnabled, setStkPushEnabled] = useState(true);
   const [stkPushRequestId, setStkPushRequestId] = useState<string | null>(null);
   const [wsToken, setWsToken] = useState<string | null>(null);
+  const revealedPhone = useRevealedFieldForEdit({
+    open,
+    customerId,
+    entityKind: 'CUSTOMER',
+    field: 'PHONE',
+    maskedValue: defaultPhone,
+  });
 
   const onPaymentsRefreshRef = useRef(onPaymentsRefresh);
   onPaymentsRefreshRef.current = onPaymentsRefresh;
@@ -127,8 +135,8 @@ export default function RequestPaymentDialog({
 
   useEffect(() => {
     if (!open) return;
-    setPhone(defaultPhone ?? '');
-  }, [open, defaultPhone]);
+    setPhone(revealedPhone && !revealedPhone.includes('*') ? revealedPhone : '');
+  }, [open, revealedPhone]);
 
   useEffect(() => {
     if (!open || !policyDetail) return;

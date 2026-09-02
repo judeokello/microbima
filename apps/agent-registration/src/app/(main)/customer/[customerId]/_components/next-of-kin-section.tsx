@@ -17,7 +17,7 @@ import {
 import EditBeneficiaryDialog from './edit-beneficiary-dialog';
 import AddBeneficiaryDialog from './add-beneficiary-dialog';
 import { deleteBeneficiary } from '@/lib/api';
-import { ViewIdNumber } from '@/components/view-id-number/view-id-number';
+import { ViewDateOfBirth, ViewIdNumber, ViewPhoneNumber } from '@/components/view-id-number/view-id-number';
 
 interface NextOfKinSectionProps {
   beneficiaries: Array<{
@@ -48,19 +48,6 @@ export default function NextOfKinSection({ beneficiaries, canEdit, canAdd, onUpd
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const activeBeneficiaries = beneficiaries.filter((b) => !b.deletedAt);
-
-  const formatDate = (dateString?: string) => {
-    if (!dateString) return 'N/A';
-    try {
-      return new Date(dateString).toLocaleDateString('en-US', {
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-      });
-    } catch {
-      return dateString;
-    }
-  };
 
   const formatIdType = (idType?: string | null) => {
     if (!idType) return 'N/A';
@@ -184,13 +171,27 @@ export default function NextOfKinSection({ beneficiaries, canEdit, canAdd, onUpd
                     {beneficiary.dateOfBirth && (
                       <div>
                         <label className="text-sm font-medium text-gray-500">Date of Birth</label>
-                        <p className="text-gray-900">{formatDate(beneficiary.dateOfBirth)}</p>
+                        <div className="text-gray-900">
+                          <ViewDateOfBirth
+                            customerId={customerId}
+                            entityKind="BENEFICIARY"
+                            entityId={beneficiary.id}
+                            maskedValue={beneficiary.dateOfBirth}
+                          />
+                        </div>
                       </div>
                     )}
                     {beneficiary.phoneNumber && (
                       <div>
                         <label className="text-sm font-medium text-gray-500">Phone Number</label>
-                        <p className="text-gray-900">{beneficiary.phoneNumber}</p>
+                        <div className="text-gray-900">
+                          <ViewPhoneNumber
+                            customerId={customerId}
+                            entityKind="BENEFICIARY"
+                            entityId={beneficiary.id}
+                            maskedValue={beneficiary.phoneNumber}
+                          />
+                        </div>
                       </div>
                     )}
                     <div>

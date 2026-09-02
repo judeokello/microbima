@@ -8,6 +8,7 @@ import { Observable } from 'rxjs';
 import { map } from 'rxjs/operators';
 import * as Sentry from '@sentry/nestjs';
 import { maskIdNumberForDisplay } from '../utils/id-number-masking';
+import { maskDateOfBirthForDisplay, maskPhoneNumberForDisplay } from '../utils/pii-display-masking';
 
 export interface BAUser {
   id: string;
@@ -115,10 +116,14 @@ export class DataMaskingInterceptor implements NestInterceptor {
 
     return {
       ...customerObj,
-      // Mask phone number (show last 4 digits)
+      // Mask phone number (first 4 + last 3)
       phoneNumber: customerObj.phoneNumber && typeof customerObj.phoneNumber === 'string'
-        ? this.maskPhoneNumber(customerObj.phoneNumber)
+        ? (maskPhoneNumberForDisplay(customerObj.phoneNumber) ?? customerObj.phoneNumber)
         : customerObj.phoneNumber,
+
+      dateOfBirth: maskDateOfBirthForDisplay(
+        customerObj.dateOfBirth as string | Date | null | undefined
+      ) ?? customerObj.dateOfBirth,
 
       // Mask email (show first 2 characters and domain)
       email: customerObj.email && typeof customerObj.email === 'string'
@@ -132,18 +137,6 @@ export class DataMaskingInterceptor implements NestInterceptor {
 
       // Keep other fields as-is (firstName, lastName, etc. are needed for BA operations)
     };
-  }
-
-  /**
-   * Mask phone number - show last 4 digits
-   */
-  private maskPhoneNumber(phoneNumber: string): string {
-    if (!phoneNumber || phoneNumber.length <= 4) {
-      return phoneNumber;
-    }
-
-    const masked = '*'.repeat(phoneNumber.length - 4);
-    return masked + phoneNumber.slice(-4);
   }
 
   /**

@@ -18,7 +18,7 @@ import {
 import EditDependantDialog from './edit-dependant-dialog';
 import AddChildDialog from './add-child-dialog';
 import { deleteDependant } from '@/lib/api';
-import { ViewIdNumber } from '@/components/view-id-number/view-id-number';
+import { ViewDateOfBirth, ViewIdNumber } from '@/components/view-id-number/view-id-number';
 
 interface ChildrenSectionProps {
   dependants: Array<{
@@ -51,19 +51,6 @@ export default function ChildrenSection({ dependants, canEdit, canAdd, onUpdate 
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const activeDependants = dependants.filter((d) => !d.deletedAt);
-
-  const formatDate = (dateString?: string) => {
-    if (!dateString) return 'N/A';
-    try {
-      return new Date(dateString).toLocaleDateString('en-US', {
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-      });
-    } catch {
-      return dateString;
-    }
-  };
 
   const formatIdType = (idType?: string) => {
     if (!idType) return 'N/A';
@@ -201,7 +188,14 @@ export default function ChildrenSection({ dependants, canEdit, canAdd, onUpdate 
                     {dependant.dateOfBirth && (
                       <div>
                         <label className="text-sm font-medium text-gray-500">Date of Birth</label>
-                        <p className="text-gray-900">{formatDate(dependant.dateOfBirth)}</p>
+                        <div className="text-gray-900">
+                          <ViewDateOfBirth
+                            customerId={customerId}
+                            entityKind="CHILD"
+                            entityId={dependant.id}
+                            maskedValue={dependant.dateOfBirth}
+                          />
+                        </div>
                       </div>
                     )}
                     {dependant.idType && (
