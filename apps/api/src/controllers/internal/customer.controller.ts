@@ -70,6 +70,11 @@ import {
   RevealIdNumberRequestDto,
   RevealIdNumberResponseDto,
 } from '../../dto/customers/reveal-id-number.dto';
+import { AdditionalPolicyService } from '../../services/additional-policy.service';
+import {
+  CreateAdditionalPolicyRequestDto,
+  AdditionalPolicyResponseDto,
+} from '../../dto/policies/additional-policy.dto';
 
 /**
  * Internal Customer Controller
@@ -93,6 +98,7 @@ export class InternalCustomerController {
     private readonly partnerManagementService: PartnerManagementService,
     private readonly prismaService: PrismaService,
     private readonly idNumberRevealService: IdNumberRevealService,
+    private readonly additionalPolicyService: AdditionalPolicyService,
   ) {}
 
   /**
@@ -778,6 +784,32 @@ export class InternalCustomerController {
    * Complete postpaid enrollment pricing (plan/premium/annual) without STK.
    * Must be registered before :policyId routes.
    */
+  @Post(':customerId/additional-policies')
+  @HttpCode(HttpStatus.CREATED)
+  @AdminOnly()
+  @ApiOperation({
+    summary: 'Add an additional product for an existing customer (admin)',
+    description:
+      'Enrols a customer who already has a policy into another package. registration_admin only. No BA registration row.',
+  })
+  @ApiParam({ name: 'customerId', description: 'Customer ID' })
+  @ApiResponse({ status: 201, description: 'Additional policy created', type: AdditionalPolicyResponseDto })
+  @ApiResponse({ status: 403, description: 'Only registration_admin can add a product' })
+  async createAdditionalPolicy(
+    @Param('customerId') customerId: string,
+    @Body() dto: CreateAdditionalPolicyRequestDto,
+    @CorrelationId() correlationId: string,
+    @Req() req: Request,
+  ): Promise<AdditionalPolicyResponseDto> {
+    const userRoles = req.user?.roles ?? [];
+    return this.additionalPolicyService.createAdditionalPolicy(
+      customerId,
+      dto,
+      userRoles,
+      correlationId
+    );
+  }
+
   @Patch(':customerId/policies/postpaid-enrollment')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({

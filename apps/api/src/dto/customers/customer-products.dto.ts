@@ -48,6 +48,9 @@ export class CustomerPolicyListItemDto {
   @ApiProperty({ description: 'Package name' })
   packageName: string;
 
+  @ApiProperty({ description: 'Package ID' })
+  packageId: number;
+
   @ApiProperty({ description: 'Plan name', required: false })
   planName?: string | null;
 
@@ -179,6 +182,21 @@ export class CustomerPolicyDetailDto {
     enum: ['prepaid', 'postpaid'],
   })
   schemeBillingMode: 'prepaid' | 'postpaid';
+
+  @ApiProperty({
+    description: 'This policy next-of-kin from policy_beneficiaries',
+    required: false,
+    nullable: true,
+  })
+  nextOfKin?: {
+    id: string;
+    firstName: string;
+    middleName: string | null;
+    lastName: string;
+    relationship: string | null;
+    phoneNumber: string | null;
+    percentage: number;
+  } | null;
 }
 
 export class CustomerPolicyDetailResponseDto {

@@ -189,6 +189,24 @@ export class CreatePolicyRequestDto {
   @IsInt()
   @Min(1)
   customDays?: number;
+
+  @ApiProperty({
+    description: 'Dependant IDs to enrol on this policy only (PMD stubs)',
+    required: false,
+    type: [String],
+  })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  dependantIds?: string[];
+
+  @ApiProperty({
+    description: 'Beneficiary ID for this policy next-of-kin (100%)',
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  beneficiaryId?: string;
 }
 
 export class PolicyResponseDto {

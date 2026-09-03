@@ -670,6 +670,21 @@ export class CustomerService {
         });
       }
 
+      // Attach only this registration's dependants/beneficiary to the postpaid shell.
+      if (postpaidPolicyId) {
+        const postpaidDependantIds = [
+          ...createdChildren.map((d) => d.id),
+          ...createdSpouses.map((d) => d.id),
+        ];
+        await this.policyService.insertMembershipStubs(
+          this.prismaService as never,
+          postpaidPolicyId,
+          postpaidDependantIds,
+          createdBeneficiaries[0]?.id,
+          correlationId
+        );
+      }
+
       // Postpaid historical map/activate only after dependants exist (Sharon/Kailani race).
       if (postpaidPolicyId && createdCustomer.idNumber) {
         const deferredPostpaidPolicyId = postpaidPolicyId;
@@ -687,7 +702,9 @@ export class CustomerService {
           // Safety net if activation ran with partial family, or map left policy already active.
           await this.lctSyncService.ensureMemberRowsForLateDependants(
             deferredPostpaidPolicyId,
-            correlationId
+            correlationId,
+            undefined,
+            postpaidDependantIds
           );
           await this.lctSyncService.upsertTargetsForPolicy(
             deferredPostpaidPolicyId,
@@ -1158,16 +1175,22 @@ export class CustomerService {
 
       this.logger.log(`[${correlationId}] Successfully added ${result.totalProcessed} dependants to customer ${customerId}`);
 
-      // Late dependants: create member numbers + LCT pending for syncable policies
+      // Late dependants: occupying policies only, newly added IDs only
+      const newDependantIds = result.addedDependants.map((d) => d.dependantId);
       const policies = await this.prismaService.policy.findMany({
         where: {
           customerId,
-          status: { in: ['ACTIVE', 'SUSPENDED', 'INACTIVE', 'DEACTIVATED', 'TERMINATED', 'EXPIRED'] },
+          status: { in: ['ACTIVE', 'PENDING_ACTIVATION', 'SUSPENDED'] },
         },
         select: { id: true },
       });
       for (const policy of policies) {
-        await this.lctSyncService.ensureMemberRowsForLateDependants(policy.id, correlationId);
+        await this.lctSyncService.ensureMemberRowsForLateDependants(
+          policy.id,
+          correlationId,
+          undefined,
+          newDependantIds
+        );
         await this.lctSyncService.upsertTargetsForPolicy(policy.id, correlationId);
         await this.lctSyncService.onPolicyActivated(policy.id, correlationId);
       }
@@ -2855,6 +2878,7 @@ export class CustomerService {
         id: p.id,
         productName: p.productName,
         packageName: p.package.name,
+        packageId: p.packageId,
         planName: p.packagePlan?.name ?? null,
         schemeName,
         underwriterName: p.package.underwriter?.name ?? null,
@@ -2906,6 +2930,20 @@ export class CustomerService {
           },
         },
         packagePlan: { select: { name: true } },
+        policyBeneficiaries: {
+          include: {
+            beneficiary: {
+              select: {
+                id: true,
+                firstName: true,
+                middleName: true,
+                lastName: true,
+                relationship: true,
+                phoneNumber: true,
+              },
+            },
+          },
+        },
         policyPayments: {
           where: notDetachedPaymentWhere(),
           select: {
@@ -3016,6 +3054,17 @@ export class CustomerService {
         paymentsMadeCount: countConfirmedPayments(policy.policyPayments),
         missedPaymentsAmount,
         schemeBillingMode,
+        nextOfKin: policy.policyBeneficiaries[0]
+          ? {
+              id: policy.policyBeneficiaries[0].beneficiary.id,
+              firstName: policy.policyBeneficiaries[0].beneficiary.firstName,
+              middleName: policy.policyBeneficiaries[0].beneficiary.middleName,
+              lastName: policy.policyBeneficiaries[0].beneficiary.lastName,
+              relationship: policy.policyBeneficiaries[0].beneficiary.relationship,
+              phoneNumber: policy.policyBeneficiaries[0].beneficiary.phoneNumber,
+              percentage: policy.policyBeneficiaries[0].percentage,
+            }
+          : null,
       },
     };
   }

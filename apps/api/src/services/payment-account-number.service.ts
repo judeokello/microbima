@@ -2,6 +2,10 @@ import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { Prisma } from '@prisma/client';
 import * as Sentry from '@sentry/nestjs';
+import {
+  OCCUPYING_POLICY_STATUSES,
+  STEALABLE_PAN_STATUSES,
+} from '../utils/occupying-policy.util';
 
 /**
  * Letters for policy payment account suffix (2nd policy = B, 3rd = C, ...).
@@ -132,25 +136,70 @@ export class PaymentAccountNumberService {
   }
 
   /**
-   * Generate payment account number for a policy
-   * First policy: customer idNumber. Subsequent: idNumber + letter (B, C, D, ... excluding A, I, J, O).
-   *
-   * @param customerId - Customer UUID
-   * @param isFirstPolicy - Whether this is the customer's first policy
-   * @param tx - Prisma transaction client
-   * @param correlationId - Correlation ID for logging
-   * @returns Payment account number
+   * Collect letter suffixes already used on this customer's payment account numbers.
+   * Bare idNumber (no suffix) is treated as the first occupying slot.
+   */
+  usedPolicySuffixes(idNumber: string, paymentAcNumbers: Array<string | null>): Set<string> {
+    const used = new Set<string>();
+    const base = idNumber.trim();
+    for (const raw of paymentAcNumbers) {
+      const value = (raw ?? '').trim();
+      if (!value || !value.startsWith(base)) continue;
+      const suffix = value.slice(base.length);
+      if (suffix) used.add(suffix);
+    }
+    return used;
+  }
+
+  /**
+   * Next unused suffix from the letter set (B, C, …) given already-used suffixes.
+   */
+  nextUnusedPolicySuffix(usedSuffixes: Set<string>): string {
+    for (let i = 0; i < 500; i++) {
+      const suffix = this.getPolicySuffixLetter(i);
+      if (!usedSuffixes.has(suffix)) return suffix;
+    }
+    throw new Error('Exhausted payment account number suffixes');
+  }
+
+  /**
+   * Null paymentAcNumber on EXPIRED / DEACTIVATED / INACTIVE rows that still hold idNumber.
+   */
+  async stealIdNumberFromHistoricalPolicies(
+    customerId: string,
+    idNumber: string,
+    tx: Prisma.TransactionClient,
+    correlationId: string
+  ): Promise<number> {
+    const result = await tx.policy.updateMany({
+      where: {
+        customerId,
+        paymentAcNumber: idNumber,
+        status: { in: STEALABLE_PAN_STATUSES },
+      },
+      data: { paymentAcNumber: null },
+    });
+    if (result.count > 0) {
+      this.logger.log(
+        `[${correlationId}] Stole paymentAcNumber ${idNumber} from ${result.count} historical polic(ies)`
+      );
+    }
+    return result.count;
+  }
+
+  /**
+   * Generate payment account number for a policy.
+   * No occupying policy → customer idNumber (steal it off EXPIRED/DEACTIVATED/INACTIVE).
+   * Already occupying → idNumber + unused letter from the existing suffix set.
    */
   async generateForPolicy(
     customerId: string,
-    isFirstPolicy: boolean,
     tx: Prisma.TransactionClient,
     correlationId: string
   ): Promise<string> {
     try {
       this.logger.log(
-        `[${correlationId}] Generating payment account number for policy. ` +
-          `Customer: ${customerId}, First policy: ${isFirstPolicy}`
+        `[${correlationId}] Generating payment account number for policy. Customer: ${customerId}`
       );
 
       const customer = await tx.customer.findUnique({
@@ -167,20 +216,38 @@ export class PaymentAccountNumberService {
         throw new Error(`Customer ${customerId} has no idNumber`);
       }
 
-      if (isFirstPolicy) {
+      const occupyingCount = await tx.policy.count({
+        where: {
+          customerId,
+          status: { in: OCCUPYING_POLICY_STATUSES },
+        },
+      });
+
+      if (occupyingCount === 0) {
+        await this.stealIdNumberFromHistoricalPolicies(
+          customerId,
+          idNumber,
+          tx,
+          correlationId
+        );
         this.logger.log(
-          `[${correlationId}] Using customer ID number for first policy: ${idNumber}`
+          `[${correlationId}] No occupying policy — using customer ID number: ${idNumber}`
         );
         return idNumber;
       }
 
-      const existingCount = await tx.policy.count({
-        where: { customerId },
+      const existing = await tx.policy.findMany({
+        where: { customerId, paymentAcNumber: { not: null } },
+        select: { paymentAcNumber: true },
       });
-      const suffix = this.getPolicySuffixLetter(existingCount);
+      const used = this.usedPolicySuffixes(
+        idNumber,
+        existing.map((p) => p.paymentAcNumber)
+      );
+      const suffix = this.nextUnusedPolicySuffix(used);
       const paymentAcNumber = idNumber + suffix;
       this.logger.log(
-        `[${correlationId}] Using idNumber + suffix for policy ${existingCount + 1}: ${paymentAcNumber}`
+        `[${correlationId}] Occupying policies exist — using suffixed number: ${paymentAcNumber}`
       );
       return paymentAcNumber;
     } catch (error) {
@@ -194,7 +261,7 @@ export class PaymentAccountNumberService {
           operation: 'generateForPolicy',
           correlationId,
         },
-        extra: { customerId, isFirstPolicy },
+        extra: { customerId },
       });
       throw error;
     }
@@ -339,46 +406,36 @@ export class PaymentAccountNumberService {
   }
 
   /**
-   * Check if a customer has any existing policies
-   *
-   * @param customerId - Customer UUID
-   * @param tx - Prisma transaction client (optional)
-   * @param correlationId - Correlation ID for logging
-   * @returns True if customer has existing policies
+   * True when the customer has an occupying (ACTIVE / PENDING_ACTIVATION / SUSPENDED) policy.
+   * Do not count EXPIRED / DEACTIVATED / INACTIVE / TERMINATED history rows.
+   */
+  async customerHasOccupyingPolicies(
+    customerId: string,
+    tx: Prisma.TransactionClient | null,
+    correlationId: string
+  ): Promise<boolean> {
+    const prisma = tx ?? this.prismaService;
+    const policyCount = await prisma.policy.count({
+      where: {
+        customerId,
+        status: { in: OCCUPYING_POLICY_STATUSES },
+      },
+    });
+    this.logger.log(
+      `[${correlationId}] Customer ${customerId} has ${policyCount} occupying policies`
+    );
+    return policyCount > 0;
+  }
+
+  /**
+   * @deprecated Use customerHasOccupyingPolicies. Counts occupying rows only.
    */
   async customerHasExistingPolicies(
     customerId: string,
     tx: Prisma.TransactionClient | null,
     correlationId: string
   ): Promise<boolean> {
-    try {
-      const prisma = tx ?? this.prismaService;
-
-      const policyCount = await prisma.policy.count({
-        where: { customerId },
-      });
-
-      const hasExisting = policyCount > 0;
-      this.logger.log(
-        `[${correlationId}] Customer ${customerId} has ${policyCount} existing policies`
-      );
-
-      return hasExisting;
-    } catch (error) {
-      this.logger.error(
-        `[${correlationId}] Error checking customer policies`,
-        error instanceof Error ? error.stack : String(error)
-      );
-      Sentry.captureException(error, {
-        tags: {
-          service: 'PaymentAccountNumberService',
-          operation: 'customerHasExistingPolicies',
-          correlationId,
-        },
-        extra: { customerId },
-      });
-      throw error;
-    }
+    return this.customerHasOccupyingPolicies(customerId, tx, correlationId);
   }
 }
 

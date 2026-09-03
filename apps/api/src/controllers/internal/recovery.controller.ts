@@ -199,6 +199,9 @@ export class RecoveryController {
       userRoles,
       correlationId
     );
+    const dependantIds =
+      body.dependantIds ??
+      (await this.policyService.listActiveDependantIds(body.customerId));
     const policy = await this.policyService.createPolicyWithoutPayments(
       {
         customerId: body.customerId,
@@ -208,6 +211,8 @@ export class RecoveryController {
         annualPremium: body.annualPremium,
         frequency: body.frequency,
         customDays: body.customDays,
+        dependantIds,
+        beneficiaryId: body.beneficiaryId,
       },
       correlationId
     );

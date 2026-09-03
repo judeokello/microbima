@@ -14,6 +14,7 @@ import {
   mapPolicyStatusToLctAction,
   shouldEnqueueStatusChange,
 } from './lct.types';
+import { OCCUPYING_POLICY_STATUSES } from '../../utils/occupying-policy.util';
 
 type Tx = Prisma.TransactionClient;
 
@@ -377,12 +378,14 @@ export class LctSyncService {
   }
 
   /**
-   * Ensure late-added dependants get PolicyMemberDependant rows for an active-ish policy.
+   * Ensure late-added dependants get PolicyMemberDependant rows for occupying policies only.
+   * When newlyAddedDependantIds is provided, only those IDs are attached.
    */
   async ensureMemberRowsForLateDependants(
     policyId: string,
     correlationId: string,
-    tx?: Tx
+    tx?: Tx,
+    newlyAddedDependantIds?: string[]
   ): Promise<void> {
     const client = tx ?? this.prisma;
     const policy = await client.policy.findUnique({
@@ -397,16 +400,27 @@ export class LctSyncService {
       },
     });
     if (!policy) return;
+    if (!OCCUPYING_POLICY_STATUSES.includes(policy.status)) return;
     if (policy.customer.policyMemberPrincipals.length === 0) return;
     if (!policy.policyNumber && policy.status === PolicyStatus.PENDING_ACTIVATION) return;
 
+    // Only attach explicitly added IDs. Omitting the list must not enrol every
+    // customer dependant (that would leak a policy-2-only child onto policy 1).
+    if (!newlyAddedDependantIds || newlyAddedDependantIds.length === 0) {
+      return;
+    }
+    const allowedIds = new Set(newlyAddedDependantIds);
     const existing = await client.policyMemberDependant.findMany({
       where: { policyId },
       select: { dependantId: true },
     });
     const existingIds = new Set(existing.map((e) => e.dependantId));
     const missing = this.policyService.orderDependantsForMemberNumbers(
-      policy.customer.dependants.filter((d) => !existingIds.has(d.id))
+      policy.customer.dependants.filter((d) => {
+        if (existingIds.has(d.id)) return false;
+        if (!allowedIds.has(d.id)) return false;
+        return true;
+      })
     );
     if (missing.length === 0) return;
 
