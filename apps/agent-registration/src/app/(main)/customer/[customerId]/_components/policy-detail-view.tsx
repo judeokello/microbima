@@ -199,6 +199,12 @@ export default function PolicyDetailView({
           {data.policyNumber && (
             <p className="text-sm text-muted-foreground">Policy # {data.policyNumber}</p>
           )}
+          {data.beneficiary ? (
+            <p className="text-sm text-muted-foreground">
+              Next of kin: {data.beneficiary.firstName} {data.beneficiary.lastName}
+              {data.beneficiary.relationship ? ` (${data.beneficiary.relationship})` : ''}
+            </p>
+          ) : null}
           {canEditScheme ? (
             <div className="space-y-2 pt-2 max-w-xs">
               <Label className="text-sm text-muted-foreground">Staff number (LCT)</Label>

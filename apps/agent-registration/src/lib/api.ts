@@ -964,6 +964,7 @@ export interface CustomerDetailData {
     policyNumber: string
     packageName: string
     planName?: string
+    packageId?: number
     status: string
   }>
 }
@@ -1065,6 +1066,14 @@ export interface CustomerPolicyDetail {
   missedPaymentsApproximate?: boolean
   paymentsMadeCount?: number
   missedPaymentsAmount: MissedPaymentsAmount
+  beneficiary?: {
+    id: string
+    firstName: string
+    middleName: string | null
+    lastName: string
+    relationship: string
+    percentage: number
+  } | null
 }
 
 export interface CustomerPolicyDetailResponse {
@@ -1969,6 +1978,7 @@ export interface Scheme {
   parentsSupported?: boolean
   /** Junction id for scheme assignment (PackageScheme.id); use as value when updating customer scheme */
   packageSchemeId?: number
+  isPostpaid?: boolean
 }
 
 export interface Plan {
@@ -2054,10 +2064,11 @@ export async function getPackages(options?: { includeInactive?: boolean }): Prom
 }
 
 /** All schemes including inactive (for campaign audience pickers). */
-export async function listSchemesForPicker(): Promise<Scheme[]> {
+export async function listSchemesForPicker(q?: string): Promise<Scheme[]> {
   const token = await getSupabaseToken()
+  const params = q && q.trim().length >= 2 ? `?q=${encodeURIComponent(q.trim())}` : ''
   const response = await fetch(
-    `${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/product-management/schemes`,
+    `${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/product-management/schemes${params}`,
     {
       method: 'GET',
       headers: {
@@ -2648,6 +2659,55 @@ export async function createPolicyFromRecovery(
   return response.json()
 }
 
+export async function getAdditionalPolicyEligibility(
+  customerId: string
+): Promise<{ canAdd: boolean; blockedReasons: string[] }> {
+  const token = await getSupabaseToken()
+  const response = await fetch(
+    `${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/customers/${customerId}/additional-policies/eligibility`,
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'x-correlation-id': `add-product-elig-${Date.now()}`,
+      },
+    }
+  )
+  if (!response.ok) {
+    throw new Error('Failed to check add-product eligibility')
+  }
+  return response.json()
+}
+
+export async function createAdditionalPolicy(
+  customerId: string,
+  data: Record<string, unknown>
+): Promise<{
+  status: number
+  data: {
+    policy: { id: string; paymentAcNumber: string | null; status: string; productName: string }
+    stkPush: unknown
+  }
+}> {
+  const token = await getSupabaseToken()
+  const response = await fetch(
+    `${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/customers/${customerId}/additional-policies`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+        'x-correlation-id': `add-product-${Date.now()}`,
+      },
+      body: JSON.stringify(data),
+    }
+  )
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}))
+    throw new Error(err?.error?.message ?? 'Failed to add product')
+  }
+  return response.json()
+}
+
 export async function createPolicyWithoutPayments(
   data: CreatePolicyFromRecoveryRequest
 ): Promise<{ policy: { id: string; policyNumber: string | null; status: string } }> {
@@ -3182,6 +3242,7 @@ export interface ModifyPolicyOptions {
   paymentFrequencies: Array<{ frequency: string; installmentCount: number }>
   familyCategory: string
   additionalSpouse: boolean
+  additionalSpouseCount?: number
   currentPackagePlanId: number
   currentPlanName?: string
   currentPremium: number

@@ -12,7 +12,18 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Plus, Trash2, Loader2, CheckCircle, LayoutDashboard } from 'lucide-react';
-import { createCustomer, createAgentRegistration, CustomerRegistrationRequest } from '@/lib/api';
+import {
+  createCustomer,
+  createAgentRegistration,
+  CustomerRegistrationRequest,
+  getPackagePlans,
+  getPackagePricing,
+  listPackagesForSchemes,
+  type Plan,
+} from '@/lib/api';
+import SchemeTypeahead from '@/components/scheme-typeahead';
+import { maxDependantSlots, packageHasFamilyBands } from '@/lib/family-category';
+import { pricingBandsFromApi } from '@/lib/package-pricing-ui';
 import { useAuth } from '@/hooks/useAuth';
 import { useBrandAmbassador } from '@/hooks/useBrandAmbassador';
 import DateOfBirthInput from '@/components/date-of-birth-input';
@@ -177,9 +188,14 @@ export default function CustomerStep() {
   const [schemes, setSchemes] = useState<Array<{id: number, name: string, description?: string, packageSchemeId?: number, parentsSupported?: boolean}>>([]);
   const [selectedPackageId, setSelectedPackageId] = useState<number | null>(null);
   const [selectedSchemeId, setSelectedSchemeId] = useState<number | null>(null);
+  const [selectedSchemeName, setSelectedSchemeName] = useState('');
+  const [plans, setPlans] = useState<Plan[]>([]);
+  const [selectedPlanId, setSelectedPlanId] = useState<number | null>(null);
   const [loadingSchemes, setLoadingSchemes] = useState(false);
+  const [hasFamilyBands, setHasFamilyBands] = useState(true);
+  const [dependantCap, setDependantCap] = useState(7);
   const selectedSchemeParentsSupported = Boolean(
-    schemes.find((s) => s.id === selectedSchemeId)?.parentsSupported
+    hasFamilyBands && schemes.find((s) => s.id === selectedSchemeId)?.parentsSupported
   );
 
   // Date constraints - set after mount to avoid server/client hydration mismatch (new Date() differs by timezone)
@@ -207,19 +223,9 @@ export default function CustomerStep() {
     }
   }, [searchParams, router]);
 
-  // Load packages on mount and restore last selections from localStorage
   useEffect(() => {
-    fetchPackages();
-
-    const savedPackageId = localStorage.getItem('lastSelectedPackageId');
-    const savedSchemeId = localStorage.getItem('lastSelectedSchemeId');
-
-    if (savedPackageId) {
-      const pkgId = parseInt(savedPackageId);
-      setSelectedPackageId(pkgId);
-      fetchSchemes(pkgId, savedSchemeId ? parseInt(savedSchemeId) : null);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    const savedPlanId = localStorage.getItem('lastSelectedPlanId');
+    if (savedPlanId) setSelectedPlanId(parseInt(savedPlanId, 10));
   }, []);
 
   // Helper to get Supabase token for API calls
@@ -228,35 +234,39 @@ export default function CustomerStep() {
     return session.session?.access_token;
   };
 
-  // Fetch all active packages
-  const fetchPackages = async () => {
+  const fetchPackagesForScheme = async (schemeId: number) => {
     try {
-      const token = await getSupabaseToken();
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/product-management/packages`,
-        {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'x-correlation-id': `req-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
-          }
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch packages');
-      }
-
-      const data = await response.json();
-      setPackages(data.data ?? []);
+      const pkgs = await listPackagesForSchemes([schemeId]);
+      setPackages(pkgs);
     } catch (err) {
       console.error('Error fetching packages:', err);
       Sentry.captureException(err, {
-        tags: { component: 'CustomerStep', action: 'fetchPackages' }
+        tags: { component: 'CustomerStep', action: 'fetchPackagesForScheme' },
       });
-      setError('Failed to load packages. Please refresh the page.');
+      setError('Failed to load packages for this scheme.');
     }
   };
 
+  const loadPlanAndPricing = async (packageId: number) => {
+    try {
+      const [pkgPlans, pricing] = await Promise.all([
+        getPackagePlans(packageId),
+        getPackagePricing(packageId).catch(() => null),
+      ]);
+      setPlans(pkgPlans);
+      const bands = pricing ? pricingBandsFromApi(pricing) : [];
+      const family = packageHasFamilyBands(bands);
+      setHasFamilyBands(family);
+      setDependantCap(maxDependantSlots(bands));
+      if (!family) {
+        setFormData((prev) => ({ ...prev, spouses: [], children: [], parents: [] }));
+      }
+    } catch (err) {
+      console.error('Error loading plans/pricing:', err);
+    }
+  };
+
+  // Fetch all active packages
   // Fetch schemes for a selected package
   const fetchSchemes = async (packageId: number, preselectedSchemeId?: number | null) => {
     setLoadingSchemes(true);
@@ -294,27 +304,38 @@ export default function CustomerStep() {
     }
   };
 
+  const handleSchemePicked = (scheme: { id: number; name: string; parentsSupported?: boolean; packageSchemeId?: number }) => {
+    setSelectedSchemeId(scheme.id);
+    setSelectedSchemeName(scheme.name);
+    setSchemes([
+      {
+        id: scheme.id,
+        name: scheme.name,
+        parentsSupported: scheme.parentsSupported,
+        packageSchemeId: scheme.packageSchemeId,
+      },
+    ]);
+    setSelectedPackageId(null);
+    setSelectedPlanId(null);
+    setPackages([]);
+    setPlans([]);
+    void fetchPackagesForScheme(scheme.id);
+    localStorage.setItem('lastSelectedSchemeId', String(scheme.id));
+    localStorage.removeItem('lastSelectedPackageId');
+    localStorage.removeItem('lastSelectedPlanId');
+  };
+
   // Handle package selection change
   const handlePackageChange = (value: string) => {
     const packageId = parseInt(value);
     setSelectedPackageId(packageId);
-    setSelectedSchemeId(null); // Reset scheme when package changes
-    setSchemes([]); // Clear schemes
+    setSelectedPlanId(null);
     setFormData((prev) => ({ ...prev, parents: [] }));
-    fetchSchemes(packageId);
-    localStorage.setItem('lastSelectedPackageId', value);
-    localStorage.removeItem('lastSelectedSchemeId'); // Clear saved scheme
-  };
-
-  // Handle scheme selection change
-  const handleSchemeChange = (value: string) => {
-    const schemeId = parseInt(value);
-    setSelectedSchemeId(schemeId);
-    localStorage.setItem('lastSelectedSchemeId', value);
-    const scheme = schemes.find((s) => s.id === schemeId);
-    if (!scheme?.parentsSupported) {
-      setFormData((prev) => ({ ...prev, parents: [] }));
+    void loadPlanAndPricing(packageId);
+    if (selectedSchemeId) {
+      void fetchSchemes(packageId, selectedSchemeId);
     }
+    localStorage.setItem('lastSelectedPackageId', value);
   };
 
   const handleInputChange = (field: keyof CustomerFormData, value: string) => {
@@ -334,12 +355,11 @@ export default function CustomerStep() {
   };
 
   const addSpouse = () => {
-    if (formData.spouses.length < 2) {
-      setFormData(prev => ({
-        ...prev,
-        spouses: [...prev.spouses, { firstName: '', middleName: '', lastName: '', gender: '', dateOfBirth: '', phoneNumber: '', idType: 'NATIONAL_ID', idNumber: '' }]
-      }));
-    }
+    if (formData.spouses.length + formData.children.length >= dependantCap) return;
+    setFormData(prev => ({
+      ...prev,
+      spouses: [...prev.spouses, { firstName: '', middleName: '', lastName: '', gender: '', dateOfBirth: '', phoneNumber: '', idType: 'NATIONAL_ID', idNumber: '' }]
+    }));
   };
 
   const removeSpouse = (spouseIndex: number) => {
@@ -350,12 +370,11 @@ export default function CustomerStep() {
   };
 
   const addChild = () => {
-    if (formData.children.length < 7) {
-      setFormData(prev => ({
-        ...prev,
-        children: [...prev.children, { firstName: '', middleName: '', lastName: '', gender: 'MALE', dateOfBirth: '', phoneNumber: '', idType: 'BIRTH_CERTIFICATE', idNumber: '' }]
-      }));
-    }
+    if (formData.spouses.length + formData.children.length >= dependantCap) return;
+    setFormData(prev => ({
+      ...prev,
+      children: [...prev.children, { firstName: '', middleName: '', lastName: '', gender: 'MALE', dateOfBirth: '', phoneNumber: '', idType: 'BIRTH_CERTIFICATE', idNumber: '' }]
+    }));
   };
 
   const removeChild = (index: number) => {
@@ -765,13 +784,21 @@ export default function CustomerStep() {
           <CardTitle>Select Product</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Package Dropdown */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <SchemeTypeahead
+              value={selectedSchemeId ?? undefined}
+              selectedName={selectedSchemeName}
+              onSelect={(s) => handleSchemePicked(s)}
+            />
             <div>
               <Label htmlFor="package">Package *</Label>
-              <Select value={selectedPackageId?.toString() ?? ''} onValueChange={handlePackageChange}>
+              <Select
+                value={selectedPackageId?.toString() ?? ''}
+                onValueChange={handlePackageChange}
+                disabled={!selectedSchemeId}
+              >
                 <SelectTrigger id="package">
-                  <SelectValue placeholder="Select package" />
+                  <SelectValue placeholder={selectedSchemeId ? 'Select package' : 'Select scheme first'} />
                 </SelectTrigger>
                 <SelectContent>
                   {packages.map(pkg => (
@@ -780,27 +807,26 @@ export default function CustomerStep() {
                 </SelectContent>
               </Select>
             </div>
-
-            {/* Scheme Dropdown */}
             <div>
-              <Label htmlFor="scheme">Scheme *</Label>
+              <Label htmlFor="plan">Plan *</Label>
               <Select
-                value={selectedSchemeId?.toString() ?? ''}
-                onValueChange={handleSchemeChange}
-                disabled={!selectedPackageId || loadingSchemes}
+                value={selectedPlanId?.toString() ?? ''}
+                onValueChange={(value) => {
+                  setSelectedPlanId(parseInt(value, 10));
+                  localStorage.setItem('lastSelectedPlanId', value);
+                  localStorage.setItem('selectedPlanName', plans.find((p) => p.id === parseInt(value, 10))?.name ?? '');
+                }}
+                disabled={!selectedPackageId}
               >
-                <SelectTrigger id="scheme">
-                  <SelectValue placeholder={loadingSchemes ? "Loading..." : "Select scheme"} />
+                <SelectTrigger id="plan">
+                  <SelectValue placeholder={selectedPackageId ? 'Select plan' : 'Select package first'} />
                 </SelectTrigger>
                 <SelectContent>
-                  {schemes.map(scheme => (
-                    <SelectItem key={scheme.id} value={scheme.id.toString()}>{scheme.name}</SelectItem>
+                  {plans.map((plan) => (
+                    <SelectItem key={plan.id} value={plan.id.toString()}>{plan.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-              {selectedPackageId && schemes.length === 0 && !loadingSchemes && (
-                <p className="text-sm text-red-500 mt-1">This package has no schemes.</p>
-              )}
             </div>
           </div>
         </CardContent>
@@ -972,6 +998,7 @@ export default function CustomerStep() {
       </Card> */}
 
       {/* Dependants */}
+      {hasFamilyBands && (
       <Card>
         <CardHeader>
           <CardTitle>Dependants</CardTitle>
@@ -980,12 +1007,14 @@ export default function CustomerStep() {
           {/* Spouses */}
           <div>
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold">Spouses ({formData.spouses.length}/2)</h3>
+              <h3 className="text-lg font-semibold">
+                Spouses ({formData.spouses.length}/{dependantCap})
+              </h3>
               <Button
                 variant="outline"
                 size="sm"
                 onClick={addSpouse}
-                disabled={formData.spouses.length >= 2}
+                disabled={formData.spouses.length + formData.children.length >= dependantCap}
               >
                 <Plus className="h-4 w-4 mr-2" />
                 Add Spouse
@@ -1111,12 +1140,14 @@ export default function CustomerStep() {
           {/* Children */}
           <div>
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold">Children ({formData.children.length}/7)</h3>
+              <h3 className="text-lg font-semibold">
+                Children ({formData.children.length}/{dependantCap})
+              </h3>
               <Button
                 variant="outline"
                 size="sm"
                 onClick={addChild}
-                disabled={formData.children.length >= 7}
+                disabled={formData.spouses.length + formData.children.length >= dependantCap}
               >
                 <Plus className="h-4 w-4 mr-2" />
                 Add Child
@@ -1340,6 +1371,7 @@ export default function CustomerStep() {
           )}
         </CardContent>
       </Card>
+      )}
 
       {/* Error Display */}
       {error && (

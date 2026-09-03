@@ -42,6 +42,7 @@ interface ProductsTabProps {
   customerId: string;
   /** 'admin' | 'dashboard' | 'agent' — used for policy detail link */
   basePath: 'admin' | 'dashboard' | 'agent';
+  customerStatus?: string;
 }
 
 type RowAction =
@@ -54,7 +55,7 @@ type RowAction =
   | 'terminate'
   | null;
 
-export default function ProductsTab({ customerId, basePath }: ProductsTabProps) {
+export default function ProductsTab({ customerId, basePath, customerStatus }: ProductsTabProps) {
   const router = useRouter();
   const { isAdmin } = useAuth();
   const showAdminActions = basePath === 'admin' && isAdmin;
@@ -159,12 +160,25 @@ export default function ProductsTab({ customerId, basePath }: ProductsTabProps) 
   return (
     <>
       <Card>
-        <CardHeader>
-          <CardTitle>Products</CardTitle>
-          <CardDescription>
-            Policies this customer is enrolled in. Click a row to view product and enrollment
-            details.
-          </CardDescription>
+        <CardHeader className="flex flex-row items-start justify-between space-y-0">
+          <div>
+            <CardTitle>Products</CardTitle>
+            <CardDescription>
+              Policies this customer is enrolled in. Click a row to view product and enrollment
+              details.
+            </CardDescription>
+          </div>
+          {showAdminActions && (
+            <Button
+              onClick={() => router.push(`/admin/customer/${customerId}/add-product`)}
+              disabled={
+                customerStatus === 'TERMINATED' ||
+                policies.some((p) => p.status === 'TERMINATED')
+              }
+            >
+              Add product
+            </Button>
+          )}
         </CardHeader>
         <CardContent>
           {successMessage && (

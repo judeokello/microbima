@@ -36,6 +36,7 @@ import {
   type PricingRateBand,
 } from '@/lib/insurance-installment';
 import {
+  additionalSpouseCount,
   hasAdditionalSpousePremium,
   householdSizeFromRegistrationForm,
   validateSelectedFamilyCategory,
@@ -139,6 +140,7 @@ export default function PaymentStep() {
   const [pricingApiData, setPricingApiData] = useState<PackagePricingData | null>(null);
   const [pricingLoadError, setPricingLoadError] = useState<string | null>(null);
   const [selectedPlan, setSelectedPlan] = useState<string>('');
+  const [planLocked, setPlanLocked] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [additionalSpouse, setAdditionalSpouse] = useState(false);
   const [calculatedPricing, setCalculatedPricing] = useState({
@@ -165,7 +167,18 @@ export default function PaymentStep() {
     getPackagePricingBySlug(slug)
       .then((data) => {
         setPricingApiData(data);
-        setPricingData(mapPackagePricingToUi(data));
+        const ui = mapPackagePricingToUi(data);
+        setPricingData(ui);
+        const savedPlanName = localStorage.getItem('selectedPlanName')?.trim().toLowerCase();
+        if (savedPlanName) {
+          const match = Object.entries(ui.plans).find(
+            ([, plan]) => plan.name.toLowerCase() === savedPlanName
+          );
+          if (match) {
+            setSelectedPlan(match[0]);
+            setPlanLocked(true);
+          }
+        }
       })
       .catch((err) => {
         console.error('Error loading pricing data:', err);
@@ -225,6 +238,12 @@ export default function PaymentStep() {
       const customer = JSON.parse(savedCustomerData);
       setCustomerData(customer);
       setPaymentPhone(customer.phoneNumber); // Pre-populate with customer phone
+      const spouseCount = (customer.spouses ?? []).filter((s: { firstName?: string }) =>
+        s.firstName?.trim()
+      ).length;
+      if (spouseCount > 1) {
+        setAdditionalSpouse(true);
+      }
     }
 
     if (savedBeneficiaryData) {
@@ -312,16 +331,20 @@ export default function PaymentStep() {
     const spousePremium = plan.additional_spouse;
     if (!category) return;
 
+    const spouseCount = customerData?.spouses.filter((s) => s.firstName?.trim()).length ?? 0;
+    const extraSpouse = additionalSpouse
+      ? additionalSpouseCount(selectedCategory, spouseCount)
+      : 0;
     const baseDaily = category.daily ?? 0;
     const baseWeekly = category.weekly ?? 0;
-    const spouseDaily = additionalSpouse ? spousePremium.daily ?? 0 : 0;
-    const spouseWeekly = additionalSpouse ? spousePremium.weekly ?? 0 : 0;
+    const spouseDaily = extraSpouse * (spousePremium.daily ?? 0);
+    const spouseWeekly = extraSpouse * (spousePremium.weekly ?? 0);
 
     const lookupRates: PricingRateBand = {
-      daily: (category.daily ?? 0) + (additionalSpouse ? spousePremium.daily ?? 0 : 0),
-      weekly: (category.weekly ?? 0) + (additionalSpouse ? spousePremium.weekly ?? 0 : 0),
-      monthly: (category.monthly ?? 0) + (additionalSpouse ? spousePremium.monthly ?? 0 : 0),
-      annually: (category.annually ?? 0) + (additionalSpouse ? spousePremium.annually ?? 0 : 0),
+      daily: (category.daily ?? 0) + extraSpouse * (spousePremium.daily ?? 0),
+      weekly: (category.weekly ?? 0) + extraSpouse * (spousePremium.weekly ?? 0),
+      monthly: (category.monthly ?? 0) + extraSpouse * (spousePremium.monthly ?? 0),
+      annually: (category.annually ?? 0) + extraSpouse * (spousePremium.annually ?? 0),
     };
 
     setCalculatedPricing({
@@ -331,7 +354,7 @@ export default function PaymentStep() {
       totalWeekly: baseWeekly + spouseWeekly,
       lookupRates,
     });
-  }, [pricingData, selectedPlan, selectedCategory, additionalSpouse]);
+  }, [pricingData, selectedPlan, selectedCategory, additionalSpouse, customerData]);
 
   const installmentForSelection = (frequency: string) =>
     computeInstallmentPremium({
@@ -347,9 +370,10 @@ export default function PaymentStep() {
   useEffect(() => {
     if (selectedPlan) {
       setSelectedCategory('');
-      setAdditionalSpouse(false);
+      const spouseCount = customerData?.spouses.filter((s) => s.firstName?.trim()).length ?? 0;
+      setAdditionalSpouse(spouseCount > 1);
     }
-  }, [selectedPlan]);
+  }, [selectedPlan, customerData]);
 
   const handleBack = () => {
     router.push('/register/beneficiary');
@@ -711,7 +735,7 @@ export default function PaymentStep() {
                 <Select
                   value={selectedPlan}
                   onValueChange={setSelectedPlan}
-                  disabled={!pricingData}
+                  disabled={!pricingData || planLocked}
                 >
                   <SelectTrigger id="planSelection">
                     <SelectValue placeholder={pricingData ? 'Select insurance plan' : 'No pricing available'} />

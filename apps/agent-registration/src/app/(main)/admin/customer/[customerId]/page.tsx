@@ -182,7 +182,11 @@ export default function CustomerDetailPage() {
         </TabsContent>
 
         <TabsContent value="products">
-          <ProductsTab customerId={customerId} basePath="admin" />
+          <ProductsTab
+            customerId={customerId}
+            basePath="admin"
+            customerStatus={customerData.customer.status}
+          />
         </TabsContent>
         <TabsContent value="payments">
           <PaymentsTab customerId={customerId} />
