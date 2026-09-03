@@ -269,6 +269,8 @@ model Beneficiary {
   deletedAt DateTime? @db.Timestamptz
   deletedBy String?   @db.Uuid // User ID who deleted
 
+  policyBeneficiaries PolicyBeneficiary[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -376,6 +378,7 @@ model Policy {
   lifecycleNotifications PolicyLifecycleNotification[]
   policyMemberPrincipals PolicyMemberPrincipal[]
   policyMemberDependants PolicyMemberDependant[]
+  policyBeneficiaries    PolicyBeneficiary[]
   lctMemberSyncTargets   LctMemberSyncTarget[]
 
   supersedesPolicy       Policy?  @relation("PolicySupersedes", fields: [supersedesPolicyId], references: [id], onDelete: SetNull)
@@ -999,6 +1002,24 @@ model PolicyMemberPrincipal {
   @@index([memberNumber])
   @@index([customerId])
   @@map("policy_member_principals")
+}
+
+/// Next-of-kin share for a single policy (exactly one join per policy).
+model PolicyBeneficiary {
+  id            String @id @default(uuid()) @db.Uuid
+  policyId      String @db.Uuid
+  beneficiaryId String @db.Uuid
+  percentage    Int    @default(100)
+
+  policy      Policy      @relation(fields: [policyId], references: [id], onDelete: Cascade)
+  beneficiary Beneficiary @relation(fields: [beneficiaryId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([policyId])
+  @@index([beneficiaryId])
+  @@map("policy_beneficiaries")
 }
 
 model PolicyMemberDependant {
