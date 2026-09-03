@@ -1,6 +1,9 @@
 /// <reference types="jest" />
 import {
+  additionalSpouseCount,
   hasAdditionalSpousePremium,
+  maxDependantSlots,
+  packageHasFamilyBands,
   resolveFamilyCategoryForHousehold,
   validateSelectedFamilyCategory,
 } from '../family-category.util';
@@ -84,5 +87,32 @@ describe('hasAdditionalSpousePremium', () => {
 
   it('is true for non-member-only with >1 spouse', () => {
     expect(hasAdditionalSpousePremium('up_to_5', twoSpouses)).toBe(true);
+  });
+});
+
+describe('additionalSpouseCount', () => {
+  const threeSpouses = [
+    { relationship: DependantRelationship.SPOUSE },
+    { relationship: DependantRelationship.SPOUSE },
+    { relationship: DependantRelationship.SPOUSE },
+  ];
+
+  it('is 0 for member_only', () => {
+    expect(additionalSpouseCount('member_only', threeSpouses)).toBe(0);
+  });
+
+  it('is 2 for three spouses on a family band', () => {
+    expect(additionalSpouseCount('up_to_5', threeSpouses)).toBe(2);
+  });
+});
+
+describe('maxDependantSlots', () => {
+  it('is 0 when package has no UP_TO_N bands', () => {
+    expect(packageHasFamilyBands([{ key: 'member_only', kind: 'MEMBER_ONLY' }])).toBe(false);
+    expect(maxDependantSlots([{ key: 'member_only', kind: 'MEMBER_ONLY' }])).toBe(0);
+  });
+
+  it('uses the largest UP_TO_N minus principal', () => {
+    expect(maxDependantSlots(bands)).toBe(7);
   });
 });

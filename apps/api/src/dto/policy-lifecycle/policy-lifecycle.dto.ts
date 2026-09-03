@@ -183,6 +183,9 @@ export class ModifyPolicyOptionsResponseDto {
   @ApiProperty()
   additionalSpouse: boolean;
 
+  @ApiProperty({ description: 'Extra-spouse add-on count (spouses after the first)' })
+  additionalSpouseCount: number;
+
   @ApiProperty()
   currentPackagePlanId: number;
 

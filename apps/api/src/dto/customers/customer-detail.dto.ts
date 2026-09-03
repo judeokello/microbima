@@ -36,6 +36,12 @@ export class PolicySummaryDto {
   planName?: string;
 
   @ApiProperty({
+    description: 'Package ID',
+    example: 1,
+  })
+  packageId?: number;
+
+  @ApiProperty({
     description: 'Policy status',
     example: 'ACTIVE',
   })

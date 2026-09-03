@@ -27,8 +27,8 @@ import {
   nextDisabledPolicyNumber,
 } from '../utils/disabled-policy-number.util';
 import {
+  additionalSpouseCount,
   deriveFamilyCategoryFromDependants,
-  hasAdditionalSpousePremium,
 } from '../utils/family-category.util';
 import {
   ActivatePolicyRequestDto,
@@ -1082,6 +1082,21 @@ export class PolicyLifecycleService {
         },
       });
 
+      const priorBeneficiaries = await tx.policyBeneficiary.findMany({
+        where: { policyId: prior.id },
+      });
+      for (const row of priorBeneficiaries) {
+        await tx.policyBeneficiary.upsert({
+          where: { policyId: created.id },
+          create: {
+            policyId: created.id,
+            beneficiaryId: row.beneficiaryId,
+            percentage: row.percentage,
+          },
+          update: { beneficiaryId: row.beneficiaryId, percentage: row.percentage },
+        });
+      }
+
       if (prior.status === PolicyStatus.SUSPENDED || prior.status === PolicyStatus.INACTIVE) {
         await this.statusChangeService.recordPolicyChange({
           customerId: prior.customerId,
@@ -1697,7 +1712,14 @@ export class PolicyLifecycleService {
         nextStatus = CustomerStatus.ACTIVE;
       }
     } else if (hasPending) {
-      if (customer.status !== CustomerStatus.PENDING_ACTIVATION) {
+      // Unpaid extra policies must not flip SUSPENDED / DEACTIVATED customers.
+      if (
+        customer.status === CustomerStatus.SUSPENDED ||
+        customer.status === CustomerStatus.DEACTIVATED ||
+        customer.status === CustomerStatus.TERMINATED
+      ) {
+        nextStatus = null;
+      } else if (customer.status !== CustomerStatus.PENDING_ACTIVATION) {
         nextStatus = CustomerStatus.PENDING_ACTIVATION;
       }
     } else if (hasSuspended) {
@@ -2160,7 +2182,8 @@ export class PolicyLifecycleService {
       where: { customerId, deletedAt: null },
     });
     const familyCategory = deriveFamilyCategoryFromDependants(dependants);
-    const additionalSpouse = hasAdditionalSpousePremium(familyCategory, dependants);
+    const extraSpouseCount = additionalSpouseCount(familyCategory, dependants);
+    const additionalSpouse = extraSpouseCount > 0;
 
     const completedPayments = await this.prisma.policyPayment.findMany({
       where: {
@@ -2201,6 +2224,7 @@ export class PolicyLifecycleService {
       })),
       familyCategory,
       additionalSpouse,
+      additionalSpouseCount: extraSpouseCount,
       currentPackagePlanId: policy.packagePlanId ?? 0,
       currentPlanName: policy.packagePlan?.name,
       currentPremium: Number(policy.premium),
@@ -2420,6 +2444,21 @@ export class PolicyLifecycleService {
         data: { supersededByPolicyId: newPolicy.id },
       });
 
+      const sourceBeneficiaries = await tx.policyBeneficiary.findMany({
+        where: { policyId },
+      });
+      for (const row of sourceBeneficiaries) {
+        await tx.policyBeneficiary.upsert({
+          where: { policyId: newPolicy.id },
+          create: {
+            policyId: newPolicy.id,
+            beneficiaryId: row.beneficiaryId,
+            percentage: row.percentage,
+          },
+          update: { beneficiaryId: row.beneficiaryId, percentage: row.percentage },
+        });
+      }
+
       if (dto.packageSchemeId != null) {
         await tx.packageSchemeCustomer.updateMany({
           where: { customerId, packageScheme: { packageId: source.packageId } },
@@ -2448,6 +2487,20 @@ export class PolicyLifecycleService {
             pendingSince: null,
           },
         });
+      } else {
+        const sourceDependants = await tx.policyMemberDependant.findMany({
+          where: { policyId },
+          select: { dependantId: true },
+        });
+        await this.policyService.attachPolicyMembership(
+          tx,
+          {
+            policyId: newPolicy.id,
+            customerId,
+            dependantIds: sourceDependants.map((d) => d.dependantId),
+          },
+          correlationId
+        );
       }
 
       if (paymentsToMove.length > 0) {

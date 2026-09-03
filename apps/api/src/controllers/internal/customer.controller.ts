@@ -24,6 +24,8 @@ import {
   ApiBearerAuth,
 } from '@nestjs/swagger';
 import { CustomerService } from '../../services/customer.service';
+import { AdditionalPolicyService } from '../../services/additional-policy.service';
+import { AdditionalPolicyRequestDto } from '../../dto/policies/additional-policy.dto';
 import { PartnerManagementService } from '../../services/partner-management.service';
 import { PrismaService } from '../../prisma/prisma.service';
 // TODO: Create UpdatePrincipalMemberRequestDto when implementing update functionality
@@ -90,6 +92,7 @@ import {
 export class InternalCustomerController {
   constructor(
     private readonly customerService: CustomerService,
+    private readonly additionalPolicyService: AdditionalPolicyService,
     private readonly partnerManagementService: PartnerManagementService,
     private readonly prismaService: PrismaService,
     private readonly idNumberRevealService: IdNumberRevealService,
@@ -772,6 +775,46 @@ export class InternalCustomerController {
     const userId = req.user?.id ?? 'system';
     const userRoles = req.user?.roles ?? [];
     return this.customerService.getCustomerPoliciesList(customerId, userId, userRoles, correlationId);
+  }
+
+  @Get(':customerId/additional-policies/eligibility')
+  @AdminOnly()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Check whether admin can add another product' })
+  async getAdditionalPolicyEligibility(
+    @Param('customerId') customerId: string,
+    @Req() req: Request,
+  ) {
+    const userId = req.user?.id ?? 'system';
+    const userRoles = req.user?.roles ?? [];
+    return this.additionalPolicyService.getEligibility(customerId, userId, userRoles);
+  }
+
+  @Post(':customerId/additional-policies')
+  @AdminOnly()
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'Add another product/policy for an existing customer (admin)' })
+  async createAdditionalPolicy(
+    @Param('customerId') customerId: string,
+    @Body() dto: AdditionalPolicyRequestDto,
+    @CorrelationId() correlationId: string,
+    @Req() req: Request,
+  ) {
+    const userId = req.user?.id ?? 'system';
+    const userRoles = req.user?.roles ?? [];
+    const result = await this.additionalPolicyService.createAdditionalPolicy(
+      customerId,
+      dto,
+      userId,
+      userRoles,
+      correlationId
+    );
+    return {
+      status: HttpStatus.CREATED,
+      correlationId,
+      message: 'Additional policy created',
+      data: result,
+    };
   }
 
   /**

@@ -14,6 +14,7 @@ import {
   mapPolicyStatusToLctAction,
   shouldEnqueueStatusChange,
 } from './lct.types';
+import { OCCUPYING_POLICY_STATUSES } from '../../utils/occupying-policy.util';
 
 type Tx = Prisma.TransactionClient;
 
@@ -382,21 +383,25 @@ export class LctSyncService {
   async ensureMemberRowsForLateDependants(
     policyId: string,
     correlationId: string,
-    tx?: Tx
+    tx?: Tx,
+    dependantIds?: string[]
   ): Promise<void> {
+    if (!dependantIds || dependantIds.length === 0) return;
+
     const client = tx ?? this.prisma;
     const policy = await client.policy.findUnique({
       where: { id: policyId },
       include: {
         customer: {
           include: {
-            dependants: { where: { deletedAt: null } },
+            dependants: { where: { deletedAt: null, id: { in: dependantIds } } },
             policyMemberPrincipals: { where: { policyId } },
           },
         },
       },
     });
     if (!policy) return;
+    if (!(OCCUPYING_POLICY_STATUSES as PolicyStatus[]).includes(policy.status)) return;
     if (policy.customer.policyMemberPrincipals.length === 0) return;
     if (!policy.policyNumber && policy.status === PolicyStatus.PENDING_ACTIVATION) return;
 

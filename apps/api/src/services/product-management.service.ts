@@ -234,16 +234,24 @@ export class ProductManagementService {
   /**
    * Flat scheme list for pickers (includes inactive; UI disables inactive rows).
    */
-  async listSchemesForPicker(correlationId: string) {
-    this.logger.log(`[${correlationId}] Listing schemes for picker`);
+  async listSchemesForPicker(correlationId: string, q?: string) {
+    this.logger.log(`[${correlationId}] Listing schemes for picker q=${q ?? ''}`);
     try {
+      const prefix = (q ?? '').trim();
+      if (prefix.length > 0 && prefix.length < 2) {
+        return [];
+      }
       const schemes = await this.prismaService.scheme.findMany({
+        where: prefix.length >= 2
+          ? { schemeName: { startsWith: prefix, mode: 'insensitive' } }
+          : undefined,
         select: {
           id: true,
           schemeName: true,
           isActive: true,
         },
         orderBy: { schemeName: 'asc' },
+        take: prefix.length >= 2 ? 25 : 200,
       });
       return schemes.map((s) => ({
         id: s.id,
@@ -331,6 +339,7 @@ export class ProductManagementService {
               schemeName: true,
               description: true,
               parentsSupported: true,
+              isPostpaid: true,
             },
           },
         },
@@ -346,6 +355,7 @@ export class ProductManagementService {
         name: ps.scheme.schemeName,
         description: ps.scheme.description,
         parentsSupported: ps.scheme.parentsSupported,
+        isPostpaid: ps.scheme.isPostpaid,
         packageSchemeId: ps.id, // Include junction table ID for scheme assignment
       }));
 

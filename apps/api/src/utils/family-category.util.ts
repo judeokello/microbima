@@ -100,6 +100,41 @@ export function validateSelectedFamilyCategory(params: {
   return { ok: true, categoryKey: selectedCategoryKey };
 }
 
+export function packageHasFamilyBands(bands: PackagePricingBand[]): boolean {
+  return bands.some((b) => b.kind === 'UP_TO_N' && (b.maxMembers ?? 0) >= 2);
+}
+
+/** Max spouses+children allowed (principal is not counted). 0 = member-only product. */
+export function maxDependantSlots(bands: PackagePricingBand[]): number {
+  const upTo = bands
+    .filter((b) => b.kind === 'UP_TO_N' && b.maxMembers != null && b.maxMembers >= 2)
+    .map((b) => b.maxMembers ?? 0);
+  if (upTo.length === 0) return 0;
+  return Math.max(...upTo) - 1;
+}
+
+/**
+ * Extra-spouse add-on count: each spouse after the first.
+ * Member-only → 0. optedIn false → 0. Unknown household + opted in → 1.
+ */
+export function additionalSpouseCount(
+  category: string,
+  dependants: Array<{ relationship: DependantRelationship; deletedAt?: Date | null }>,
+  options?: { optedIn?: boolean; householdKnown?: boolean }
+): number {
+  if (category === 'member_only' || category === 'MEMBER_ONLY') return 0;
+  if (options?.optedIn === false) return 0;
+
+  if (options?.householdKnown === false) {
+    return options.optedIn === true ? 1 : 0;
+  }
+
+  const spouseCount = dependants.filter(
+    (d) => d.deletedAt == null && d.relationship === 'SPOUSE'
+  ).length;
+  return Math.max(0, spouseCount - 1);
+}
+
 /**
  * Additional spouse add-on applies when category is not Member only, agent opts in,
  * and (when household known) there is more than one spouse.
@@ -109,17 +144,5 @@ export function hasAdditionalSpousePremium(
   dependants: Array<{ relationship: DependantRelationship; deletedAt?: Date | null }>,
   options?: { optedIn?: boolean; householdKnown?: boolean }
 ): boolean {
-  if (category === 'member_only' || category === 'MEMBER_ONLY') return false;
-  if (options?.optedIn === false) return false;
-
-  const spouseCount = dependants.filter(
-    (d) => d.deletedAt == null && d.relationship === 'SPOUSE'
-  ).length;
-
-  if (options?.householdKnown === false) {
-    return options.optedIn === true;
-  }
-
-  if (spouseCount <= 1) return false;
-  return true;
+  return additionalSpouseCount(category, dependants, options) > 0;
 }

@@ -674,8 +674,20 @@ export class CustomerService {
       if (postpaidPolicyId && createdCustomer.idNumber) {
         const deferredPostpaidPolicyId = postpaidPolicyId;
         const idNumber = createdCustomer.idNumber;
+        const createdDependantIds = [...createdChildren, ...createdSpouses].map((d) => d.id);
+        const createdBeneficiaryId = createdBeneficiaries[0]?.id ?? null;
         try {
           await this.prismaService.$transaction(async (tx) => {
+            await this.policyService.attachPolicyMembership(
+              tx,
+              {
+                policyId: deferredPostpaidPolicyId,
+                customerId: createdCustomer.id,
+                dependantIds: createdDependantIds,
+                beneficiaryId: createdBeneficiaryId,
+              },
+              correlationId
+            );
             await this.policyService.mapUnmappedMpesaItemsToPolicy(
               deferredPostpaidPolicyId,
               idNumber,
@@ -684,10 +696,11 @@ export class CustomerService {
               { activateIfPending: true }
             );
           });
-          // Safety net if activation ran with partial family, or map left policy already active.
           await this.lctSyncService.ensureMemberRowsForLateDependants(
             deferredPostpaidPolicyId,
-            correlationId
+            correlationId,
+            undefined,
+            createdDependantIds
           );
           await this.lctSyncService.upsertTargetsForPolicy(
             deferredPostpaidPolicyId,
@@ -1158,16 +1171,21 @@ export class CustomerService {
 
       this.logger.log(`[${correlationId}] Successfully added ${result.totalProcessed} dependants to customer ${customerId}`);
 
-      // Late dependants: create member numbers + LCT pending for syncable policies
-      const policies = await this.prismaService.policy.findMany({
+      const newDependantIds = result.addedDependants.map((d) => d.dependantId);
+      const occupyingPolicies = await this.prismaService.policy.findMany({
         where: {
           customerId,
-          status: { in: ['ACTIVE', 'SUSPENDED', 'INACTIVE', 'DEACTIVATED', 'TERMINATED', 'EXPIRED'] },
+          status: { in: ['ACTIVE', 'PENDING_ACTIVATION', 'SUSPENDED'] },
         },
         select: { id: true },
       });
-      for (const policy of policies) {
-        await this.lctSyncService.ensureMemberRowsForLateDependants(policy.id, correlationId);
+      for (const policy of occupyingPolicies) {
+        await this.lctSyncService.ensureMemberRowsForLateDependants(
+          policy.id,
+          correlationId,
+          undefined,
+          newDependantIds
+        );
         await this.lctSyncService.upsertTargetsForPolicy(policy.id, correlationId);
         await this.lctSyncService.onPolicyActivated(policy.id, correlationId);
       }
@@ -2675,6 +2693,7 @@ export class CustomerService {
         policyNumber: p.policyNumber,
         packageName: p.package.name,
         planName: p.packagePlan?.name,
+        packageId: p.packageId,
         status: p.status,
       }));
 
@@ -2906,6 +2925,21 @@ export class CustomerService {
           },
         },
         packagePlan: { select: { name: true } },
+        policyBeneficiaries: {
+          take: 1,
+          include: {
+            beneficiary: {
+              select: {
+                id: true,
+                firstName: true,
+                middleName: true,
+                lastName: true,
+                relationship: true,
+                phoneNumber: true,
+              },
+            },
+          },
+        },
         policyPayments: {
           where: notDetachedPaymentWhere(),
           select: {
@@ -3016,6 +3050,16 @@ export class CustomerService {
         paymentsMadeCount: countConfirmedPayments(policy.policyPayments),
         missedPaymentsAmount,
         schemeBillingMode,
+        beneficiary: policy.policyBeneficiaries[0]
+          ? {
+              id: policy.policyBeneficiaries[0].beneficiary.id,
+              firstName: policy.policyBeneficiaries[0].beneficiary.firstName,
+              middleName: policy.policyBeneficiaries[0].beneficiary.middleName,
+              lastName: policy.policyBeneficiaries[0].beneficiary.lastName,
+              relationship: policy.policyBeneficiaries[0].beneficiary.relationship,
+              percentage: policy.policyBeneficiaries[0].percentage,
+            }
+          : null,
       },
     };
   }

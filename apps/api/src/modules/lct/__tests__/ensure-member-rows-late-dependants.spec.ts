@@ -63,7 +63,10 @@ describe('LctSyncService.ensureMemberRowsForLateDependants', () => {
       },
     });
 
-    await service.ensureMemberRowsForLateDependants('pol-1', correlationId);
+    await service.ensureMemberRowsForLateDependants('pol-1', correlationId, undefined, [
+      'simon',
+      'brian',
+    ]);
 
     expect(orderDependantsForMemberNumbers).toHaveBeenCalledWith(
       expect.arrayContaining([
@@ -123,7 +126,10 @@ describe('LctSyncService.ensureMemberRowsForLateDependants', () => {
       },
     });
 
-    await service.ensureMemberRowsForLateDependants('pol-1', correlationId);
+    await service.ensureMemberRowsForLateDependants('pol-1', correlationId, undefined, [
+      'simon',
+      'brian',
+    ]);
     expect(create).not.toHaveBeenCalled();
   });
 
@@ -156,7 +162,41 @@ describe('LctSyncService.ensureMemberRowsForLateDependants', () => {
       },
     });
 
-    await service.ensureMemberRowsForLateDependants('pol-1', correlationId);
+    await service.ensureMemberRowsForLateDependants('pol-1', correlationId, undefined, [
+      'simon',
+      'brian',
+    ]);
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it('skips expired and terminated policies', async () => {
+    const create = jest.fn();
+    const prisma = {
+      policy: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 'pol-expired',
+          packageId: 1,
+          policyNumber: 'MP/MFG/001',
+          status: PolicyStatus.EXPIRED,
+          customer: {
+            dependants: [{ id: 'dep-1', relationship: DependantRelationship.CHILD }],
+            policyMemberPrincipals: [{ id: 'pmp' }],
+          },
+        }),
+      },
+      policyMemberDependant: { findMany: jest.fn(), create },
+    };
+    const service = buildService({
+      prisma,
+      policyService: {
+        orderDependantsForMemberNumbers: jest.fn((d: any[]) => d) as any,
+        generateMemberNumberForPolicy: jest.fn(),
+      },
+    });
+
+    await service.ensureMemberRowsForLateDependants('pol-expired', correlationId, undefined, [
+      'dep-1',
+    ]);
     expect(create).not.toHaveBeenCalled();
   });
 });

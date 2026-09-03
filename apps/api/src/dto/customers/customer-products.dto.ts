@@ -179,6 +179,19 @@ export class CustomerPolicyDetailDto {
     enum: ['prepaid', 'postpaid'],
   })
   schemeBillingMode: 'prepaid' | 'postpaid';
+
+  @ApiProperty({
+    description: 'Next of kin for this policy (one person, 100%)',
+    nullable: true,
+  })
+  beneficiary: {
+    id: string;
+    firstName: string;
+    middleName: string | null;
+    lastName: string;
+    relationship: string;
+    percentage: number;
+  } | null;
 }
 
 export class CustomerPolicyDetailResponseDto {

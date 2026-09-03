@@ -2,12 +2,11 @@ import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { Prisma } from '@prisma/client';
 import * as Sentry from '@sentry/nestjs';
-
-/**
- * Letters for policy payment account suffix (2nd policy = B, 3rd = C, ...).
- * Excludes A, I, J, O to avoid confusion with numbers and readability.
- */
-const POLICY_SUFFIX_LETTERS = 'BCDEFGHKLMNPQRSTUVWXYZ';
+import {
+  OCCUPYING_POLICY_STATUSES,
+  STEALABLE_PAYMENT_AC_STATUSES,
+} from '../utils/occupying-policy.util';
+import { occupyingPolicyPaymentAcSuffix } from '../utils/payment-ac-suffix.util';
 
 /**
  * Payment Account Number Generation Service
@@ -22,18 +21,6 @@ export class PaymentAccountNumberService {
   private readonly logger = new Logger(PaymentAccountNumberService.name);
 
   constructor(private readonly prismaService: PrismaService) {}
-
-  /**
-   * Get letter suffix for (n+1)th policy: index 0 = B (2nd), 1 = C (3rd), ... 21 = Z, 22+ = two letters (e.g. BB, BC).
-   */
-  private getPolicySuffixLetter(index: number): string {
-    const n = POLICY_SUFFIX_LETTERS.length;
-    if (index < n) return POLICY_SUFFIX_LETTERS[index];
-    const i = index - n;
-    const first = Math.floor(i / n);
-    const second = i % n;
-    return POLICY_SUFFIX_LETTERS[first] + POLICY_SUFFIX_LETTERS[second];
-  }
 
   /**
    * Check if a number contains digits 0 or 1
@@ -132,14 +119,9 @@ export class PaymentAccountNumberService {
   }
 
   /**
-   * Generate payment account number for a policy
-   * First policy: customer idNumber. Subsequent: idNumber + letter (B, C, D, ... excluding A, I, J, O).
-   *
-   * @param customerId - Customer UUID
-   * @param isFirstPolicy - Whether this is the customer's first policy
-   * @param tx - Prisma transaction client
-   * @param correlationId - Correlation ID for logging
-   * @returns Payment account number
+   * Generate payment account number for a policy.
+   * No occupying policy: customer idNumber (steal from EXPIRED/DEACTIVATED/INACTIVE if needed).
+   * Already occupying: idNumber + letter (B, C, ... excluding A, I, J, O).
    */
   async generateForPolicy(
     customerId: string,
@@ -150,7 +132,7 @@ export class PaymentAccountNumberService {
     try {
       this.logger.log(
         `[${correlationId}] Generating payment account number for policy. ` +
-          `Customer: ${customerId}, First policy: ${isFirstPolicy}`
+          `Customer: ${customerId}, First occupying: ${isFirstPolicy}`
       );
 
       const customer = await tx.customer.findUnique({
@@ -167,20 +149,26 @@ export class PaymentAccountNumberService {
         throw new Error(`Customer ${customerId} has no idNumber`);
       }
 
-      if (isFirstPolicy) {
-        this.logger.log(
-          `[${correlationId}] Using customer ID number for first policy: ${idNumber}`
-        );
-        return idNumber;
-      }
-
-      const existingCount = await tx.policy.count({
-        where: { customerId },
+      const occupyingCount = await tx.policy.count({
+        where: { customerId, status: { in: OCCUPYING_POLICY_STATUSES } },
       });
-      const suffix = this.getPolicySuffixLetter(existingCount);
-      const paymentAcNumber = idNumber + suffix;
+      const treatAsFirst = isFirstPolicy || occupyingCount === 0;
+      const suffix = treatAsFirst ? null : occupyingPolicyPaymentAcSuffix(occupyingCount);
+      const paymentAcNumber = suffix ? `${idNumber}${suffix}` : idNumber;
+
+      await tx.policy.updateMany({
+        where: {
+          customerId,
+          paymentAcNumber,
+          status: { in: STEALABLE_PAYMENT_AC_STATUSES },
+        },
+        data: { paymentAcNumber: null },
+      });
+
       this.logger.log(
-        `[${correlationId}] Using idNumber + suffix for policy ${existingCount + 1}: ${paymentAcNumber}`
+        treatAsFirst
+          ? `[${correlationId}] Using customer ID number for first occupying policy: ${paymentAcNumber}`
+          : `[${correlationId}] Using idNumber + suffix for occupying policy ${occupyingCount + 1}: ${paymentAcNumber}`
       );
       return paymentAcNumber;
     } catch (error) {
@@ -339,12 +327,7 @@ export class PaymentAccountNumberService {
   }
 
   /**
-   * Check if a customer has any existing policies
-   *
-   * @param customerId - Customer UUID
-   * @param tx - Prisma transaction client (optional)
-   * @param correlationId - Correlation ID for logging
-   * @returns True if customer has existing policies
+   * Check if a customer has occupying policies (ACTIVE / PENDING_ACTIVATION / SUSPENDED).
    */
   async customerHasExistingPolicies(
     customerId: string,
@@ -355,12 +338,12 @@ export class PaymentAccountNumberService {
       const prisma = tx ?? this.prismaService;
 
       const policyCount = await prisma.policy.count({
-        where: { customerId },
+        where: { customerId, status: { in: OCCUPYING_POLICY_STATUSES } },
       });
 
       const hasExisting = policyCount > 0;
       this.logger.log(
-        `[${correlationId}] Customer ${customerId} has ${policyCount} existing policies`
+        `[${correlationId}] Customer ${customerId} has ${policyCount} occupying policies`
       );
 
       return hasExisting;

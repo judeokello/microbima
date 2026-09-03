@@ -27,6 +27,8 @@ import { notDetachedPaymentWhere } from '../utils/policy-payment-filters';
 import { computeNominalPaymentPeriodEndDate } from '../utils/package-payment-frequency.util';
 import { ValidationException } from '../exceptions/validation.exception';
 import { ErrorCodes } from '../enums/error-codes.enum';
+import { validateAdditionalProductEnrolment } from '../utils/additional-product.rules';
+import { CustomerStatus } from '@prisma/client';
 
 /**
  * Policy Service
@@ -248,6 +250,121 @@ export class PolicyService {
       if (bIsSpouse !== aIsSpouse) return bIsSpouse - aIsSpouse; // Spouse first
       return 0; // Stable order within same relationship
     });
+  }
+
+  /**
+   * Persist intended membership for a policy.
+   * `dependantIds` undefined = all current customer dependants (legacy first registration).
+   * `[]` = member-only. Specific IDs = those people only.
+   */
+  async attachPolicyMembership(
+    tx: Prisma.TransactionClient,
+    params: {
+      policyId: string;
+      customerId: string;
+      dependantIds?: string[] | null;
+      beneficiaryId?: string | null;
+    },
+    correlationId: string
+  ): Promise<void> {
+    let dependantIds = params.dependantIds;
+    if (dependantIds === undefined || dependantIds === null) {
+      const all = await tx.dependant.findMany({
+        where: { customerId: params.customerId, deletedAt: null },
+        select: { id: true, relationship: true },
+      });
+      dependantIds = this.orderDependantsForMemberNumbers(all).map((d) => d.id);
+    }
+
+    const uniqueDependantIds = [...new Set(dependantIds)];
+    for (const dependantId of uniqueDependantIds) {
+      await tx.policyMemberDependant.upsert({
+        where: {
+          policyId_dependantId: { policyId: params.policyId, dependantId },
+        },
+        create: {
+          policyId: params.policyId,
+          dependantId,
+          memberNumber: `PENDING-${dependantId.slice(0, 8)}`,
+        },
+        update: {},
+      });
+    }
+
+    if (params.beneficiaryId) {
+      await tx.policyBeneficiary.upsert({
+        where: { policyId: params.policyId },
+        create: {
+          policyId: params.policyId,
+          beneficiaryId: params.beneficiaryId,
+          percentage: 100,
+        },
+        update: { beneficiaryId: params.beneficiaryId, percentage: 100 },
+      });
+    }
+
+    this.logger.log(
+      `[${correlationId}] Attached membership on policy ${params.policyId}: ` +
+        `${uniqueDependantIds.length} dependants, beneficiary=${params.beneficiaryId ?? 'none'}`
+    );
+  }
+
+  async loadEnrolmentSnapshots(
+    customerId: string,
+    tx?: Prisma.TransactionClient | PrismaService
+  ): Promise<{
+    customerStatus: CustomerStatus;
+    snapshots: Array<{
+      id: string;
+      packageId: number;
+      status: string;
+      isPostpaid: boolean;
+    }>;
+  }> {
+    const db = tx ?? this.prismaService;
+    const customer = await db.customer.findUnique({
+      where: { id: customerId },
+      select: { status: true },
+    });
+    if (!customer) {
+      throw new NotFoundException(`Customer ${customerId} not found`);
+    }
+    const policies = await db.policy.findMany({
+      where: { customerId },
+      select: { id: true, packageId: true, status: true },
+    });
+    const pscs = await db.packageSchemeCustomer.findMany({
+      where: { customerId },
+      include: {
+        packageScheme: {
+          select: {
+            packageId: true,
+            scheme: { select: { isPostpaid: true } },
+          },
+        },
+      },
+    });
+    const postpaidByPackage = new Map<number, boolean>();
+    for (const row of pscs) {
+      postpaidByPackage.set(row.packageScheme.packageId, row.packageScheme.scheme.isPostpaid);
+    }
+    return {
+      customerStatus: customer.status,
+      snapshots: policies.map((p) => ({
+        id: p.id,
+        packageId: p.packageId,
+        status: p.status,
+        isPostpaid: postpaidByPackage.get(p.packageId) ?? false,
+      })),
+    };
+  }
+
+  async resolvePackageIsPostpaid(customerId: string, packageId: number): Promise<boolean> {
+    const row = await this.prismaService.packageSchemeCustomer.findFirst({
+      where: { customerId, packageScheme: { packageId } },
+      include: { packageScheme: { include: { scheme: { select: { isPostpaid: true } } } } },
+    });
+    return row?.packageScheme?.scheme?.isPostpaid ?? false;
   }
 
   /**
@@ -540,6 +657,8 @@ export class PolicyService {
         paymentMessageBlob?: string;
       };
       customDays?: number;
+      dependantIds?: string[] | null;
+      beneficiaryId?: string | null;
     },
     correlationId: string,
   ) {
@@ -610,17 +729,19 @@ export class PolicyService {
         );
       }
 
-      // At most one non-terminal policy per customer per package
-      const existingPolicyForPackage = await this.prismaService.policy.findFirst({
-        where: {
-          customerId: data.customerId,
-          packageId: data.packageId,
-          status: { in: ['ACTIVE', 'PENDING_ACTIVATION', 'SUSPENDED'] },
-        },
+      const enrolment = await this.loadEnrolmentSnapshots(data.customerId);
+      const newIsPostpaid = await this.resolvePackageIsPostpaid(data.customerId, data.packageId);
+      const enrolmentCheck = validateAdditionalProductEnrolment({
+        customerStatus: enrolment.customerStatus,
+        policies: enrolment.snapshots,
+        newPackageId: data.packageId,
+        newIsPostpaid,
       });
-      if (existingPolicyForPackage) {
-        throw new ConflictException(
-          `Customer already has an active policy for this package (policy ID: ${existingPolicyForPackage.id})`
+      if (!enrolmentCheck.ok) {
+        throw ValidationException.forField(
+          enrolmentCheck.field,
+          enrolmentCheck.message,
+          ErrorCodes.RESOURCE_CONFLICT
         );
       }
 
@@ -802,6 +923,17 @@ export class PolicyService {
 
           this.logger.log(
             `[${correlationId}] ✓ Successfully created policy: id=${policy.id}, policyNumber="${policy.policyNumber}"`
+          );
+
+          await this.attachPolicyMembership(
+            tx,
+            {
+              policyId: policy.id,
+              customerId: data.customerId,
+              dependantIds: data.dependantIds,
+              beneficiaryId: data.beneficiaryId,
+            },
+            correlationId
           );
         } catch (createError: unknown) {
           // Handle unique constraint violation on policyNumber (race condition safety net)
@@ -1645,56 +1777,52 @@ export class PolicyService {
           `for customer ${policy.customerId}`
         );
 
-        // Create PolicyMemberDependant records for each dependant
-        // Order: spouses first (01, 02, ...), then others (e.g. children). Principal is always 00.
-        if (policy.customer.dependants && policy.customer.dependants.length > 0) {
-          const orderedDependants = this.orderDependantsForMemberNumbers(
-            policy.customer.dependants
-          );
-          this.logger.log(
-            `[${correlationId}] Creating member records for ${orderedDependants.length} dependants (spouses first)`
-          );
-
-          for (let i = 0; i < orderedDependants.length; i++) {
-            const dependant = orderedDependants[i];
-            // Dependants start at sequence 1 (formatted as 01), then 2 (02), etc.
-            const dependantMemberNumber = await this.generateMemberNumber(
-              policy.packageId,
-              policyNumber,
-              txClient,
-              correlationId,
-              i + 1 // Dependant sequence: 1 -> 01, 2 -> 02, etc.
-            );
-
-            await txClient.policyMemberDependant.create({
-              data: {
-                dependantId: dependant.id,
-                policyId: policyId,
-                memberNumber: dependantMemberNumber,
-              },
-            });
-
-            this.logger.log(
-              `[${correlationId}] Created dependant member record with number ${dependantMemberNumber} ` +
-              `for dependant ${dependant.id}`
-            );
-          }
-        }
-
-        // Update customer status to ACTIVE if this is the first policy
-        const customerPoliciesCount = await txClient.policy.count({
-          where: { customerId: policy.customerId },
+        // Number only dependants already attached to THIS policy (explicit membership).
+        const intendedDependants = await txClient.policyMemberDependant.findMany({
+          where: { policyId },
+          include: { dependant: { select: { id: true, relationship: true } } },
         });
+        const orderedDependants = this.orderDependantsForMemberNumbers(
+          intendedDependants.map((row) => row.dependant)
+        );
+        this.logger.log(
+          `[${correlationId}] Assigning member numbers for ${orderedDependants.length} intended dependants`
+        );
 
-        if (customerPoliciesCount === 1) {
-          // This is the first policy - update customer status to ACTIVE
-          await txClient.customer.update({
-            where: { id: policy.customerId },
-            data: { status: 'ACTIVE' },
+        for (let i = 0; i < orderedDependants.length; i++) {
+          const dependant = orderedDependants[i];
+          const dependantMemberNumber = await this.generateMemberNumber(
+            policy.packageId,
+            policyNumber,
+            txClient,
+            correlationId,
+            i + 1
+          );
+
+          await txClient.policyMemberDependant.update({
+            where: {
+              policyId_dependantId: { policyId, dependantId: dependant.id },
+            },
+            data: { memberNumber: dependantMemberNumber },
           });
 
           this.logger.log(
-            `[${correlationId}] Updated customer ${policy.customerId} status to ACTIVE (first policy)`
+            `[${correlationId}] Set dependant member number ${dependantMemberNumber} ` +
+              `for dependant ${dependant.id}`
+          );
+        }
+
+        const customer = await txClient.customer.findUnique({
+          where: { id: policy.customerId },
+          select: { status: true },
+        });
+        if (customer && customer.status !== CustomerStatus.TERMINATED) {
+          await txClient.customer.update({
+            where: { id: policy.customerId },
+            data: { status: 'ACTIVE', deactivatedAt: null },
+          });
+          this.logger.log(
+            `[${correlationId}] Updated customer ${policy.customerId} status to ACTIVE after policy activation`
           );
         }
 
@@ -2111,6 +2239,12 @@ export class PolicyService {
         },
       });
 
+      await this.attachPolicyMembership(
+        tx,
+        { policyId: policy.id, customerId: data.customerId },
+        correlationId
+      );
+
       const mapped = await this.mapUnmappedMpesaItemsToPolicy(
         policy.id,
         paymentAcNumber,
@@ -2142,8 +2276,10 @@ export class PolicyService {
       annualPremium?: number;
       frequency: PaymentFrequency;
       customDays?: number;
+      dependantIds?: string[] | null;
+      beneficiaryId?: string | null;
     },
-    _correlationId: string
+    correlationId: string
   ) {
     const customer = await this.prismaService.customer.findUnique({
       where: { id: data.customerId },
@@ -2175,9 +2311,36 @@ export class PolicyService {
       data.packageId,
       data.frequency
     );
-    const paymentAcNumber = customer.idNumber ?? null;
+
+    const enrolment = await this.loadEnrolmentSnapshots(data.customerId);
+    const newIsPostpaid = await this.resolvePackageIsPostpaid(data.customerId, data.packageId);
+    const enrolmentCheck = validateAdditionalProductEnrolment({
+      customerStatus: enrolment.customerStatus,
+      policies: enrolment.snapshots,
+      newPackageId: data.packageId,
+      newIsPostpaid,
+    });
+    if (!enrolmentCheck.ok) {
+      throw ValidationException.forField(
+        enrolmentCheck.field,
+        enrolmentCheck.message,
+        ErrorCodes.RESOURCE_CONFLICT
+      );
+    }
 
     return this.prismaService.$transaction(async (tx) => {
+      const isFirstOccupying = !(await this.paymentAccountNumberService.customerHasExistingPolicies(
+        data.customerId,
+        tx,
+        correlationId
+      ));
+      const paymentAcNumber = await this.paymentAccountNumberService.generateForPolicy(
+        data.customerId,
+        isFirstOccupying,
+        tx,
+        correlationId
+      );
+
       const policy = await tx.policy.create({
         data: {
           policyNumber: null,
@@ -2197,12 +2360,22 @@ export class PolicyService {
         },
       });
 
-      // Defensive: if any historical M-Pesa items match, map them (list path usually has none)
+      await this.attachPolicyMembership(
+        tx,
+        {
+          policyId: policy.id,
+          customerId: data.customerId,
+          dependantIds: data.dependantIds,
+          beneficiaryId: data.beneficiaryId,
+        },
+        correlationId
+      );
+
       if (paymentAcNumber) {
         await this.mapUnmappedMpesaItemsToPolicy(
           policy.id,
           paymentAcNumber,
-          _correlationId,
+          correlationId,
           tx,
           { activateIfPending: true }
         );
