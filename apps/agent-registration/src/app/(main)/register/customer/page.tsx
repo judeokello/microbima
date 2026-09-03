@@ -1094,8 +1094,6 @@ export default function CustomerStep() {
               </div>
             ))}
           </div>
-
-          </div>
           )}
 
           {householdCaps.showChildren && (

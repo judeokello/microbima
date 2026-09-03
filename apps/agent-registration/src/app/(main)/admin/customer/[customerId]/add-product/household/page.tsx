@@ -45,8 +45,14 @@ export default function AddProductHouseholdStep() {
     }
   }, [customerId, router]);
 
-  const spouses = details?.dependants.filter((d) => d.relationship === 'SPOUSE' && !d.deletedAt) ?? [];
-  const children = details?.dependants.filter((d) => d.relationship === 'CHILD' && !d.deletedAt) ?? [];
+  const spouses = useMemo(
+    () => details?.dependants.filter((d) => d.relationship === 'SPOUSE' && !d.deletedAt) ?? [],
+    [details]
+  );
+  const children = useMemo(
+    () => details?.dependants.filter((d) => d.relationship === 'CHILD' && !d.deletedAt) ?? [],
+    [details]
+  );
   const existingParents = details?.parents.filter((p) => !p.deletedAt) ?? [];
 
   const extraCount = useMemo(() => {

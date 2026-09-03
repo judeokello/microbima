@@ -671,11 +671,11 @@ export class CustomerService {
       }
 
       // Attach only this registration's dependants/beneficiary to the postpaid shell.
+      const postpaidDependantIds = [
+        ...createdChildren.map((d) => d.id),
+        ...createdSpouses.map((d) => d.id),
+      ];
       if (postpaidPolicyId) {
-        const postpaidDependantIds = [
-          ...createdChildren.map((d) => d.id),
-          ...createdSpouses.map((d) => d.id),
-        ];
         await this.policyService.insertMembershipStubs(
           this.prismaService as never,
           postpaidPolicyId,

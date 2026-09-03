@@ -18,7 +18,7 @@ export default function AddProductBeneficiaryStep() {
   const [creatingNew, setCreatingNew] = useState(false);
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
-  const [relationship, setRelationship] = useState('spouse');
+  const [relationship] = useState('spouse');
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
