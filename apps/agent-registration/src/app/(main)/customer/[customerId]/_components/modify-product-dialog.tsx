@@ -123,14 +123,14 @@ export default function ModifyProductDialog({
     if (!plan) return null;
     const cat = plan.categories[options.familyCategory];
     if (!cat) return null;
-    const spouse = options.additionalSpouse;
-    const daily = (cat.daily ?? 0) + (spouse ? plan.additional_spouse.daily ?? 0 : 0);
-    const weekly = (cat.weekly ?? 0) + (spouse ? plan.additional_spouse.weekly ?? 0 : 0);
+    const spouseUnits = options.extraSpouseCount ?? (options.additionalSpouse ? 1 : 0);
+    const daily = (cat.daily ?? 0) + spouseUnits * (plan.additional_spouse.daily ?? 0);
+    const weekly = (cat.weekly ?? 0) + spouseUnits * (plan.additional_spouse.weekly ?? 0);
     const lookupRates: PricingRateBand = {
       daily,
       weekly,
-      monthly: (cat.monthly ?? 0) + (spouse ? plan.additional_spouse.monthly ?? 0 : 0),
-      annually: (cat.annually ?? 0) + (spouse ? plan.additional_spouse.annually ?? 0 : 0),
+      monthly: (cat.monthly ?? 0) + spouseUnits * (plan.additional_spouse.monthly ?? 0),
+      annually: (cat.annually ?? 0) + spouseUnits * (plan.additional_spouse.annually ?? 0),
     };
     return { daily, weekly, lookupRates };
   }, [pricing, options, selectedPlan]);

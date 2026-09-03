@@ -255,6 +255,7 @@ export default function BeneficiaryStep() {
 
       // Save form data for next steps
       localStorage.setItem('beneficiaryFormData', JSON.stringify(formData));
+      localStorage.setItem('beneficiaryId', beneficiaryResult.beneficiaryIds[0]);
       console.log('✅ NoK form data saved to localStorage');
 
       console.log('🔍 Step 5: Navigating to payment page...');

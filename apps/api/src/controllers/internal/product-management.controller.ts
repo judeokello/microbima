@@ -153,8 +153,11 @@ export class ProductManagementController {
     description: 'All schemes with isActive flag (inactive rows are for display only).',
   })
   @ApiResponse({ status: 200, description: 'Schemes retrieved successfully' })
-  async listSchemesForPicker(@CorrelationId() correlationId: string) {
-    const schemes = await this.productManagementService.listSchemesForPicker(correlationId);
+  async listSchemesForPicker(
+    @CorrelationId() correlationId: string,
+    @Query('q') q?: string,
+  ) {
+    const schemes = await this.productManagementService.listSchemesForPicker(correlationId, q);
     return {
       status: HttpStatus.OK,
       correlationId,

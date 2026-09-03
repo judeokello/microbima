@@ -101,6 +101,68 @@ export function validateSelectedFamilyCategory(params: {
 }
 
 /**
+ * Extra-spouse units billed: (spouseCount - 1), never negative.
+ * Member-only products never bill extra-spouse.
+ */
+export function extraSpouseAddonCount(
+  spouseCount: number,
+  category?: string | null
+): number {
+  if (category === 'member_only' || category === 'MEMBER_ONLY') return 0;
+  return Math.max(0, spouseCount - 1);
+}
+
+/** @deprecated Use extraSpouseAddonCount */
+export function additionalSpouseUnits(
+  spouseCount: number,
+  category?: string | null
+): number {
+  return extraSpouseAddonCount(spouseCount, category);
+}
+
+export type HouseholdCaps = {
+  hasFamilyBands: boolean;
+  maxMembers: number;
+  maxExtraMembers: number;
+  showSpouse: boolean;
+  showChildren: boolean;
+  showParents: boolean;
+};
+
+/**
+ * Household UI caps from PACKAGE pricing bands (not the plan).
+ * No UP_TO_N → member-only: hide spouse, children, and parents.
+ * Largest UP_TO_N maxMembers = N → at most N-1 spouses/children.
+ * Parents only when scheme supports them AND the package has family bands.
+ */
+export function householdCapsFromBands(
+  bands: PackagePricingBand[],
+  parentsSupported: boolean
+): HouseholdCaps {
+  const upTo = bands.filter(
+    (b) => b.kind === 'UP_TO_N' && b.maxMembers != null && b.maxMembers >= 2
+  );
+  const hasFamilyBands = upTo.length > 0;
+  const maxMembers = hasFamilyBands
+    ? Math.max(...upTo.map((b) => b.maxMembers ?? 0))
+    : 1;
+  return {
+    hasFamilyBands,
+    maxMembers,
+    maxExtraMembers: hasFamilyBands ? maxMembers - 1 : 0,
+    showSpouse: hasFamilyBands,
+    showChildren: hasFamilyBands,
+    showParents: hasFamilyBands && parentsSupported,
+  };
+}
+
+export function countActiveSpouses(
+  dependants: Array<{ relationship: DependantRelationship; deletedAt?: Date | null }>
+): number {
+  return dependants.filter((d) => d.deletedAt == null && d.relationship === 'SPOUSE').length;
+}
+
+/**
  * Additional spouse add-on applies when category is not Member only, agent opts in,
  * and (when household known) there is more than one spouse.
  */
@@ -112,14 +174,11 @@ export function hasAdditionalSpousePremium(
   if (category === 'member_only' || category === 'MEMBER_ONLY') return false;
   if (options?.optedIn === false) return false;
 
-  const spouseCount = dependants.filter(
-    (d) => d.deletedAt == null && d.relationship === 'SPOUSE'
-  ).length;
+  const spouseCount = countActiveSpouses(dependants);
 
   if (options?.householdKnown === false) {
     return options.optedIn === true;
   }
 
-  if (spouseCount <= 1) return false;
-  return true;
+  return extraSpouseAddonCount(spouseCount, category) > 0;
 }

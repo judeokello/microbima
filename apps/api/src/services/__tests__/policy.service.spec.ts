@@ -349,3 +349,113 @@ describe('PolicyService - assertRecoveryAccessToCustomer', () => {
     ).rejects.toBeInstanceOf(NotFoundException);
   });
 });
+
+describe('PolicyService - activatePolicy membership isolation', () => {
+  const lifecycleMessagingServiceMock = {
+    suppressPendingActivationReminders: jest.fn(),
+  };
+  const lctSyncServiceMock = {
+    onPolicyActivated: jest.fn(),
+  };
+
+  const tx = {
+    policy: {
+      findUnique: jest.fn(),
+      update: jest.fn(),
+    },
+    packageSchemeCustomer: { findFirst: jest.fn() },
+    policyMemberPrincipal: { findFirst: jest.fn(), create: jest.fn() },
+    policyMemberDependant: { updateMany: jest.fn(), create: jest.fn() },
+    customer: { update: jest.fn() },
+  };
+
+  let policyService: PolicyService;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    policyService = new PolicyService(
+      {} as unknown as PrismaService,
+      {} as unknown as PaymentAccountNumberService,
+      { notifyMatchedPaymentSmsAsync: jest.fn() } as unknown as PaymentMessagingService,
+      lifecycleMessagingServiceMock as unknown as PolicyLifecycleMessagingService,
+      lctSyncServiceMock as never
+    );
+    jest.spyOn(policyService as never, 'generateMemberNumber').mockResolvedValue('MN-01' as never);
+  });
+
+  it('assigns numbers only for this policy PMD stubs and does not attach a policy-2-only child', async () => {
+    const shared = {
+      id: 'dep-shared',
+      relationship: 'CHILD',
+      deletedAt: null,
+    };
+    const policy2Only = {
+      id: 'dep-p2',
+      relationship: 'CHILD',
+      deletedAt: null,
+    };
+    tx.policy.findUnique.mockResolvedValue({
+      id: 'policy-1',
+      customerId: 'cust-1',
+      packageId: 1,
+      status: 'PENDING_ACTIVATION',
+      policyNumber: 'P-001',
+      startDate: new Date('2026-01-01T00:00:00.000Z'),
+      endDate: new Date('2026-12-31T00:00:00.000Z'),
+      expectedInstallmentCount: 12,
+      paymentCadence: 30,
+      nominalPaymentPeriodEndDate: new Date('2026-12-01T00:00:00.000Z'),
+      customer: { id: 'cust-1', status: 'PENDING_ACTIVATION' },
+      policyMemberDependants: [{ dependantId: 'dep-shared', dependant: shared }],
+    });
+    tx.packageSchemeCustomer.findFirst.mockResolvedValue(null);
+    tx.policyMemberPrincipal.findFirst.mockResolvedValue(null);
+    tx.policy.update.mockResolvedValue({ id: 'policy-1', status: 'ACTIVE' });
+
+    await policyService.activatePolicy('policy-1', 'corr', tx as never);
+
+    expect(tx.policyMemberDependant.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { policyId: 'policy-1', dependantId: 'dep-shared' },
+      })
+    );
+    expect(tx.policyMemberDependant.create).not.toHaveBeenCalled();
+    expect(tx.policyMemberDependant.updateMany).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ dependantId: policy2Only.id }),
+      })
+    );
+  });
+});
+
+describe('PolicyService - insertMembershipStubs', () => {
+  const policyService = new PolicyService(
+    {} as unknown as PrismaService,
+    {} as unknown as PaymentAccountNumberService,
+    { notifyMatchedPaymentSmsAsync: jest.fn() } as unknown as PaymentMessagingService,
+    { suppressPendingActivationReminders: jest.fn() } as unknown as PolicyLifecycleMessagingService,
+    { onPolicyActivated: jest.fn() } as never
+  );
+
+  it('allows the same dependantId on two policies', async () => {
+    const tx = {
+      policyMemberDependant: {
+        findFirst: jest.fn().mockResolvedValue(null),
+        create: jest.fn().mockResolvedValue({ id: 1 }),
+      },
+      policyBeneficiary: { upsert: jest.fn() },
+    };
+
+    await policyService.insertMembershipStubs(tx as never, 'policy-1', ['dep-1'], undefined, 'c1');
+    await policyService.insertMembershipStubs(tx as never, 'policy-2', ['dep-1'], undefined, 'c2');
+
+    expect(tx.policyMemberDependant.create).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ data: expect.objectContaining({ policyId: 'policy-1', dependantId: 'dep-1' }) })
+    );
+    expect(tx.policyMemberDependant.create).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ data: expect.objectContaining({ policyId: 'policy-2', dependantId: 'dep-1' }) })
+    );
+  });
+});

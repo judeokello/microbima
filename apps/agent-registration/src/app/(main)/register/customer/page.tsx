@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import * as Sentry from '@sentry/nextjs';
-import { supabase } from '@/lib/supabase';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -12,7 +11,18 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Plus, Trash2, Loader2, CheckCircle, LayoutDashboard } from 'lucide-react';
-import { createCustomer, createAgentRegistration, CustomerRegistrationRequest } from '@/lib/api';
+import {
+  createCustomer,
+  createAgentRegistration,
+  CustomerRegistrationRequest,
+  getPackagePlans,
+  getPackagePricingBySlug,
+  listPackagesForSchemes,
+  type Scheme,
+} from '@/lib/api';
+import SchemeTypeahead from '@/components/scheme-typeahead';
+import { householdCapsFromBands } from '@/lib/family-category';
+import { pricingBandsFromApi } from '@/lib/package-pricing-ui';
 import { useAuth } from '@/hooks/useAuth';
 import { useBrandAmbassador } from '@/hooks/useBrandAmbassador';
 import DateOfBirthInput from '@/components/date-of-birth-input';
@@ -172,15 +182,21 @@ export default function CustomerStep() {
   const [formData, setFormData] = useState<CustomerFormData>(initialFormData);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
-  // Package and scheme selection state
-  const [packages, setPackages] = useState<Array<{id: number, name: string}>>([]);
-  const [schemes, setSchemes] = useState<Array<{id: number, name: string, description?: string, packageSchemeId?: number, parentsSupported?: boolean}>>([]);
+  // Scheme → package → plan selection
+  const [selectedScheme, setSelectedScheme] = useState<{id: number, name: string, parentsSupported?: boolean} | null>(null);
+  const [packages, setPackages] = useState<Array<{id: number, name: string, packageSchemeId?: number, slug?: string | null}>>([]);
   const [selectedPackageId, setSelectedPackageId] = useState<number | null>(null);
   const [selectedSchemeId, setSelectedSchemeId] = useState<number | null>(null);
-  const [loadingSchemes, setLoadingSchemes] = useState(false);
-  const selectedSchemeParentsSupported = Boolean(
-    schemes.find((s) => s.id === selectedSchemeId)?.parentsSupported
-  );
+  const [plans, setPlans] = useState<Array<{id: number, name: string}>>([]);
+  const [selectedPlanId, setSelectedPlanId] = useState<number | null>(null);
+  const [householdCaps, setHouseholdCaps] = useState({
+    showSpouse: true,
+    showChildren: true,
+    showParents: false,
+    maxExtraMembers: 7,
+    hasFamilyBands: true,
+  });
+  const selectedSchemeParentsSupported = Boolean(selectedScheme?.parentsSupported);
 
   // Date constraints - set after mount to avoid server/client hydration mismatch (new Date() differs by timezone)
   const [minDateAdults, setMinDateAdults] = useState<string | undefined>(undefined);
@@ -207,114 +223,73 @@ export default function CustomerStep() {
     }
   }, [searchParams, router]);
 
-  // Load packages on mount and restore last selections from localStorage
   useEffect(() => {
-    fetchPackages();
-
+    const savedScheme = localStorage.getItem('lastSelectedScheme');
     const savedPackageId = localStorage.getItem('lastSelectedPackageId');
-    const savedSchemeId = localStorage.getItem('lastSelectedSchemeId');
-
-    if (savedPackageId) {
-      const pkgId = parseInt(savedPackageId);
-      setSelectedPackageId(pkgId);
-      fetchSchemes(pkgId, savedSchemeId ? parseInt(savedSchemeId) : null);
+    const savedPlanId = localStorage.getItem('lastSelectedPlanId');
+    if (savedScheme) {
+      try {
+        const parsed = JSON.parse(savedScheme) as Scheme;
+        setSelectedScheme(parsed);
+        setSelectedSchemeId(parsed.id);
+      } catch {
+        /* ignore */
+      }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    if (savedPackageId) setSelectedPackageId(parseInt(savedPackageId, 10));
+    if (savedPlanId) setSelectedPlanId(parseInt(savedPlanId, 10));
   }, []);
 
-  // Helper to get Supabase token for API calls
-  const getSupabaseToken = async () => {
-    const { data: session } = await supabase.auth.getSession();
-    return session.session?.access_token;
-  };
-
-  // Fetch all active packages
-  const fetchPackages = async () => {
-    try {
-      const token = await getSupabaseToken();
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/product-management/packages`,
-        {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'x-correlation-id': `req-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
-          }
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch packages');
-      }
-
-      const data = await response.json();
-      setPackages(data.data ?? []);
-    } catch (err) {
-      console.error('Error fetching packages:', err);
-      Sentry.captureException(err, {
-        tags: { component: 'CustomerStep', action: 'fetchPackages' }
-      });
-      setError('Failed to load packages. Please refresh the page.');
+  useEffect(() => {
+    if (!selectedScheme) {
+      setPackages([]);
+      return;
     }
-  };
-
-  // Fetch schemes for a selected package
-  const fetchSchemes = async (packageId: number, preselectedSchemeId?: number | null) => {
-    setLoadingSchemes(true);
-    try {
-      const token = await getSupabaseToken();
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/product-management/packages/${packageId}/schemes`,
-        {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'x-correlation-id': `req-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
-          }
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch schemes');
-      }
-
-      const data = await response.json();
-      setSchemes(data.data ?? []);
-
-      // If preselected scheme exists and is in the list, select it
-      if (preselectedSchemeId && data.data?.some((s: { id: number }) => s.id === preselectedSchemeId)) {
-        setSelectedSchemeId(preselectedSchemeId);
-      }
-    } catch (err) {
-      console.error('Error fetching schemes:', err);
-      Sentry.captureException(err, {
-        tags: { component: 'CustomerStep', action: 'fetchSchemes' }
+    void listPackagesForSchemes([selectedScheme.id])
+      .then((list) => setPackages(list.filter((p) => p.isActive !== false)))
+      .catch((err) => {
+        Sentry.captureException(err, { tags: { component: 'CustomerStep', action: 'listPackages' } });
+        setError('Failed to load packages for this scheme.');
       });
-      setError('Failed to load schemes for this package.');
-    } finally {
-      setLoadingSchemes(false);
+  }, [selectedScheme]);
+
+  useEffect(() => {
+    if (!selectedPackageId) {
+      setPlans([]);
+      return;
     }
+    void getPackagePlans(selectedPackageId)
+      .then((list) => setPlans(list.filter((p) => p.isActive !== false)))
+      .catch(() => setPlans([]));
+    const slug = packages.find((p) => p.id === selectedPackageId)?.slug;
+    if (slug) {
+      void getPackagePricingBySlug(slug).then((pricing) => {
+        setHouseholdCaps(
+          householdCapsFromBands(pricingBandsFromApi(pricing), Boolean(selectedScheme?.parentsSupported))
+        );
+      }).catch(() => undefined);
+    }
+  }, [packages, selectedPackageId, selectedScheme?.parentsSupported]);
+
+  const handleSchemeSelect = (scheme: Scheme | null) => {
+    setSelectedScheme(scheme);
+    setSelectedSchemeId(scheme?.id ?? null);
+    setSelectedPackageId(null);
+    setSelectedPlanId(null);
+    setFormData((prev) => ({ ...prev, parents: [], spouses: [], children: [] }));
+    if (scheme) localStorage.setItem('lastSelectedScheme', JSON.stringify(scheme));
+    else localStorage.removeItem('lastSelectedScheme');
+    localStorage.removeItem('lastSelectedPackageId');
+    localStorage.removeItem('lastSelectedPlanId');
   };
 
-  // Handle package selection change
   const handlePackageChange = (value: string) => {
-    const packageId = parseInt(value);
+    const packageId = parseInt(value, 10);
     setSelectedPackageId(packageId);
-    setSelectedSchemeId(null); // Reset scheme when package changes
-    setSchemes([]); // Clear schemes
+    setSelectedPlanId(null);
     setFormData((prev) => ({ ...prev, parents: [] }));
-    fetchSchemes(packageId);
     localStorage.setItem('lastSelectedPackageId', value);
-    localStorage.removeItem('lastSelectedSchemeId'); // Clear saved scheme
-  };
-
-  // Handle scheme selection change
-  const handleSchemeChange = (value: string) => {
-    const schemeId = parseInt(value);
-    setSelectedSchemeId(schemeId);
-    localStorage.setItem('lastSelectedSchemeId', value);
-    const scheme = schemes.find((s) => s.id === schemeId);
-    if (!scheme?.parentsSupported) {
-      setFormData((prev) => ({ ...prev, parents: [] }));
-    }
+    localStorage.removeItem('lastSelectedPlanId');
   };
 
   const handleInputChange = (field: keyof CustomerFormData, value: string) => {
@@ -333,8 +308,9 @@ export default function CustomerStep() {
     }));
   };
 
+  const extraHouseholdCount = formData.spouses.length + formData.children.length;
   const addSpouse = () => {
-    if (formData.spouses.length < 2) {
+    if (householdCaps.showSpouse && extraHouseholdCount < householdCaps.maxExtraMembers) {
       setFormData(prev => ({
         ...prev,
         spouses: [...prev.spouses, { firstName: '', middleName: '', lastName: '', gender: '', dateOfBirth: '', phoneNumber: '', idType: 'NATIONAL_ID', idNumber: '' }]
@@ -350,7 +326,7 @@ export default function CustomerStep() {
   };
 
   const addChild = () => {
-    if (formData.children.length < 7) {
+    if (householdCaps.showChildren && extraHouseholdCount < householdCaps.maxExtraMembers) {
       setFormData(prev => ({
         ...prev,
         children: [...prev.children, { firstName: '', middleName: '', lastName: '', gender: 'MALE', dateOfBirth: '', phoneNumber: '', idType: 'BIRTH_CERTIFICATE', idNumber: '' }]
@@ -439,19 +415,21 @@ export default function CustomerStep() {
     // Clear any previous errors
     setError(null);
 
-    // Validate package and scheme selection
-    if (!selectedPackageId || !selectedSchemeId) {
-      setError('Please select both a package and a scheme before continuing');
+    if (!selectedPackageId || !selectedSchemeId || !selectedPlanId) {
+      setError('Please select a scheme, package, and plan before continuing');
       return;
     }
 
-    // Get packageSchemeId from the selected scheme
-    const selectedScheme = schemes.find(s => s.id === selectedSchemeId);
-    const packageSchemeId = selectedScheme?.packageSchemeId;
-
+    const selectedPkg = packages.find((p) => p.id === selectedPackageId);
+    const packageSchemeId = selectedPkg?.packageSchemeId;
     if (!packageSchemeId) {
       setError('Invalid package/scheme combination. Please select again.');
       return;
+    }
+    const selectedPlan = plans.find((p) => p.id === selectedPlanId);
+    localStorage.setItem('lastSelectedPlanId', String(selectedPlanId));
+    if (selectedPlan) {
+      localStorage.setItem('lastSelectedPlanName', selectedPlan.name);
     }
 
     // Validate required fields BEFORE setting isSubmitting
@@ -759,48 +737,54 @@ export default function CustomerStep() {
         </Alert>
       )}
 
-      {/* Product Selection */}
       <Card>
         <CardHeader>
           <CardTitle>Select Product</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Package Dropdown */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <SchemeTypeahead
+              selected={selectedScheme}
+              onSelect={handleSchemeSelect}
+            />
             <div>
               <Label htmlFor="package">Package *</Label>
-              <Select value={selectedPackageId?.toString() ?? ''} onValueChange={handlePackageChange}>
+              <Select
+                value={selectedPackageId?.toString() ?? ''}
+                onValueChange={handlePackageChange}
+                disabled={!selectedScheme}
+              >
                 <SelectTrigger id="package">
                   <SelectValue placeholder="Select package" />
                 </SelectTrigger>
                 <SelectContent>
-                  {packages.map(pkg => (
+                  {packages.map((pkg) => (
                     <SelectItem key={pkg.id} value={pkg.id.toString()}>{pkg.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
-
-            {/* Scheme Dropdown */}
             <div>
-              <Label htmlFor="scheme">Scheme *</Label>
+              <Label htmlFor="plan">Plan *</Label>
               <Select
-                value={selectedSchemeId?.toString() ?? ''}
-                onValueChange={handleSchemeChange}
-                disabled={!selectedPackageId || loadingSchemes}
+                value={selectedPlanId?.toString() ?? ''}
+                onValueChange={(v) => {
+                  setSelectedPlanId(parseInt(v, 10));
+                  localStorage.setItem('lastSelectedPlanId', v);
+                  const plan = plans.find((p) => p.id === parseInt(v, 10));
+                  if (plan) localStorage.setItem('lastSelectedPlanName', plan.name);
+                }}
+                disabled={!selectedPackageId}
               >
-                <SelectTrigger id="scheme">
-                  <SelectValue placeholder={loadingSchemes ? "Loading..." : "Select scheme"} />
+                <SelectTrigger id="plan">
+                  <SelectValue placeholder="Select plan" />
                 </SelectTrigger>
                 <SelectContent>
-                  {schemes.map(scheme => (
-                    <SelectItem key={scheme.id} value={scheme.id.toString()}>{scheme.name}</SelectItem>
+                  {plans.map((plan) => (
+                    <SelectItem key={plan.id} value={plan.id.toString()}>{plan.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-              {selectedPackageId && schemes.length === 0 && !loadingSchemes && (
-                <p className="text-sm text-red-500 mt-1">This package has no schemes.</p>
-              )}
             </div>
           </div>
         </CardContent>
@@ -977,15 +961,20 @@ export default function CustomerStep() {
           <CardTitle>Dependants</CardTitle>
         </CardHeader>
         <CardContent className="space-y-6">
-          {/* Spouses */}
+          {!householdCaps.showSpouse && !householdCaps.showChildren && (
+            <p className="text-sm text-muted-foreground">Member-only package. Spouse and children are hidden.</p>
+          )}
+          {householdCaps.showSpouse && (
           <div>
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold">Spouses ({formData.spouses.length}/2)</h3>
+              <h3 className="text-lg font-semibold">
+                Spouses ({formData.spouses.length}/{householdCaps.maxExtraMembers})
+              </h3>
               <Button
                 variant="outline"
                 size="sm"
                 onClick={addSpouse}
-                disabled={formData.spouses.length >= 2}
+                disabled={extraHouseholdCount >= householdCaps.maxExtraMembers}
               >
                 <Plus className="h-4 w-4 mr-2" />
                 Add Spouse
@@ -1105,18 +1094,19 @@ export default function CustomerStep() {
               </div>
             ))}
           </div>
+          )}
 
-          <Separator />
-
-          {/* Children */}
+          {householdCaps.showChildren && (
           <div>
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold">Children ({formData.children.length}/7)</h3>
+              <h3 className="text-lg font-semibold">
+                Children ({formData.children.length}/{householdCaps.maxExtraMembers})
+              </h3>
               <Button
                 variant="outline"
                 size="sm"
                 onClick={addChild}
-                disabled={formData.children.length >= 7}
+                disabled={extraHouseholdCount >= householdCaps.maxExtraMembers}
               >
                 <Plus className="h-4 w-4 mr-2" />
                 Add Child
@@ -1192,8 +1182,9 @@ export default function CustomerStep() {
               </div>
             ))}
           </div>
+          )}
 
-          {selectedSchemeParentsSupported && (
+          {householdCaps.showParents && (
             <>
               <Separator />
 

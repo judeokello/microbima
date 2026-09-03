@@ -27,6 +27,10 @@ import { notDetachedPaymentWhere } from '../utils/policy-payment-filters';
 import { computeNominalPaymentPeriodEndDate } from '../utils/package-payment-frequency.util';
 import { ValidationException } from '../exceptions/validation.exception';
 import { ErrorCodes } from '../enums/error-codes.enum';
+import {
+  evaluateOccupyingProductRules,
+  OCCUPYING_POLICY_STATUSES,
+} from '../utils/occupying-policy.util';
 
 /**
  * Policy Service
@@ -529,6 +533,8 @@ export class PolicyService {
       annualPremium?: number;
       productName: string;
       tags?: Array<{ id?: number; name: string }>;
+      dependantIds?: string[];
+      beneficiaryId?: string;
       paymentData: {
         paymentType: PaymentType;
         transactionReference: string;
@@ -610,19 +616,7 @@ export class PolicyService {
         );
       }
 
-      // At most one non-terminal policy per customer per package
-      const existingPolicyForPackage = await this.prismaService.policy.findFirst({
-        where: {
-          customerId: data.customerId,
-          packageId: data.packageId,
-          status: { in: ['ACTIVE', 'PENDING_ACTIVATION', 'SUSPENDED'] },
-        },
-      });
-      if (existingPolicyForPackage) {
-        throw new ConflictException(
-          `Customer already has an active policy for this package (policy ID: ${existingPolicyForPackage.id})`
-        );
-      }
+      await this.assertOccupyingProductRules(data.customerId, data.packageId);
 
       // Resolve scheme by package: customer's scheme for this package (not just any scheme)
       const customerScheme = await this.prismaService.packageSchemeCustomer.findFirst({
@@ -690,22 +684,14 @@ export class PolicyService {
           `[${correlationId}] ✓ Idempotency check passed: No existing payment found for transactionReference ${data.paymentData.transactionReference}. Proceeding with policy creation.`
         );
 
-        // Determine payment account number: first policy (any type) gets idNumber; subsequent get idNumber+letter
-        const isFirstPolicy = !(await this.paymentAccountNumberService.customerHasExistingPolicies(
-          data.customerId,
-          tx,
-          correlationId
-        ));
-
         const paymentAcNumber = await this.paymentAccountNumberService.generateForPolicy(
           data.customerId,
-          isFirstPolicy,
           tx,
           correlationId
         );
 
         this.logger.log(
-          `[${correlationId}] Payment account number for ${isPostpaidScheme ? 'postpaid' : 'prepaid'} policy: ${paymentAcNumber} (first policy: ${isFirstPolicy})`
+          `[${correlationId}] Payment account number for ${isPostpaidScheme ? 'postpaid' : 'prepaid'} policy: ${paymentAcNumber}`
         );
 
         // Calculate payment cadence
@@ -960,6 +946,14 @@ export class PolicyService {
             )
           );
         }
+
+        await this.insertMembershipStubs(
+          tx,
+          policy.id,
+          data.dependantIds ?? [],
+          data.beneficiaryId,
+          correlationId
+        );
 
         // Create policy payment. For PENDING-STK placeholders use customer.idNumber for accountNumber.
         const isPlaceholderStk =
@@ -1414,13 +1408,15 @@ export class PolicyService {
     try {
       // Use provided transaction or create a new one
       const executeActivation = async (txClient: Prisma.TransactionClient) => {
-        // Get policy with customer and dependants
         const policy = await txClient.policy.findUnique({
           where: { id: policyId },
           include: {
             customer: {
+              select: { id: true, status: true },
+            },
+            policyMemberDependants: {
               include: {
-                dependants: true,
+                dependant: true,
               },
             },
           },
@@ -1645,56 +1641,52 @@ export class PolicyService {
           `for customer ${policy.customerId}`
         );
 
-        // Create PolicyMemberDependant records for each dependant
-        // Order: spouses first (01, 02, ...), then others (e.g. children). Principal is always 00.
-        if (policy.customer.dependants && policy.customer.dependants.length > 0) {
-          const orderedDependants = this.orderDependantsForMemberNumbers(
-            policy.customer.dependants
+        // Assign member numbers only for PMD stubs already attached to THIS policy.
+        const stubDependants = (policy.policyMemberDependants ?? [])
+          .map((row) => row.dependant)
+          .filter((d): d is NonNullable<typeof d> => d != null && d.deletedAt == null);
+        const orderedDependants = this.orderDependantsForMemberNumbers(stubDependants);
+        this.logger.log(
+          `[${correlationId}] Assigning member numbers for ${orderedDependants.length} policy dependants (stubs only)`
+        );
+
+        for (let i = 0; i < orderedDependants.length; i++) {
+          const dependant = orderedDependants[i];
+          const dependantMemberNumber = await this.generateMemberNumber(
+            policy.packageId,
+            policyNumber,
+            txClient,
+            correlationId,
+            i + 1
           );
-          this.logger.log(
-            `[${correlationId}] Creating member records for ${orderedDependants.length} dependants (spouses first)`
-          );
 
-          for (let i = 0; i < orderedDependants.length; i++) {
-            const dependant = orderedDependants[i];
-            // Dependants start at sequence 1 (formatted as 01), then 2 (02), etc.
-            const dependantMemberNumber = await this.generateMemberNumber(
-              policy.packageId,
-              policyNumber,
-              txClient,
-              correlationId,
-              i + 1 // Dependant sequence: 1 -> 01, 2 -> 02, etc.
-            );
-
-            await txClient.policyMemberDependant.create({
-              data: {
-                dependantId: dependant.id,
-                policyId: policyId,
-                memberNumber: dependantMemberNumber,
-              },
-            });
-
-            this.logger.log(
-              `[${correlationId}] Created dependant member record with number ${dependantMemberNumber} ` +
-              `for dependant ${dependant.id}`
-            );
-          }
-        }
-
-        // Update customer status to ACTIVE if this is the first policy
-        const customerPoliciesCount = await txClient.policy.count({
-          where: { customerId: policy.customerId },
-        });
-
-        if (customerPoliciesCount === 1) {
-          // This is the first policy - update customer status to ACTIVE
-          await txClient.customer.update({
-            where: { id: policy.customerId },
-            data: { status: 'ACTIVE' },
+          await txClient.policyMemberDependant.updateMany({
+            where: { policyId, dependantId: dependant.id },
+            data: {
+              memberNumber: dependantMemberNumber,
+              updatedAt: new Date(),
+            },
           });
 
           this.logger.log(
-            `[${correlationId}] Updated customer ${policy.customerId} status to ACTIVE (first policy)`
+            `[${correlationId}] Assigned dependant member number ${dependantMemberNumber} ` +
+            `for dependant ${dependant.id} on policy ${policyId}`
+          );
+        }
+
+        const customerStatus = policy.customer.status;
+        if (
+          customerStatus === 'DEACTIVATED' ||
+          customerStatus === 'PENDING_ACTIVATION' ||
+          customerStatus === 'SUSPENDED'
+        ) {
+          await txClient.customer.update({
+            where: { id: policy.customerId },
+            data: { status: 'ACTIVE', deactivatedAt: null },
+          });
+
+          this.logger.log(
+            `[${correlationId}] Updated customer ${policy.customerId} status to ACTIVE from ${customerStatus}`
           );
         }
 
@@ -2087,6 +2079,15 @@ export class PolicyService {
     });
     const isPostpaidScheme = customerScheme?.packageScheme?.scheme?.isPostpaid ?? false;
 
+    const dependantIds = customer.dependants
+      .filter((d) => d.deletedAt == null)
+      .map((d) => d.id);
+    const firstBeneficiary = await this.prismaService.beneficiary.findFirst({
+      where: { customerId: data.customerId, deletedAt: null },
+      orderBy: { createdAt: 'asc' },
+      select: { id: true },
+    });
+
     return this.prismaService.$transaction(async (tx) => {
       const policyNumber = isPostpaidScheme
         ? null
@@ -2110,6 +2111,14 @@ export class PolicyService {
           endDate: null,
         },
       });
+
+      await this.insertMembershipStubs(
+        tx,
+        policy.id,
+        dependantIds,
+        firstBeneficiary?.id,
+        correlationId
+      );
 
       const mapped = await this.mapUnmappedMpesaItemsToPolicy(
         policy.id,
@@ -2142,6 +2151,8 @@ export class PolicyService {
       annualPremium?: number;
       frequency: PaymentFrequency;
       customDays?: number;
+      dependantIds?: string[];
+      beneficiaryId?: string;
     },
     _correlationId: string
   ) {
@@ -2175,9 +2186,15 @@ export class PolicyService {
       data.packageId,
       data.frequency
     );
-    const paymentAcNumber = customer.idNumber ?? null;
+    await this.assertOccupyingProductRules(data.customerId, data.packageId);
 
     return this.prismaService.$transaction(async (tx) => {
+      const paymentAcNumber = await this.paymentAccountNumberService.generateForPolicy(
+        data.customerId,
+        tx,
+        _correlationId
+      );
+
       const policy = await tx.policy.create({
         data: {
           policyNumber: null,
@@ -2196,6 +2213,14 @@ export class PolicyService {
           expectedInstallmentCount,
         },
       });
+
+      await this.insertMembershipStubs(
+        tx,
+        policy.id,
+        data.dependantIds ?? [],
+        data.beneficiaryId,
+        _correlationId
+      );
 
       // Defensive: if any historical M-Pesa items match, map them (list path usually has none)
       if (paymentAcNumber) {
@@ -2458,6 +2483,167 @@ export class PolicyService {
     await this.lctSyncService.onPolicyActivated(policyId, correlationId);
 
     this.logger.log(`[${correlationId}] Successfully reconciled member numbers for policy ${policyId}`);
+  }
+
+  /**
+   * Occupying uniqueness + prepaid/postpaid mix rules for a new policy on this package.
+   */
+  async assertOccupyingProductRules(
+    customerId: string,
+    packageId: number,
+    tx?: Prisma.TransactionClient
+  ): Promise<void> {
+    const client = tx ?? this.prismaService;
+    const occupying = await client.policy.findMany({
+      where: {
+        customerId,
+        status: { in: OCCUPYING_POLICY_STATUSES },
+      },
+      select: { id: true, packageId: true },
+    });
+
+    const occupyingWithBilling = await Promise.all(
+      occupying.map(async (policy) => ({
+        id: policy.id,
+        packageId: policy.packageId,
+        isPostpaid: await this.isPackagePostpaidForCustomer(customerId, policy.packageId, client),
+      }))
+    );
+
+    const newIsPostpaid = await this.isPackagePostpaidForCustomer(customerId, packageId, client);
+    const result = evaluateOccupyingProductRules({
+      occupying: occupyingWithBilling,
+      newPackageId: packageId,
+      newIsPostpaid,
+    });
+    if (!result.ok) {
+      throw ValidationException.forField(result.field, result.message, ErrorCodes.RESOURCE_CONFLICT);
+    }
+  }
+
+  async isPackagePostpaidForCustomer(
+    customerId: string,
+    packageId: number,
+    tx?: Prisma.TransactionClient
+  ): Promise<boolean> {
+    const client = tx ?? this.prismaService;
+    const psc = await client.packageSchemeCustomer.findFirst({
+      where: {
+        customerId,
+        packageScheme: { packageId },
+      },
+      include: {
+        packageScheme: {
+          include: { scheme: { select: { isPostpaid: true } } },
+        },
+      },
+    });
+    return psc?.packageScheme?.scheme?.isPostpaid ?? false;
+  }
+
+  /**
+   * Create PMD stubs (placeholder member numbers) and optional policy_beneficiaries row.
+   */
+  async insertMembershipStubs(
+    tx: Prisma.TransactionClient | PrismaService,
+    policyId: string,
+    dependantIds: string[],
+    beneficiaryId: string | undefined,
+    correlationId: string
+  ): Promise<void> {
+    const uniqueDependantIds = [...new Set(dependantIds.filter(Boolean))];
+    for (const dependantId of uniqueDependantIds) {
+      const existing = await tx.policyMemberDependant.findFirst({
+        where: { policyId, dependantId },
+        select: { id: true },
+      });
+      if (existing) continue;
+      await tx.policyMemberDependant.create({
+        data: {
+          dependantId,
+          policyId,
+          memberNumber: `STUB:${policyId.slice(0, 8)}:${dependantId.slice(0, 8)}`,
+        },
+      });
+    }
+
+    if (beneficiaryId) {
+      await tx.policyBeneficiary.upsert({
+        where: { policyId },
+        create: {
+          policyId,
+          beneficiaryId,
+          percentage: 100,
+        },
+        update: {
+          beneficiaryId,
+          percentage: 100,
+        },
+      });
+    }
+
+    this.logger.log(
+      `[${correlationId}] Inserted ${uniqueDependantIds.length} PMD stub(s)` +
+        `${beneficiaryId ? ' and policy beneficiary' : ''} for policy ${policyId}`
+    );
+  }
+
+  async copyPolicyBeneficiaries(
+    tx: Prisma.TransactionClient,
+    fromPolicyId: string,
+    toPolicyId: string,
+    correlationId: string
+  ): Promise<void> {
+    const source = await tx.policyBeneficiary.findUnique({
+      where: { policyId: fromPolicyId },
+    });
+    if (!source) return;
+    await tx.policyBeneficiary.upsert({
+      where: { policyId: toPolicyId },
+      create: {
+        policyId: toPolicyId,
+        beneficiaryId: source.beneficiaryId,
+        percentage: source.percentage,
+      },
+      update: {
+        beneficiaryId: source.beneficiaryId,
+        percentage: source.percentage,
+      },
+    });
+    this.logger.log(
+      `[${correlationId}] Copied policy beneficiary ${source.beneficiaryId} from ${fromPolicyId} to ${toPolicyId}`
+    );
+  }
+
+  /**
+   * Copy existing PMD dependant IDs onto a replacement policy as stubs.
+   * Does not detach rows from the source policy.
+   */
+  async listActiveDependantIds(customerId: string): Promise<string[]> {
+    const rows = await this.prismaService.dependant.findMany({
+      where: { customerId, deletedAt: null },
+      select: { id: true },
+    });
+    return rows.map((row) => row.id);
+  }
+
+  async copyPolicyDependantStubs(
+    tx: Prisma.TransactionClient,
+    fromPolicyId: string,
+    toPolicyId: string,
+    correlationId: string
+  ): Promise<void> {
+    const rows = await tx.policyMemberDependant.findMany({
+      where: { policyId: fromPolicyId },
+      select: { dependantId: true },
+    });
+    await this.insertMembershipStubs(
+      tx,
+      toPolicyId,
+      rows.map((row) => row.dependantId),
+      undefined,
+      correlationId
+    );
   }
 }
 

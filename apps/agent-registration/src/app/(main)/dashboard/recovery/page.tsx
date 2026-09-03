@@ -5,7 +5,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Checkbox } from '@/components/ui/checkbox';
 import {
   Dialog,
   DialogContent,
@@ -26,6 +25,7 @@ import {
   getCustomersWithoutPolicyNoPayments,
   createPolicyFromRecovery,
   createPolicyWithoutPayments,
+  getCustomerDetails,
   getPackagePlans,
   getPackagePricingBySlug,
   type RecoveryCustomer,
@@ -38,6 +38,7 @@ import {
   nextInstallmentPremiumFormValue,
   type PricingRateBand,
 } from '@/lib/insurance-installment';
+import { extraSpouseAddonCount } from '@/lib/family-category';
 import { mapPackagePricingToUi, type UiInsurancePricing } from '@/lib/package-pricing-ui';
 import { formatTransactionReferenceForDisplay } from '@/lib/transaction-reference-display';
 import { formatDate } from '@/lib/utils';
@@ -62,7 +63,7 @@ export default function RecoveryPage() {
   const [formData, setFormData] = useState({
     selectedPlan: '',
     selectedCategory: '',
-    additionalSpouse: false,
+    spouseCount: 0,
     packagePlanId: '',
     premium: '',
     frequency: 'DAILY' as string,
@@ -95,7 +96,7 @@ export default function RecoveryPage() {
     setFormData({
       selectedPlan: '',
       selectedCategory: '',
-      additionalSpouse: false,
+      spouseCount: 0,
       packagePlanId: '',
       premium: '',
       frequency: 'DAILY',
@@ -106,6 +107,11 @@ export default function RecoveryPage() {
     setPaymentFrequencies([]);
     setCreateDialogOpen(true);
     try {
+      const details = await getCustomerDetails(customer.id);
+      const spouseCount = details.data.dependants.filter(
+        (d) => d.relationship === 'SPOUSE' && !d.deletedAt
+      ).length;
+      setFormData((f) => ({ ...f, spouseCount }));
       const plansData = await getPackagePlans(customer.packageId);
       setPlans(plansData);
 
@@ -162,17 +168,14 @@ export default function RecoveryPage() {
       return { daily: 0, weekly: 0, totalDaily: 0, totalWeekly: 0, lookupRates: null };
     }
     const spousePremium = plan.additional_spouse;
-    const spouseDaily = formData.additionalSpouse ? spousePremium.daily ?? 0 : 0;
-    const spouseWeekly = formData.additionalSpouse ? spousePremium.weekly ?? 0 : 0;
+    const spouseUnits = extraSpouseAddonCount(formData.spouseCount, formData.selectedCategory);
+    const spouseDaily = spouseUnits * (spousePremium.daily ?? 0);
+    const spouseWeekly = spouseUnits * (spousePremium.weekly ?? 0);
     const lookupRates: PricingRateBand = {
       daily: (category.daily ?? 0) + spouseDaily,
       weekly: (category.weekly ?? 0) + spouseWeekly,
-      monthly:
-        (category.monthly ?? 0) +
-        (formData.additionalSpouse ? spousePremium.monthly ?? 0 : 0),
-      annually:
-        (category.annually ?? 0) +
-        (formData.additionalSpouse ? spousePremium.annually ?? 0 : 0),
+      monthly: (category.monthly ?? 0) + spouseUnits * (spousePremium.monthly ?? 0),
+      annually: (category.annually ?? 0) + spouseUnits * (spousePremium.annually ?? 0),
     };
     return {
       daily: category.daily ?? 0,
@@ -185,7 +188,7 @@ export default function RecoveryPage() {
     pricingData,
     formData.selectedPlan,
     formData.selectedCategory,
-    formData.additionalSpouse,
+    formData.spouseCount,
   ]);
 
   // Sync installment premium from pricing inputs. Bail out when unchanged;
@@ -470,17 +473,10 @@ export default function RecoveryPage() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                id="additionalSpouse"
-                checked={formData.additionalSpouse}
-                onCheckedChange={(checked) => setFormData((f) => ({ ...f, additionalSpouse: checked === true }))}
-                disabled={!formData.selectedCategory || formData.selectedCategory === 'member_only'}
-              />
-              <Label htmlFor="additionalSpouse" className="text-sm">
-                Additional Spouse Premium
-              </Label>
-            </div>
+            <p className="text-sm text-muted-foreground">
+              Extra-spouse add-on ×{' '}
+              {extraSpouseAddonCount(formData.spouseCount, formData.selectedCategory)}
+            </p>
             <div>
               <Label>Installment (KES)</Label>
               <Input

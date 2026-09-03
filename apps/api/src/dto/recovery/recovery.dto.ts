@@ -8,6 +8,7 @@ import {
   Min,
   IsString,
   MaxLength,
+  IsArray,
 } from 'class-validator';
 import { PaymentFrequency } from '@prisma/client';
 
@@ -104,6 +105,17 @@ export class CreatePolicyFromRecoveryRequestDto {
   @IsInt()
   @Min(1)
   customDays?: number;
+
+  @ApiProperty({ description: 'Dependant IDs to enrol on this policy', required: false, type: [String] })
+  @IsOptional()
+  @IsArray()
+  @IsUUID('4', { each: true })
+  dependantIds?: string[];
+
+  @ApiProperty({ description: 'Beneficiary ID for this policy next-of-kin', required: false })
+  @IsOptional()
+  @IsUUID()
+  beneficiaryId?: string;
 }
 
 /** Member number reconciliation: one row per policy (or per customer with no policy) */

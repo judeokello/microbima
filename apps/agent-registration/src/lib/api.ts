@@ -999,6 +999,7 @@ export interface CustomerPolicyListItem {
   id: string
   productName: string
   packageName: string
+  packageId?: number
   planName?: string | null
   schemeName: string
   underwriterName?: string | null
@@ -1065,6 +1066,15 @@ export interface CustomerPolicyDetail {
   missedPaymentsApproximate?: boolean
   paymentsMadeCount?: number
   missedPaymentsAmount: MissedPaymentsAmount
+  nextOfKin?: {
+    id: string
+    firstName: string
+    middleName: string | null
+    lastName: string
+    relationship: string | null
+    phoneNumber: string | null
+    percentage: number
+  } | null
 }
 
 export interface CustomerPolicyDetailResponse {
@@ -1959,6 +1969,8 @@ export interface Package {
   parentsSupported?: boolean
   maximumFamilySize?: number
   paymentFrequencies?: Array<{ frequency: string; installmentCount: number }>
+  packageSchemeId?: number
+  isPostpaid?: boolean
 }
 
 export interface Scheme {
@@ -2053,11 +2065,12 @@ export async function getPackages(options?: { includeInactive?: boolean }): Prom
   }
 }
 
-/** All schemes including inactive (for campaign audience pickers). */
-export async function listSchemesForPicker(): Promise<Scheme[]> {
+/** Schemes for pickers. Pass q (min 2 chars) for prefix typeahead; omit q to list all. */
+export async function listSchemesForPicker(query?: string): Promise<Scheme[]> {
   const token = await getSupabaseToken()
+  const params = query != null ? `?q=${encodeURIComponent(query)}` : ''
   const response = await fetch(
-    `${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/product-management/schemes`,
+    `${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/product-management/schemes${params}`,
     {
       method: 'GET',
       headers: {
@@ -2429,6 +2442,8 @@ export interface CreatePolicyRequest {
     paymentMessageBlob?: string
   }
   customDays?: number
+  dependantIds?: string[]
+  beneficiaryId?: string
 }
 
 export interface CompletePostpaidEnrollmentRequest {
@@ -2489,6 +2504,62 @@ export async function createPolicy(data: CreatePolicyRequest): Promise<CreatePol
     console.error('Error creating policy:', error)
     throw error
   }
+}
+
+export interface CreateAdditionalPolicyRequest {
+  packageSchemeId: number
+  packagePlanId: number
+  frequency: CreatePolicyRequest['frequency']
+  premium: number
+  annualPremium?: number
+  productName: string
+  existingDependantIds?: string[]
+  newSpouses?: Array<Record<string, unknown>>
+  newChildren?: Array<Record<string, unknown>>
+  newParents?: Array<Record<string, unknown>>
+  beneficiaryId?: string
+  newBeneficiary?: Record<string, unknown>
+  confirmNewPersonKeys?: string[]
+  skipPayment?: boolean
+  customDays?: number
+}
+
+export interface CreateAdditionalPolicyResponse {
+  status: number
+  correlationId: string
+  message: string
+  policy: {
+    id: string
+    policyNumber: string | null
+    status: string
+    productName: string
+    premium: number
+    paymentAcNumber: string | null
+  }
+}
+
+export async function createAdditionalPolicy(
+  customerId: string,
+  data: CreateAdditionalPolicyRequest
+): Promise<CreateAdditionalPolicyResponse> {
+  const token = await getSupabaseToken()
+  const response = await fetch(
+    `${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/customers/${customerId}/additional-policies`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+        'x-correlation-id': `additional-policy-${Date.now()}`,
+      },
+      body: JSON.stringify(data),
+    }
+  )
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}))
+    throw new Error(errorData.error?.message ?? `Failed to add product: ${response.statusText}`)
+  }
+  return response.json()
 }
 
 /** Update postpaid shell policy with plan/premium at registration payment step (no STK). */
@@ -3182,6 +3253,7 @@ export interface ModifyPolicyOptions {
   paymentFrequencies: Array<{ frequency: string; installmentCount: number }>
   familyCategory: string
   additionalSpouse: boolean
+  extraSpouseCount?: number
   currentPackagePlanId: number
   currentPlanName?: string
   currentPremium: number

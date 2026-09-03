@@ -7,7 +7,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Checkbox } from '@/components/ui/checkbox';
 // import { Separator } from '@/components/ui/separator';
 import { CheckCircle, CreditCard, Users, User, Loader2, XCircle, Clock, LayoutDashboard } from 'lucide-react';
 import {
@@ -36,8 +35,9 @@ import {
   type PricingRateBand,
 } from '@/lib/insurance-installment';
 import {
-  hasAdditionalSpousePremium,
+  extraSpouseAddonCount,
   householdSizeFromRegistrationForm,
+  resolveFamilyCategoryForHousehold,
   validateSelectedFamilyCategory,
 } from '@/lib/family-category';
 import type { PackagePricingData } from '@/lib/api';
@@ -140,7 +140,6 @@ export default function PaymentStep() {
   const [pricingLoadError, setPricingLoadError] = useState<string | null>(null);
   const [selectedPlan, setSelectedPlan] = useState<string>('');
   const [selectedCategory, setSelectedCategory] = useState<string>('');
-  const [additionalSpouse, setAdditionalSpouse] = useState(false);
   const [calculatedPricing, setCalculatedPricing] = useState({
     daily: 0,
     weekly: 0,
@@ -166,6 +165,16 @@ export default function PaymentStep() {
       .then((data) => {
         setPricingApiData(data);
         setPricingData(mapPackagePricingToUi(data));
+        const saved = localStorage.getItem('customerFormData');
+        if (saved) {
+          const customer = JSON.parse(saved) as CustomerFormData;
+          const size = householdSizeFromRegistrationForm({
+            spouses: customer.spouses,
+            children: customer.children,
+          });
+          const resolved = resolveFamilyCategoryForHousehold(size, pricingBandsFromApi(data));
+          if (resolved.ok) setSelectedCategory(resolved.categoryKey);
+        }
       })
       .catch((err) => {
         console.error('Error loading pricing data:', err);
@@ -225,6 +234,10 @@ export default function PaymentStep() {
       const customer = JSON.parse(savedCustomerData);
       setCustomerData(customer);
       setPaymentPhone(customer.phoneNumber); // Pre-populate with customer phone
+    }
+    const savedPlanName = localStorage.getItem('lastSelectedPlanName');
+    if (savedPlanName) {
+      setSelectedPlan(savedPlanName.toLowerCase());
     }
 
     if (savedBeneficiaryData) {
@@ -314,14 +327,16 @@ export default function PaymentStep() {
 
     const baseDaily = category.daily ?? 0;
     const baseWeekly = category.weekly ?? 0;
-    const spouseDaily = additionalSpouse ? spousePremium.daily ?? 0 : 0;
-    const spouseWeekly = additionalSpouse ? spousePremium.weekly ?? 0 : 0;
+    const spouseCount = customerData?.spouses.filter((s) => s.firstName?.trim()).length ?? 0;
+    const spouseUnits = extraSpouseAddonCount(spouseCount, selectedCategory);
+    const spouseDaily = spouseUnits * (spousePremium.daily ?? 0);
+    const spouseWeekly = spouseUnits * (spousePremium.weekly ?? 0);
 
     const lookupRates: PricingRateBand = {
-      daily: (category.daily ?? 0) + (additionalSpouse ? spousePremium.daily ?? 0 : 0),
-      weekly: (category.weekly ?? 0) + (additionalSpouse ? spousePremium.weekly ?? 0 : 0),
-      monthly: (category.monthly ?? 0) + (additionalSpouse ? spousePremium.monthly ?? 0 : 0),
-      annually: (category.annually ?? 0) + (additionalSpouse ? spousePremium.annually ?? 0 : 0),
+      daily: (category.daily ?? 0) + spouseUnits * (spousePremium.daily ?? 0),
+      weekly: (category.weekly ?? 0) + spouseUnits * (spousePremium.weekly ?? 0),
+      monthly: (category.monthly ?? 0) + spouseUnits * (spousePremium.monthly ?? 0),
+      annually: (category.annually ?? 0) + spouseUnits * (spousePremium.annually ?? 0),
     };
 
     setCalculatedPricing({
@@ -331,7 +346,7 @@ export default function PaymentStep() {
       totalWeekly: baseWeekly + spouseWeekly,
       lookupRates,
     });
-  }, [pricingData, selectedPlan, selectedCategory, additionalSpouse]);
+  }, [pricingData, selectedPlan, selectedCategory, customerData]);
 
   const installmentForSelection = (frequency: string) =>
     computeInstallmentPremium({
@@ -347,7 +362,6 @@ export default function PaymentStep() {
   useEffect(() => {
     if (selectedPlan) {
       setSelectedCategory('');
-      setAdditionalSpouse(false);
     }
   }, [selectedPlan]);
 
@@ -446,17 +460,6 @@ export default function PaymentStep() {
         return;
       }
 
-      const spouseCount = customerData.spouses.filter((s) => s.firstName?.trim()).length;
-      if (
-        additionalSpouse &&
-        !hasAdditionalSpousePremium(selectedCategory, spouseCount, {
-          optedIn: true,
-          householdKnown: true,
-        })
-      ) {
-        setError('Additional spouse premium only applies when there is more than one spouse.');
-        return;
-      }
     }
 
     // Validate plan and category selection
@@ -595,6 +598,15 @@ export default function PaymentStep() {
         now.getUTCSeconds()
       ));
 
+      const storedBeneficiaryId = localStorage.getItem('beneficiaryId') ?? undefined;
+      let dependantIds: string[] | undefined;
+      try {
+        const details = await (await import('@/lib/api')).getCustomerDetails(customerId);
+        dependantIds = details.data.dependants.filter((d) => !d.deletedAt).map((d) => d.id);
+      } catch {
+        dependantIds = undefined;
+      }
+
       const policyRequest: CreatePolicyRequest = {
         customerId,
         packageId,
@@ -603,6 +615,8 @@ export default function PaymentStep() {
         premium,
         annualPremium,
         productName,
+        dependantIds,
+        beneficiaryId: storedBeneficiaryId,
         paymentData: {
           paymentType: paymentType as 'MPESA' | 'SASAPAY',
           transactionReference: placeholderTransactionRef, // Placeholder - real ref will come from IPN
@@ -711,7 +725,7 @@ export default function PaymentStep() {
                 <Select
                   value={selectedPlan}
                   onValueChange={setSelectedPlan}
-                  disabled={!pricingData}
+                  disabled
                 >
                   <SelectTrigger id="planSelection">
                     <SelectValue placeholder={pricingData ? 'Select insurance plan' : 'No pricing available'} />
@@ -799,23 +813,13 @@ export default function PaymentStep() {
               )}
             </div>
 
-            {/* Additional Spouse Checkbox */}
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                id="additionalSpouse"
-                checked={additionalSpouse}
-                onCheckedChange={(checked) => setAdditionalSpouse(checked === true)}
-                disabled={!selectedCategory || selectedCategory === 'member_only'}
-              />
-              <Label htmlFor="additionalSpouse" className="text-sm">
-                Additional Spouse Premium
-                {pricingData && selectedPlan && pricingData.plans[selectedPlan] && selectedCategory !== 'member_only' && (
-                  <span className="text-gray-500 ml-1">
-                    (+{pricingData.plans[selectedPlan].additional_spouse.daily ?? 0} KES/day, +{pricingData.plans[selectedPlan].additional_spouse.weekly ?? 0} KES/week)
-                  </span>
-                )}
-              </Label>
-            </div>
+            <p className="text-sm text-muted-foreground">
+              Extra-spouse add-on ×{' '}
+              {extraSpouseAddonCount(
+                customerData?.spouses.filter((s) => s.firstName?.trim()).length ?? 0,
+                selectedCategory
+              )}
+            </p>
 
             <div className="flex items-center justify-between p-4 bg-blue-50 rounded-lg">
               <div>

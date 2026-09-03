@@ -65,24 +65,68 @@ describe('ProductManagementService picker lists', () => {
     ]);
     const result = await service.listSchemesForPicker('corr');
     expect(result).toEqual([
-      { id: 1, name: 'A', isActive: true },
-      { id: 2, name: 'B', isActive: false },
+      { id: 1, name: 'A', isActive: true, parentsSupported: undefined, isPostpaid: undefined },
+      { id: 2, name: 'B', isActive: false, parentsSupported: undefined, isPostpaid: undefined },
     ]);
+  });
+
+  it('listSchemesForPicker prefix-searches when q has at least 2 letters', async () => {
+    prisma.scheme.findMany.mockResolvedValue([{ id: 3, schemeName: 'Ood Drivers', isActive: true }]);
+    await service.listSchemesForPicker('corr', 'Oo');
+    expect(prisma.scheme.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { schemeName: { startsWith: 'Oo', mode: 'insensitive' } },
+      }),
+    );
+  });
+
+  it('listSchemesForPicker returns empty when q is a single letter', async () => {
+    const result = await service.listSchemesForPicker('corr', 'O');
+    expect(result).toEqual([]);
+    expect(prisma.scheme.findMany).not.toHaveBeenCalled();
   });
 
   it('listPackagesForSchemes returns distinct packages for scheme ids', async () => {
     prisma.packageScheme.findMany.mockResolvedValue([
-      { package: { id: 10, name: 'Pkg A', isActive: true } },
-      { package: { id: 10, name: 'Pkg A', isActive: true } },
-      { package: { id: 11, name: 'Pkg B', isActive: false } },
+      {
+        id: 1,
+        package: { id: 10, name: 'Pkg A', slug: 'a', isActive: true, parentsSupported: false },
+        scheme: { isPostpaid: false, parentsSupported: false },
+      },
+      {
+        id: 1,
+        package: { id: 10, name: 'Pkg A', slug: 'a', isActive: true, parentsSupported: false },
+        scheme: { isPostpaid: false, parentsSupported: false },
+      },
+      {
+        id: 2,
+        package: { id: 11, name: 'Pkg B', slug: 'b', isActive: false, parentsSupported: true },
+        scheme: { isPostpaid: true, parentsSupported: true },
+      },
     ]);
     const result = await service.listPackagesForSchemes([1, 2], 'corr');
     expect(prisma.packageScheme.findMany).toHaveBeenCalledWith(
       expect.objectContaining({ where: { schemeId: { in: [1, 2] } } }),
     );
     expect(result).toEqual([
-      { id: 10, name: 'Pkg A', isActive: true },
-      { id: 11, name: 'Pkg B', isActive: false },
+      {
+        id: 10,
+        name: 'Pkg A',
+        isActive: true,
+        slug: 'a',
+        parentsSupported: false,
+        isPostpaid: false,
+        packageSchemeId: 1,
+      },
+      {
+        id: 11,
+        name: 'Pkg B',
+        isActive: false,
+        slug: 'b',
+        parentsSupported: true,
+        isPostpaid: true,
+        packageSchemeId: 2,
+      },
     ]);
   });
 });

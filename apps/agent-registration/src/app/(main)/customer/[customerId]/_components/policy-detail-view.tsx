@@ -314,6 +314,26 @@ export default function PolicyDetailView({
           </CardContent>
         </Card>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">Next of kin</CardTitle>
+          <CardDescription>This policy&apos;s beneficiary (100%)</CardDescription>
+        </CardHeader>
+        <CardContent className="text-sm">
+          {data.nextOfKin ? (
+            <div className="space-y-1">
+              <p className="font-medium">
+                {data.nextOfKin.firstName} {data.nextOfKin.middleName} {data.nextOfKin.lastName}
+              </p>
+              <p className="text-muted-foreground">{data.nextOfKin.relationship ?? '—'}</p>
+              <p className="text-muted-foreground">{data.nextOfKin.percentage}%</p>
+            </div>
+          ) : (
+            <p className="text-muted-foreground">No next of kin linked to this policy.</p>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

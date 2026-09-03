@@ -234,21 +234,34 @@ export class ProductManagementService {
   /**
    * Flat scheme list for pickers (includes inactive; UI disables inactive rows).
    */
-  async listSchemesForPicker(correlationId: string) {
-    this.logger.log(`[${correlationId}] Listing schemes for picker`);
+  async listSchemesForPicker(correlationId: string, query?: string) {
+    this.logger.log(`[${correlationId}] Listing schemes for picker query="${query ?? ''}"`);
     try {
+      const trimmed = (query ?? '').trim();
+      if (trimmed.length > 0 && trimmed.length < 2) {
+        return [];
+      }
       const schemes = await this.prismaService.scheme.findMany({
+        where:
+          trimmed.length >= 2
+            ? { schemeName: { startsWith: trimmed, mode: 'insensitive' } }
+            : undefined,
         select: {
           id: true,
           schemeName: true,
           isActive: true,
+          parentsSupported: true,
+          isPostpaid: true,
         },
         orderBy: { schemeName: 'asc' },
+        take: trimmed.length >= 2 ? 25 : undefined,
       });
       return schemes.map((s) => ({
         id: s.id,
         name: s.schemeName,
         isActive: s.isActive,
+        parentsSupported: s.parentsSupported,
+        isPostpaid: s.isPostpaid,
       }));
     } catch (error) {
       this.logger.error(
@@ -272,18 +285,43 @@ export class ProductManagementService {
       const rows = await this.prismaService.packageScheme.findMany({
         where: { schemeId: { in: schemeIds } },
         select: {
+          id: true,
           package: {
-            select: { id: true, name: true, isActive: true },
+            select: {
+              id: true,
+              name: true,
+              slug: true,
+              isActive: true,
+              parentsSupported: true,
+            },
+          },
+          scheme: {
+            select: { isPostpaid: true, parentsSupported: true },
           },
         },
       });
-      const byId = new Map<number, { id: number; name: string; isActive: boolean }>();
+      const byId = new Map<
+        number,
+        {
+          id: number;
+          name: string;
+          isActive: boolean;
+          slug?: string | null;
+          parentsSupported?: boolean;
+          isPostpaid?: boolean;
+          packageSchemeId?: number;
+        }
+      >();
       for (const row of rows) {
         if (!row.package) continue;
         byId.set(row.package.id, {
           id: row.package.id,
           name: row.package.name,
           isActive: row.package.isActive,
+          slug: row.package.slug,
+          parentsSupported: row.package.parentsSupported,
+          isPostpaid: row.scheme.isPostpaid,
+          packageSchemeId: row.id,
         });
       }
       return Array.from(byId.values()).sort((a, b) => a.name.localeCompare(b.name));

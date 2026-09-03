@@ -27,9 +27,11 @@ import {
   nextDisabledPolicyNumber,
 } from '../utils/disabled-policy-number.util';
 import {
+  countActiveSpouses,
   deriveFamilyCategoryFromDependants,
-  hasAdditionalSpousePremium,
+  extraSpouseAddonCount,
 } from '../utils/family-category.util';
+import { nextCustomerStatusAfterPolicies } from '../utils/customer-status-after-policy.util';
 import {
   ActivatePolicyRequestDto,
   DeactivatePolicyRequestDto,
@@ -1082,6 +1084,9 @@ export class PolicyLifecycleService {
         },
       });
 
+      await this.policyService.copyPolicyBeneficiaries(tx, prior.id, created.id, correlationId);
+      await this.policyService.copyPolicyDependantStubs(tx, prior.id, created.id, correlationId);
+
       if (prior.status === PolicyStatus.SUSPENDED || prior.status === PolicyStatus.INACTIVE) {
         await this.statusChangeService.recordPolicyChange({
           customerId: prior.customerId,
@@ -1685,28 +1690,13 @@ export class PolicyLifecycleService {
     const customer = await tx.customer.findUnique({ where: { id: customerId } });
     if (!customer) return;
 
-    const closedStatus = options?.whenNoOpenPolicies ?? CustomerStatus.DEACTIVATED;
-
-    let nextStatus: CustomerStatus | null = null;
-    if (hasActive) {
-      if (
-        customer.status === CustomerStatus.DEACTIVATED ||
-        customer.status === CustomerStatus.SUSPENDED ||
-        customer.status === CustomerStatus.TERMINATED
-      ) {
-        nextStatus = CustomerStatus.ACTIVE;
-      }
-    } else if (hasPending) {
-      if (customer.status !== CustomerStatus.PENDING_ACTIVATION) {
-        nextStatus = CustomerStatus.PENDING_ACTIVATION;
-      }
-    } else if (hasSuspended) {
-      if (customer.status !== CustomerStatus.SUSPENDED) {
-        nextStatus = CustomerStatus.SUSPENDED;
-      }
-    } else {
-      nextStatus = closedStatus;
-    }
+    const nextStatus = nextCustomerStatusAfterPolicies({
+      customerStatus: customer.status,
+      hasActive,
+      hasPending,
+      hasSuspended,
+      whenNoOpenPolicies: options?.whenNoOpenPolicies ?? CustomerStatus.DEACTIVATED,
+    });
 
     if (nextStatus == null || nextStatus === customer.status) {
       return;
@@ -2160,7 +2150,11 @@ export class PolicyLifecycleService {
       where: { customerId, deletedAt: null },
     });
     const familyCategory = deriveFamilyCategoryFromDependants(dependants);
-    const additionalSpouse = hasAdditionalSpousePremium(familyCategory, dependants);
+    const extraSpouseCount = extraSpouseAddonCount(
+      countActiveSpouses(dependants),
+      familyCategory
+    );
+    const additionalSpouse = extraSpouseCount > 0;
 
     const completedPayments = await this.prisma.policyPayment.findMany({
       where: {
@@ -2201,6 +2195,7 @@ export class PolicyLifecycleService {
       })),
       familyCategory,
       additionalSpouse,
+      extraSpouseCount,
       currentPackagePlanId: policy.packagePlanId ?? 0,
       currentPlanName: policy.packagePlan?.name,
       currentPremium: Number(policy.premium),
@@ -2419,6 +2414,11 @@ export class PolicyLifecycleService {
         where: { id: policyId },
         data: { supersededByPolicyId: newPolicy.id },
       });
+
+      await this.policyService.copyPolicyBeneficiaries(tx, policyId, newPolicy.id, correlationId);
+      if (dto.policyNumberChoice === PolicyNumberChoice.GENERATE_NEW) {
+        await this.policyService.copyPolicyDependantStubs(tx, policyId, newPolicy.id, correlationId);
+      }
 
       if (dto.packageSchemeId != null) {
         await tx.packageSchemeCustomer.updateMany({

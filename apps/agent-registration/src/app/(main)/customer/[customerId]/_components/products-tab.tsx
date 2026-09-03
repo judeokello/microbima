@@ -42,6 +42,7 @@ interface ProductsTabProps {
   customerId: string;
   /** 'admin' | 'dashboard' | 'agent' — used for policy detail link */
   basePath: 'admin' | 'dashboard' | 'agent';
+  customerStatus?: string;
 }
 
 type RowAction =
@@ -54,7 +55,7 @@ type RowAction =
   | 'terminate'
   | null;
 
-export default function ProductsTab({ customerId, basePath }: ProductsTabProps) {
+export default function ProductsTab({ customerId, basePath, customerStatus }: ProductsTabProps) {
   const router = useRouter();
   const { isAdmin } = useAuth();
   const showAdminActions = basePath === 'admin' && isAdmin;
@@ -69,6 +70,11 @@ export default function ProductsTab({ customerId, basePath }: ProductsTabProps) 
   useEffect(() => {
     if (customerId) {
       void loadProducts();
+    }
+    const addedPan = sessionStorage.getItem(`add-product-pan-${customerId}`);
+    if (addedPan) {
+      setSuccessMessage(`Additional product created. Payment account number: ${addedPan}`);
+      sessionStorage.removeItem(`add-product-pan-${customerId}`);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [customerId]);
@@ -159,12 +165,31 @@ export default function ProductsTab({ customerId, basePath }: ProductsTabProps) 
   return (
     <>
       <Card>
-        <CardHeader>
-          <CardTitle>Products</CardTitle>
-          <CardDescription>
-            Policies this customer is enrolled in. Click a row to view product and enrollment
-            details.
-          </CardDescription>
+        <CardHeader className="flex flex-row items-start justify-between gap-4">
+          <div>
+            <CardTitle>Products</CardTitle>
+            <CardDescription>
+              Policies this customer is enrolled in. Click a row to view product and enrollment
+              details.
+            </CardDescription>
+          </div>
+          {showAdminActions && (
+            <Button
+              type="button"
+              disabled={
+                customerStatus === 'TERMINATED' ||
+                policies.some((p) => p.status === 'TERMINATED')
+              }
+              title={
+                customerStatus === 'TERMINATED' || policies.some((p) => p.status === 'TERMINATED')
+                  ? 'Cannot add a product while the customer or any policy is terminated'
+                  : 'Add another package for this customer'
+              }
+              onClick={() => router.push(`/admin/customer/${customerId}/add-product`)}
+            >
+              Add product
+            </Button>
+          )}
         </CardHeader>
         <CardContent>
           {successMessage && (
