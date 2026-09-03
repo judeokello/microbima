@@ -191,7 +191,7 @@ export default function CustomerStep() {
   const [selectedSchemeName, setSelectedSchemeName] = useState('');
   const [plans, setPlans] = useState<Plan[]>([]);
   const [selectedPlanId, setSelectedPlanId] = useState<number | null>(null);
-  const [loadingSchemes, setLoadingSchemes] = useState(false);
+  const [_loadingSchemes, setLoadingSchemes] = useState(false);
   const [hasFamilyBands, setHasFamilyBands] = useState(true);
   const [dependantCap, setDependantCap] = useState(7);
   const selectedSchemeParentsSupported = Boolean(

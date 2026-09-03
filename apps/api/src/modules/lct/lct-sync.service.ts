@@ -401,7 +401,7 @@ export class LctSyncService {
       },
     });
     if (!policy) return;
-    if (!(OCCUPYING_POLICY_STATUSES as PolicyStatus[]).includes(policy.status)) return;
+    if (!(OCCUPYING_POLICY_STATUSES).includes(policy.status)) return;
     if (policy.customer.policyMemberPrincipals.length === 0) return;
     if (!policy.policyNumber && policy.status === PolicyStatus.PENDING_ACTIVATION) return;
 

@@ -3056,7 +3056,7 @@ export class CustomerService {
               firstName: policy.policyBeneficiaries[0].beneficiary.firstName,
               middleName: policy.policyBeneficiaries[0].beneficiary.middleName,
               lastName: policy.policyBeneficiaries[0].beneficiary.lastName,
-              relationship: policy.policyBeneficiaries[0].beneficiary.relationship,
+              relationship: policy.policyBeneficiaries[0].beneficiary.relationship ?? 'other',
               percentage: policy.policyBeneficiaries[0].percentage,
             }
           : null,

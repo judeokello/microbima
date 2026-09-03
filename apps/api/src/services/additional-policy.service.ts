@@ -1,5 +1,5 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { PaymentFrequency, Prisma } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { PolicyService } from './policy.service';
 import { MpesaStkPushService } from './mpesa-stk-push.service';
@@ -227,7 +227,7 @@ export class AdditionalPolicyService {
         where: { id: created.id },
         data: {
           productName: dto.productName,
-          frequency: frequency as PaymentFrequency,
+          frequency: frequency,
           paymentCadence: packageScheme.scheme.paymentCadence ?? created.paymentCadence,
         },
       });

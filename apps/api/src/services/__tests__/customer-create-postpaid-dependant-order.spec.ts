@@ -106,6 +106,9 @@ describe('CustomerService.createCustomer — postpaid dependant order', () => {
 
     policyServiceMock = {
       resolveExpectedInstallmentCount: jest.fn().mockResolvedValue(12),
+      attachPolicyMembership: jest.fn().mockImplementation(async () => {
+        callOrder.push('attachPolicyMembership');
+      }),
       mapUnmappedMpesaItemsToPolicy: jest.fn().mockImplementation(async () => {
         callOrder.push('mapUnmappedMpesa');
         return 1;
@@ -179,6 +182,7 @@ describe('CustomerService.createCustomer — postpaid dependant order', () => {
     const ensureIdx = callOrder.indexOf('ensureMemberRows');
 
     expect(dependantIdx).toBeGreaterThanOrEqual(0);
+    expect(callOrder.indexOf('attachPolicyMembership')).toBeGreaterThan(dependantIdx);
     expect(mapIdx).toBeGreaterThan(dependantIdx);
     expect(ensureIdx).toBeGreaterThan(mapIdx);
     expect(callOrder.indexOf('policy.create')).toBeLessThan(dependantIdx);
@@ -191,7 +195,9 @@ describe('CustomerService.createCustomer — postpaid dependant order', () => {
     );
     expect(lctSyncServiceMock.ensureMemberRowsForLateDependants).toHaveBeenCalledWith(
       'postpaid-policy-1',
-      correlationId
+      correlationId,
+      undefined,
+      ['dep-kailani']
     );
   });
 });

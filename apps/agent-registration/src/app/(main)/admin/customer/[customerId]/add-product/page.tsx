@@ -276,7 +276,7 @@ export default function AddProductPage() {
         packageId,
         packagePlanId: planId,
         packageSchemeId,
-        frequency: (isPostpaid ? schemeFrequency : frequency) || 'MONTHLY',
+        frequency: (isPostpaid ? schemeFrequency : frequency) ?? 'MONTHLY',
         premium: priced.premium,
         annualPremium: priced.annualPremium,
         productName: `${selectedPlan.name}`,
