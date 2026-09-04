@@ -85,6 +85,7 @@ import { SupabaseService } from './supabase.service';
 import { PaymentAccountNumberService } from './payment-account-number.service';
 import { assertKenyanPhoneForOndemandStk, normalizePhoneNumber } from '../utils/phone-number.util';
 import { hasGlobalCustomerAccess } from '../utils/roles.util';
+import { OCCUPYING_POLICY_STATUSES } from '../utils/occupying-policy.util';
 import { maskIdNumberForDisplay, maskIdNumberOrEmpty } from '../utils/id-number-masking';
 import {
   maskDateOfBirthForDisplay,
@@ -1454,6 +1455,27 @@ export class CustomerService {
             percentage: beneficiary.percentage ?? 0,
           }))
         );
+
+        const nokId = beneficiariesWithIds[0]?.id;
+        if (nokId) {
+          const occupyingWithoutNok = await tx.policy.findMany({
+            where: {
+              customerId,
+              status: { in: OCCUPYING_POLICY_STATUSES },
+              policyBeneficiaries: { none: {} },
+            },
+            select: { id: true },
+          });
+          for (const policy of occupyingWithoutNok) {
+            await tx.policyBeneficiary.create({
+              data: {
+                policyId: policy.id,
+                beneficiaryId: nokId,
+                percentage: 100,
+              },
+            });
+          }
+        }
 
         return {
           partnerCustomerId: partnerCustomer.partnerCustomerId,

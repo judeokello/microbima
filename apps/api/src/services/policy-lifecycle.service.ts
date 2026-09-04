@@ -50,6 +50,8 @@ import {
   utcCalendarDaysBetween,
 } from '../utils/policy-due-date.util';
 import { assertPolicyMayBecomeActive } from '../utils/policy-activation-gate.util';
+import { copyPolicyBeneficiaryJoins } from '../utils/copy-policy-beneficiary.util';
+import { nextCustomerStatusAfterPolicies } from '../utils/customer-status-sync.util';
 import { computeNominalPaymentPeriodEndDate } from '../utils/package-payment-frequency.util';
 import {
   addUtcCalendarDays,
@@ -1082,20 +1084,7 @@ export class PolicyLifecycleService {
         },
       });
 
-      const priorBeneficiaries = await tx.policyBeneficiary.findMany({
-        where: { policyId: prior.id },
-      });
-      for (const row of priorBeneficiaries) {
-        await tx.policyBeneficiary.upsert({
-          where: { policyId: created.id },
-          create: {
-            policyId: created.id,
-            beneficiaryId: row.beneficiaryId,
-            percentage: row.percentage,
-          },
-          update: { beneficiaryId: row.beneficiaryId, percentage: row.percentage },
-        });
-      }
+      await copyPolicyBeneficiaryJoins(tx, prior.id, created.id);
 
       if (prior.status === PolicyStatus.SUSPENDED || prior.status === PolicyStatus.INACTIVE) {
         await this.statusChangeService.recordPolicyChange({
@@ -1702,33 +1691,13 @@ export class PolicyLifecycleService {
 
     const closedStatus = options?.whenNoOpenPolicies ?? CustomerStatus.DEACTIVATED;
 
-    let nextStatus: CustomerStatus | null = null;
-    if (hasActive) {
-      if (
-        customer.status === CustomerStatus.DEACTIVATED ||
-        customer.status === CustomerStatus.SUSPENDED ||
-        customer.status === CustomerStatus.TERMINATED
-      ) {
-        nextStatus = CustomerStatus.ACTIVE;
-      }
-    } else if (hasPending) {
-      // Unpaid extra policies must not flip SUSPENDED / DEACTIVATED customers.
-      if (
-        customer.status === CustomerStatus.SUSPENDED ||
-        customer.status === CustomerStatus.DEACTIVATED ||
-        customer.status === CustomerStatus.TERMINATED
-      ) {
-        nextStatus = null;
-      } else if (customer.status !== CustomerStatus.PENDING_ACTIVATION) {
-        nextStatus = CustomerStatus.PENDING_ACTIVATION;
-      }
-    } else if (hasSuspended) {
-      if (customer.status !== CustomerStatus.SUSPENDED) {
-        nextStatus = CustomerStatus.SUSPENDED;
-      }
-    } else {
-      nextStatus = closedStatus;
-    }
+    const nextStatus = nextCustomerStatusAfterPolicies({
+      customerStatus: customer.status,
+      hasActive,
+      hasPending,
+      hasSuspended,
+      closedStatus,
+    });
 
     if (nextStatus == null || nextStatus === customer.status) {
       return;
@@ -2444,20 +2413,7 @@ export class PolicyLifecycleService {
         data: { supersededByPolicyId: newPolicy.id },
       });
 
-      const sourceBeneficiaries = await tx.policyBeneficiary.findMany({
-        where: { policyId },
-      });
-      for (const row of sourceBeneficiaries) {
-        await tx.policyBeneficiary.upsert({
-          where: { policyId: newPolicy.id },
-          create: {
-            policyId: newPolicy.id,
-            beneficiaryId: row.beneficiaryId,
-            percentage: row.percentage,
-          },
-          update: { beneficiaryId: row.beneficiaryId, percentage: row.percentage },
-        });
-      }
+      await copyPolicyBeneficiaryJoins(tx, policyId, newPolicy.id);
 
       if (dto.packageSchemeId != null) {
         await tx.packageSchemeCustomer.updateMany({

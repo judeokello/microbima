@@ -70,6 +70,24 @@ describe('ProductManagementService picker lists', () => {
     ]);
   });
 
+  it('listSchemesForPicker returns nothing until the prefix is at least 2 characters', async () => {
+    const result = await service.listSchemesForPicker('corr', 'M');
+    expect(result).toEqual([]);
+    expect(prisma.scheme.findMany).not.toHaveBeenCalled();
+  });
+
+  it('listSchemesForPicker prefix-matches scheme names', async () => {
+    prisma.scheme.findMany.mockResolvedValue([{ id: 3, schemeName: 'Mfanisi', isActive: true }]);
+    const result = await service.listSchemesForPicker('corr', 'Mf');
+    expect(prisma.scheme.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { schemeName: { startsWith: 'Mf', mode: 'insensitive' } },
+        take: 25,
+      })
+    );
+    expect(result).toEqual([{ id: 3, name: 'Mfanisi', isActive: true }]);
+  });
+
   it('listPackagesForSchemes returns distinct packages for scheme ids', async () => {
     prisma.packageScheme.findMany.mockResolvedValue([
       { package: { id: 10, name: 'Pkg A', isActive: true } },

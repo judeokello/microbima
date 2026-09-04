@@ -26,6 +26,7 @@ import {
   getCustomersWithoutPolicyNoPayments,
   createPolicyFromRecovery,
   createPolicyWithoutPayments,
+  getCustomerDetails,
   getPackagePlans,
   getPackagePricingBySlug,
   type RecoveryCustomer,
@@ -39,6 +40,7 @@ import {
   type PricingRateBand,
 } from '@/lib/insurance-installment';
 import { mapPackagePricingToUi, type UiInsurancePricing } from '@/lib/package-pricing-ui';
+import { additionalSpouseCount } from '@/lib/family-category';
 import { formatTransactionReferenceForDisplay } from '@/lib/transaction-reference-display';
 import { formatDate } from '@/lib/utils';
 import { ViewIdNumber } from '@/components/view-id-number/view-id-number';
@@ -68,6 +70,7 @@ export default function RecoveryPage() {
     frequency: 'DAILY' as string,
     customDays: '',
   });
+  const [spouseCount, setSpouseCount] = useState<number | null>(null);
 
   const loadCustomers = async () => {
     try {
@@ -104,10 +107,19 @@ export default function RecoveryPage() {
     setPricingData(null);
     setPricingLoadError(null);
     setPaymentFrequencies([]);
+    setSpouseCount(null);
     setCreateDialogOpen(true);
     try {
-      const plansData = await getPackagePlans(customer.packageId);
+      const [plansData, details] = await Promise.all([
+        getPackagePlans(customer.packageId),
+        getCustomerDetails(customer.id).catch(() => null),
+      ]);
       setPlans(plansData);
+      if (details?.data?.dependants) {
+        setSpouseCount(
+          details.data.dependants.filter((d) => !d.deletedAt && d.relationship === 'SPOUSE').length
+        );
+      }
 
       const { data: session } = await supabase.auth.getSession();
       const token = session.session?.access_token;
@@ -161,18 +173,21 @@ export default function RecoveryPage() {
     if (!category) {
       return { daily: 0, weekly: 0, totalDaily: 0, totalWeekly: 0, lookupRates: null };
     }
+    const extraSpouse =
+      spouseCount == null
+        ? additionalSpouseCount(formData.selectedCategory, 0, {
+            optedIn: formData.additionalSpouse,
+            householdKnown: false,
+          })
+        : additionalSpouseCount(formData.selectedCategory, spouseCount);
     const spousePremium = plan.additional_spouse;
-    const spouseDaily = formData.additionalSpouse ? spousePremium.daily ?? 0 : 0;
-    const spouseWeekly = formData.additionalSpouse ? spousePremium.weekly ?? 0 : 0;
+    const spouseDaily = extraSpouse * (spousePremium.daily ?? 0);
+    const spouseWeekly = extraSpouse * (spousePremium.weekly ?? 0);
     const lookupRates: PricingRateBand = {
       daily: (category.daily ?? 0) + spouseDaily,
       weekly: (category.weekly ?? 0) + spouseWeekly,
-      monthly:
-        (category.monthly ?? 0) +
-        (formData.additionalSpouse ? spousePremium.monthly ?? 0 : 0),
-      annually:
-        (category.annually ?? 0) +
-        (formData.additionalSpouse ? spousePremium.annually ?? 0 : 0),
+      monthly: (category.monthly ?? 0) + extraSpouse * (spousePremium.monthly ?? 0),
+      annually: (category.annually ?? 0) + extraSpouse * (spousePremium.annually ?? 0),
     };
     return {
       daily: category.daily ?? 0,
@@ -186,6 +201,7 @@ export default function RecoveryPage() {
     formData.selectedPlan,
     formData.selectedCategory,
     formData.additionalSpouse,
+    spouseCount,
   ]);
 
   // Sync installment premium from pricing inputs. Bail out when unchanged;
@@ -470,17 +486,27 @@ export default function RecoveryPage() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                id="additionalSpouse"
-                checked={formData.additionalSpouse}
-                onCheckedChange={(checked) => setFormData((f) => ({ ...f, additionalSpouse: checked === true }))}
-                disabled={!formData.selectedCategory || formData.selectedCategory === 'member_only'}
-              />
-              <Label htmlFor="additionalSpouse" className="text-sm">
-                Additional Spouse Premium
-              </Label>
-            </div>
+            {spouseCount == null ? (
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="additionalSpouse"
+                  checked={formData.additionalSpouse}
+                  onCheckedChange={(checked) =>
+                    setFormData((f) => ({ ...f, additionalSpouse: checked === true }))
+                  }
+                  disabled={!formData.selectedCategory || formData.selectedCategory === 'member_only'}
+                />
+                <Label htmlFor="additionalSpouse" className="text-sm">
+                  Additional Spouse Premium
+                </Label>
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                Extra spouse add-ons:{' '}
+                {additionalSpouseCount(formData.selectedCategory || 'member_only', spouseCount)}
+                {spouseCount > 0 ? ` (${spouseCount} spouse${spouseCount === 1 ? '' : 's'} on file)` : ''}
+              </p>
+            )}
             <div>
               <Label>Installment (KES)</Label>
               <Input

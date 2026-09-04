@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { listSchemesForPicker, type Scheme } from '@/lib/api';
+import { schemeSearchQueryReady } from '@/lib/scheme-search';
 
 interface SchemeTypeaheadProps {
   value?: number;
@@ -30,7 +31,7 @@ export default function SchemeTypeahead({
 
   useEffect(() => {
     const trimmed = query.trim();
-    if (trimmed.length < 2) {
+    if (!schemeSearchQueryReady(trimmed)) {
       setResults([]);
       return;
     }

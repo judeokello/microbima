@@ -309,6 +309,18 @@ export class PolicyService {
     );
   }
 
+  /** Earliest remaining beneficiary person for a customer (registration / recovery default). */
+  async firstCustomerBeneficiaryId(
+    customerId: string,
+    tx: Prisma.TransactionClient | PrismaService
+  ): Promise<string | null> {
+    const row = await tx.beneficiary.findFirst({
+      where: { customerId, deletedAt: null },
+      orderBy: { createdAt: 'asc' },
+    });
+    return row?.id ?? null;
+  }
+
   async loadEnrolmentSnapshots(
     customerId: string,
     tx?: Prisma.TransactionClient | PrismaService
@@ -925,13 +937,17 @@ export class PolicyService {
             `[${correlationId}] ✓ Successfully created policy: id=${policy.id}, policyNumber="${policy.policyNumber}"`
           );
 
+          const beneficiaryId =
+            data.beneficiaryId !== undefined
+              ? data.beneficiaryId
+              : await this.firstCustomerBeneficiaryId(data.customerId, tx);
           await this.attachPolicyMembership(
             tx,
             {
               policyId: policy.id,
               customerId: data.customerId,
               dependantIds: data.dependantIds,
-              beneficiaryId: data.beneficiaryId,
+              beneficiaryId,
             },
             correlationId
           );
@@ -2239,9 +2255,14 @@ export class PolicyService {
         },
       });
 
+      const beneficiaryId = await this.firstCustomerBeneficiaryId(data.customerId, tx);
       await this.attachPolicyMembership(
         tx,
-        { policyId: policy.id, customerId: data.customerId },
+        {
+          policyId: policy.id,
+          customerId: data.customerId,
+          beneficiaryId,
+        },
         correlationId
       );
 
@@ -2360,13 +2381,17 @@ export class PolicyService {
         },
       });
 
+      const beneficiaryId =
+        data.beneficiaryId !== undefined
+          ? data.beneficiaryId
+          : await this.firstCustomerBeneficiaryId(data.customerId, tx);
       await this.attachPolicyMembership(
         tx,
         {
           policyId: policy.id,
           customerId: data.customerId,
           dependantIds: data.dependantIds,
-          beneficiaryId: data.beneficiaryId,
+          beneficiaryId,
         },
         correlationId
       );
