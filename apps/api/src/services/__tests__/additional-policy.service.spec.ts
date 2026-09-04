@@ -58,4 +58,27 @@ describe('AdditionalPolicyService', () => {
     expect(result.canAdd).toBe(false);
     expect(result.blockedReasons.some((r) => r.toLowerCase().includes('postpaid'))).toBe(true);
   });
+
+  it('blocks additional-policy create for non-admins', async () => {
+    await expect(
+      service.createAdditionalPolicy(
+        'cust-1',
+        { packageId: 1 } as never,
+        'user-1',
+        ['brand_ambassador'],
+        'corr'
+      )
+    ).rejects.toBeInstanceOf(ValidationException);
+    try {
+      await service.createAdditionalPolicy(
+        'cust-1',
+        { packageId: 1 } as never,
+        'user-1',
+        ['brand_ambassador'],
+        'corr'
+      );
+    } catch (err) {
+      expect((err as ValidationException).errorCode).toBe(ErrorCodes.INSUFFICIENT_PERMISSIONS);
+    }
+  });
 });

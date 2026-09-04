@@ -29,6 +29,7 @@ import {
   packageHasFamilyBands,
   resolveFamilyCategoryForHousehold,
 } from '@/lib/family-category';
+import { matchExistingPerson, type PersonDuplicateCandidate } from '@/lib/person-duplicate';
 import { mapPackagePricingToUi, pricingBandsFromApi } from '@/lib/package-pricing-ui';
 import {
   computeAnnualPremium,
@@ -61,6 +62,30 @@ function usablePhone(value?: string): string {
   return value;
 }
 
+type HouseholdPerson = {
+  id: string;
+  firstName: string;
+  lastName: string;
+  relationship: string;
+  deletedAt?: string | null;
+  idNumber?: string | null;
+  phoneNumber?: string | null;
+};
+
+type BeneficiaryPerson = {
+  id: string;
+  firstName: string;
+  lastName: string;
+  idNumber?: string | null;
+  phoneNumber?: string | null;
+};
+
+type DuplicatePrompt = {
+  source: 'spouse' | 'child' | 'beneficiary';
+  index: number;
+  candidates: PersonDuplicateCandidate[];
+};
+
 function filledPerson(p: NewPerson): boolean {
   return Boolean(p.firstName.trim() && p.lastName.trim());
 }
@@ -87,12 +112,8 @@ export default function AddProductPage() {
   const [parentsSupported, setParentsSupported] = useState(false);
   const [pricingApi, setPricingApi] = useState<PackagePricingData | null>(null);
 
-  const [existingDependants, setExistingDependants] = useState<
-    Array<{ id: string; firstName: string; lastName: string; relationship: string; deletedAt?: string | null }>
-  >([]);
-  const [existingBeneficiaries, setExistingBeneficiaries] = useState<
-    Array<{ id: string; firstName: string; lastName: string }>
-  >([]);
+  const [existingDependants, setExistingDependants] = useState<HouseholdPerson[]>([]);
+  const [existingBeneficiaries, setExistingBeneficiaries] = useState<BeneficiaryPerson[]>([]);
   const [occupyingPolicies, setOccupyingPolicies] = useState<
     Array<{ packageId?: number; status: string }>
   >([]);
@@ -108,6 +129,7 @@ export default function AddProductPage() {
   const [skipPayment, setSkipPayment] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState<string | null>(null);
+  const [duplicatePrompt, setDuplicatePrompt] = useState<DuplicatePrompt | null>(null);
 
   useEffect(() => {
     void getAdditionalPolicyEligibility(customerId)
@@ -220,6 +242,49 @@ export default function AddProductPage() {
 
   const householdSlotsUsed = spouseSelected + childSelected;
 
+  const applyDuplicatePick = (personId: string) => {
+    if (!duplicatePrompt) return;
+    if (duplicatePrompt.source === 'beneficiary') {
+      setBeneficiaryId(personId);
+      setNewBeneficiary(null);
+    } else if (duplicatePrompt.source === 'spouse') {
+      setSelectedDependantIds((ids) => (ids.includes(personId) ? ids : [...ids, personId]));
+      setNewSpouses((rows) => rows.filter((_, i) => i !== duplicatePrompt.index));
+    } else {
+      setSelectedDependantIds((ids) => (ids.includes(personId) ? ids : [...ids, personId]));
+      setNewChildren((rows) => rows.filter((_, i) => i !== duplicatePrompt.index));
+    }
+    setDuplicatePrompt(null);
+    setError(null);
+  };
+
+  const splitNetNew = (rows: NewPerson[], existing: PersonDuplicateCandidate[]) => {
+    const leftover: NewPerson[] = [];
+    const autoIds: string[] = [];
+    let confirm:
+      | { index: number; candidates: PersonDuplicateCandidate[] }
+      | null = null;
+    for (const person of rows) {
+      if (!filledPerson(person)) continue;
+      if (confirm) {
+        leftover.push(person);
+        continue;
+      }
+      const match = matchExistingPerson(person, existing);
+      if (match.kind === 'auto') {
+        autoIds.push(match.person.id);
+        continue;
+      }
+      if (match.kind === 'confirm') {
+        leftover.push(person);
+        confirm = { index: leftover.length - 1, candidates: match.candidates };
+        continue;
+      }
+      leftover.push(person);
+    }
+    return { leftover, autoIds, confirm };
+  };
+
   const goNext = () => {
     setError(null);
     if (step === 'product') {
@@ -243,6 +308,39 @@ export default function AddProductPage() {
         setError('Household is larger than this package allows');
         return;
       }
+      const spouses = splitNetNew(newSpouses, existingDependants);
+      if (spouses.autoIds.length > 0) {
+        setSelectedDependantIds((ids) => [...new Set([...ids, ...spouses.autoIds])]);
+      }
+      setNewSpouses(spouses.leftover);
+      if (spouses.confirm) {
+        setDuplicatePrompt({
+          source: 'spouse',
+          index: spouses.confirm.index,
+          candidates: spouses.confirm.candidates,
+        });
+        setError(
+          'A similar person is already on file. Select the existing record, or add an ID/phone to show this is someone new.'
+        );
+        return;
+      }
+      const children = splitNetNew(newChildren, existingDependants);
+      if (children.autoIds.length > 0) {
+        setSelectedDependantIds((ids) => [...new Set([...ids, ...children.autoIds])]);
+      }
+      setNewChildren(children.leftover);
+      if (children.confirm) {
+        setDuplicatePrompt({
+          source: 'child',
+          index: children.confirm.index,
+          candidates: children.confirm.candidates,
+        });
+        setError(
+          'A similar person is already on file. Select the existing record, or add an ID/phone to show this is someone new.'
+        );
+        return;
+      }
+      setDuplicatePrompt(null);
       setStep('beneficiary');
       return;
     }
@@ -255,6 +353,20 @@ export default function AddProductPage() {
         setError('Select an existing beneficiary or create one, not both');
         return;
       }
+      if (newBeneficiary && filledPerson(newBeneficiary) && !beneficiaryId) {
+        const match = matchExistingPerson(newBeneficiary, existingBeneficiaries);
+        if (match.kind === 'auto') {
+          setBeneficiaryId(match.person.id);
+          setNewBeneficiary(null);
+        } else if (match.kind === 'confirm') {
+          setDuplicatePrompt({ source: 'beneficiary', index: 0, candidates: match.candidates });
+          setError(
+            'A similar next of kin is already on file. Select the existing record, or add an ID/phone to show this is someone new.'
+          );
+          return;
+        }
+      }
+      setDuplicatePrompt(null);
       setStep('payment');
     }
   };
@@ -359,6 +471,31 @@ export default function AddProductPage() {
       </div>
       {error && <p className="text-sm text-destructive">{error}</p>}
       {success && <p className="text-sm text-green-700">{success}</p>}
+      {duplicatePrompt && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Select existing person</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            <p className="text-sm text-muted-foreground">
+              Names match an existing record with no ID or phone to tell them apart. Pick the
+              existing person, or go back and add an ID or phone if this is someone new.
+            </p>
+            {duplicatePrompt.candidates.map((person) => (
+              <Button
+                key={person.id}
+                type="button"
+                variant="outline"
+                className="w-full justify-start"
+                onClick={() => applyDuplicatePick(person.id)}
+              >
+                {person.firstName} {person.lastName}
+                {person.idNumber ? ` · ${person.idNumber}` : ''}
+              </Button>
+            ))}
+          </CardContent>
+        </Card>
+      )}
 
       {step === 'product' && (
         <Card>
@@ -481,6 +618,24 @@ export default function AddProductPage() {
                       )
                     }
                   />
+                  <Input
+                    placeholder="ID number (optional)"
+                    value={person.idNumber}
+                    onChange={(e) =>
+                      setNewSpouses((rows) =>
+                        rows.map((r, i) => (i === index ? { ...r, idNumber: e.target.value } : r))
+                      )
+                    }
+                  />
+                  <Input
+                    placeholder="Phone (optional)"
+                    value={person.phoneNumber}
+                    onChange={(e) =>
+                      setNewSpouses((rows) =>
+                        rows.map((r, i) => (i === index ? { ...r, phoneNumber: e.target.value } : r))
+                      )
+                    }
+                  />
                 </div>
               ))}
             </div>
@@ -515,6 +670,24 @@ export default function AddProductPage() {
                     onChange={(e) =>
                       setNewChildren((rows) =>
                         rows.map((r, i) => (i === index ? { ...r, lastName: e.target.value } : r))
+                      )
+                    }
+                  />
+                  <Input
+                    placeholder="ID number (optional)"
+                    value={person.idNumber}
+                    onChange={(e) =>
+                      setNewChildren((rows) =>
+                        rows.map((r, i) => (i === index ? { ...r, idNumber: e.target.value } : r))
+                      )
+                    }
+                  />
+                  <Input
+                    placeholder="Phone (optional)"
+                    value={person.phoneNumber}
+                    onChange={(e) =>
+                      setNewChildren((rows) =>
+                        rows.map((r, i) => (i === index ? { ...r, phoneNumber: e.target.value } : r))
                       )
                     }
                   />
@@ -580,6 +753,16 @@ export default function AddProductPage() {
                   placeholder="Last name"
                   value={newBeneficiary.lastName}
                   onChange={(e) => setNewBeneficiary({ ...newBeneficiary, lastName: e.target.value })}
+                />
+                <Input
+                  placeholder="ID number (optional)"
+                  value={newBeneficiary.idNumber}
+                  onChange={(e) => setNewBeneficiary({ ...newBeneficiary, idNumber: e.target.value })}
+                />
+                <Input
+                  placeholder="Phone (optional)"
+                  value={newBeneficiary.phoneNumber}
+                  onChange={(e) => setNewBeneficiary({ ...newBeneficiary, phoneNumber: e.target.value })}
                 />
               </div>
             )}

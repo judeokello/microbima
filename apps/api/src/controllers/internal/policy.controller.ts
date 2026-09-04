@@ -82,6 +82,8 @@ export class PolicyController {
         productName: createRequest.productName,
         tags: createRequest.tags,
         customDays: createRequest.customDays,
+        dependantIds: createRequest.dependantIds,
+        beneficiaryId: createRequest.beneficiaryId,
         paymentData: {
           paymentType: createRequest.paymentData.paymentType,
           transactionReference: createRequest.paymentData.transactionReference,

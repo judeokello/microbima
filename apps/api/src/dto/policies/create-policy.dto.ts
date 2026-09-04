@@ -189,6 +189,24 @@ export class CreatePolicyRequestDto {
   @IsInt()
   @Min(1)
   customDays?: number;
+
+  @ApiProperty({
+    description: 'Dependant IDs to attach to this policy. Omit to attach all current dependants.',
+    type: [String],
+    required: false,
+  })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  dependantIds?: string[];
+
+  @ApiProperty({
+    description: 'Beneficiary ID to attach as this policy NOK join (100 percent).',
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  beneficiaryId?: string;
 }
 
 export class PolicyResponseDto {

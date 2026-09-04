@@ -2440,6 +2440,8 @@ export interface CreatePolicyRequest {
     paymentMessageBlob?: string
   }
   customDays?: number
+  dependantIds?: string[]
+  beneficiaryId?: string
 }
 
 export interface CompletePostpaidEnrollmentRequest {

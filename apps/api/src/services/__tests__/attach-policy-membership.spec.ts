@@ -68,4 +68,37 @@ describe('PolicyService.attachPolicyMembership', () => {
     expect(tx.dependant.findMany).not.toHaveBeenCalled();
     expect(upsertDependant).not.toHaveBeenCalled();
   });
+
+  it('allows the same dependantId on two policies', async () => {
+    const upsertDependant = jest.fn();
+    const tx = {
+      policyMemberDependant: { upsert: upsertDependant },
+      policyBeneficiary: { upsert: jest.fn() },
+    };
+    const service = buildService(tx);
+
+    await service.attachPolicyMembership(
+      tx as never,
+      { policyId: 'pol-1', customerId: 'cust-1', dependantIds: ['dep-shared'] },
+      'corr'
+    );
+    await service.attachPolicyMembership(
+      tx as never,
+      { policyId: 'pol-2', customerId: 'cust-1', dependantIds: ['dep-shared'] },
+      'corr'
+    );
+
+    expect(upsertDependant).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        where: { policyId_dependantId: { policyId: 'pol-1', dependantId: 'dep-shared' } },
+      })
+    );
+    expect(upsertDependant).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        where: { policyId_dependantId: { policyId: 'pol-2', dependantId: 'dep-shared' } },
+      })
+    );
+  });
 });

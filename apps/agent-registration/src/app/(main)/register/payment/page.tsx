@@ -14,6 +14,7 @@ import {
   createPolicy,
   CreatePolicyRequest,
   completePostpaidEnrollment,
+  getCustomerDetails,
   getPackagePlans,
   getPackagePricingBySlug,
   Plan,
@@ -639,6 +640,19 @@ export default function PaymentStep() {
         // Add customDays if CUSTOM frequency is selected
         ...(frequency === 'CUSTOM' && customCadence ? { customDays: parseInt(customCadence) } : {}),
       };
+
+      try {
+        const details = await getCustomerDetails(customerId);
+        policyRequest.dependantIds = (details.data.dependants ?? [])
+          .filter((d) => !d.deletedAt)
+          .map((d) => d.id);
+        const nok = (details.data.beneficiaries ?? []).find((b) => !b.deletedAt);
+        if (nok?.id) {
+          policyRequest.beneficiaryId = nok.id;
+        }
+      } catch (membershipErr) {
+        console.warn('Could not load explicit membership for policy create', membershipErr);
+      }
 
       console.log('Creating policy first (before payment):', policyRequest);
 
