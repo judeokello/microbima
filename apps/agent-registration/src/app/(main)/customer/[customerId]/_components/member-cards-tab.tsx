@@ -91,6 +91,13 @@ export default function MemberCardsTab({ customerId }: MemberCardsTabProps) {
                   templateName={policy.cardTemplateName}
                 />
               ))}
+              {(policy.parents ?? []).map((parent, idx) => (
+                <MemberCardWithDownload
+                  key={`parent-${idx}`}
+                  data={parent}
+                  templateName={policy.cardTemplateName}
+                />
+              ))}
             </div>
           ) : (
             <p className="rounded-lg border border-dashed p-6 text-center text-muted-foreground">

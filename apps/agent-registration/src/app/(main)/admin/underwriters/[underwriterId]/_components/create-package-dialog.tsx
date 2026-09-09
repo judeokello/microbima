@@ -9,6 +9,14 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Loader2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import * as Sentry from '@sentry/nextjs';
+import {
+  POLICY_NUMBER_CODE_MAX_LENGTH,
+  POLICY_NUMBER_PLACEHOLDER,
+  buildMemberNumberFormat,
+  buildPolicyNumberFormat,
+  isValidPolicyNumberCode,
+  normalizePolicyNumberCode,
+} from '@/lib/package-number-format';
 
 const CONFIGURABLE_FREQUENCIES = [
   { value: 'DAILY', label: 'Daily', min: 1, max: 365, defaultCount: '276' },
@@ -42,6 +50,7 @@ export default function CreatePackageDialog({
     isActive: false,
     parentsSupported: false,
     maximumFamilySize: '8',
+    policyNumberCode: '',
     logo: null as File | null,
     frequencies: {
       DAILY: { enabled: true, count: '276' },
@@ -107,6 +116,10 @@ export default function CreatePackageDialog({
       if (!Number.isInteger(maximumFamilySize) || maximumFamilySize < 2 || maximumFamilySize > 99) {
         throw new Error('Maximum family size must be a whole number between 2 and 99');
       }
+      const policyNumberCode = normalizePolicyNumberCode(formData.policyNumberCode);
+      if (!isValidPolicyNumberCode(policyNumberCode)) {
+        throw new Error('Policy number format must be 2–5 letters or numbers and unique');
+      }
       const token = await getSupabaseToken();
       let logoPath: string | undefined;
 
@@ -125,6 +138,7 @@ export default function CreatePackageDialog({
           isActive: formData.isActive,
           parentsSupported: formData.parentsSupported,
           maximumFamilySize,
+          policyNumberCode,
           paymentFrequencies,
         }),
       });
@@ -218,6 +232,7 @@ export default function CreatePackageDialog({
         isActive: false,
         parentsSupported: false,
         maximumFamilySize: '8',
+        policyNumberCode: '',
         logo: null,
         frequencies: {
           DAILY: { enabled: true, count: '276' },
@@ -365,6 +380,34 @@ export default function CreatePackageDialog({
               />
               <p className="text-xs text-muted-foreground mt-1">
                 Minimum 2. Caps Up to N pricing categories for this package.
+              </p>
+            </div>
+
+            <div>
+              <Label htmlFor="policyNumberCode">Policy number format *</Label>
+              <Input
+                id="policyNumberCode"
+                value={formData.policyNumberCode}
+                onChange={(e) =>
+                  setFormData({
+                    ...formData,
+                    policyNumberCode: normalizePolicyNumberCode(e.target.value),
+                  })
+                }
+                required
+                maxLength={POLICY_NUMBER_CODE_MAX_LENGTH}
+                placeholder="MFG"
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                2–5 letters or numbers, unique, saved in uppercase. Becomes{' '}
+                {formData.policyNumberCode
+                  ? buildPolicyNumberFormat(formData.policyNumberCode)
+                  : `MP/MFG/${POLICY_NUMBER_PLACEHOLDER}`}{' '}
+                and{' '}
+                {formData.policyNumberCode
+                  ? buildMemberNumberFormat(formData.policyNumberCode)
+                  : `MFG${POLICY_NUMBER_PLACEHOLDER}-{auto-increasing-member-number}`}
+                .
               </p>
             </div>
 

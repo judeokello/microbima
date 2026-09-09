@@ -16,6 +16,12 @@ import {
   validateInstallmentCount,
 } from '../utils/package-payment-frequency.util';
 import { derivePostpaidSchemeCoverageDates } from '../utils/postpaid-scheme-dates.util';
+import {
+  extractPolicyNumberCode,
+  formatsFromPolicyNumberCode,
+  POLICY_NUMBER_CODE_TAKEN_MESSAGE,
+  policyNumberCodeConflictWhere,
+} from '../utils/package-number-format.util';
 import * as Sentry from '@sentry/nestjs';
 import { evaluatePackagePricingCompleteness } from './package-pricing/package-pricing-completeness';
 import { PACKAGE_PRICING_INCOMPLETE_DEACTIVATE_WARNING } from './package-pricing/package-pricing.constants';
@@ -176,6 +182,17 @@ export class ProductManagementService {
         ErrorCodes.VALIDATION_ERROR
       );
     }
+    if (
+      fields.includes('policyNumberFormat') ||
+      blob.includes('policynumberformat') ||
+      blob.includes('policy_number_format')
+    ) {
+      throw ValidationException.forField(
+        'policyNumberCode',
+        POLICY_NUMBER_CODE_TAKEN_MESSAGE,
+        ErrorCodes.VALIDATION_ERROR
+      );
+    }
     if (fields.includes('name') || /\bname\b/.test(blob)) {
       throw ValidationException.forField(
         'name',
@@ -189,6 +206,60 @@ export class ProductManagementService {
       `A package with this ${label} already exists`,
       ErrorCodes.VALIDATION_ERROR
     );
+  }
+
+  private async packageHasAllocatedCustomers(packageId: number): Promise<boolean> {
+    const count = await this.prismaService.packageSchemeCustomer.count({
+      where: { packageScheme: { packageId } },
+    });
+    return count > 0;
+  }
+
+  private mapPackageDetail(
+    pkg: {
+      id: number;
+      name: string;
+      slug: string | null;
+      description: string;
+      underwriterId: number | null;
+      underwriter?: { name: string } | null;
+      isActive: boolean;
+      parentsSupported: boolean;
+      maximumFamilySize: number;
+      logoPath: string | null;
+      cardTemplateName?: string | null;
+      policyNumberFormat: string | null;
+      memberNumberFormat: string | null;
+      packagePaymentFrequencies: { frequency: PaymentFrequency; installmentCount: number }[];
+      createdBy: string;
+      createdAt: Date;
+      updatedAt: Date;
+    },
+    extras?: { createdByDisplayName?: string; formatsEditable: boolean; warning?: string }
+  ) {
+    return {
+      id: pkg.id,
+      name: pkg.name,
+      slug: pkg.slug,
+      description: pkg.description,
+      underwriterId: pkg.underwriterId,
+      underwriterName: pkg.underwriter?.name ?? null,
+      isActive: pkg.isActive,
+      parentsSupported: pkg.parentsSupported,
+      maximumFamilySize: pkg.maximumFamilySize,
+      logoPath: pkg.logoPath,
+      cardTemplateName: pkg.cardTemplateName ?? null,
+      policyNumberCode: extractPolicyNumberCode(pkg.policyNumberFormat),
+      policyNumberFormat: pkg.policyNumberFormat,
+      memberNumberFormat: pkg.memberNumberFormat,
+      formatsEditable: extras?.formatsEditable ?? true,
+      paymentFrequencies: this.mapPaymentFrequencies(pkg.packagePaymentFrequencies),
+      createdBy: pkg.createdBy,
+      createdByDisplayName: extras?.createdByDisplayName,
+      createdAt: pkg.createdAt.toISOString(),
+      updatedAt: pkg.updatedAt.toISOString(),
+      ...(extras?.warning ? { warning: extras.warning } : {}),
+    };
   }
 
   async getPackages(correlationId: string, includeInactive = false) {
@@ -857,24 +928,9 @@ export class ProductManagementService {
         createdByDisplayName = await this.getCreatedByDisplayName(pkg.createdBy);
       }
 
-      return {
-        id: pkg.id,
-        name: pkg.name,
-        slug: pkg.slug,
-        description: pkg.description,
-        underwriterId: pkg.underwriterId,
-        underwriterName: pkg.underwriter?.name ?? null,
-        isActive: pkg.isActive,
-        parentsSupported: pkg.parentsSupported,
-        maximumFamilySize: pkg.maximumFamilySize,
-        logoPath: pkg.logoPath,
-        cardTemplateName: pkg.cardTemplateName ?? null,
-        paymentFrequencies: this.mapPaymentFrequencies(pkg.packagePaymentFrequencies),
-        createdBy: pkg.createdBy,
-        createdByDisplayName,
-        createdAt: pkg.createdAt.toISOString(),
-        updatedAt: pkg.updatedAt.toISOString(),
-      };
+      const formatsEditable = !(await this.packageHasAllocatedCustomers(packageId));
+
+      return this.mapPackageDetail(pkg, { createdByDisplayName, formatsEditable });
     } catch (error) {
       this.logger.error(
         `[${correlationId}] Error getting package ${packageId}: ${error instanceof Error ? error.message : 'Unknown error'}`,
@@ -903,6 +959,7 @@ export class ProductManagementService {
       maximumFamilySize?: number;
       logoPath?: string;
       paymentFrequencies?: PaymentFrequencyInput[];
+      policyNumberCode?: string;
     },
     correlationId: string
   ) {
@@ -915,6 +972,38 @@ export class ProductManagementService {
 
       if (!existing) {
         throw new NotFoundException(`Package with ID ${packageId} not found`);
+      }
+
+      const hasAllocatedCustomers = await this.packageHasAllocatedCustomers(packageId);
+      let nextPolicyNumberFormat: string | undefined;
+      let nextMemberNumberFormat: string | undefined;
+      if (data.policyNumberCode !== undefined) {
+        const built = formatsFromPolicyNumberCode(data.policyNumberCode);
+        nextPolicyNumberFormat = built.policyNumberFormat;
+        nextMemberNumberFormat = built.memberNumberFormat;
+        const policyFormatChanged = nextPolicyNumberFormat !== (existing.policyNumberFormat ?? '');
+        const memberFormatChanged = nextMemberNumberFormat !== (existing.memberNumberFormat ?? '');
+        if (hasAllocatedCustomers && (policyFormatChanged || memberFormatChanged)) {
+          throw ValidationException.forField(
+            'policyNumberCode',
+            'Policy and member number formats cannot be changed after customers have been allocated to this package',
+            ErrorCodes.VALIDATION_ERROR
+          );
+        }
+        const formatConflict = await this.prismaService.package.findFirst({
+          where: {
+            ...policyNumberCodeConflictWhere(built.code),
+            NOT: { id: packageId },
+          },
+          select: { id: true },
+        });
+        if (formatConflict) {
+          throw ValidationException.forField(
+            'policyNumberCode',
+            POLICY_NUMBER_CODE_TAKEN_MESSAGE,
+            ErrorCodes.VALIDATION_ERROR
+          );
+        }
       }
 
       if (data.maximumFamilySize !== undefined) {
@@ -1016,6 +1105,12 @@ export class ProductManagementService {
               maximumFamilySize: data.maximumFamilySize,
             }),
             ...(data.logoPath !== undefined && { logoPath: trimOrNull(data.logoPath) }),
+            ...(nextPolicyNumberFormat !== undefined && {
+              policyNumberFormat: nextPolicyNumberFormat,
+            }),
+            ...(nextMemberNumberFormat !== undefined && {
+              memberNumberFormat: nextMemberNumberFormat,
+            }),
           },
           include: {
             underwriter: {
@@ -1076,28 +1171,21 @@ export class ProductManagementService {
         warning = deactivateResult.warning;
       }
 
-      return {
-        id: pkg.id,
-        name: pkg.name,
-        slug: pkg.slug,
-        description: pkg.description,
-        underwriterId: pkg.underwriterId,
-        underwriterName: pkg.underwriter?.name ?? null,
-        isActive: packageIsActive,
-        parentsSupported: pkg.parentsSupported,
-        maximumFamilySize: pkg.maximumFamilySize,
-        logoPath: pkg.logoPath,
-        paymentFrequencies: this.mapPaymentFrequencies(pkg.packagePaymentFrequencies),
-        createdBy: pkg.createdBy,
-        createdAt: pkg.createdAt.toISOString(),
-        updatedAt: pkg.updatedAt.toISOString(),
-        ...(warning ? { warning } : {}),
-      };
+      return this.mapPackageDetail(
+        { ...pkg, isActive: packageIsActive },
+        { formatsEditable: !hasAllocatedCustomers, warning }
+      );
     } catch (error) {
       this.logger.error(
         `[${correlationId}] Error updating package ${packageId}: ${error instanceof Error ? error.message : 'Unknown error'}`,
         error instanceof Error ? error.stack : undefined
       );
+      if (error instanceof ValidationException) {
+        throw error;
+      }
+      if (error instanceof PrismaClientKnownRequestError && error.code === 'P2002') {
+        this.mapPackageUniqueConstraintError(error);
+      }
       throw error;
     }
   }
@@ -1651,6 +1739,7 @@ export class ProductManagementService {
       parentsSupported?: boolean;
       maximumFamilySize: number;
       paymentFrequencies: PaymentFrequencyInput[];
+      policyNumberCode: string;
     },
     userId: string,
     correlationId: string
@@ -1710,6 +1799,21 @@ export class ProductManagementService {
         );
       }
 
+      const { code, policyNumberFormat, memberNumberFormat } = formatsFromPolicyNumberCode(
+        data.policyNumberCode
+      );
+      const formatConflict = await this.prismaService.package.findFirst({
+        where: policyNumberCodeConflictWhere(code),
+        select: { id: true },
+      });
+      if (formatConflict) {
+        throw ValidationException.forField(
+          'policyNumberCode',
+          POLICY_NUMBER_CODE_TAKEN_MESSAGE,
+          ErrorCodes.VALIDATION_ERROR
+        );
+      }
+
       const pkg = await this.prismaService.$transaction(async (tx) => {
         const created = await tx.package.create({
           data: {
@@ -1718,6 +1822,10 @@ export class ProductManagementService {
             description,
             underwriterId: data.underwriterId,
             isActive: data.isActive ?? false,
+            parentsSupported: data.parentsSupported ?? false,
+            maximumFamilySize,
+            policyNumberFormat,
+            memberNumberFormat,
             createdBy: userId,
           },
           include: {
@@ -1765,22 +1873,7 @@ export class ProductManagementService {
 
       this.logger.log(`[${correlationId}] Created package with ID ${pkg.id}`);
 
-      return {
-        id: pkg.id,
-        name: pkg.name,
-        slug: pkg.slug,
-        description: pkg.description,
-        underwriterId: pkg.underwriterId,
-        underwriterName: pkg.underwriter?.name ?? null,
-        isActive: pkg.isActive,
-        parentsSupported: pkg.parentsSupported,
-        maximumFamilySize: pkg.maximumFamilySize,
-        logoPath: pkg.logoPath,
-        paymentFrequencies: this.mapPaymentFrequencies(pkg.packagePaymentFrequencies),
-        createdBy: pkg.createdBy,
-        createdAt: pkg.createdAt.toISOString(),
-        updatedAt: pkg.updatedAt.toISOString(),
-      };
+      return this.mapPackageDetail(pkg, { formatsEditable: true });
     } catch (error) {
       this.logger.error(
         `[${correlationId}] Error creating package: ${error instanceof Error ? error.message : 'Unknown error'}`,
@@ -1810,6 +1903,13 @@ export class ProductManagementService {
           throw ValidationException.forField(
             'slug',
             'A package with this slug already exists',
+            ErrorCodes.VALIDATION_ERROR
+          );
+        }
+        if (error.message.toLowerCase().includes('policynumberformat')) {
+          throw ValidationException.forField(
+            'policyNumberCode',
+            POLICY_NUMBER_CODE_TAKEN_MESSAGE,
             ErrorCodes.VALIDATION_ERROR
           );
         }

@@ -8,6 +8,10 @@ import { ValidationException } from '../../exceptions/validation.exception';
 import { notDetachedPaymentWhere } from '../../utils/policy-payment-filters';
 import { policyHasMemberCards } from '../../utils/member-cards.util';
 import {
+  memberCardRoleFromDependant,
+  memberCardRoleFromParent,
+} from '../../utils/member-card-role.util';
+import {
   computeMissedInstallments,
   computePaidInstallments,
   countConfirmedPayments,
@@ -391,11 +395,15 @@ export class CustomerPortalService {
         dependants: {
           where: { deletedAt: null },
         },
+        parents: {
+          where: { deletedAt: null },
+        },
         policies: {
           include: {
             package: { select: { id: true, name: true, cardTemplateName: true } },
             policyMemberPrincipals: true,
             policyMemberDependants: true,
+            policyMemberParents: true,
           },
         },
       },
@@ -431,6 +439,7 @@ export class CustomerPortalService {
         memberNumber: null as string | null,
         dateOfBirth: principalDob,
         datePrinted: '',
+        memberRole: 'PRINCIPAL' as const,
       };
 
       if (!cardsAvailable || !principalMember) {
@@ -445,6 +454,7 @@ export class CustomerPortalService {
           cardsAvailable: false,
           principal: emptyPrincipal,
           dependants: [],
+          parents: [],
         };
       }
 
@@ -455,6 +465,7 @@ export class CustomerPortalService {
         memberNumber: principalMember.memberNumber,
         dateOfBirth: principalDob,
         datePrinted: formatDDMMYYYY(principalMember.createdAt),
+        memberRole: 'PRINCIPAL' as const,
       };
 
       const dependants = customer.dependants.map((dep) => {
@@ -467,6 +478,25 @@ export class CustomerPortalService {
           memberNumber: depMember?.memberNumber ?? null,
           dateOfBirth: formatDDMMYYYY(dep.dateOfBirth),
           datePrinted: formatDDMMYYYY(depMember?.createdAt ?? null),
+          memberRole: memberCardRoleFromDependant(dep.relationship),
+        };
+      });
+
+      const parents = customer.parents.map((parent) => {
+        const parentMember = policy.policyMemberParents.find(
+          (pmp) => pmp.customerParentId === parent.id
+        );
+        const parentName = [parent.firstName, parent.middleName ?? '', parent.lastName]
+          .filter(Boolean)
+          .join(' ');
+        return {
+          schemeName: policy.package.name,
+          principalMemberName: principalName,
+          insuredMemberName: parentName,
+          memberNumber: parentMember?.memberNumber ?? null,
+          dateOfBirth: formatDDMMYYYY(parent.dateOfBirth),
+          datePrinted: formatDDMMYYYY(parentMember?.createdAt ?? null),
+          memberRole: memberCardRoleFromParent(parent.relationship),
         };
       });
 
@@ -481,6 +511,7 @@ export class CustomerPortalService {
         cardsAvailable: true,
         principal: principalEntry,
         dependants,
+        parents,
       };
     });
 

@@ -78,6 +78,18 @@ export class PostpaidSchemePaymentDto {
   @ApiProperty()
   transactionReference: string;
 
+  @ApiProperty({
+    description: 'Payment made date from the add-payment dialog',
+    example: '2026-09-02T00:00:00.000Z',
+  })
+  transactionDate: string;
+
+  @ApiProperty({
+    description: 'Number of customers included in this batch',
+    example: 20,
+  })
+  customersPaid: number;
+
   @ApiProperty()
   createdBy: string;
 
@@ -86,6 +98,58 @@ export class PostpaidSchemePaymentDto {
 
   @ApiProperty()
   updatedAt: string;
+}
+
+export class PostpaidSchemePaymentMemberDto {
+  @ApiProperty()
+  id: number;
+
+  @ApiProperty()
+  customerId: string;
+
+  @ApiProperty()
+  firstName: string;
+
+  @ApiProperty({ required: false, nullable: true })
+  middleName?: string | null;
+
+  @ApiProperty()
+  lastName: string;
+
+  @ApiProperty({ required: false, nullable: true })
+  phoneNumber?: string | null;
+
+  @ApiProperty({ required: false, nullable: true })
+  idNumber?: string | null;
+
+  @ApiProperty({ example: '1000.00' })
+  amount: string;
+
+  @ApiProperty({
+    description: 'Member paid date (CSV paid date or payment made date fallback)',
+    nullable: true,
+  })
+  paidDate: string | null;
+
+  @ApiProperty({ nullable: true })
+  policyNumber: string | null;
+
+  @ApiProperty()
+  paymentStatus: string;
+}
+
+export class PostpaidSchemePaymentMembersResponseDto {
+  @ApiProperty({ type: [PostpaidSchemePaymentMemberDto] })
+  data: PostpaidSchemePaymentMemberDto[];
+
+  @ApiProperty()
+  status: number;
+
+  @ApiProperty()
+  correlationId: string;
+
+  @ApiProperty()
+  message: string;
 }
 
 export class PostpaidSchemePaymentListResponseDto {

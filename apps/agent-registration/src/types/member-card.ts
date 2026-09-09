@@ -1,6 +1,15 @@
 /**
  * Member card data (matches API MemberCardData)
  */
+export type MemberCardRole = 'PRINCIPAL' | 'SPOUSE' | 'CHILD' | 'PARENT';
+
+export const MEMBER_CARD_ROLE_LABEL: Record<MemberCardRole, string> = {
+  PRINCIPAL: 'Principal',
+  SPOUSE: 'Spouse',
+  CHILD: 'Child',
+  PARENT: 'Parent',
+};
+
 export interface MemberCardData {
   schemeName: string;
   principalMemberName: string;
@@ -8,6 +17,7 @@ export interface MemberCardData {
   memberNumber: string | null;
   dateOfBirth: string;
   datePrinted: string;
+  memberRole?: MemberCardRole;
 }
 
 /**
@@ -24,6 +34,7 @@ export interface MemberCardsByPolicyItem {
   cardsAvailable: boolean;
   principal: MemberCardData;
   dependants: MemberCardData[];
+  parents?: MemberCardData[];
 }
 
 export const MEMBER_CARDS_PENDING_PAYMENT_MESSAGE =

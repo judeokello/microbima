@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { RefreshCw, Edit, Save, X, CheckCircle, XCircle, Plus, Trash2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import * as Sentry from '@sentry/nextjs';
@@ -101,9 +102,35 @@ interface PostpaidSchemePaymentItem {
   amount: string;
   paymentType: string;
   transactionReference: string;
+  transactionDate: string;
+  customersPaid: number;
   createdBy: string;
   createdAt: string;
   updatedAt: string;
+}
+
+interface PostpaidSchemePaymentMember {
+  id: number;
+  customerId: string;
+  firstName: string;
+  middleName?: string | null;
+  lastName: string;
+  phoneNumber?: string | null;
+  idNumber?: string | null;
+  amount: string;
+  paidDate: string | null;
+  policyNumber: string | null;
+  paymentStatus: string;
+}
+
+function formatPaymentMadeDate(iso: string | null | undefined): string {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '—';
+  const dd = String(d.getUTCDate()).padStart(2, '0');
+  const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
+  const yyyy = d.getUTCFullYear();
+  return `${dd}/${mm}/${yyyy}`;
 }
 
 interface PostpaidSchemePaymentsResponse {
@@ -154,6 +181,10 @@ export default function SchemeDetailPage() {
   // Scheme Payments (postpaid only)
   const [postpaidPayments, setPostpaidPayments] = useState<PostpaidSchemePaymentItem[]>([]);
   const [postpaidPaymentsLoading, setPostpaidPaymentsLoading] = useState(false);
+  const [selectedPayment, setSelectedPayment] = useState<PostpaidSchemePaymentItem | null>(null);
+  const [paymentMembers, setPaymentMembers] = useState<PostpaidSchemePaymentMember[]>([]);
+  const [paymentMembersLoading, setPaymentMembersLoading] = useState(false);
+  const [paymentMembersError, setPaymentMembersError] = useState<string | null>(null);
   const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
   const [paymentFormData, setPaymentFormData] = useState({
     amount: '',
@@ -298,6 +329,34 @@ export default function SchemeDetailPage() {
       console.error('Error fetching contacts:', err);
     }
   }, [schemeId]);
+
+  const openPaymentMembers = async (payment: PostpaidSchemePaymentItem) => {
+    setSelectedPayment(payment);
+    setPaymentMembers([]);
+    setPaymentMembersError(null);
+    setPaymentMembersLoading(true);
+    try {
+      const token = await getSupabaseToken();
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/product-management/schemes/${schemeId}/postpaid-payments/${payment.id}/members`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'x-correlation-id': `req-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          },
+        }
+      );
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      const data: { data: PostpaidSchemePaymentMember[] } = await response.json();
+      setPaymentMembers(data.data ?? []);
+    } catch (err) {
+      setPaymentMembersError(err instanceof Error ? err.message : 'Failed to load member payments');
+    } finally {
+      setPaymentMembersLoading(false);
+    }
+  };
 
   const fetchPostpaidPayments = useCallback(async () => {
     try {
@@ -1196,6 +1255,8 @@ export default function SchemeDetailPage() {
                       <TableHead>Transaction reference</TableHead>
                       <TableHead>Amount</TableHead>
                       <TableHead>Payment type</TableHead>
+                      <TableHead>Customers paid</TableHead>
+                      <TableHead>Payment made date</TableHead>
                       <TableHead>Created</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -1205,6 +1266,16 @@ export default function SchemeDetailPage() {
                         <TableCell className="font-medium">{formatTransactionReferenceForDisplay(p.transactionReference)}</TableCell>
                         <TableCell>{p.amount}</TableCell>
                         <TableCell>{p.paymentType}</TableCell>
+                        <TableCell>
+                          <button
+                            type="button"
+                            className="text-blue-600 hover:underline font-medium"
+                            onClick={() => void openPaymentMembers(p)}
+                          >
+                            {p.customersPaid ?? 0}
+                          </button>
+                        </TableCell>
+                        <TableCell>{formatPaymentMadeDate(p.transactionDate)}</TableCell>
                         <TableCell>{formatDate(p.createdAt)}</TableCell>
                       </TableRow>
                     ))}
@@ -1409,6 +1480,71 @@ export default function SchemeDetailPage() {
       </Dialog>
 
       {/* Postpaid Payment Dialog */}
+      <Sheet open={selectedPayment != null} onOpenChange={(open) => !open && setSelectedPayment(null)}>
+        <SheetContent side="right" className="w-full sm:max-w-3xl overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle>Customers paid</SheetTitle>
+            <SheetDescription>
+              {selectedPayment
+                ? `${formatTransactionReferenceForDisplay(selectedPayment.transactionReference)} · ${formatPaymentMadeDate(selectedPayment.transactionDate)}`
+                : ''}
+            </SheetDescription>
+          </SheetHeader>
+          <div className="px-4 pb-6">
+            {paymentMembersLoading ? (
+              <p className="text-sm text-muted-foreground py-8 text-center">Loading member payments…</p>
+            ) : paymentMembersError ? (
+              <p className="text-sm text-red-600 py-8 text-center">{paymentMembersError}</p>
+            ) : paymentMembers.length === 0 ? (
+              <p className="text-sm text-muted-foreground py-8 text-center">No member payments in this batch</p>
+            ) : (
+              <div className="rounded-md border">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Phone</TableHead>
+                      <TableHead>ID number</TableHead>
+                      <TableHead>Amount</TableHead>
+                      <TableHead>Paid date</TableHead>
+                      <TableHead>Policy</TableHead>
+                      <TableHead>Status</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {paymentMembers.map((member) => (
+                      <TableRow key={member.id}>
+                        <TableCell className="font-medium">
+                          {[member.firstName, member.middleName, member.lastName].filter(Boolean).join(' ')}
+                        </TableCell>
+                        <TableCell>
+                          <ViewPhoneNumber
+                            customerId={member.customerId}
+                            entityKind="CUSTOMER"
+                            maskedValue={member.phoneNumber ?? ''}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <ViewIdNumber
+                            customerId={member.customerId}
+                            entityKind="CUSTOMER"
+                            maskedValue={member.idNumber ?? ''}
+                          />
+                        </TableCell>
+                        <TableCell>{member.amount}</TableCell>
+                        <TableCell>{formatPaymentMadeDate(member.paidDate)}</TableCell>
+                        <TableCell>{member.policyNumber ?? '—'}</TableCell>
+                        <TableCell>{member.paymentStatus}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </div>
+        </SheetContent>
+      </Sheet>
+
       <Dialog open={paymentDialogOpen} onOpenChange={setPaymentDialogOpen}>
         <DialogContent className="max-w-lg">
           <DialogHeader>

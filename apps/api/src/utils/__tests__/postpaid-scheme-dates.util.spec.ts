@@ -4,6 +4,7 @@ import {
   computeSchemeNominalPaymentPeriodEndDate,
   derivePostpaidSchemeCoverageDates,
   isUtcCalendarDayAfter,
+  parsePostpaidPaidDate,
   resolvePostpaidMemberPolicyDates,
   utcCalendarDay,
 } from '../postpaid-scheme-dates.util';
@@ -109,6 +110,19 @@ describe('postpaid-scheme-dates.util', () => {
       expect(r?.nominalPaymentPeriodEndDate?.toISOString()).toBe(
         '2027-03-30T00:00:00.000Z'
       );
+    });
+
+    it('parses Kenya D/M/Y paid dates instead of US M/D/Y', () => {
+      expect(parsePostpaidPaidDate('02/09/2026')?.toISOString()).toBe(
+        '2026-09-02T00:00:00.000Z'
+      );
+      expect(parsePostpaidPaidDate('2-9-2026')?.toISOString()).toBe(
+        '2026-09-02T00:00:00.000Z'
+      );
+      expect(parsePostpaidPaidDate('2026-09-02')?.toISOString()).toBe(
+        '2026-09-02T00:00:00.000Z'
+      );
+      expect(parsePostpaidPaidDate('')).toBeNull();
     });
 
     it('derives end from member start when scheme end is missing', () => {

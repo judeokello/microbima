@@ -10,6 +10,7 @@ import {
 } from '@/components/ui/dialog';
 import { Download } from 'lucide-react';
 import type { MemberCardData } from '@/types/member-card';
+import { MEMBER_CARD_ROLE_LABEL } from '@/types/member-card';
 import { getCardTemplateComponent } from './card-template-registry';
 import ImageBasedMemberCard, { getConfigUrl } from './ImageBasedMemberCard';
 
@@ -130,6 +131,13 @@ export default function MemberCardWithDownload({
     showDownloadButton &&
     (data.memberNumber != null && data.memberNumber !== '');
 
+  const roleLabel = data.memberRole ? MEMBER_CARD_ROLE_LABEL[data.memberRole] : null;
+
+  const renderRoleBadge = () =>
+    roleLabel ? (
+      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{roleLabel}</p>
+    ) : null;
+
   const renderDownloadButton = () =>
     showDownloadButton ? (
       <Button
@@ -183,6 +191,7 @@ export default function MemberCardWithDownload({
   if (effectiveTemplateName === 'loading') {
     return (
       <div className="space-y-2">
+        {renderRoleBadge()}
         <div className="flex min-h-[200px] items-center justify-center rounded-lg border border-dashed text-muted-foreground">
           Loading…
         </div>
@@ -205,6 +214,7 @@ export default function MemberCardWithDownload({
   if (effectiveTemplateName) {
     return (
       <div className="space-y-2">
+        {renderRoleBadge()}
         <button
           type="button"
           className="block w-full cursor-zoom-in rounded-lg text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
@@ -229,6 +239,7 @@ export default function MemberCardWithDownload({
   const CardTemplate = getCardTemplateComponent(null);
   return (
     <div className="space-y-2">
+      {renderRoleBadge()}
       <button
         type="button"
         className="block w-full cursor-zoom-in rounded-lg text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"

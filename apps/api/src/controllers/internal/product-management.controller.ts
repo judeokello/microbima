@@ -67,6 +67,7 @@ import { PostpaidSchemePaymentService, parsePostpaidPaymentCsv } from '../../ser
 import {
   PostpaidSchemePaymentListResponseDto,
   CreatePostpaidSchemePaymentResponseDto,
+  PostpaidSchemePaymentMembersResponseDto,
   PostpaidMpesaLookupResponseDto,
 } from '../../dto/postpaid-scheme-payments/postpaid-scheme-payment.dto';
 import { PaymentType } from '@prisma/client';
@@ -801,8 +802,11 @@ export class ProductManagementController {
         description: updateRequest.description,
         underwriterId: updateRequest.underwriterId,
         isActive: updateRequest.isActive,
+        parentsSupported: updateRequest.parentsSupported,
+        maximumFamilySize: updateRequest.maximumFamilySize,
         logoPath: updateRequest.logoPath,
         paymentFrequencies: updateRequest.paymentFrequencies,
+        policyNumberCode: updateRequest.policyNumberCode,
       },
       correlationId ?? 'unknown'
     );
@@ -1376,6 +1380,42 @@ export class ProductManagementController {
       status: HttpStatus.OK,
       correlationId: correlationId ?? 'unknown',
       message: 'Postpaid scheme payments retrieved successfully',
+      data,
+    };
+  }
+
+  /**
+   * List individual member payments for one postpaid scheme payment batch.
+   */
+  @Get('schemes/:schemeId/postpaid-payments/:paymentId/members')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'List members in a postpaid scheme payment',
+    description: 'Returns the individual policy payments created from a postpaid CSV batch.',
+  })
+  @ApiParam({ name: 'schemeId', description: 'Scheme ID', type: Number })
+  @ApiParam({ name: 'paymentId', description: 'Postpaid scheme payment ID', type: Number })
+  @ApiResponse({
+    status: 200,
+    description: 'Member payments in the batch',
+    type: PostpaidSchemePaymentMembersResponseDto,
+  })
+  @ApiResponse({ status: 400, description: 'Scheme is not postpaid' })
+  @ApiResponse({ status: 404, description: 'Scheme or payment not found' })
+  async listPostpaidSchemePaymentMembers(
+    @Param('schemeId', ParseIntPipe) schemeId: number,
+    @Param('paymentId', ParseIntPipe) paymentId: number,
+    @CorrelationId() correlationId?: string
+  ): Promise<PostpaidSchemePaymentMembersResponseDto> {
+    const data = await this.postpaidSchemePaymentService.listMembers(
+      schemeId,
+      paymentId,
+      correlationId ?? 'unknown'
+    );
+    return {
+      status: HttpStatus.OK,
+      correlationId: correlationId ?? 'unknown',
+      message: 'Postpaid scheme payment members retrieved successfully',
       data,
     };
   }

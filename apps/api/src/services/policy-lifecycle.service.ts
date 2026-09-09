@@ -2478,6 +2478,10 @@ export class PolicyLifecycleService {
           where: { policyId },
           data: { policyId: newPolicy.id },
         });
+        await tx.policyMemberParent.updateMany({
+          where: { policyId },
+          data: { policyId: newPolicy.id },
+        });
         await tx.lctMemberSyncTarget.updateMany({
           where: { policyId },
           data: {
@@ -2492,12 +2496,17 @@ export class PolicyLifecycleService {
           where: { policyId },
           select: { dependantId: true },
         });
+        const sourceParents = await tx.policyMemberParent.findMany({
+          where: { policyId },
+          select: { customerParentId: true },
+        });
         await this.policyService.attachPolicyMembership(
           tx,
           {
             policyId: newPolicy.id,
             customerId,
             dependantIds: sourceDependants.map((d) => d.dependantId),
+            parentIds: sourceParents.map((p) => p.customerParentId),
           },
           correlationId
         );

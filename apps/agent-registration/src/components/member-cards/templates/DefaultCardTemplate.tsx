@@ -1,6 +1,7 @@
 'use client';
 
 import type { MemberCardData } from '@/types/member-card';
+import { MEMBER_CARD_ROLE_LABEL } from '@/types/member-card';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 
 interface DefaultCardTemplateProps {
@@ -21,6 +22,7 @@ export default function DefaultCardTemplate({ data, className }: DefaultCardTemp
         <p>
           <span className="text-muted-foreground">Insured: </span>
           {data.insuredMemberName}
+          {data.memberRole ? ` (${MEMBER_CARD_ROLE_LABEL[data.memberRole]})` : ''}
         </p>
         <p>
           <span className="text-muted-foreground">Member No: </span>

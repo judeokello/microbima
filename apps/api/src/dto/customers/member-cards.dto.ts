@@ -21,6 +21,13 @@ export class MemberCardDataDto {
 
   @ApiProperty({ description: 'Date printed DD/MM/YYYY' })
   datePrinted: string;
+
+  @ApiProperty({
+    description: 'Card role label source: PRINCIPAL, SPOUSE, CHILD, or PARENT',
+    example: 'PRINCIPAL',
+    required: false,
+  })
+  memberRole?: 'PRINCIPAL' | 'SPOUSE' | 'CHILD' | 'PARENT';
 }
 
 export class MemberCardsByPolicyItemDto {
@@ -62,6 +69,12 @@ export class MemberCardsByPolicyItemDto {
     type: [MemberCardDataDto],
   })
   dependants: MemberCardDataDto[];
+
+  @ApiProperty({
+    description: 'Card data for each parent',
+    type: [MemberCardDataDto],
+  })
+  parents: MemberCardDataDto[];
 }
 
 export class MemberCardsResponseDto {
