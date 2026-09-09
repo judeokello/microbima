@@ -35,6 +35,8 @@ import { computeNominalPaymentPeriodEndDate } from '../utils/package-payment-fre
 import { ValidationException } from '../exceptions/validation.exception';
 import { ErrorCodes } from '../enums/error-codes.enum';
 import { validateAdditionalProductEnrolment } from '../utils/additional-product.rules';
+import { getBasePolicyNumber } from '../utils/disabled-policy-number.util';
+import { isFirstProductEnrolment } from '../utils/first-product-enrolment.util';
 
 /**
  * Policy Service
@@ -248,13 +250,16 @@ export class PolicyService {
    * Used in policy activation and member number reconciliation.
    */
   orderDependantsForMemberNumbers<
-    T extends { id: string; relationship: DependantRelationship }
+    T extends { id: string; relationship: DependantRelationship; createdAt?: Date }
   >(dependants: T[]): T[] {
     return [...dependants].sort((a, b) => {
       const aIsSpouse = a.relationship === 'SPOUSE' ? 1 : 0;
       const bIsSpouse = b.relationship === 'SPOUSE' ? 1 : 0;
       if (bIsSpouse !== aIsSpouse) return bIsSpouse - aIsSpouse; // Spouse first
-      return 0; // Stable order within same relationship
+      const at = a.createdAt?.getTime() ?? 0;
+      const bt = b.createdAt?.getTime() ?? 0;
+      if (at !== bt) return at - bt;
+      return a.id.localeCompare(b.id);
     });
   }
 
@@ -299,7 +304,7 @@ export class PolicyService {
     if (dependantIds === undefined || dependantIds === null) {
       const all = await tx.dependant.findMany({
         where: { customerId: params.customerId, deletedAt: null },
-        select: { id: true, relationship: true },
+        select: { id: true, relationship: true, createdAt: true },
       });
       dependantIds = this.orderDependantsForMemberNumbers(all).map((d) => d.id);
     }
@@ -1490,17 +1495,20 @@ export class PolicyService {
       // First replace policy number placeholder (if present) with extracted numeric part
       let memberNumber = packageData.memberNumberFormat;
       if (memberNumber.includes('{auto-increasing-policy-number}')) {
-        if (policyNumber && packageData.policyNumberFormat) {
+        const policyNumberForFormat = policyNumber
+          ? getBasePolicyNumber(policyNumber)
+          : null;
+        if (policyNumberForFormat && packageData.policyNumberFormat) {
           // Extract numeric part from policy number using policyNumberFormat
           const placeholder = '{auto-increasing-policy-number}';
           const [prefix, suffix = ''] = packageData.policyNumberFormat.split(placeholder);
           const regex = new RegExp(
             `^${this.escapeRegExp(prefix)}(\\d+)${this.escapeRegExp(suffix)}$`
           );
-          const match = policyNumber.match(regex);
+          const match = policyNumberForFormat.match(regex);
 
           if (match && match[1]) {
-            // Extract numeric part (e.g., "007" from "MP/MFG/007")
+            // Extract numeric part (e.g., "007" from "MP/MFG/007" or "[DIS]MP/MFG/007")
             const extractedPolicyNumber = match[1];
             memberNumber = memberNumber.replace(
               '{auto-increasing-policy-number}',
@@ -1510,23 +1518,23 @@ export class PolicyService {
               `[${correlationId}] Extracted policy number part "${extractedPolicyNumber}" from policy number "${policyNumber}" using format "${packageData.policyNumberFormat}"`
             );
           } else {
-            // Fallback: use full policy number if extraction fails
+            // Fallback: use full base policy number if extraction fails
             this.logger.warn(
-              `[${correlationId}] Could not extract numeric part from policy number "${policyNumber}" using format "${packageData.policyNumberFormat}". Using full policy number.`
+              `[${correlationId}] Could not extract numeric part from policy number "${policyNumber}" (base "${policyNumberForFormat}") using format "${packageData.policyNumberFormat}". Using base policy number.`
             );
             memberNumber = memberNumber.replace(
               '{auto-increasing-policy-number}',
-              policyNumber
+              policyNumberForFormat
             );
           }
         } else if (policyNumber) {
-          // No policyNumberFormat available, use full policy number (fallback)
+          const basePolicyNumber = getBasePolicyNumber(policyNumber);
           this.logger.warn(
-            `[${correlationId}] Policy number format not available for package ${packageId}. Using full policy number "${policyNumber}".`
+            `[${correlationId}] Policy number format not available for package ${packageId}. Using base policy number "${basePolicyNumber}".`
           );
           memberNumber = memberNumber.replace(
             '{auto-increasing-policy-number}',
-            policyNumber
+            basePolicyNumber
           );
         } else {
           // For postpaid policies with NULL policy number, use empty string
@@ -1669,7 +1677,8 @@ export class PolicyService {
    * - Sets start and end dates
    * - Updates status to ACTIVE
    * - Creates PolicyMemberPrincipal record
-   * - Creates PolicyMemberDependant records for all dependants
+   * - First product: copies live dependants + parents onto the policy, then numbers them
+   * - Additional product: numbers only membership already attached (selected IDs / member-only)
    *
    * @param policyId - Policy UUID
    * @param correlationId - Correlation ID for tracing
@@ -1928,10 +1937,45 @@ export class PolicyService {
           `for customer ${policy.customerId}`
         );
 
-        // Number only dependants already attached to THIS policy (explicit membership).
+        const siblingPolicies = await txClient.policy.findMany({
+          where: { customerId: policy.customerId, id: { not: policyId } },
+          select: { packageId: true, createdAt: true },
+        });
+        const firstProduct = isFirstProductEnrolment({
+          packageId: policy.packageId,
+          createdAt: policy.createdAt,
+          otherPolicies: siblingPolicies,
+        });
+
+        if (firstProduct) {
+          const pkg = await txClient.package.findUnique({
+            where: { id: policy.packageId },
+            select: { parentsSupported: true },
+          });
+          await this.attachPolicyMembership(
+            txClient,
+            {
+              policyId,
+              customerId: policy.customerId,
+              parentIds: pkg?.parentsSupported ? undefined : [],
+            },
+            correlationId
+          );
+          this.logger.log(
+            `[${correlationId}] First-product activation: attached live household on policy ${policyId}`
+          );
+        } else {
+          this.logger.log(
+            `[${correlationId}] Additional-product activation: numbering attached membership only on policy ${policyId}`
+          );
+        }
+
+        // Number dependants attached to THIS policy (full household on first product).
         const intendedDependants = await txClient.policyMemberDependant.findMany({
           where: { policyId },
-          include: { dependant: { select: { id: true, relationship: true } } },
+          include: {
+            dependant: { select: { id: true, relationship: true, createdAt: true } },
+          },
         });
         const orderedDependants = this.orderDependantsForMemberNumbers(
           intendedDependants.map((row) => row.dependant)
