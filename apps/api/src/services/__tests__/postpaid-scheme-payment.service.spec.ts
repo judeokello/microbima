@@ -243,9 +243,9 @@ describe('PostpaidSchemePaymentService - create marks IPN mapped', () => {
   const txMock = {
     postpaidSchemePayment: { create: jest.fn() },
     packageScheme: { findMany: jest.fn() },
-    customer: { findFirst: jest.fn() },
-    packageSchemeCustomer: { findFirst: jest.fn() },
-    policy: { findFirst: jest.fn() },
+    customer: { findMany: jest.fn() },
+    packageSchemeCustomer: { findMany: jest.fn() },
+    policy: { findMany: jest.fn() },
     policyPayment: { create: jest.fn() },
     postpaidSchemePaymentItem: { create: jest.fn() },
     mpesaPaymentReportItem: { updateMany: jest.fn() },
@@ -260,7 +260,9 @@ describe('PostpaidSchemePaymentService - create marks IPN mapped', () => {
     customer: { findFirst: jest.fn() },
     packageSchemeCustomer: { findFirst: jest.fn() },
     policy: { findFirst: jest.fn() },
-    $transaction: jest.fn(async (fn: (tx: typeof txMock) => Promise<unknown>) => fn(txMock)),
+    $transaction: jest.fn(
+      async (fn: (tx: typeof txMock) => Promise<unknown>) => fn(txMock)
+    ),
   };
 
   const policyServiceMock = {
@@ -333,16 +335,23 @@ describe('PostpaidSchemePaymentService - create marks IPN mapped', () => {
       updatedAt: new Date('2026-07-31T08:22:14.000Z'),
     });
     txMock.packageScheme.findMany.mockResolvedValue([{ id: 10, packageId: 1 }]);
-    txMock.customer.findFirst.mockResolvedValue({ id: 'cust-1' });
-    txMock.packageSchemeCustomer.findFirst.mockResolvedValue({
-      id: 1,
-      packageScheme: { packageId: 1 },
-    });
-    txMock.policy.findFirst.mockResolvedValue({
-      id: 'pol-1',
-      status: 'ACTIVE',
-      paymentAcNumber: '36783633',
-    });
+    txMock.customer.findMany.mockResolvedValue([{ id: 'cust-1', idNumber: '36783633' }]);
+    txMock.packageSchemeCustomer.findMany.mockResolvedValue([
+      {
+        id: 1,
+        customerId: 'cust-1',
+        packageScheme: { packageId: 1 },
+      },
+    ]);
+    txMock.policy.findMany.mockResolvedValue([
+      {
+        id: 'pol-1',
+        customerId: 'cust-1',
+        packageId: 1,
+        status: 'ACTIVE',
+        paymentAcNumber: '36783633',
+      },
+    ]);
     txMock.policyPayment.create.mockResolvedValue({ id: 9859 });
     txMock.postpaidSchemePaymentItem.create.mockResolvedValue({ id: 193 });
     txMock.mpesaPaymentReportItem.updateMany.mockResolvedValue({ count: 1 });
@@ -371,6 +380,85 @@ describe('PostpaidSchemePaymentService - create marks IPN mapped', () => {
       where: { transactionReference: 'UGTPM18EP7' },
       data: { isMapped: true, isProcessed: true },
     });
+    expect(prismaMock.$transaction).toHaveBeenCalledWith(
+      expect.any(Function),
+      expect.objectContaining({ timeout: 60_000, maxWait: 10_000 })
+    );
+    expect(policyServiceMock.activatePolicy).not.toHaveBeenCalled();
+  });
+
+  it('activates pending policies after the payment transaction commits', async () => {
+    txMock.policy.findMany.mockResolvedValue([
+      {
+        id: 'pol-1',
+        customerId: 'cust-1',
+        packageId: 1,
+        status: 'PENDING_ACTIVATION',
+        paymentAcNumber: '36783633',
+      },
+    ]);
+    policyServiceMock.activatePolicy.mockResolvedValue({ id: 'pol-1', status: 'ACTIVE' });
+
+    const csv = Buffer.from(
+      'Name,phone number,amount,id number\nSharon,254700000000,10000,36783633\n',
+      'utf-8'
+    );
+
+    await service.create(
+      1,
+      {
+        amount: 10000,
+        paymentType: PaymentType.MPESA,
+        transactionReference: 'UGTPM18EP7',
+        transactionDate: '2026-07-29T00:00:00.000Z',
+      },
+      csv,
+      'user-1',
+      'corr'
+    );
+
+    expect(policyServiceMock.activatePolicy).toHaveBeenCalledWith('pol-1', 'corr');
+    expect(policyServiceMock.activatePolicy.mock.calls[0][2]).toBeUndefined();
+  });
+
+  it('keeps saved payments when activation fails after commit', async () => {
+    txMock.policy.findMany.mockResolvedValue([
+      {
+        id: 'pol-1',
+        customerId: 'cust-1',
+        packageId: 1,
+        status: 'PENDING_ACTIVATION',
+        paymentAcNumber: '36783633',
+      },
+    ]);
+    policyServiceMock.activatePolicy.mockRejectedValue(new Error('activation failed'));
+
+    const csv = Buffer.from(
+      'Name,phone number,amount,id number\nSharon,254700000000,10000,36783633\n',
+      'utf-8'
+    );
+
+    const result = await service.create(
+      1,
+      {
+        amount: 10000,
+        paymentType: PaymentType.MPESA,
+        transactionReference: 'UGTPM18EP7',
+        transactionDate: '2026-07-29T00:00:00.000Z',
+      },
+      csv,
+      'user-1',
+      'corr'
+    );
+
+    expect(result.id).toBe(19);
+    expect(txMock.policyPayment.create).toHaveBeenCalled();
+    expect(paymentMessagingMock.notifyMatchedPaymentSmsAsync).toHaveBeenCalledWith(
+      expect.objectContaining({
+        wasPendingActivation: true,
+        activationSucceeded: false,
+      })
+    );
   });
 
   it('rejects create when MPESA ref is already mapped', async () => {
