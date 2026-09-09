@@ -23,6 +23,7 @@ import {
 import {
   formatInstallmentsPaidDisplay,
   formatPolicyDateTimeParts,
+  getPolicyStatusDisplay,
 } from '@/lib/policy-display';
 import {
   Tooltip,
@@ -66,6 +67,15 @@ function MissedPaymentsAmountSideDisplay({
     <span className={isMissed ? 'text-red-600 font-medium' : undefined}>
       {formatAmount(side.amountMissed)}
     </span>
+  );
+}
+
+function PolicyStatusBadge({ status }: { status: string }) {
+  const { label, className } = getPolicyStatusDisplay(status);
+  return (
+    <Badge variant="outline" className={className}>
+      {label}
+    </Badge>
   );
 }
 
@@ -457,6 +467,12 @@ export default function PaymentsTab({ customerId, customerPhone = '' }: Payments
             <CardContent>
               <dl className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-4">
                 <div>
+                  <dt className="text-sm font-medium text-muted-foreground">Status</dt>
+                  <dd className="mt-1">
+                    <PolicyStatusBadge status={policyDetail.status} />
+                  </dd>
+                </div>
+                <div>
                   <dt className="text-sm font-medium text-muted-foreground">Frequency</dt>
                   <dd className="mt-1 text-sm">{policyDetail.enrollment.frequency ?? '—'}</dd>
                 </div>
@@ -483,27 +499,29 @@ export default function PaymentsTab({ customerId, customerPhone = '' }: Payments
                       '— (expected installment count not set)'
                     ) : (
                       <>
-                        {formatInstallmentsPaidDisplay(
-                          policyDetail.installmentsPaid,
-                          policyDetail.installmentsPaidApproximate
-                        )}
-                        {' / '}
-                        {policyDetail.enrollment.expectedInstallmentCount}
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <button
-                              type="button"
-                              className="text-muted-foreground hover:text-foreground"
-                              aria-label="Payments made"
-                            >
-                              <Info className="h-3.5 w-3.5" />
-                            </button>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            {policyDetail.paymentsMadeCount ?? 0} payment
-                            {(policyDetail.paymentsMadeCount ?? 0) === 1 ? '' : 's'} made
-                          </TooltipContent>
-                        </Tooltip>
+                        <span className="inline-flex items-center gap-0.5">
+                          {formatInstallmentsPaidDisplay(
+                            policyDetail.installmentsPaid,
+                            policyDetail.installmentsPaidApproximate
+                          )}
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <button
+                                type="button"
+                                className="text-muted-foreground hover:text-foreground"
+                                aria-label="Payments made"
+                              >
+                                <Info className="h-3.5 w-3.5" />
+                              </button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              {policyDetail.paymentsMadeCount ?? 0} payment
+                              {(policyDetail.paymentsMadeCount ?? 0) === 1 ? '' : 's'} made
+                            </TooltipContent>
+                          </Tooltip>
+                        </span>
+                        <span>/</span>
+                        <span>{policyDetail.enrollment.expectedInstallmentCount}</span>
                       </>
                     )}
                   </dd>
