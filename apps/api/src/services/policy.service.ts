@@ -2034,7 +2034,10 @@ export class PolicyService {
       if (tx) {
         return await executeActivation(tx);
       } else {
-        return await this.prismaService.$transaction(executeActivation);
+        return await this.prismaService.$transaction(executeActivation, {
+          maxWait: 10_000,
+          timeout: 30_000,
+        });
       }
     } catch (error) {
       this.logger.error(
