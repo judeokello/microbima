@@ -13,15 +13,17 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps/agent-registration/package.json ./apps/agent-registration/
 COPY packages/portal-pin/package.json ./packages/portal-pin/
 COPY packages/common-config/package.json ./packages/common-config/
-RUN npm install -g pnpm@10.17.1 && pnpm install --frozen-lockfile
+RUN npm install -g pnpm@10.17.1 && pnpm install --frozen-lockfile --filter agent-registration...
 
 # Rebuild the source code only when needed
 FROM base AS builder
 WORKDIR /app
 COPY --from=deps /app .
 COPY . .
+# Restore pnpm links after COPY . . (node_modules is dockerignored)
+COPY --from=deps /app/node_modules ./node_modules
+COPY --from=deps /app/apps/agent-registration/node_modules ./apps/agent-registration/node_modules
 RUN npm install -g pnpm@10.17.1
-RUN pnpm install --frozen-lockfile --offline
 WORKDIR /app/packages/common-config
 RUN pnpm build
 WORKDIR /app/packages/portal-pin
