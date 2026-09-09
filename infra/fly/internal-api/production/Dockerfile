@@ -20,6 +20,7 @@ RUN npm install -g pnpm@10.17.1
 # Copy package files
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY packages/common-config/package.json ./packages/common-config/
+COPY packages/portal-pin/package.json ./packages/portal-pin/
 COPY apps/api/package.json ./apps/api/
 COPY apps/api/prisma ./apps/api/prisma
 
@@ -29,8 +30,10 @@ RUN pnpm install --frozen-lockfile
 # Copy source code
 COPY . .
 
-# Build common-config package first (required dependency)
+# Build workspace packages the API imports (required before nest build)
 WORKDIR /app/packages/common-config
+RUN pnpm build
+WORKDIR /app/packages/portal-pin
 RUN pnpm build
 
 # Build the application (includes Nest + trim-onboarding-text-fields script for Fly one-off runs)
