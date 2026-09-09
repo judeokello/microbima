@@ -19,11 +19,14 @@ RUN npm install -g pnpm@10.17.1 && pnpm install --frozen-lockfile
 # Rebuild the source code only when needed
 FROM base AS builder
 WORKDIR /app
-COPY --from=deps /app/node_modules ./node_modules
+COPY --from=deps /app .
 COPY . .
-
-# Install pnpm in builder stage
 RUN npm install -g pnpm@10.17.1
+RUN pnpm install --frozen-lockfile --offline
+WORKDIR /app/packages/common-config
+RUN pnpm build
+WORKDIR /app/packages/portal-pin
+RUN pnpm build
 
 # Build the agent registration app
 WORKDIR /app/apps/agent-registration
