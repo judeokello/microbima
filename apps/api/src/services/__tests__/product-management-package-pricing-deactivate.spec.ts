@@ -37,6 +37,9 @@ describe('ProductManagementService - auto-deactivate on incomplete pricing (US3)
       deleteMany: jest.fn(),
       createMany: jest.fn(),
     },
+    packageSchemeCustomer: {
+      count: jest.fn().mockResolvedValue(0),
+    },
     $transaction: jest.fn(),
   };
 

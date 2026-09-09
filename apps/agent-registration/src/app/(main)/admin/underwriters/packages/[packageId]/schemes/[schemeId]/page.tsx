@@ -12,6 +12,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { RefreshCw, Edit, Save, X, CheckCircle, XCircle, Plus, Trash2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/hooks/useAuth';
 import * as Sentry from '@sentry/nextjs';
 import { formatDate } from '@/lib/utils';
 import { getCustomerStatusDisplay } from '@/lib/customer-display';
@@ -144,6 +145,8 @@ export default function SchemeDetailPage() {
   const params = useParams();
   const packageId = parseInt(params.packageId as string);
   const schemeId = parseInt(params.schemeId as string);
+  const { isAdmin } = useAuth();
+  const canManageScheme = isAdmin;
 
   const [scheme, setScheme] = useState<Scheme | null>(null);
   const [packageParentsSupported, setPackageParentsSupported] = useState(false);
@@ -912,15 +915,15 @@ export default function SchemeDetailPage() {
         <div>
           <h1 className="text-3xl font-bold">Scheme Details</h1>
           <p className="text-muted-foreground mt-2">
-            View and manage scheme information
+            {canManageScheme ? 'View and manage scheme information' : 'View scheme information'}
           </p>
         </div>
-        {!editing ? (
+        {canManageScheme && !editing ? (
           <Button onClick={() => setEditing(true)}>
             <Edit className="h-4 w-4 mr-2" />
             Edit
           </Button>
-        ) : (
+        ) : canManageScheme ? (
           <div className="flex space-x-2">
             <Button variant="outline" onClick={handleCancel}>
               <X className="h-4 w-4 mr-2" />
@@ -931,7 +934,7 @@ export default function SchemeDetailPage() {
               Save
             </Button>
           </div>
-        )}
+        ) : null}
       </div>
 
       {/* Error Message */}
@@ -1231,13 +1234,17 @@ export default function SchemeDetailPage() {
               <div>
                 <CardTitle>Scheme Payments</CardTitle>
                 <CardDescription>
-                  Upload postpaid payment batches (CSV). Columns: Name, phone number, amount, id number, paid date (optional).
+                  {canManageScheme
+                    ? 'Upload postpaid payment batches (CSV). Columns: Name, phone number, amount, id number, paid date (optional).'
+                    : 'Postpaid payment batches for this scheme.'}
                 </CardDescription>
               </div>
-              <Button onClick={handleOpenPaymentDialog}>
-                <Plus className="h-4 w-4 mr-2" />
-                Payment
-              </Button>
+              {canManageScheme ? (
+                <Button onClick={handleOpenPaymentDialog}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Payment
+                </Button>
+              ) : null}
             </div>
           </CardHeader>
           <CardContent>
@@ -1294,16 +1301,20 @@ export default function SchemeDetailPage() {
             <div>
               <CardTitle>Scheme Contacts</CardTitle>
               <CardDescription>
-                Manage contact persons for this scheme (Maximum 5 contacts)
+                {canManageScheme
+                  ? 'Manage contact persons for this scheme (Maximum 5 contacts)'
+                  : 'Contact persons for this scheme'}
               </CardDescription>
             </div>
-            <Button
-              onClick={() => handleOpenContactDialog()}
-              disabled={contacts.length >= 5}
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              Add Contact
-            </Button>
+            {canManageScheme ? (
+              <Button
+                onClick={() => handleOpenContactDialog()}
+                disabled={contacts.length >= 5}
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Add Contact
+              </Button>
+            ) : null}
           </div>
         </CardHeader>
         <CardContent>
@@ -1320,7 +1331,7 @@ export default function SchemeDetailPage() {
                     <TableHead>Phone</TableHead>
                     <TableHead>Email</TableHead>
                     <TableHead>Designation</TableHead>
-                    <TableHead>Actions</TableHead>
+                    {canManageScheme ? <TableHead>Actions</TableHead> : null}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -1337,24 +1348,26 @@ export default function SchemeDetailPage() {
                       </TableCell>
                       <TableCell>{contact.email ?? '-'}</TableCell>
                       <TableCell>{contact.designation ?? '-'}</TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleOpenContactDialog(contact)}
-                          >
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleDeleteContact(contact.id)}
-                          >
-                            <Trash2 className="h-4 w-4 text-red-500" />
-                          </Button>
-                        </div>
-                      </TableCell>
+                      {canManageScheme ? (
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleOpenContactDialog(contact)}
+                            >
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleDeleteContact(contact.id)}
+                            >
+                              <Trash2 className="h-4 w-4 text-red-500" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      ) : null}
                     </TableRow>
                   ))}
                 </TableBody>
