@@ -70,6 +70,7 @@
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.1",
     "@eslint/js": "^9.16.0",
+    "@next/eslint-plugin-next": "^15.5.3",
     "@tailwindcss/postcss": "^4.1.13",
     "@types/jest": "^29.5.2",
     "@types/node": "^22.18.4",

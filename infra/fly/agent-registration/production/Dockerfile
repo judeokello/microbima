@@ -12,6 +12,8 @@ WORKDIR /app
 # Install dependencies based on the preferred package manager
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps/agent-registration/package.json ./apps/agent-registration/
+COPY packages/portal-pin/package.json ./packages/portal-pin/
+COPY packages/common-config/package.json ./packages/common-config/
 RUN npm install -g pnpm@10.17.1 && pnpm install --frozen-lockfile
 
 # Rebuild the source code only when needed
@@ -54,7 +56,8 @@ ENV NEXT_OUTPUT_STANDALONE=true
 RUN echo "Build-time environment check:" && \
     echo "NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}" && \
     echo "NEXT_PUBLIC_APP_NAME=${NEXT_PUBLIC_APP_NAME}" && \
-    pnpm run build:ci
+    pnpm run build:ci && \
+    test -d .next/standalone || (echo "Next.js standalone output missing after build:ci" && ls -la .next && exit 1)
 
 # Production image, copy all the files and run the app
 FROM base AS runner

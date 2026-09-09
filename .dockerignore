@@ -1,0 +1,14 @@
+# Keep Fly/Depot build context small and avoid overwriting image node_modules
+node_modules
+**/node_modules
+.pnpm-store
+.git
+.turbo
+.next
+**/.next
+dist
+**/dist
+coverage
+**/.env
+**/.env.*
+*.log
