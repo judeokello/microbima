@@ -236,6 +236,8 @@ model CustomerParent {
   deletedAt DateTime? @db.Timestamptz
   deletedBy String?   @db.Uuid
 
+  policyMemberParents PolicyMemberParent[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -378,6 +380,7 @@ model Policy {
   lifecycleNotifications PolicyLifecycleNotification[]
   policyMemberPrincipals PolicyMemberPrincipal[]
   policyMemberDependants PolicyMemberDependant[]
+  policyMemberParents    PolicyMemberParent[]
   policyBeneficiaries    PolicyBeneficiary[]
   lctMemberSyncTargets   LctMemberSyncTarget[]
 
@@ -770,7 +773,7 @@ model Package {
   parentsSupported   Boolean  @default(false)
   /// Ceiling for UP_TO_N pricing categories (maxMembers must be <= this)
   maximumFamilySize  Int      @default(8)
-  policyNumberFormat String?  @db.VarChar(200)
+  policyNumberFormat String?  @unique @db.VarChar(200)
   memberNumberFormat String?  @db.VarChar(200)
   logoPath           String?  @db.VarChar(200)
   cardTemplateName   String?  @db.VarChar(100)
@@ -1039,6 +1042,25 @@ model PolicyMemberDependant {
   @@index([memberNumber])
   @@index([dependantId])
   @@map("policy_member_dependants")
+}
+
+/// Links a customer parent to a policy and holds the member number for that policy.
+model PolicyMemberParent {
+  id               Int     @id @default(autoincrement())
+  customerParentId String  @db.Uuid
+  policyId         String? @db.Uuid
+  memberNumber     String  @db.VarChar(50)
+
+  customerParent CustomerParent @relation(fields: [customerParentId], references: [id], onDelete: Cascade)
+  policy         Policy?        @relation(fields: [policyId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime?
+
+  @@unique([policyId, customerParentId])
+  @@index([memberNumber])
+  @@index([customerParentId])
+  @@map("policy_member_parents")
 }
 
 model PolicyPayment {

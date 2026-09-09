@@ -100,3 +100,29 @@ export function resolvePostpaidMemberPolicyDates(params: {
 
   return { startDate, endDate, nominalPaymentPeriodEndDate };
 }
+
+/**
+ * Parse a CSV paid-date cell. Kenya uploads use D/M/Y; ISO YYYY-MM-DD is also accepted.
+ * `new Date('02/09/2026')` would otherwise be 9 Feb in US parsing.
+ */
+export function parsePostpaidPaidDate(raw: string | null | undefined): Date | null {
+  if (!raw?.trim()) return null;
+  const s = raw.trim();
+
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) {
+    const iso = new Date(s);
+    return Number.isNaN(iso.getTime()) ? null : iso;
+  }
+
+  const dmy = s.match(/^(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{4})$/);
+  if (dmy) {
+    const day = Number(dmy[1]);
+    const month = Number(dmy[2]);
+    const year = Number(dmy[3]);
+    if (month < 1 || month > 12 || day < 1 || day > 31) return null;
+    return new Date(Date.UTC(year, month - 1, day));
+  }
+
+  const fallback = new Date(s);
+  return Number.isNaN(fallback.getTime()) ? null : fallback;
+}

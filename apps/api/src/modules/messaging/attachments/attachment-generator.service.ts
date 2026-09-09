@@ -11,6 +11,7 @@ export interface MemberCardData {
   memberNumber: string | null;
   dateOfBirth: string;
   datePrinted: string;
+  memberRole?: 'PRINCIPAL' | 'SPOUSE' | 'CHILD' | 'PARENT';
 }
 
 /** Result of generating one attachment: buffer and suggested filename. */
@@ -114,6 +115,12 @@ export class AttachmentGeneratorService {
                 policyMemberDependants: { orderBy: { createdAt: 'desc' }, take: 1 },
               },
             },
+            parents: {
+              where: { deletedAt: null },
+              include: {
+                policyMemberParents: { orderBy: { createdAt: 'desc' }, take: 1 },
+              },
+            },
           },
         },
         package: { select: { id: true, name: true, cardTemplateName: true } },
@@ -159,32 +166,56 @@ export class AttachmentGeneratorService {
         datePrinted: principalMember?.createdAt
           ? this.formatDateDDMMYYYY(principalMember.createdAt)
           : '',
+        memberRole: 'PRINCIPAL',
       };
       return { data, cardTemplateName: pkg?.cardTemplateName ?? null };
     }
 
     const dependantIndex = memberIndex - 1;
     const dependants = customer.dependants;
-    if (dependantIndex < 0 || dependantIndex >= dependants.length) {
+    if (dependantIndex < dependants.length) {
+      const d = dependants[dependantIndex];
+      const memberDependant = d.policyMemberDependants[0];
+      const fullName = [d.firstName, d.middleName ?? '', d.lastName].filter(Boolean).join(' ');
+      const dob = d.dateOfBirth ? this.formatDateDDMMYYYY(d.dateOfBirth) : '';
+
+      const data: MemberCardData = {
+        schemeName,
+        principalMemberName: principalName,
+        insuredMemberName: fullName,
+        memberNumber: memberDependant?.memberNumber ?? null,
+        dateOfBirth: dob,
+        datePrinted: memberDependant?.createdAt
+          ? this.formatDateDDMMYYYY(memberDependant.createdAt)
+          : '',
+        memberRole: d.relationship === 'SPOUSE' ? 'SPOUSE' : 'CHILD',
+      };
+      return { data, cardTemplateName: pkg?.cardTemplateName ?? null };
+    }
+
+    const parentIndex = dependantIndex - dependants.length;
+    const parents = customer.parents;
+    if (parentIndex < 0 || parentIndex >= parents.length) {
       throw new Error(
-        `Invalid memberIndex=${memberIndex} for policyId=${policyId} (principal=0, dependants=1..${dependants.length})`,
+        `Invalid memberIndex=${memberIndex} for policyId=${policyId} (principal=0, dependants=1..${dependants.length}, parents=${dependants.length + 1}..${dependants.length + parents.length})`,
       );
     }
 
-    const d = dependants[dependantIndex];
-    const memberDependant = d.policyMemberDependants[0];
-    const fullName = [d.firstName, d.middleName ?? '', d.lastName].filter(Boolean).join(' ');
-    const dob = d.dateOfBirth ? this.formatDateDDMMYYYY(d.dateOfBirth) : '';
+    const p = parents[parentIndex];
+    const memberParent = p.policyMemberParents[0];
+    const fullName = [p.firstName, p.middleName ?? '', p.lastName].filter(Boolean).join(' ');
+    const dob = p.dateOfBirth ? this.formatDateDDMMYYYY(p.dateOfBirth) : '';
 
     const data: MemberCardData = {
       schemeName,
       principalMemberName: principalName,
       insuredMemberName: fullName,
-      memberNumber: memberDependant?.memberNumber ?? null,
+      memberNumber: memberParent?.memberNumber ?? null,
       dateOfBirth: dob,
-      datePrinted: memberDependant?.createdAt
-        ? this.formatDateDDMMYYYY(memberDependant.createdAt)
+      datePrinted: memberParent?.createdAt
+        ? this.formatDateDDMMYYYY(memberParent.createdAt)
         : '',
+      memberRole: 'PARENT',
     };
     return { data, cardTemplateName: pkg?.cardTemplateName ?? null };
   }

@@ -10,7 +10,14 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { PAYMENT_CADENCE } from '../constants/payment-cadence.constants';
-import { PaymentFrequency, PaymentType, Prisma, DependantRelationship } from '@prisma/client';
+import {
+  PaymentFrequency,
+  PaymentType,
+  Prisma,
+  DependantRelationship,
+  ParentRelationship,
+  CustomerStatus,
+} from '@prisma/client';
 import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
 import * as Sentry from '@sentry/nestjs';
 import { PaymentAccountNumberService } from './payment-account-number.service';
@@ -28,7 +35,6 @@ import { computeNominalPaymentPeriodEndDate } from '../utils/package-payment-fre
 import { ValidationException } from '../exceptions/validation.exception';
 import { ErrorCodes } from '../enums/error-codes.enum';
 import { validateAdditionalProductEnrolment } from '../utils/additional-product.rules';
-import { CustomerStatus } from '@prisma/client';
 
 /**
  * Policy Service
@@ -252,10 +258,31 @@ export class PolicyService {
     });
   }
 
+  private static readonly PARENT_RELATIONSHIP_ORDER: ParentRelationship[] = [
+    ParentRelationship.MOTHER,
+    ParentRelationship.FATHER,
+    ParentRelationship.MOTHER_IN_LAW,
+    ParentRelationship.FATHER_IN_LAW,
+  ];
+
+  orderParentsForMemberNumbers<
+    T extends { id: string; relationship: ParentRelationship; createdAt?: Date }
+  >(parents: T[]): T[] {
+    return [...parents].sort((a, b) => {
+      const ai = PolicyService.PARENT_RELATIONSHIP_ORDER.indexOf(a.relationship);
+      const bi = PolicyService.PARENT_RELATIONSHIP_ORDER.indexOf(b.relationship);
+      if (ai !== bi) return (ai < 0 ? 99 : ai) - (bi < 0 ? 99 : bi);
+      const at = a.createdAt?.getTime() ?? 0;
+      const bt = b.createdAt?.getTime() ?? 0;
+      return at - bt;
+    });
+  }
+
   /**
    * Persist intended membership for a policy.
    * `dependantIds` undefined = all current customer dependants (legacy first registration).
    * `[]` = member-only. Specific IDs = those people only.
+   * Same rules for `parentIds` against customer_parents.
    */
   async attachPolicyMembership(
     tx: Prisma.TransactionClient,
@@ -263,6 +290,7 @@ export class PolicyService {
       policyId: string;
       customerId: string;
       dependantIds?: string[] | null;
+      parentIds?: string[] | null;
       beneficiaryId?: string | null;
     },
     correlationId: string
@@ -291,6 +319,30 @@ export class PolicyService {
       });
     }
 
+    let parentIds = params.parentIds;
+    if (parentIds === undefined || parentIds === null) {
+      const allParents = await tx.customerParent.findMany({
+        where: { customerId: params.customerId, deletedAt: null },
+        select: { id: true, relationship: true, createdAt: true },
+      });
+      parentIds = this.orderParentsForMemberNumbers(allParents).map((p) => p.id);
+    }
+
+    const uniqueParentIds = [...new Set(parentIds)];
+    for (const customerParentId of uniqueParentIds) {
+      await tx.policyMemberParent.upsert({
+        where: {
+          policyId_customerParentId: { policyId: params.policyId, customerParentId },
+        },
+        create: {
+          policyId: params.policyId,
+          customerParentId,
+          memberNumber: `PENDING-${customerParentId.slice(0, 8)}`,
+        },
+        update: {},
+      });
+    }
+
     if (params.beneficiaryId) {
       await tx.policyBeneficiary.upsert({
         where: { policyId: params.policyId },
@@ -305,8 +357,90 @@ export class PolicyService {
 
     this.logger.log(
       `[${correlationId}] Attached membership on policy ${params.policyId}: ` +
-        `${uniqueDependantIds.length} dependants, beneficiary=${params.beneficiaryId ?? 'none'}`
+        `${uniqueDependantIds.length} dependants, ${uniqueParentIds.length} parents, ` +
+        `beneficiary=${params.beneficiaryId ?? 'none'}`
     );
+  }
+
+  /**
+   * Attach parents to occupying policies and assign member numbers when the policy is already active.
+   */
+  async ensureParentMemberRowsForPolicies(
+    customerId: string,
+    parentIds: string[],
+    correlationId: string,
+    tx?: Prisma.TransactionClient
+  ): Promise<void> {
+    if (parentIds.length === 0) return;
+    const run = async (client: Prisma.TransactionClient) => {
+      const policies = await client.policy.findMany({
+        where: {
+          customerId,
+          status: { in: ['ACTIVE', 'PENDING_ACTIVATION', 'SUSPENDED'] },
+          package: { parentsSupported: true },
+        },
+        select: { id: true, packageId: true, policyNumber: true, status: true },
+      });
+      if (policies.length === 0) return;
+
+      const parents = await client.customerParent.findMany({
+        where: { id: { in: parentIds }, customerId, deletedAt: null },
+        select: { id: true, relationship: true, createdAt: true },
+      });
+      const ordered = this.orderParentsForMemberNumbers(parents);
+
+      for (const policy of policies) {
+        const existingDeps = await client.policyMemberDependant.count({
+          where: { policyId: policy.id },
+        });
+        const existingParents = await client.policyMemberParent.findMany({
+          where: { policyId: policy.id },
+          select: { customerParentId: true },
+        });
+        const existingIds = new Set(existingParents.map((p) => p.customerParentId));
+        const missing = ordered.filter((p) => !existingIds.has(p.id));
+        if (missing.length === 0) continue;
+
+        const alreadyActive = policy.status === 'ACTIVE' || policy.status === 'SUSPENDED';
+        for (let i = 0; i < missing.length; i++) {
+          const parent = missing[i];
+          const sequence = alreadyActive
+            ? existingDeps + existingParents.length + i + 1
+            : undefined;
+          const memberNumber =
+            alreadyActive && policy.policyNumber
+              ? await this.generateMemberNumber(
+                  policy.packageId,
+                  policy.policyNumber,
+                  client,
+                  correlationId,
+                  sequence
+                )
+              : `PENDING-${parent.id.slice(0, 8)}`;
+
+          await client.policyMemberParent.upsert({
+            where: {
+              policyId_customerParentId: {
+                policyId: policy.id,
+                customerParentId: parent.id,
+              },
+            },
+            create: {
+              policyId: policy.id,
+              customerParentId: parent.id,
+              memberNumber,
+            },
+            update: alreadyActive ? { memberNumber } : {},
+          });
+        }
+      }
+    };
+
+    if (tx) {
+      await run(tx);
+    } else {
+      await this.prismaService.$transaction(run);
+    }
   }
 
   async loadEnrolmentSnapshots(
@@ -1310,17 +1444,23 @@ export class PolicyService {
           },
         });
 
+        const lastParent = await tx.policyMemberParent.findFirst({
+          orderBy: {
+            createdAt: 'desc',
+          },
+          select: {
+            memberNumber: true,
+          },
+        });
+
         // Determine which member number is most recent
-        let lastMemberNumber: string | null = null;
-        if (lastPrincipal && lastDependant) {
-          lastMemberNumber = lastPrincipal.memberNumber > lastDependant.memberNumber
-            ? lastPrincipal.memberNumber
-            : lastDependant.memberNumber;
-        } else if (lastPrincipal) {
-          lastMemberNumber = lastPrincipal.memberNumber;
-        } else if (lastDependant) {
-          lastMemberNumber = lastDependant.memberNumber;
-        }
+        const candidates = [
+          lastPrincipal?.memberNumber,
+          lastDependant?.memberNumber,
+          lastParent?.memberNumber,
+        ].filter((value): value is string => Boolean(value));
+        const lastMemberNumber: string | null =
+          candidates.length > 0 ? candidates.reduce((a, b) => (a > b ? a : b)) : null;
 
         // Extract the sequence number from the last member number, or start at 0 (for principal)
         sequenceNumber = 0; // Start at 0 for principal
@@ -1659,6 +1799,17 @@ export class PolicyService {
             data: updateData,
           });
 
+          const existingCustomer = await txClient.customer.findUnique({
+            where: { id: policy.customerId },
+            select: { status: true },
+          });
+          if (existingCustomer && existingCustomer.status !== CustomerStatus.TERMINATED) {
+            await txClient.customer.update({
+              where: { id: policy.customerId },
+              data: { status: 'ACTIVE', deactivatedAt: null },
+            });
+          }
+
           await this.lifecycleMessaging.suppressPendingActivationReminders(
             policyId,
             correlationId,
@@ -1809,6 +1960,46 @@ export class PolicyService {
           this.logger.log(
             `[${correlationId}] Set dependant member number ${dependantMemberNumber} ` +
               `for dependant ${dependant.id}`
+          );
+        }
+
+        const intendedParents = await txClient.policyMemberParent.findMany({
+          where: { policyId },
+          include: {
+            customerParent: {
+              select: { id: true, relationship: true, createdAt: true, deletedAt: true },
+            },
+          },
+        });
+        const orderedParents = this.orderParentsForMemberNumbers(
+          intendedParents
+            .filter((row) => row.customerParent.deletedAt == null)
+            .map((row) => row.customerParent)
+        );
+        this.logger.log(
+          `[${correlationId}] Assigning member numbers for ${orderedParents.length} intended parents`
+        );
+
+        for (let i = 0; i < orderedParents.length; i++) {
+          const parent = orderedParents[i];
+          const parentMemberNumber = await this.generateMemberNumber(
+            policy.packageId,
+            policyNumber,
+            txClient,
+            correlationId,
+            orderedDependants.length + i + 1
+          );
+
+          await txClient.policyMemberParent.update({
+            where: {
+              policyId_customerParentId: { policyId, customerParentId: parent.id },
+            },
+            data: { memberNumber: parentMemberNumber },
+          });
+
+          this.logger.log(
+            `[${correlationId}] Set parent member number ${parentMemberNumber} ` +
+              `for customer parent ${parent.id}`
           );
         }
 

@@ -28,6 +28,9 @@ describe('ProductManagementService - package slug & payment frequencies', () => 
     policyNumberSequence: {
       create: jest.fn(),
     },
+    packageSchemeCustomer: {
+      count: jest.fn().mockResolvedValue(0),
+    },
     $transaction: jest.fn(),
   };
 
@@ -59,6 +62,7 @@ describe('ProductManagementService - package slug & payment frequencies', () => 
             description: 'Boda product',
             maximumFamilySize: 8,
             paymentFrequencies: [],
+            policyNumberCode: 'BODA',
           },
           'user-1',
           'corr-1'
@@ -77,6 +81,7 @@ describe('ProductManagementService - package slug & payment frequencies', () => 
             paymentFrequencies: [
               { frequency: PaymentFrequency.CUSTOM, installmentCount: 10 },
             ],
+            policyNumberCode: 'BODA',
           },
           'user-1',
           'corr-1'
@@ -95,6 +100,7 @@ describe('ProductManagementService - package slug & payment frequencies', () => 
             paymentFrequencies: [
               { frequency: PaymentFrequency.DAILY, installmentCount: 313 },
             ],
+            policyNumberCode: 'BODA',
           },
           'user-1',
           'corr-1'
@@ -113,6 +119,7 @@ describe('ProductManagementService - package slug & payment frequencies', () => 
             paymentFrequencies: [
               { frequency: PaymentFrequency.WEEKLY, installmentCount: 53 },
             ],
+            policyNumberCode: 'BODA',
           },
           'user-1',
           'corr-1'
@@ -135,6 +142,7 @@ describe('ProductManagementService - package slug & payment frequencies', () => 
             paymentFrequencies: [
               { frequency: PaymentFrequency.DAILY, installmentCount: 313 },
             ],
+            policyNumberCode: 'BODA',
           },
           'user-1',
           'corr-1'
@@ -161,6 +169,7 @@ describe('ProductManagementService - package slug & payment frequencies', () => 
             paymentFrequencies: [
               { frequency: PaymentFrequency.DAILY, installmentCount: 313 },
             ],
+            policyNumberCode: 'BODA',
           },
           'user-1',
           'corr-1'
@@ -182,8 +191,11 @@ describe('ProductManagementService - package slug & payment frequencies', () => 
         description: 'Boda product',
         underwriterId: 1,
         underwriter: { id: 1, name: 'UW' },
-        isActive: false,
+        parentsSupported: false,
+        maximumFamilySize: 8,
         logoPath: null,
+        policyNumberFormat: 'MP/BODA/{auto-increasing-policy-number}',
+        memberNumberFormat: 'BODA{auto-increasing-policy-number}-{auto-increasing-member-number}',
         createdBy: 'user-1',
         createdAt: new Date('2026-01-01T00:00:00Z'),
         updatedAt: new Date('2026-01-01T00:00:00Z'),
@@ -224,16 +236,83 @@ describe('ProductManagementService - package slug & payment frequencies', () => 
             { frequency: PaymentFrequency.DAILY, installmentCount: 313 },
             { frequency: PaymentFrequency.WEEKLY, installmentCount: 52 },
           ],
+          policyNumberCode: 'BODA',
         },
         'user-1',
         'corr-1'
       );
 
       expect(result.slug).toBe('mfanisi-boda');
+      expect(result.policyNumberCode).toBe('BODA');
+      expect(result.policyNumberFormat).toBe(
+        'MP/BODA/{auto-increasing-policy-number}'
+      );
       expect(result.paymentFrequencies).toEqual([
         { frequency: PaymentFrequency.DAILY, installmentCount: 313 },
         { frequency: PaymentFrequency.WEEKLY, installmentCount: 52 },
       ]);
+    });
+
+    it('rejects a 1-character product number code', async () => {
+      prismaMock.package.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.createPackage(
+          {
+            name: 'Short Code',
+            slug: 'short-code',
+            description: 'Invalid code',
+            maximumFamilySize: 8,
+            underwriterId: 1,
+            paymentFrequencies: [
+              { frequency: PaymentFrequency.WEEKLY, installmentCount: 52 },
+            ],
+            policyNumberCode: 'A',
+          },
+          'user-1',
+          'corr-1'
+        )
+      ).rejects.toMatchObject({
+        errorDetails: {
+          policyNumberCode: 'Policy number format must be 2–5 letters or numbers',
+        },
+      });
+      expect(prismaMock.$transaction).not.toHaveBeenCalled();
+    });
+
+    it('rejects a product number already used by another package', async () => {
+      prismaMock.package.findFirst.mockImplementation(
+        (args: { where?: { OR?: unknown; slug?: string } }) => {
+          if (args?.where?.OR) {
+            return Promise.resolve({ id: 99 });
+          }
+          return Promise.resolve(null);
+        }
+      );
+
+      await expect(
+        service.createPackage(
+          {
+            name: 'Duplicate Code',
+            slug: 'duplicate-code',
+            description: 'Taken code',
+            maximumFamilySize: 8,
+            underwriterId: 1,
+            paymentFrequencies: [
+              { frequency: PaymentFrequency.WEEKLY, installmentCount: 52 },
+            ],
+            policyNumberCode: 'MFG',
+          },
+          'user-1',
+          'corr-1'
+        )
+      ).rejects.toMatchObject({
+        errorDetails: {
+          policyNumberCode:
+            'This product number has already been used for another package',
+        },
+      });
+      expect(prismaMock.$transaction).not.toHaveBeenCalled();
     });
   });
 
@@ -257,6 +336,57 @@ describe('ProductManagementService - package slug & payment frequencies', () => 
           'corr-1'
         )
       ).rejects.toBeInstanceOf(ValidationException);
+    });
+
+    it('rejects changing the product number after customers are allocated', async () => {
+      prismaMock.package.findUnique.mockResolvedValue({
+        id: 10,
+        name: 'MfanisiBoda',
+        slug: 'mfanisi-boda',
+        policyNumberFormat: 'MP/BODA/{auto-increasing-policy-number}',
+        memberNumberFormat:
+          'BODA{auto-increasing-policy-number}-{auto-increasing-member-number}',
+      });
+      prismaMock.packageSchemeCustomer.count.mockResolvedValue(1);
+
+      await expect(
+        service.updatePackage(
+          10,
+          { policyNumberCode: 'NEWCD' },
+          'corr-1'
+        )
+      ).rejects.toMatchObject({
+        errorDetails: {
+          policyNumberCode:
+            'Policy and member number formats cannot be changed after customers have been allocated to this package',
+        },
+      });
+    });
+
+    it('rejects updating to a product number used by another package', async () => {
+      prismaMock.package.findUnique.mockResolvedValue({
+        id: 10,
+        name: 'MfanisiBoda',
+        slug: 'mfanisi-boda',
+        policyNumberFormat: 'MP/BODA/{auto-increasing-policy-number}',
+        memberNumberFormat:
+          'BODA{auto-increasing-policy-number}-{auto-increasing-member-number}',
+      });
+      prismaMock.packageSchemeCustomer.count.mockResolvedValue(0);
+      prismaMock.package.findFirst.mockResolvedValue({ id: 22 });
+
+      await expect(
+        service.updatePackage(
+          10,
+          { policyNumberCode: 'MFG' },
+          'corr-1'
+        )
+      ).rejects.toMatchObject({
+        errorDetails: {
+          policyNumberCode:
+            'This product number has already been used for another package',
+        },
+      });
     });
   });
 

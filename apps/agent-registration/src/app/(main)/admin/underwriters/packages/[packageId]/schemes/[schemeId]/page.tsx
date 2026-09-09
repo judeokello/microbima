@@ -9,8 +9,10 @@ import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { RefreshCw, Edit, Save, X, CheckCircle, XCircle, Plus, Trash2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/hooks/useAuth';
 import * as Sentry from '@sentry/nextjs';
 import { formatDate } from '@/lib/utils';
 import { getCustomerStatusDisplay } from '@/lib/customer-display';
@@ -101,9 +103,35 @@ interface PostpaidSchemePaymentItem {
   amount: string;
   paymentType: string;
   transactionReference: string;
+  transactionDate: string;
+  customersPaid: number;
   createdBy: string;
   createdAt: string;
   updatedAt: string;
+}
+
+interface PostpaidSchemePaymentMember {
+  id: number;
+  customerId: string;
+  firstName: string;
+  middleName?: string | null;
+  lastName: string;
+  phoneNumber?: string | null;
+  idNumber?: string | null;
+  amount: string;
+  paidDate: string | null;
+  policyNumber: string | null;
+  paymentStatus: string;
+}
+
+function formatPaymentMadeDate(iso: string | null | undefined): string {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '—';
+  const dd = String(d.getUTCDate()).padStart(2, '0');
+  const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
+  const yyyy = d.getUTCFullYear();
+  return `${dd}/${mm}/${yyyy}`;
 }
 
 interface PostpaidSchemePaymentsResponse {
@@ -117,6 +145,8 @@ export default function SchemeDetailPage() {
   const params = useParams();
   const packageId = parseInt(params.packageId as string);
   const schemeId = parseInt(params.schemeId as string);
+  const { isAdmin } = useAuth();
+  const canManageScheme = isAdmin;
 
   const [scheme, setScheme] = useState<Scheme | null>(null);
   const [packageParentsSupported, setPackageParentsSupported] = useState(false);
@@ -154,6 +184,10 @@ export default function SchemeDetailPage() {
   // Scheme Payments (postpaid only)
   const [postpaidPayments, setPostpaidPayments] = useState<PostpaidSchemePaymentItem[]>([]);
   const [postpaidPaymentsLoading, setPostpaidPaymentsLoading] = useState(false);
+  const [selectedPayment, setSelectedPayment] = useState<PostpaidSchemePaymentItem | null>(null);
+  const [paymentMembers, setPaymentMembers] = useState<PostpaidSchemePaymentMember[]>([]);
+  const [paymentMembersLoading, setPaymentMembersLoading] = useState(false);
+  const [paymentMembersError, setPaymentMembersError] = useState<string | null>(null);
   const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
   const [paymentFormData, setPaymentFormData] = useState({
     amount: '',
@@ -298,6 +332,34 @@ export default function SchemeDetailPage() {
       console.error('Error fetching contacts:', err);
     }
   }, [schemeId]);
+
+  const openPaymentMembers = async (payment: PostpaidSchemePaymentItem) => {
+    setSelectedPayment(payment);
+    setPaymentMembers([]);
+    setPaymentMembersError(null);
+    setPaymentMembersLoading(true);
+    try {
+      const token = await getSupabaseToken();
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/product-management/schemes/${schemeId}/postpaid-payments/${payment.id}/members`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'x-correlation-id': `req-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          },
+        }
+      );
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      const data: { data: PostpaidSchemePaymentMember[] } = await response.json();
+      setPaymentMembers(data.data ?? []);
+    } catch (err) {
+      setPaymentMembersError(err instanceof Error ? err.message : 'Failed to load member payments');
+    } finally {
+      setPaymentMembersLoading(false);
+    }
+  };
 
   const fetchPostpaidPayments = useCallback(async () => {
     try {
@@ -853,15 +915,15 @@ export default function SchemeDetailPage() {
         <div>
           <h1 className="text-3xl font-bold">Scheme Details</h1>
           <p className="text-muted-foreground mt-2">
-            View and manage scheme information
+            {canManageScheme ? 'View and manage scheme information' : 'View scheme information'}
           </p>
         </div>
-        {!editing ? (
+        {canManageScheme && !editing ? (
           <Button onClick={() => setEditing(true)}>
             <Edit className="h-4 w-4 mr-2" />
             Edit
           </Button>
-        ) : (
+        ) : canManageScheme ? (
           <div className="flex space-x-2">
             <Button variant="outline" onClick={handleCancel}>
               <X className="h-4 w-4 mr-2" />
@@ -872,7 +934,7 @@ export default function SchemeDetailPage() {
               Save
             </Button>
           </div>
-        )}
+        ) : null}
       </div>
 
       {/* Error Message */}
@@ -1172,13 +1234,17 @@ export default function SchemeDetailPage() {
               <div>
                 <CardTitle>Scheme Payments</CardTitle>
                 <CardDescription>
-                  Upload postpaid payment batches (CSV). Columns: Name, phone number, amount, id number, paid date (optional).
+                  {canManageScheme
+                    ? 'Upload postpaid payment batches (CSV). Columns: Name, phone number, amount, id number, paid date (optional).'
+                    : 'Postpaid payment batches for this scheme.'}
                 </CardDescription>
               </div>
-              <Button onClick={handleOpenPaymentDialog}>
-                <Plus className="h-4 w-4 mr-2" />
-                Payment
-              </Button>
+              {canManageScheme ? (
+                <Button onClick={handleOpenPaymentDialog}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Payment
+                </Button>
+              ) : null}
             </div>
           </CardHeader>
           <CardContent>
@@ -1196,6 +1262,8 @@ export default function SchemeDetailPage() {
                       <TableHead>Transaction reference</TableHead>
                       <TableHead>Amount</TableHead>
                       <TableHead>Payment type</TableHead>
+                      <TableHead>Customers paid</TableHead>
+                      <TableHead>Payment made date</TableHead>
                       <TableHead>Created</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -1205,6 +1273,16 @@ export default function SchemeDetailPage() {
                         <TableCell className="font-medium">{formatTransactionReferenceForDisplay(p.transactionReference)}</TableCell>
                         <TableCell>{p.amount}</TableCell>
                         <TableCell>{p.paymentType}</TableCell>
+                        <TableCell>
+                          <button
+                            type="button"
+                            className="text-blue-600 hover:underline font-medium"
+                            onClick={() => void openPaymentMembers(p)}
+                          >
+                            {p.customersPaid ?? 0}
+                          </button>
+                        </TableCell>
+                        <TableCell>{formatPaymentMadeDate(p.transactionDate)}</TableCell>
                         <TableCell>{formatDate(p.createdAt)}</TableCell>
                       </TableRow>
                     ))}
@@ -1223,16 +1301,20 @@ export default function SchemeDetailPage() {
             <div>
               <CardTitle>Scheme Contacts</CardTitle>
               <CardDescription>
-                Manage contact persons for this scheme (Maximum 5 contacts)
+                {canManageScheme
+                  ? 'Manage contact persons for this scheme (Maximum 5 contacts)'
+                  : 'Contact persons for this scheme'}
               </CardDescription>
             </div>
-            <Button
-              onClick={() => handleOpenContactDialog()}
-              disabled={contacts.length >= 5}
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              Add Contact
-            </Button>
+            {canManageScheme ? (
+              <Button
+                onClick={() => handleOpenContactDialog()}
+                disabled={contacts.length >= 5}
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Add Contact
+              </Button>
+            ) : null}
           </div>
         </CardHeader>
         <CardContent>
@@ -1249,7 +1331,7 @@ export default function SchemeDetailPage() {
                     <TableHead>Phone</TableHead>
                     <TableHead>Email</TableHead>
                     <TableHead>Designation</TableHead>
-                    <TableHead>Actions</TableHead>
+                    {canManageScheme ? <TableHead>Actions</TableHead> : null}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -1266,24 +1348,26 @@ export default function SchemeDetailPage() {
                       </TableCell>
                       <TableCell>{contact.email ?? '-'}</TableCell>
                       <TableCell>{contact.designation ?? '-'}</TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleOpenContactDialog(contact)}
-                          >
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleDeleteContact(contact.id)}
-                          >
-                            <Trash2 className="h-4 w-4 text-red-500" />
-                          </Button>
-                        </div>
-                      </TableCell>
+                      {canManageScheme ? (
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleOpenContactDialog(contact)}
+                            >
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleDeleteContact(contact.id)}
+                            >
+                              <Trash2 className="h-4 w-4 text-red-500" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      ) : null}
                     </TableRow>
                   ))}
                 </TableBody>
@@ -1409,6 +1493,71 @@ export default function SchemeDetailPage() {
       </Dialog>
 
       {/* Postpaid Payment Dialog */}
+      <Sheet open={selectedPayment != null} onOpenChange={(open) => !open && setSelectedPayment(null)}>
+        <SheetContent side="right" className="w-full sm:max-w-3xl overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle>Customers paid</SheetTitle>
+            <SheetDescription>
+              {selectedPayment
+                ? `${formatTransactionReferenceForDisplay(selectedPayment.transactionReference)} · ${formatPaymentMadeDate(selectedPayment.transactionDate)}`
+                : ''}
+            </SheetDescription>
+          </SheetHeader>
+          <div className="px-4 pb-6">
+            {paymentMembersLoading ? (
+              <p className="text-sm text-muted-foreground py-8 text-center">Loading member payments…</p>
+            ) : paymentMembersError ? (
+              <p className="text-sm text-red-600 py-8 text-center">{paymentMembersError}</p>
+            ) : paymentMembers.length === 0 ? (
+              <p className="text-sm text-muted-foreground py-8 text-center">No member payments in this batch</p>
+            ) : (
+              <div className="rounded-md border">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Phone</TableHead>
+                      <TableHead>ID number</TableHead>
+                      <TableHead>Amount</TableHead>
+                      <TableHead>Paid date</TableHead>
+                      <TableHead>Policy</TableHead>
+                      <TableHead>Status</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {paymentMembers.map((member) => (
+                      <TableRow key={member.id}>
+                        <TableCell className="font-medium">
+                          {[member.firstName, member.middleName, member.lastName].filter(Boolean).join(' ')}
+                        </TableCell>
+                        <TableCell>
+                          <ViewPhoneNumber
+                            customerId={member.customerId}
+                            entityKind="CUSTOMER"
+                            maskedValue={member.phoneNumber ?? ''}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <ViewIdNumber
+                            customerId={member.customerId}
+                            entityKind="CUSTOMER"
+                            maskedValue={member.idNumber ?? ''}
+                          />
+                        </TableCell>
+                        <TableCell>{member.amount}</TableCell>
+                        <TableCell>{formatPaymentMadeDate(member.paidDate)}</TableCell>
+                        <TableCell>{member.policyNumber ?? '—'}</TableCell>
+                        <TableCell>{member.paymentStatus}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </div>
+        </SheetContent>
+      </Sheet>
+
       <Dialog open={paymentDialogOpen} onOpenChange={setPaymentDialogOpen}>
         <DialogContent className="max-w-lg">
           <DialogHeader>

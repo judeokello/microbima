@@ -1182,6 +1182,7 @@ export interface MemberCardsApiResponse {
       memberNumber: string | null;
       dateOfBirth: string;
       datePrinted: string;
+      memberRole?: 'PRINCIPAL' | 'SPOUSE' | 'CHILD' | 'PARENT';
     };
     dependants: Array<{
       schemeName: string;
@@ -1190,6 +1191,16 @@ export interface MemberCardsApiResponse {
       memberNumber: string | null;
       dateOfBirth: string;
       datePrinted: string;
+      memberRole?: 'PRINCIPAL' | 'SPOUSE' | 'CHILD' | 'PARENT';
+    }>;
+    parents?: Array<{
+      schemeName: string;
+      principalMemberName: string;
+      insuredMemberName: string;
+      memberNumber: string | null;
+      dateOfBirth: string;
+      datePrinted: string;
+      memberRole?: 'PRINCIPAL' | 'SPOUSE' | 'CHILD' | 'PARENT';
     }>;
   }>;
 }

@@ -26,6 +26,12 @@ import {
   packagePricingPath,
   packageWizardPath,
 } from './_components/package-wizard-routes';
+import {
+  POLICY_NUMBER_CODE_MAX_LENGTH,
+  extractPolicyNumberCode,
+  isValidPolicyNumberCode,
+  normalizePolicyNumberCode,
+} from '@/lib/package-number-format';
 
 const CONFIGURABLE_FREQUENCIES = [
   { value: 'DAILY', label: 'Daily', min: 1, max: 365 },
@@ -54,6 +60,10 @@ interface Package {
   maximumFamilySize?: number;
   logoPath?: string | null;
   cardTemplateName?: string | null;
+  policyNumberCode?: string | null;
+  policyNumberFormat?: string | null;
+  memberNumberFormat?: string | null;
+  formatsEditable?: boolean;
   paymentFrequencies?: PaymentFrequencyRow[];
   createdBy: string;
   createdByDisplayName?: string;
@@ -153,6 +163,7 @@ export default function PackageDetailPage() {
     isActive: true,
     parentsSupported: false,
     maximumFamilySize: '8',
+    policyNumberCode: '',
     frequencies: emptyFrequencyForm(),
   });
 
@@ -187,6 +198,9 @@ export default function PackageDetailPage() {
         isActive: data.data.isActive,
         parentsSupported: data.data.parentsSupported ?? false,
         maximumFamilySize: String(data.data.maximumFamilySize ?? 8),
+        policyNumberCode:
+          data.data.policyNumberCode ??
+          extractPolicyNumberCode(data.data.policyNumberFormat),
         frequencies: frequenciesToForm(data.data.paymentFrequencies),
       });
     } catch (err) {
@@ -411,6 +425,12 @@ export default function PackageDetailPage() {
         throw new Error('Maximum family size must be a whole number between 2 and 99');
       }
 
+      const formatsEditable = pkg?.formatsEditable !== false;
+      const policyNumberCode = normalizePolicyNumberCode(formData.policyNumberCode);
+      if (formatsEditable && !isValidPolicyNumberCode(policyNumberCode)) {
+        throw new Error('Policy number format must be 2–5 letters or numbers and unique');
+      }
+
       if (
         pkg?.parentsSupported &&
         !formData.parentsSupported &&
@@ -432,6 +452,7 @@ export default function PackageDetailPage() {
         parentsSupported: formData.parentsSupported,
         maximumFamilySize,
         paymentFrequencies,
+        ...(formatsEditable ? { policyNumberCode } : {}),
       };
       const response = await fetch(`${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/product-management/packages/${packageId}`, {
         method: 'PUT',
@@ -484,6 +505,8 @@ export default function PackageDetailPage() {
         isActive: pkg.isActive,
         parentsSupported: pkg.parentsSupported ?? false,
         maximumFamilySize: String(pkg.maximumFamilySize ?? 8),
+        policyNumberCode:
+          pkg.policyNumberCode ?? extractPolicyNumberCode(pkg.policyNumberFormat),
         frequencies: frequenciesToForm(pkg.paymentFrequencies),
       });
     }
@@ -702,6 +725,35 @@ export default function PackageDetailPage() {
             )}
             <p className="text-xs text-muted-foreground mt-1">
               Caps Up to N pricing categories (minimum 2).
+            </p>
+          </div>
+
+          <div className="md:col-span-2">
+            <Label htmlFor="policyNumberCode">Policy number format</Label>
+            {editing && isSetupAdmin && pkg.formatsEditable !== false ? (
+              <Input
+                id="policyNumberCode"
+                value={formData.policyNumberCode}
+                onChange={(e) =>
+                  setFormData({
+                    ...formData,
+                    policyNumberCode: normalizePolicyNumberCode(e.target.value),
+                  })
+                }
+                maxLength={POLICY_NUMBER_CODE_MAX_LENGTH}
+                placeholder="MFG"
+                aria-label="Policy number format"
+              />
+            ) : (
+              <p className="text-sm font-medium">{pkg.policyNumberFormat ?? '—'}</p>
+            )}
+            <p className="text-xs text-muted-foreground mt-1">
+              {editing && pkg.formatsEditable !== false
+                ? '2–5 letters or numbers, unique, saved in uppercase. Updates both policy and member number formats.'
+                : 'As stored on the package.'}
+              {pkg.formatsEditable === false
+                ? ' Locked because customers are already allocated to this package.'
+                : ''}
             </p>
           </div>
 

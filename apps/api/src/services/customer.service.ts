@@ -27,6 +27,10 @@ import { GetDependantsResponseDto } from '../dto/dependants/get-dependants-respo
 import { AddBeneficiariesRequestDto } from '../dto/beneficiaries/add-beneficiaries-request.dto';
 import { AddBeneficiariesResponseDto } from '../dto/beneficiaries/add-beneficiaries-response.dto';
 import { GetBeneficiariesResponseDto } from '../dto/beneficiaries/get-beneficiaries-response.dto';
+import {
+  memberCardRoleFromDependant,
+  memberCardRoleFromParent,
+} from '../utils/member-card-role.util';
 import { ChildDto } from '../dto/family-members/child.dto';
 import { ParentDto } from '../dto/family-members/parent.dto';
 import { SpouseDto } from '../dto/family-members/spouse.dto';
@@ -193,7 +197,7 @@ export class CustomerService {
   }
 
   private async assertCustomerParentsSupported(customerId: string): Promise<void> {
-    const schemeCustomer = await this.prismaService.packageSchemeCustomer.findFirst({
+    const schemeCustomers = await this.prismaService.packageSchemeCustomer.findMany({
       where: { customerId },
       include: {
         packageScheme: {
@@ -204,10 +208,11 @@ export class CustomerService {
         },
       },
     });
-    if (
-      !schemeCustomer?.packageScheme.scheme.parentsSupported ||
-      !schemeCustomer.packageScheme.package.parentsSupported
-    ) {
+    const supported = schemeCustomers.some(
+      (row) =>
+        row.packageScheme.scheme.parentsSupported && row.packageScheme.package.parentsSupported
+    );
+    if (!supported) {
       throw ValidationException.forField(
         'parents',
         'Parents can only be registered when the package and scheme support parents',
@@ -524,6 +529,7 @@ export class CustomerService {
         updatedAt: Date;
       }> = [];
       let createdBeneficiaries: BeneficiaryData[] = [];
+      let createdParentIds: string[] = [];
 
       if (createRequest.children && createRequest.children.length > 0) {
         const childrenData = createRequest.children.map((child: ChildDto) => {
@@ -636,6 +642,14 @@ export class CustomerService {
         await this.prismaService.customerParent.createMany({
           data: parentsData,
         });
+
+        const createdParents = await this.prismaService.customerParent.findMany({
+          where: { customerId: createdCustomer.id, deletedAt: null },
+          orderBy: { createdAt: 'desc' },
+          take: createRequest.parents.length,
+          select: { id: true },
+        });
+        createdParentIds = createdParents.map((p) => p.id);
       }
 
       if (createRequest.beneficiaries && createRequest.beneficiaries.length > 0) {
@@ -684,6 +698,7 @@ export class CustomerService {
                 policyId: deferredPostpaidPolicyId,
                 customerId: createdCustomer.id,
                 dependantIds: createdDependantIds,
+                parentIds: createdParentIds,
                 beneficiaryId: createdBeneficiaryId,
               },
               correlationId
@@ -2547,7 +2562,14 @@ export class CustomerService {
               },
             },
           },
-          parents: true,
+          parents: {
+            include: {
+              policyMemberParents: {
+                orderBy: { createdAt: 'desc' },
+                take: 1,
+              },
+            },
+          },
           policyMemberPrincipals: {
             orderBy: { createdAt: 'desc' },
             take: 1,
@@ -2575,7 +2597,6 @@ export class CustomerService {
             },
           },
           packageSchemeCustomers: {
-            take: 1,
             include: {
               packageScheme: {
                 include: {
@@ -2666,25 +2687,30 @@ export class CustomerService {
       });
 
       // Map parents (include deleted with resolved display name)
-      const parents = customer.parents.map((p) => ({
-        id: p.id,
-        firstName: p.firstName,
-        middleName: p.middleName ?? undefined,
-        lastName: p.lastName,
-        dateOfBirth: maskDateOfBirthForDisplay(p.dateOfBirth) ?? undefined,
-        gender: p.gender ? SharedMapperUtils.mapGenderToDto(p.gender) : undefined,
-        idType: p.idType ? SharedMapperUtils.mapIdTypeToDto(p.idType) : undefined,
-        idNumber: maskIdNumberForDisplay(p.idNumber) ?? undefined,
-        relationship: p.relationship,
-        deletedAt: p.deletedAt?.toISOString() ?? null,
-        deletedBy: p.deletedBy ?? null,
-        deletedByDisplayName: p.deletedBy ? deletedByDisplayNames.get(p.deletedBy) ?? null : null,
-      }));
+      const parents = customer.parents.map((p) => {
+        const memberParent = p.policyMemberParents[0];
+        return {
+          id: p.id,
+          firstName: p.firstName,
+          middleName: p.middleName ?? undefined,
+          lastName: p.lastName,
+          dateOfBirth: maskDateOfBirthForDisplay(p.dateOfBirth) ?? undefined,
+          gender: p.gender ? SharedMapperUtils.mapGenderToDto(p.gender) : undefined,
+          idType: p.idType ? SharedMapperUtils.mapIdTypeToDto(p.idType) : undefined,
+          idNumber: maskIdNumberForDisplay(p.idNumber) ?? undefined,
+          relationship: p.relationship,
+          memberNumber: memberParent?.memberNumber ?? null,
+          memberNumberCreatedAt: memberParent?.createdAt.toISOString() ?? null,
+          deletedAt: p.deletedAt?.toISOString() ?? null,
+          deletedBy: p.deletedBy ?? null,
+          deletedByDisplayName: p.deletedBy ? deletedByDisplayNames.get(p.deletedBy) ?? null : null,
+        };
+      });
 
-      const schemeLink = customer.packageSchemeCustomers[0];
-      const parentsSupported = Boolean(
-        schemeLink?.packageScheme.scheme.parentsSupported &&
-          schemeLink?.packageScheme.package.parentsSupported
+      const parentsSupported = customer.packageSchemeCustomers.some(
+        (link) =>
+          Boolean(link.packageScheme.scheme.parentsSupported) &&
+          Boolean(link.packageScheme.package.parentsSupported)
       );
 
       // Map policies
@@ -4038,6 +4064,18 @@ export class CustomerService {
       }),
     });
 
+    const addedParents = await this.prismaService.customerParent.findMany({
+      where: { customerId, deletedAt: null },
+      orderBy: { createdAt: 'desc' },
+      take: addRequest.parents.length,
+      select: { id: true },
+    });
+    await this.policyService.ensureParentMemberRowsForPolicies(
+      customerId,
+      addedParents.map((p) => p.id),
+      correlationId
+    );
+
     this.logger.log(
       `[${correlationId}] Successfully added ${addRequest.parents.length} parent(s) to customer ${customerId}`
     );
@@ -4248,6 +4286,9 @@ export class CustomerService {
         dependants: {
           where: { deletedAt: null },
         },
+        parents: {
+          where: { deletedAt: null },
+        },
         policies: {
           include: {
             package: {
@@ -4259,6 +4300,7 @@ export class CustomerService {
             },
             policyMemberPrincipals: true,
             policyMemberDependants: true,
+            policyMemberParents: true,
           },
         },
       },
@@ -4307,6 +4349,7 @@ export class CustomerService {
         memberNumber: null,
         dateOfBirth: principalDob,
         datePrinted: '',
+        memberRole: 'PRINCIPAL',
       };
 
       if (!cardsAvailable || !principalMember) {
@@ -4321,6 +4364,7 @@ export class CustomerService {
           cardsAvailable: false,
           principal: emptyPrincipal,
           dependants: [],
+          parents: [],
         });
         continue;
       }
@@ -4334,6 +4378,7 @@ export class CustomerService {
         datePrinted: principalMember.createdAt
           ? this.formatDateDDMMYYYY(principalMember.createdAt)
           : '',
+        memberRole: 'PRINCIPAL',
       };
 
       const dependantCards: MemberCardDataDto[] = customer.dependants.map((d) => {
@@ -4351,6 +4396,26 @@ export class CustomerService {
           datePrinted: memberDependant?.createdAt
             ? this.formatDateDDMMYYYY(memberDependant.createdAt)
             : '',
+          memberRole: memberCardRoleFromDependant(d.relationship),
+        };
+      });
+
+      const parentCards: MemberCardDataDto[] = customer.parents.map((p) => {
+        const memberParent = policy.policyMemberParents.find(
+          (pmp) => pmp.customerParentId === p.id
+        );
+        const fullName = [p.firstName, p.middleName ?? '', p.lastName].filter(Boolean).join(' ');
+        const dob = p.dateOfBirth ? this.formatDateDDMMYYYY(p.dateOfBirth) : '';
+        return {
+          schemeName,
+          principalMemberName: principalName,
+          insuredMemberName: fullName,
+          memberNumber: memberParent?.memberNumber ?? null,
+          dateOfBirth: dob,
+          datePrinted: memberParent?.createdAt
+            ? this.formatDateDDMMYYYY(memberParent.createdAt)
+            : '',
+          memberRole: memberCardRoleFromParent(p.relationship),
         };
       });
 
@@ -4365,6 +4430,7 @@ export class CustomerService {
         cardsAvailable: true,
         principal: principalCard,
         dependants: dependantCards,
+        parents: parentCards,
       });
     }
 

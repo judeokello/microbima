@@ -6,6 +6,7 @@ import {
   IsOptional,
   IsInt,
   MaxLength,
+  MinLength,
   Min,
   Max,
   IsArray,
@@ -112,6 +113,37 @@ export class PackageDetailDto {
   cardTemplateName?: string | null;
 
   @ApiProperty({
+    description: 'Short product code extracted from the stored policy number format',
+    example: 'MFG',
+    required: false,
+    nullable: true,
+  })
+  policyNumberCode?: string | null;
+
+  @ApiProperty({
+    description: 'Policy number format; must include {auto-increasing-policy-number}',
+    example: 'MP/MFGBL/{auto-increasing-policy-number}',
+    required: false,
+    nullable: true,
+  })
+  policyNumberFormat?: string | null;
+
+  @ApiProperty({
+    description: 'Member number format; must include {auto-increasing-member-number}',
+    example: 'MFGBL{auto-increasing-policy-number}-{auto-increasing-member-number}',
+    required: false,
+    nullable: true,
+  })
+  memberNumberFormat?: string | null;
+
+  @ApiProperty({
+    description:
+      'False when customers are already allocated to this package; number formats cannot be edited from the UI',
+    example: true,
+  })
+  formatsEditable: boolean;
+
+  @ApiProperty({
     description: 'User ID who created this package',
     example: 'uuid-here',
   })
@@ -210,6 +242,16 @@ export class CreatePackageRequestDto {
   maximumFamilySize: number;
 
   @ApiProperty({
+    description:
+      'Short product code used to build policy and member number formats (2–5 letters or numbers, stored uppercase, unique across packages)',
+    example: 'MFG',
+  })
+  @IsString()
+  @MinLength(2)
+  @MaxLength(5)
+  policyNumberCode: string;
+
+  @ApiProperty({
     description: 'Supported payment frequencies (at least one; CUSTOM not allowed)',
     type: [PackagePaymentFrequencyDto],
   })
@@ -293,6 +335,18 @@ export class UpdatePackageRequestDto {
   @Min(2)
   @Max(99)
   maximumFamilySize?: number;
+
+  @ApiProperty({
+    description:
+      'Short product code used to rebuild both policy and member number formats. 2–5 characters, unique, editable only when no customers are allocated.',
+    example: 'MFG',
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  @MinLength(2)
+  @MaxLength(5)
+  policyNumberCode?: string;
 
   @ApiProperty({
     description: 'Path to the logo file',

@@ -14,6 +14,7 @@ import type {
   PostpaidMpesaLookupDto,
   PostpaidSchemePaymentCsvRow,
 } from '../dto/postpaid-scheme-payments/postpaid-scheme-payment.dto';
+import { parsePostpaidPaidDate } from '../utils/postpaid-scheme-dates.util';
 
 const BUCKET = 'postpaid-scheme-payments';
 const CSV_REF_PREFIX = 'postpaid-';
@@ -109,12 +110,26 @@ export class PostpaidSchemePaymentService {
   async listByScheme(
     schemeId: number,
     _correlationId: string
-  ): Promise<{ id: number; schemeId: number; amount: string; paymentType: PaymentType; transactionReference: string; createdBy: string; createdAt: string; updatedAt: string }[]> {
+  ): Promise<
+    {
+      id: number;
+      schemeId: number;
+      amount: string;
+      paymentType: PaymentType;
+      transactionReference: string;
+      transactionDate: string;
+      customersPaid: number;
+      createdBy: string;
+      createdAt: string;
+      updatedAt: string;
+    }[]
+  > {
     await this.assertSchemeIsPostpaid(schemeId);
 
     const payments = await this.prisma.postpaidSchemePayment.findMany({
       where: { schemeId },
       orderBy: { createdAt: 'desc' },
+      include: { _count: { select: { items: true } } },
     });
     return payments.map((p) => ({
       id: p.id,
@@ -122,10 +137,86 @@ export class PostpaidSchemePaymentService {
       amount: p.amount.toString(),
       paymentType: p.paymentType,
       transactionReference: p.transactionReference,
+      transactionDate: p.transactionDate.toISOString(),
+      customersPaid: p._count.items,
       createdBy: p.createdBy,
       createdAt: p.createdAt.toISOString(),
       updatedAt: p.updatedAt.toISOString(),
     }));
+  }
+
+  async listMembers(
+    schemeId: number,
+    paymentId: number,
+    _correlationId: string
+  ): Promise<
+    {
+      id: number;
+      customerId: string;
+      firstName: string;
+      middleName: string | null;
+      lastName: string;
+      phoneNumber: string | null;
+      idNumber: string | null;
+      amount: string;
+      paidDate: string | null;
+      policyNumber: string | null;
+      paymentStatus: string;
+    }[]
+  > {
+    await this.assertSchemeIsPostpaid(schemeId);
+
+    const payment = await this.prisma.postpaidSchemePayment.findFirst({
+      where: { id: paymentId, schemeId },
+      select: { id: true },
+    });
+    if (!payment) {
+      throw new NotFoundException(`Postpaid scheme payment ${paymentId} not found`);
+    }
+
+    const items = await this.prisma.postpaidSchemePaymentItem.findMany({
+      where: { postpaidSchemePaymentId: paymentId },
+      include: {
+        policyPayment: {
+          include: {
+            policy: {
+              select: {
+                policyNumber: true,
+                customer: {
+                  select: {
+                    id: true,
+                    firstName: true,
+                    middleName: true,
+                    lastName: true,
+                    phoneNumber: true,
+                    idNumber: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+      orderBy: { id: 'asc' },
+    });
+
+    return items.map((item) => {
+      const customer = item.policyPayment.policy.customer;
+      const paidDate = item.paidDate ?? item.policyPayment.actualPaymentDate;
+      return {
+        id: item.id,
+        customerId: customer.id,
+        firstName: customer.firstName,
+        middleName: customer.middleName,
+        lastName: customer.lastName,
+        phoneNumber: customer.phoneNumber,
+        idNumber: customer.idNumber,
+        amount: item.policyPayment.amount.toString(),
+        paidDate: paidDate ? paidDate.toISOString() : null,
+        policyNumber: item.policyPayment.policy.policyNumber,
+        paymentStatus: item.policyPayment.paymentStatus,
+      };
+    });
   }
 
   /**
@@ -340,6 +431,8 @@ export class PostpaidSchemePaymentService {
     amount: string;
     paymentType: PaymentType;
     transactionReference: string;
+    transactionDate: string;
+    customersPaid: number;
     createdBy: string;
     createdAt: string;
     updatedAt: string;
@@ -454,10 +547,8 @@ export class PostpaidSchemePaymentService {
         }
 
         // Use CSV paid date if valid; otherwise fall back to postpaid.transactionDate
-        const parsedCsvDate = row.paidDate ? new Date(row.paidDate) : null;
-        const isValidCsvDate =
-          parsedCsvDate && !Number.isNaN(parsedCsvDate.getTime());
-        const actualDate = isValidCsvDate ? parsedCsvDate : postpaid.transactionDate;
+        const parsedCsvDate = parsePostpaidPaidDate(row.paidDate);
+        const actualDate = parsedCsvDate ?? postpaid.transactionDate;
 
         const policyPayment = await tx.policyPayment.create({
           data: {
@@ -538,6 +629,8 @@ export class PostpaidSchemePaymentService {
       amount: created.amount.toString(),
       paymentType: created.paymentType,
       transactionReference: created.transactionReference,
+      transactionDate: created.transactionDate.toISOString(),
+      customersPaid: paymentSmsQueue.length,
       createdBy: created.createdBy,
       createdAt: created.createdAt.toISOString(),
       updatedAt: created.updatedAt.toISOString(),

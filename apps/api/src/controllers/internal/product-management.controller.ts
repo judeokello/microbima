@@ -67,10 +67,11 @@ import { PostpaidSchemePaymentService, parsePostpaidPaymentCsv } from '../../ser
 import {
   PostpaidSchemePaymentListResponseDto,
   CreatePostpaidSchemePaymentResponseDto,
+  PostpaidSchemePaymentMembersResponseDto,
   PostpaidMpesaLookupResponseDto,
 } from '../../dto/postpaid-scheme-payments/postpaid-scheme-payment.dto';
 import { PaymentType } from '@prisma/client';
-import { SetupAdminOnly } from '../../decorators/ba-auth.decorator';
+import { SetupAdminOnly, AdminOnly, AdminOrCustomerCare } from '../../decorators/ba-auth.decorator';
 import {
   PutPackagePricingRequestDto,
   CreatePricingCategoryRequestDto,
@@ -801,8 +802,11 @@ export class ProductManagementController {
         description: updateRequest.description,
         underwriterId: updateRequest.underwriterId,
         isActive: updateRequest.isActive,
+        parentsSupported: updateRequest.parentsSupported,
+        maximumFamilySize: updateRequest.maximumFamilySize,
         logoPath: updateRequest.logoPath,
         paymentFrequencies: updateRequest.paymentFrequencies,
+        policyNumberCode: updateRequest.policyNumberCode,
       },
       correlationId ?? 'unknown'
     );
@@ -865,6 +869,7 @@ export class ProductManagementController {
    */
   @Post('schemes')
   @HttpCode(HttpStatus.CREATED)
+  @AdminOnly()
   @ApiOperation({
     summary: 'Create a new scheme',
     description: 'Create a new scheme, optionally linked to a package.',
@@ -906,6 +911,7 @@ export class ProductManagementController {
    */
   @Get('schemes-with-counts')
   @HttpCode(HttpStatus.OK)
+  @AdminOrCustomerCare()
   @ApiOperation({
     summary: 'Get all schemes with customer counts',
     description:
@@ -961,6 +967,7 @@ export class ProductManagementController {
    */
   @Get('schemes/:schemeId')
   @HttpCode(HttpStatus.OK)
+  @AdminOrCustomerCare()
   @ApiOperation({
     summary: 'Get scheme details',
     description: 'Retrieve detailed information about a specific scheme.',
@@ -1016,6 +1023,7 @@ export class ProductManagementController {
    */
   @Patch('packages/:packageId/schemes/:schemeId')
   @HttpCode(HttpStatus.OK)
+  @AdminOnly()
   @ApiOperation({
     summary: 'Update package-scheme waiting period',
     description: 'Update generalSchemeWaitingPeriod on the package-schemes junction row.',
@@ -1046,6 +1054,7 @@ export class ProductManagementController {
    */
   @Put('schemes/:schemeId')
   @HttpCode(HttpStatus.OK)
+  @AdminOnly()
   @ApiOperation({
     summary: 'Update a scheme',
     description: 'Update an existing scheme. Only provided fields will be updated.',
@@ -1101,6 +1110,7 @@ export class ProductManagementController {
    */
   @Get('schemes/:schemeId/customers')
   @HttpCode(HttpStatus.OK)
+  @AdminOrCustomerCare()
   @ApiOperation({
     summary: 'Get customers for a scheme',
     description: 'Retrieve a paginated list of customers enrolled in a specific scheme.',
@@ -1167,6 +1177,7 @@ export class ProductManagementController {
    */
   @Post('schemes/:schemeId/contacts')
   @HttpCode(HttpStatus.CREATED)
+  @AdminOnly()
   @ApiOperation({
     summary: 'Create a scheme contact',
     description: 'Create a new contact for a scheme. Maximum 5 contacts per scheme.',
@@ -1215,6 +1226,7 @@ export class ProductManagementController {
    */
   @Get('schemes/:schemeId/contacts')
   @HttpCode(HttpStatus.OK)
+  @AdminOrCustomerCare()
   @ApiOperation({
     summary: 'Get scheme contacts',
     description: 'Retrieve all contacts for a specific scheme.',
@@ -1256,6 +1268,7 @@ export class ProductManagementController {
    */
   @Put('schemes/:schemeId/contacts/:contactId')
   @HttpCode(HttpStatus.OK)
+  @AdminOnly()
   @ApiOperation({
     summary: 'Update a scheme contact',
     description: 'Update an existing scheme contact.',
@@ -1308,6 +1321,7 @@ export class ProductManagementController {
    */
   @Delete('schemes/:schemeId/contacts/:contactId')
   @HttpCode(HttpStatus.OK)
+  @AdminOnly()
   @ApiOperation({
     summary: 'Delete a scheme contact',
     description: 'Delete a scheme contact (hard delete).',
@@ -1356,6 +1370,7 @@ export class ProductManagementController {
    */
   @Get('schemes/:schemeId/postpaid-payments')
   @HttpCode(HttpStatus.OK)
+  @AdminOrCustomerCare()
   @ApiOperation({
     summary: 'List postpaid scheme payments',
     description: 'List payments uploaded for a postpaid scheme. Only available for postpaid schemes.',
@@ -1381,10 +1396,48 @@ export class ProductManagementController {
   }
 
   /**
+   * List individual member payments for one postpaid scheme payment batch.
+   */
+  @Get('schemes/:schemeId/postpaid-payments/:paymentId/members')
+  @HttpCode(HttpStatus.OK)
+  @AdminOrCustomerCare()
+  @ApiOperation({
+    summary: 'List members in a postpaid scheme payment',
+    description: 'Returns the individual policy payments created from a postpaid CSV batch.',
+  })
+  @ApiParam({ name: 'schemeId', description: 'Scheme ID', type: Number })
+  @ApiParam({ name: 'paymentId', description: 'Postpaid scheme payment ID', type: Number })
+  @ApiResponse({
+    status: 200,
+    description: 'Member payments in the batch',
+    type: PostpaidSchemePaymentMembersResponseDto,
+  })
+  @ApiResponse({ status: 400, description: 'Scheme is not postpaid' })
+  @ApiResponse({ status: 404, description: 'Scheme or payment not found' })
+  async listPostpaidSchemePaymentMembers(
+    @Param('schemeId', ParseIntPipe) schemeId: number,
+    @Param('paymentId', ParseIntPipe) paymentId: number,
+    @CorrelationId() correlationId?: string
+  ): Promise<PostpaidSchemePaymentMembersResponseDto> {
+    const data = await this.postpaidSchemePaymentService.listMembers(
+      schemeId,
+      paymentId,
+      correlationId ?? 'unknown'
+    );
+    return {
+      status: HttpStatus.OK,
+      correlationId: correlationId ?? 'unknown',
+      message: 'Postpaid scheme payment members retrieved successfully',
+      data,
+    };
+  }
+
+  /**
    * Look up an M-Pesa IPN/statement row for a postpaid MPESA batch transaction reference.
    */
   @Get('schemes/:schemeId/postpaid-payments/mpesa-lookup')
   @HttpCode(HttpStatus.OK)
+  @AdminOnly()
   @ApiOperation({
     summary: 'Look up M-Pesa transaction reference for postpaid upload',
     description:
@@ -1421,6 +1474,7 @@ export class ProductManagementController {
    */
   @Post('schemes/:schemeId/postpaid-payments/validate')
   @HttpCode(HttpStatus.OK)
+  @AdminOnly()
   @UseInterceptors(FileInterceptor('file'))
   @ApiOperation({
     summary: 'Validate postpaid payment CSV',
@@ -1473,6 +1527,7 @@ export class ProductManagementController {
    */
   @Post('schemes/:schemeId/postpaid-payments')
   @HttpCode(HttpStatus.CREATED)
+  @AdminOnly()
   @UseInterceptors(FileInterceptor('file'))
   @ApiOperation({
     summary: 'Create postpaid scheme payment',

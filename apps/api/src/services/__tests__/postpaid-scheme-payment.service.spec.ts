@@ -407,3 +407,86 @@ describe('PostpaidSchemePaymentService - create marks IPN mapped', () => {
     expect(prismaMock.$transaction).not.toHaveBeenCalled();
   });
 });
+
+describe('PostpaidSchemePaymentService - list payments', () => {
+  const prismaMock = {
+    scheme: { findUnique: jest.fn() },
+    postpaidSchemePayment: { findMany: jest.fn(), findFirst: jest.fn() },
+    postpaidSchemePaymentItem: { findMany: jest.fn() },
+  };
+
+  const service = new PostpaidSchemePaymentService(
+    prismaMock as unknown as PrismaService,
+    {} as PolicyService,
+    { getClient: jest.fn() } as unknown as SupabaseService,
+    { notifyMatchedPaymentSmsAsync: jest.fn() } as unknown as PaymentMessagingService,
+    { applyPaymentToPolicyLifecycle: jest.fn() } as unknown as PolicyLifecycleService
+  );
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    prismaMock.scheme.findUnique.mockResolvedValue({ id: 13, isPostpaid: true });
+  });
+
+  it('returns transactionDate and customersPaid for the scheme table', async () => {
+    prismaMock.postpaidSchemePayment.findMany.mockResolvedValue([
+      {
+        id: 1,
+        schemeId: 13,
+        amount: { toString: () => '86500' },
+        paymentType: PaymentType.MPESA,
+        transactionReference: 'UI2NE50357',
+        transactionDate: new Date('2026-09-02T00:00:00.000Z'),
+        createdBy: 'user-1',
+        createdAt: new Date('2026-09-02T10:00:00.000Z'),
+        updatedAt: new Date('2026-09-02T10:00:00.000Z'),
+        _count: { items: 39 },
+      },
+    ]);
+
+    const rows = await service.listByScheme(13, 'corr');
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      transactionReference: 'UI2NE50357',
+      transactionDate: '2026-09-02T00:00:00.000Z',
+      customersPaid: 39,
+    });
+  });
+
+  it('lists payment members for the flyout', async () => {
+    prismaMock.postpaidSchemePayment.findFirst.mockResolvedValue({ id: 1 });
+    prismaMock.postpaidSchemePaymentItem.findMany.mockResolvedValue([
+      {
+        id: 10,
+        paidDate: new Date('2026-09-02T00:00:00.000Z'),
+        policyPayment: {
+          amount: { toString: () => '865' },
+          actualPaymentDate: new Date('2026-09-02T00:00:00.000Z'),
+          paymentStatus: 'COMPLETED',
+          policy: {
+            policyNumber: 'MP/MFGBL/0001',
+            customer: {
+              id: 'cust-1',
+              firstName: 'Jane',
+              middleName: null,
+              lastName: 'Doe',
+              phoneNumber: '254700000000',
+              idNumber: '12345678',
+            },
+          },
+        },
+      },
+    ]);
+
+    const members = await service.listMembers(13, 1, 'corr');
+    expect(members[0]).toMatchObject({
+      customerId: 'cust-1',
+      firstName: 'Jane',
+      lastName: 'Doe',
+      amount: '865',
+      paidDate: '2026-09-02T00:00:00.000Z',
+      policyNumber: 'MP/MFGBL/0001',
+      paymentStatus: 'COMPLETED',
+    });
+  });
+});

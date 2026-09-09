@@ -10,4 +10,5 @@ export const SAMPLE_CARD_DATA: MemberCardData = {
   memberNumber: 'MFG023-00',
   dateOfBirth: '07/05/1983',
   datePrinted: '11/12/2025',
+  memberRole: 'CHILD',
 };

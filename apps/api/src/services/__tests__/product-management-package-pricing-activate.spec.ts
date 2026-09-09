@@ -34,6 +34,9 @@ describe('ProductManagementService - package pricing activate gate', () => {
       deleteMany: jest.fn(),
       createMany: jest.fn(),
     },
+    packageSchemeCustomer: {
+      count: jest.fn().mockResolvedValue(0),
+    },
     $transaction: jest.fn(),
   };
 

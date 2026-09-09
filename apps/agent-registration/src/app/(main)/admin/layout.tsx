@@ -44,7 +44,11 @@ export default function AdminLayout({
 
   const isCampaignHistoryPath =
     !!pathname?.startsWith('/admin/campaigns') && !pathname?.startsWith('/admin/campaigns/compose');
-  const canAccessAsCustomerCare = isCustomerCare && isCampaignHistoryPath;
+  const isSchemesListPath = !!pathname?.startsWith('/admin/schemes');
+  const isSchemeDetailPath =
+    /^\/admin\/underwriters\/packages\/[^/]+\/schemes\/[^/]+/.test(pathname ?? '');
+  const canAccessAsCustomerCare =
+    isCustomerCare && (isCampaignHistoryPath || isSchemesListPath || isSchemeDetailPath);
   const canAccessAdminArea = isAdmin || canAccessAsCustomerCare;
 
   if (loading) {
@@ -147,7 +151,7 @@ export default function AdminLayout({
             <Link
               href="/admin/schemes"
               className={`flex items-center px-3 py-2 rounded-md hover:bg-white/10 transition-colors ${
-                pathname?.startsWith('/admin/schemes') ? 'bg-white/10' : ''
+                pathname?.startsWith('/admin/schemes') || isSchemeDetailPath ? 'bg-white/10' : ''
               }`}
               onClick={closeMobile}
             >
@@ -155,7 +159,18 @@ export default function AdminLayout({
               Schemes
             </Link>
           </>
-        ) : null}
+        ) : (
+          <Link
+            href="/admin/schemes"
+            className={`flex items-center px-3 py-2 rounded-md hover:bg-white/10 transition-colors ${
+              isSchemesListPath || isSchemeDetailPath ? 'bg-white/10' : ''
+            }`}
+            onClick={closeMobile}
+          >
+            <Layers className="h-4 w-4 mr-2" />
+            Schemes
+          </Link>
+        )}
 
         <ExpandableNavGroup
           title="Messaging"
@@ -238,7 +253,16 @@ export default function AdminLayout({
               Agent Dashboard
             </Link>
           </>
-        ) : null}
+        ) : (
+          <Link
+            href="/dashboard"
+            className="flex items-center px-3 py-2 rounded-md hover:bg-white/10 transition-colors"
+            onClick={closeMobile}
+          >
+            <LayoutDashboard className="h-4 w-4 mr-2" />
+            Agent Dashboard
+          </Link>
+        )}
       </nav>
 
       <div className="mt-6 space-y-4">

@@ -384,6 +384,13 @@ function MemberCardsTab({ cards }: { cards: PortalMemberCardsResponse }) {
                     templateName={policy.cardTemplateName}
                   />
                 ))}
+                {(policy.parents ?? []).map((parent, idx) => (
+                  <MemberCardWithDownload
+                    key={`parent-${idx}`}
+                    data={parent}
+                    templateName={policy.cardTemplateName}
+                  />
+                ))}
               </div>
             ) : (
               <div className="rounded-2xl bg-white p-6 text-center shadow-sm ring-1 ring-[#d2c2cf]/20">

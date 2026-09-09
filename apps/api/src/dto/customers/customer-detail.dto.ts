@@ -353,6 +353,24 @@ export class ParentSummaryDto {
   relationship: ParentRelationship;
 
   @ApiProperty({
+    description: 'Member number from PolicyMemberParent; null if not yet assigned',
+    example: 'MFGBL001-04',
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  memberNumber?: string | null;
+
+  @ApiProperty({
+    description: 'ISO 8601 when member number was created (for date printed)',
+    example: '2025-01-15T10:30:00Z',
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  memberNumberCreatedAt?: string | null;
+
+  @ApiProperty({
     description: 'When parent was soft-deleted (ISO 8601)',
     required: false,
   })
