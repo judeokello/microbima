@@ -19,6 +19,8 @@ import { parsePostpaidPaidDate } from '../utils/postpaid-scheme-dates.util';
 const BUCKET = 'postpaid-scheme-payments';
 const CSV_REF_PREFIX = 'postpaid-';
 const POLICY_PAYMENT_REF_MAX_LEN = 50;
+/** CSV batches can be dozens of rows; keep inserts inside one tx but do not run activatePolicy here. */
+const POSTPAID_PAYMENT_TX_OPTIONS = { maxWait: 10_000, timeout: 60_000 } as const;
 
 function formatMpesaPayerName(parts: {
   firstName?: string | null;
@@ -513,30 +515,66 @@ export class PostpaidSchemePaymentService {
       });
       const packageSchemeIds = packageSchemes.map((ps) => ps.id);
 
+      const payableRows = csvRows.filter((row) => row.amount > 0);
+      const idNumbers = [...new Set(payableRows.map((row) => row.idNumber))];
+      const customers = idNumbers.length
+        ? await tx.customer.findMany({
+            where: { idNumber: { in: idNumbers } },
+            select: { id: true, idNumber: true },
+          })
+        : [];
+      const customerByIdNumber = new Map(
+        customers.map((customer) => [customer.idNumber, customer])
+      );
+      const customerIds = customers.map((customer) => customer.id);
+
+      const pscRows =
+        customerIds.length === 0
+          ? []
+          : await tx.packageSchemeCustomer.findMany({
+              where: {
+                customerId: { in: customerIds },
+                packageSchemeId: { in: packageSchemeIds },
+              },
+              include: { packageScheme: { select: { packageId: true } } },
+            });
+      const pscByCustomerId = new Map<string, (typeof pscRows)[number]>();
+      for (const psc of pscRows) {
+        if (!pscByCustomerId.has(psc.customerId)) {
+          pscByCustomerId.set(psc.customerId, psc);
+        }
+      }
+
+      const packageIds = [...new Set(pscRows.map((psc) => psc.packageScheme.packageId))];
+      const policies =
+        customerIds.length === 0 || packageIds.length === 0
+          ? []
+          : await tx.policy.findMany({
+              where: {
+                customerId: { in: customerIds },
+                packageId: { in: packageIds },
+                status: { in: ['ACTIVE', 'PENDING_ACTIVATION', 'SUSPENDED'] },
+              },
+              orderBy: { createdAt: 'desc' },
+            });
+      const policyByCustomerPackage = new Map<string, (typeof policies)[number]>();
+      for (const policy of policies) {
+        const key = `${policy.customerId}:${policy.packageId}`;
+        if (!policyByCustomerPackage.has(key)) {
+          policyByCustomerPackage.set(key, policy);
+        }
+      }
+
       for (let rowIndex = 1; rowIndex <= csvRows.length; rowIndex++) {
         const row = csvRows[rowIndex - 1];
         if (row.amount <= 0) continue;
-        const customer = await tx.customer.findFirst({
-          where: { idNumber: row.idNumber },
-          select: { id: true },
-        });
+        const customer = customerByIdNumber.get(row.idNumber);
         if (!customer) continue;
-        const psc = await tx.packageSchemeCustomer.findFirst({
-          where: {
-            customerId: customer.id,
-            packageSchemeId: { in: packageSchemeIds },
-          },
-          include: { packageScheme: { select: { packageId: true } } },
-        });
+        const psc = pscByCustomerId.get(customer.id);
         if (!psc) continue;
-        const policy = await tx.policy.findFirst({
-          where: {
-            customerId: customer.id,
-            packageId: psc.packageScheme.packageId,
-            status: { in: ['ACTIVE', 'PENDING_ACTIVATION', 'SUSPENDED'] },
-          },
-          orderBy: { createdAt: 'desc' },
-        });
+        const policy = policyByCustomerPackage.get(
+          `${customer.id}:${psc.packageScheme.packageId}`
+        );
         if (!policy) continue;
 
         const ref = `${CSV_REF_PREFIX}${body.transactionReference}-${rowIndex}`;
@@ -570,26 +608,11 @@ export class PostpaidSchemePaymentService {
         });
 
         const wasPendingActivation = policy.status === 'PENDING_ACTIVATION';
-        let activationSucceeded = !wasPendingActivation;
-        if (wasPendingActivation) {
-          activationSucceeded = false;
-          try {
-            await this.policyService.activatePolicy(policy.id, correlationId, tx);
-            activationSucceeded = true;
-          } catch (activationError) {
-            this.logger.error(
-              `[${correlationId}] Postpaid CSV activation failed for policy ${policy.id}: ${
-                activationError instanceof Error ? activationError.message : String(activationError)
-              }`,
-            );
-          }
-        }
-
         paymentSmsQueue.push({
           policyPaymentId: policyPayment.id,
           policyId: policy.id,
           wasPendingActivation,
-          activationSucceeded,
+          activationSucceeded: !wasPendingActivation,
         });
       }
 
@@ -601,9 +624,22 @@ export class PostpaidSchemePaymentService {
       }
 
       return postpaid;
-    });
+    }, POSTPAID_PAYMENT_TX_OPTIONS);
 
     for (const item of paymentSmsQueue) {
+      if (item.wasPendingActivation) {
+        try {
+          await this.policyService.activatePolicy(item.policyId, correlationId);
+          item.activationSucceeded = true;
+        } catch (activationError) {
+          this.logger.error(
+            `[${correlationId}] Postpaid CSV activation failed for policy ${item.policyId}: ${
+              activationError instanceof Error ? activationError.message : String(activationError)
+            }`
+          );
+        }
+      }
+
       this.paymentMessagingService.notifyMatchedPaymentSmsAsync({
         policyPaymentId: item.policyPaymentId,
         wasPendingActivation: item.wasPendingActivation,
