@@ -1494,7 +1494,7 @@ export default function SchemeDetailPage() {
 
       {/* Postpaid Payment Dialog */}
       <Sheet open={selectedPayment != null} onOpenChange={(open) => !open && setSelectedPayment(null)}>
-        <SheetContent side="right" className="h-full w-full overflow-y-auto sm:max-w-6xl">
+        <SheetContent side="right" className="w-full sm:max-w-3xl overflow-y-auto">
           <SheetHeader>
             <SheetTitle>Customers paid</SheetTitle>
             <SheetDescription>
@@ -1511,7 +1511,7 @@ export default function SchemeDetailPage() {
             ) : paymentMembers.length === 0 ? (
               <p className="text-sm text-muted-foreground py-8 text-center">No member payments in this batch</p>
             ) : (
-              <div className="overflow-x-auto rounded-md border">
+              <div className="rounded-md border">
                 <Table>
                   <TableHeader>
                     <TableRow>
