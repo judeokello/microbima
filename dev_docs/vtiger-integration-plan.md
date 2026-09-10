@@ -1,5 +1,9 @@
 # VTiger CRM Integration Plan
 
+> **SUPERSEDED (2026-08-14):** This plan is retained for historical reference only. The
+> CRM direction changed to self-hosted SuiteCRM with a HelloDuty cloud PABX. See
+> [`suitecrm-helloduty-integration-plan.md`](./suitecrm-helloduty-integration-plan.md).
+
 ## Overview
 This plan implements comprehensive bidirectional integration between MicroBima and VTiger CRM, enabling automated customer synchronization, task management, user linking, payment tracking, and custom field mapping.
 
