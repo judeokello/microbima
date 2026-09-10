@@ -15,6 +15,8 @@ import type {
   PostpaidSchemePaymentCsvRow,
 } from '../dto/postpaid-scheme-payments/postpaid-scheme-payment.dto';
 import { parsePostpaidPaidDate } from '../utils/postpaid-scheme-dates.util';
+import { maskIdNumberForDisplay } from '../utils/id-number-masking';
+import { maskPhoneNumberForDisplay } from '../utils/pii-display-masking';
 
 const BUCKET = 'postpaid-scheme-payments';
 const CSV_REF_PREFIX = 'postpaid-';
@@ -211,8 +213,8 @@ export class PostpaidSchemePaymentService {
         firstName: customer.firstName,
         middleName: customer.middleName,
         lastName: customer.lastName,
-        phoneNumber: customer.phoneNumber,
-        idNumber: customer.idNumber,
+        phoneNumber: maskPhoneNumberForDisplay(customer.phoneNumber),
+        idNumber: maskIdNumberForDisplay(customer.idNumber),
         amount: item.policyPayment.amount.toString(),
         paidDate: paidDate ? paidDate.toISOString() : null,
         policyNumber: item.policyPayment.policy.policyNumber,

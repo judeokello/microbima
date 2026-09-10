@@ -571,6 +571,8 @@ describe('PostpaidSchemePaymentService - list payments', () => {
       customerId: 'cust-1',
       firstName: 'Jane',
       lastName: 'Doe',
+      phoneNumber: '2547***000',
+      idNumber: '12****78',
       amount: '865',
       paidDate: '2026-09-02T00:00:00.000Z',
       policyNumber: 'MP/MFGBL/0001',
