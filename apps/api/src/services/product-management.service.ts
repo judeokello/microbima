@@ -1982,7 +1982,7 @@ export class ProductManagementService {
       });
 
       if (existingScheme) {
-        validationErrors['schemeName'] = 'A scheme with this name already exists';
+        validationErrors['schemeName'] = 'A scheme of this name already exists.';
       }
 
       // Validate postpaid requirements
@@ -2226,7 +2226,7 @@ export class ProductManagementService {
           if (fields.includes('schemeName') || blob.includes('schemename') || blob.includes('scheme_name')) {
             throw ValidationException.forField(
               'schemeName',
-              'A scheme with this name already exists',
+              'A scheme of this name already exists.',
               ErrorCodes.VALIDATION_ERROR
             );
           }
@@ -2249,7 +2249,7 @@ export class ProductManagementService {
       if (error instanceof Error && error.message.includes('Unique constraint failed')) {
         throw ValidationException.forField(
           'schemeName',
-          'A scheme with this name already exists',
+          'A scheme of this name already exists.',
           ErrorCodes.VALIDATION_ERROR
         );
       }
