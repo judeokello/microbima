@@ -52,6 +52,12 @@ export class CareOpsQueueEntityDto {
 
   @ApiPropertyOptional()
   dateOfBirth?: string | null;
+
+  @ApiPropertyOptional()
+  phoneNumber?: string | null;
+
+  @ApiPropertyOptional()
+  relationship?: string | null;
 }
 
 export class CareOpsQueueResponseDto {

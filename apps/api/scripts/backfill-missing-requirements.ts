@@ -1,12 +1,14 @@
 /**
- * Backfill / reconcile MissingRequirement rows from live dependant & beneficiary data
- * using aligned deferred field rules (spouse/child/beneficiary).
+ * Rebuild MissingRequirement rows from live spouse/child/beneficiary/parent data.
  *
- * Also clears legacy LCT errorCode MISSING_SPOUSE_ID (incomplete rows now stay on Pending).
+ * Purges existing MR rows, then recreates PENDING rows for current gaps and
+ * refreshes customer.hasMissingRequirements.
+ *
+ * Field lists must match DEFERRED_REQUIRED_FIELDS in completeness.util.ts.
  *
  * ── Recommended rollout ──
  *
- *   1. Preview customers:
+ *   1. Preview:
  *        LIST_ONLY=1 pnpm --filter @microbima/api backfill:missing-requirements
  *
  *   2. Dry-run:
@@ -14,11 +16,6 @@
  *
  *   3. Apply:
  *        pnpm --filter @microbima/api backfill:missing-requirements
- *
- * ── On Fly ──
- *
- *   LIST_ONLY=1 node apps/api/dist/scripts/backfill-missing-requirements.js
- *   node apps/api/dist/scripts/backfill-missing-requirements.js
  *
  * Required env: DATABASE_URL
  * Optional: DRY_RUN=1, LIST_ONLY=1, LIMIT=n, OFFSET=n, CUSTOMER_IDS=a,b
@@ -47,17 +44,30 @@ const customerIdsFilter = process.env.CUSTOMER_IDS
   ? process.env.CUSTOMER_IDS.split(',').map((s) => s.trim()).filter(Boolean)
   : undefined;
 
-const REQUIRED: Record<string, string[]> = {
-  SPOUSE: ['firstName', 'lastName', 'idNumber', 'gender', 'dateOfBirth'],
-  CHILD: ['firstName', 'lastName', 'dateOfBirth', 'gender'],
-  BENEFICIARY: ['firstName', 'lastName', 'idType', 'idNumber'],
-};
+const MISSING_NOK_FIELD_PATH = 'record';
 
-const RETIRED: Array<{ entityKind: RegistrationEntityKind; fieldPath: string }> = [
-  { entityKind: RegistrationEntityKind.SPOUSE, fieldPath: 'idType' },
-  { entityKind: RegistrationEntityKind.CHILD, fieldPath: 'idType' },
-  { entityKind: RegistrationEntityKind.CHILD, fieldPath: 'idNumber' },
-];
+const REQUIRED: Record<string, string[]> = {
+  SPOUSE: ['firstName', 'lastName', 'idType', 'idNumber', 'gender', 'dateOfBirth'],
+  CHILD: ['firstName', 'lastName', 'dateOfBirth', 'gender'],
+  BENEFICIARY: [
+    'firstName',
+    'lastName',
+    'idType',
+    'idNumber',
+    'phoneNumber',
+    'gender',
+    'relationship',
+  ],
+  PARENT: [
+    'firstName',
+    'lastName',
+    'relationship',
+    'idType',
+    'idNumber',
+    'gender',
+    'dateOfBirth',
+  ],
+};
 
 function isBlank(value: unknown): boolean {
   if (value === null || value === undefined) return true;
@@ -66,27 +76,18 @@ function isBlank(value: unknown): boolean {
   return false;
 }
 
-function missingFields(
-  kind: 'SPOUSE' | 'CHILD' | 'BENEFICIARY',
-  person: Record<string, unknown>
-): string[] {
+function missingFields(kind: keyof typeof REQUIRED, person: Record<string, unknown>): string[] {
   return (REQUIRED[kind] ?? []).filter((field) => isBlank(person[field]));
 }
 
-async function syncCustomer(customerId: string): Promise<{
-  created: number;
-  resolved: number;
-  pending: number;
-}> {
-  const registration = await prisma.agentRegistration.findFirst({
-    where: { customerId },
-    orderBy: { createdAt: 'desc' },
-  });
-  if (!registration) {
-    return { created: 0, resolved: 0, pending: 0 };
-  }
+type Desired = {
+  entityKind: RegistrationEntityKind;
+  entityId: string | null;
+  fieldPath: string;
+};
 
-  const [dependants, beneficiaries, existingPending] = await Promise.all([
+async function desiredForCustomer(customerId: string): Promise<Desired[]> {
+  const [dependants, beneficiaries, parents] = await Promise.all([
     prisma.dependant.findMany({
       where: {
         customerId,
@@ -95,116 +96,52 @@ async function syncCustomer(customerId: string): Promise<{
       },
     }),
     prisma.beneficiary.findMany({ where: { customerId, deletedAt: null } }),
-    prisma.missingRequirement.findMany({
-      where: { customerId, status: RegistrationMissingStatus.PENDING },
-    }),
+    prisma.customerParent.findMany({ where: { customerId, deletedAt: null } }),
   ]);
 
-  const desired = new Map<
-    string,
-    { entityKind: RegistrationEntityKind; entityId: string; fieldPath: string }
-  >();
-
+  const desired: Desired[] = [];
   for (const dep of dependants) {
     const kind =
       dep.relationship === DependantRelationship.SPOUSE
         ? RegistrationEntityKind.SPOUSE
         : RegistrationEntityKind.CHILD;
     for (const fieldPath of missingFields(kind, dep as unknown as Record<string, unknown>)) {
-      desired.set(`${kind}:${dep.id}:${fieldPath}`, {
-        entityKind: kind,
-        entityId: dep.id,
-        fieldPath,
-      });
+      desired.push({ entityKind: kind, entityId: dep.id, fieldPath });
     }
   }
-  for (const ben of beneficiaries) {
-    for (const fieldPath of missingFields(
-      'BENEFICIARY',
-      ben as unknown as Record<string, unknown>
-    )) {
-      desired.set(`${RegistrationEntityKind.BENEFICIARY}:${ben.id}:${fieldPath}`, {
-        entityKind: RegistrationEntityKind.BENEFICIARY,
-        entityId: ben.id,
-        fieldPath,
-      });
-    }
-  }
-
-  let resolved = 0;
-  let created = 0;
-
-  if (!dryRun) {
-    for (const mr of existingPending) {
-      const isRetired = RETIRED.some(
-        (r) => r.entityKind === mr.entityKind && r.fieldPath === mr.fieldPath
-      );
-      const key = mr.entityId ? `${mr.entityKind}:${mr.entityId}:${mr.fieldPath}` : null;
-      const stillNeeded = key ? desired.has(key) : false;
-      let legacyStillNeeded = false;
-      if (!mr.entityId && !isRetired) {
-        legacyStillNeeded = Array.from(desired.values()).some(
-          (d) => d.entityKind === mr.entityKind && d.fieldPath === mr.fieldPath
-        );
-      }
-      if (isRetired || (mr.entityId && !stillNeeded) || (!mr.entityId && !legacyStillNeeded)) {
-        await prisma.missingRequirement.update({
-          where: { id: mr.id },
-          data: {
-            status: RegistrationMissingStatus.RESOLVED,
-            resolvedAt: new Date(),
-            resolvedBy: 'backfill-missing-requirements',
-          },
+  if (beneficiaries.length === 0) {
+    desired.push({
+      entityKind: RegistrationEntityKind.BENEFICIARY,
+      entityId: null,
+      fieldPath: MISSING_NOK_FIELD_PATH,
+    });
+  } else {
+    for (const ben of beneficiaries) {
+      for (const fieldPath of missingFields(
+        'BENEFICIARY',
+        ben as unknown as Record<string, unknown>
+      )) {
+        desired.push({
+          entityKind: RegistrationEntityKind.BENEFICIARY,
+          entityId: ben.id,
+          fieldPath,
         });
-        resolved += 1;
-      } else if (!mr.entityId && legacyStillNeeded) {
-        const match = Array.from(desired.values()).find(
-          (d) => d.entityKind === mr.entityKind && d.fieldPath === mr.fieldPath
-        );
-        if (match) {
-          await prisma.missingRequirement.update({
-            where: { id: mr.id },
-            data: { entityId: match.entityId },
-          });
-        }
       }
     }
-
-    const pendingAfter = await prisma.missingRequirement.findMany({
-      where: { customerId, status: RegistrationMissingStatus.PENDING },
-    });
-    const pendingKeys = new Set(
-      pendingAfter
-        .filter((mr) => mr.entityId)
-        .map((mr) => `${mr.entityKind}:${mr.entityId}:${mr.fieldPath}`)
-    );
-    const toCreate = Array.from(desired.entries())
-      .filter(([key]) => !pendingKeys.has(key))
-      .map(([, value]) => ({
-        registrationId: registration.id,
-        customerId,
-        partnerId: registration.partnerId,
-        entityKind: value.entityKind,
-        entityId: value.entityId,
-        fieldPath: value.fieldPath,
-        status: RegistrationMissingStatus.PENDING,
-      }));
-    if (toCreate.length) {
-      await prisma.missingRequirement.createMany({ data: toCreate });
-      created = toCreate.length;
-    }
-
-    const pending = await prisma.missingRequirement.count({
-      where: { customerId, status: RegistrationMissingStatus.PENDING },
-    });
-    await prisma.customer.update({
-      where: { id: customerId },
-      data: { hasMissingRequirements: pending > 0 },
-    });
-    return { created, resolved, pending };
   }
-
-  return { created: desired.size, resolved: 0, pending: desired.size };
+  for (const parent of parents) {
+    for (const fieldPath of missingFields(
+      'PARENT',
+      parent as unknown as Record<string, unknown>
+    )) {
+      desired.push({
+        entityKind: RegistrationEntityKind.PARENT,
+        entityId: parent.id,
+        fieldPath,
+      });
+    }
+  }
+  return desired;
 }
 
 async function main() {
@@ -212,21 +149,18 @@ async function main() {
     where: {
       isTestUser: false,
       ...(customerIdsFilter ? { id: { in: customerIdsFilter } } : {}),
-      OR: [
-        { registrations: { some: {} } },
-        { hasMissingRequirements: true },
-        { missingRequirements: { some: {} } },
-        {
-          dependants: {
-            some: {
-              deletedAt: null,
-              relationship: { in: [DependantRelationship.SPOUSE, DependantRelationship.CHILD] },
-            },
-          },
-        },
-      ],
     },
-    select: { id: true, firstName: true, lastName: true, hasMissingRequirements: true },
+    select: {
+      id: true,
+      firstName: true,
+      lastName: true,
+      hasMissingRequirements: true,
+      registrations: {
+        select: { id: true, partnerId: true },
+        orderBy: { createdAt: 'desc' },
+        take: 1,
+      },
+    },
     orderBy: { createdAt: 'asc' },
     take: limit,
     skip: offset,
@@ -236,33 +170,76 @@ async function main() {
     `Found ${customers.length} customer(s) dryRun=${dryRun} listOnly=${listOnly}`
   );
 
-  if (listOnly) {
-    for (const c of customers) {
-      console.log(`${c.id} ${c.firstName} ${c.lastName} hasMissing=${c.hasMissingRequirements}`);
-    }
-    return;
-  }
+  let skippedNoRegistration = 0;
+  let pendingToCreate = 0;
 
-  let totalCreated = 0;
-  let totalResolved = 0;
   for (const c of customers) {
-    const result = await syncCustomer(c.id);
-    totalCreated += result.created;
-    totalResolved += result.resolved;
+    const registration = c.registrations[0];
+    if (!registration) {
+      skippedNoRegistration += 1;
+      console.log(`${c.id} ${c.firstName} ${c.lastName} SKIP no agent_registration`);
+      continue;
+    }
+    const desired = await desiredForCustomer(c.id);
+    pendingToCreate += desired.length;
     console.log(
-      `${c.id} created=${result.created} resolved=${result.resolved} pending=${result.pending}`
+      `${c.id} ${c.firstName} ${c.lastName} hasMissing=${c.hasMissingRequirements} pendingWouldBe=${desired.length}`
     );
   }
 
-  if (!dryRun) {
-    const cleared = await prisma.lctMemberSyncTarget.updateMany({
-      where: { errorCode: 'MISSING_SPOUSE_ID' },
-      data: { errorCode: null },
-    });
-    console.log(`Cleared MISSING_SPOUSE_ID on ${cleared.count} LCT sync target(s)`);
+  console.log(
+    `Preview: pendingWouldBe=${pendingToCreate} skippedNoRegistration=${skippedNoRegistration}`
+  );
+
+  if (listOnly) {
+    return;
   }
 
-  console.log(`Done. created=${totalCreated} resolved=${totalResolved}`);
+  if (dryRun) {
+    console.log('Dry-run: no writes.');
+    return;
+  }
+
+  const deleteResult = await prisma.missingRequirement.deleteMany({});
+  console.log(`Purged ${deleteResult.count} missing_requirements row(s)`);
+
+  await prisma.customer.updateMany({
+    where: customerIdsFilter ? { id: { in: customerIdsFilter } } : {},
+    data: { hasMissingRequirements: false },
+  });
+
+  let created = 0;
+  let flagged = 0;
+  for (const c of customers) {
+    const registration = c.registrations[0];
+    if (!registration) continue;
+
+    const desired = await desiredForCustomer(c.id);
+    if (desired.length === 0) continue;
+
+    await prisma.missingRequirement.createMany({
+      data: desired.map((d) => ({
+        registrationId: registration.id,
+        customerId: c.id,
+        partnerId: registration.partnerId,
+        entityKind: d.entityKind,
+        entityId: d.entityId,
+        fieldPath: d.fieldPath,
+        status: RegistrationMissingStatus.PENDING,
+      })),
+    });
+    created += desired.length;
+
+    await prisma.customer.update({
+      where: { id: c.id },
+      data: { hasMissingRequirements: true },
+    });
+    flagged += 1;
+  }
+
+  console.log(
+    `Done. created=${created} customersFlagged=${flagged} skippedNoRegistration=${skippedNoRegistration}`
+  );
 }
 
 main()
