@@ -33,9 +33,11 @@ import {
   getCareOpsMissingQueue,
   updateDependant,
   updateBeneficiary,
+  updateParent,
   type CareOpsQueueItem,
 } from '@/lib/api'
 import { Download, Loader2, RefreshCw } from 'lucide-react'
+import { getIdTypeRequiredWithIdNumberError } from '@/lib/id-number-validation'
 
 type EditForm = {
   firstName: string
@@ -45,6 +47,8 @@ type EditForm = {
   idType: string
   idNumber: string
   dateOfBirth: string
+  phoneNumber: string
+  relationship: string
 }
 
 function toCsv(items: CareOpsQueueItem[]): string {
@@ -60,6 +64,8 @@ function toCsv(items: CareOpsQueueItem[]): string {
     'ID type',
     'ID number',
     'Date of birth',
+    'Phone',
+    'Relationship',
   ]
   const escape = (v: string) => (/[",\n\r]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v)
   const rows = items.map((item) =>
@@ -75,6 +81,8 @@ function toCsv(items: CareOpsQueueItem[]): string {
       item.idType ?? '',
       item.idNumber ?? '',
       item.dateOfBirth ?? '',
+      item.phoneNumber ?? '',
+      item.relationship ?? '',
     ]
       .map((c) => escape(String(c)))
       .join(',')
@@ -122,6 +130,8 @@ export default function MissingInformationPage() {
       idType: item.idType ?? 'NATIONAL_ID',
       idNumber: item.idNumber ?? '',
       dateOfBirth: item.dateOfBirth ?? '',
+      phoneNumber: item.phoneNumber ?? '',
+      relationship: item.relationship ?? '',
     })
   }
 
@@ -139,11 +149,28 @@ export default function MissingInformationPage() {
 
   const handleSave = async () => {
     if (!editItem?.entityId || !form) return
+    const idTypePairError = getIdTypeRequiredWithIdNumberError(form.idNumber, form.idType)
+    if (idTypePairError) {
+      setError(idTypePairError)
+      return
+    }
     setSaving(true)
     setError(null)
     try {
       if (editItem.entityKind === 'BENEFICIARY') {
         await updateBeneficiary(editItem.customerId, editItem.entityId, {
+          firstName: form.firstName || undefined,
+          middleName: form.middleName || undefined,
+          lastName: form.lastName || undefined,
+          idType: mapIdTypeToApi(form.idType),
+          idNumber: form.idNumber || undefined,
+          gender: form.gender || undefined,
+          dateOfBirth: form.dateOfBirth || undefined,
+          phoneNumber: form.phoneNumber || undefined,
+          relationship: form.relationship || undefined,
+        })
+      } else if (editItem.entityKind === 'PARENT') {
+        await updateParent(editItem.entityId, {
           firstName: form.firstName || undefined,
           middleName: form.middleName || undefined,
           lastName: form.lastName || undefined,
@@ -213,8 +240,7 @@ export default function MissingInformationPage() {
         <div>
           <h1 className="text-2xl font-bold">Missing Information</h1>
           <p className="text-sm text-muted-foreground">
-            Care-ops queue for deferred spouse, child, and beneficiary fields. Completing these
-            unlocks LCT export eligibility.
+            Care-ops queue for deferred spouse, child, next of kin, and parent fields.
           </p>
         </div>
         <div className="flex gap-2">
@@ -282,14 +308,21 @@ export default function MissingInformationPage() {
                     </TableCell>
                     <TableCell className="text-sm">{item.missingFieldLabels.join(', ')}</TableCell>
                     <TableCell>
+                      {item.entityId ? (
                       <Button
                         size="sm"
                         variant="outline"
-                        disabled={!item.entityId}
                         onClick={() => openEdit(item)}
                       >
                         Update
                       </Button>
+                      ) : (
+                        <Button size="sm" variant="outline" asChild>
+                          <Link href={`/dashboard/customer/${item.customerId}`}>
+                            Add next of kin
+                          </Link>
+                        </Button>
+                      )}
                     </TableCell>
                   </TableRow>
                 ))
@@ -342,6 +375,8 @@ export default function MissingInformationPage() {
               </div>
               {(editItem?.entityKind === 'SPOUSE' ||
                 editItem?.entityKind === 'CHILD' ||
+                editItem?.entityKind === 'PARENT' ||
+                editItem?.entityKind === 'BENEFICIARY' ||
                 editItem?.missingFields.includes('gender')) && (
                 <div>
                   <Label className="text-xs">Gender</Label>
@@ -361,6 +396,7 @@ export default function MissingInformationPage() {
               )}
               {(editItem?.entityKind === 'SPOUSE' ||
                 editItem?.entityKind === 'CHILD' ||
+                editItem?.entityKind === 'PARENT' ||
                 editItem?.missingFields.includes('dateOfBirth')) && (
                 <div>
                   <Label className="text-xs">Date of birth</Label>
@@ -373,10 +409,11 @@ export default function MissingInformationPage() {
               )}
               {(editItem?.entityKind === 'SPOUSE' ||
                 editItem?.entityKind === 'BENEFICIARY' ||
+                editItem?.entityKind === 'PARENT' ||
                 editItem?.missingFields.includes('idNumber')) && (
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <Label className="text-xs">ID type</Label>
+                    <Label className="text-xs">{form.idNumber.trim() ? 'ID type *' : 'ID type'}</Label>
                     <Select
                       value={form.idType || 'NATIONAL_ID'}
                       onValueChange={(v) => setForm({ ...form, idType: v })}
@@ -400,6 +437,24 @@ export default function MissingInformationPage() {
                     />
                   </div>
                 </div>
+              )}
+              {editItem?.entityKind === 'BENEFICIARY' && (
+                <>
+                  <div>
+                    <Label className="text-xs">Phone number</Label>
+                    <Input
+                      value={form.phoneNumber}
+                      onChange={(e) => setForm({ ...form, phoneNumber: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Relationship</Label>
+                    <Input
+                      value={form.relationship}
+                      onChange={(e) => setForm({ ...form, relationship: e.target.value })}
+                    />
+                  </div>
+                </>
               )}
             </div>
           )}

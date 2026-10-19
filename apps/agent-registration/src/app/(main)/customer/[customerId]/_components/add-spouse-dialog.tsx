@@ -16,7 +16,7 @@ import { Loader2 } from 'lucide-react';
 import { addDependants, SpouseData } from '@/lib/api';
 import { useParams } from 'next/navigation';
 import { formatPhoneNumber, getPhoneValidationError } from '@/lib/phone-validation';
-import { getIdNumberValidationError, ID_NUMBER_MAX_LENGTH } from '@/lib/id-number-validation';
+import { getIdNumberValidationError, getIdTypeRequiredWithIdNumberError, ID_NUMBER_MAX_LENGTH } from '@/lib/id-number-validation';
 import * as Sentry from '@sentry/nextjs';
 
 interface AddSpouseDialogProps {
@@ -87,6 +87,12 @@ export default function AddSpouseDialog({
     const spouseIdError = getIdNumberValidationError(formData.idNumber, false);
     if (spouseIdError) {
       setError(spouseIdError);
+      setLoading(false);
+      return;
+    }
+    const idTypePairError = getIdTypeRequiredWithIdNumberError(formData.idNumber, formData.idType);
+    if (idTypePairError) {
+      setError(idTypePairError);
       setLoading(false);
       return;
     }
@@ -255,7 +261,7 @@ export default function AddSpouseDialog({
             </div>
 
             <div>
-              <Label htmlFor="idType">ID Type</Label>
+              <Label htmlFor="idType">{formData.idNumber.trim() ? 'ID Type *' : 'ID Type'}</Label>
               <Select
                 value={formData.idType}
                 onValueChange={(value) => setFormData({ ...formData, idType: value })}

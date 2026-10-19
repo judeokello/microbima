@@ -170,9 +170,18 @@ export default function CreateSchemeDialog({
         try {
           const errorData = await response.json();
           console.error('Scheme creation error response:', errorData);
-          // Handle different error response formats
-          if (errorData.error) {
-            errorMessage = errorData.error.message ?? errorData.error ?? errorMessage;
+          const details = errorData.error?.details;
+          if (details && typeof details === 'object') {
+            const detailMsgs = Object.values(details as Record<string, string>).filter(
+              (message) => typeof message === 'string' && message.length > 0
+            );
+            if (detailMsgs.length > 0) {
+              errorMessage = detailMsgs.join('; ');
+            }
+          } else if (errorData.error?.message) {
+            errorMessage = errorData.error.message;
+          } else if (typeof errorData.error === 'string') {
+            errorMessage = errorData.error;
           } else if (errorData.message) {
             errorMessage = errorData.message;
           } else if (typeof errorData === 'string') {

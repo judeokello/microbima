@@ -16,7 +16,7 @@ import { Loader2 } from 'lucide-react';
 import { addBeneficiaries, BeneficiaryData } from '@/lib/api';
 import { useParams } from 'next/navigation';
 import { formatPhoneNumber, getPhoneValidationError } from '@/lib/phone-validation';
-import { getIdNumberValidationError, ID_NUMBER_MAX_LENGTH } from '@/lib/id-number-validation';
+import { getIdNumberValidationError, getIdTypeRequiredWithIdNumberError, ID_NUMBER_MAX_LENGTH } from '@/lib/id-number-validation';
 import DateOfBirthInput from '@/components/date-of-birth-input';
 import * as Sentry from '@sentry/nextjs';
 
@@ -108,6 +108,12 @@ export default function AddBeneficiaryDialog({
     const beneficiaryIdError = getIdNumberValidationError(formData.idNumber, false);
     if (beneficiaryIdError) {
       setError(beneficiaryIdError);
+      setLoading(false);
+      return;
+    }
+    const idTypePairError = getIdTypeRequiredWithIdNumberError(formData.idNumber, formData.idType);
+    if (idTypePairError) {
+      setError(idTypePairError);
       setLoading(false);
       return;
     }
@@ -303,7 +309,7 @@ export default function AddBeneficiaryDialog({
             </div>
 
             <div>
-              <Label htmlFor="idType">ID Type</Label>
+              <Label htmlFor="idType">{formData.idNumber.trim() ? 'ID Type *' : 'ID Type'}</Label>
               <Select
                 value={formData.idType}
                 onValueChange={(value) => setFormData({ ...formData, idType: value })}

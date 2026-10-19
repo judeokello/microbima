@@ -18,14 +18,15 @@ import {
 import * as Sentry from '@sentry/nestjs';
 import {
   CompletenessPerson,
+  MISSING_NOK_FIELD_PATH,
+  collectDesiredMissingRequirements,
+  desiredMissingKey,
   getMissingRequiredFields,
   humanizeFieldPath,
-  relationshipToEntityKind,
 } from '../modules/missing-requirements/completeness.util';
 
-/** Legacy deferred fields no longer required — resolve on sync. */
+/** Legacy deferred fields no longer required — resolve on sync. Spouse idType is tracked again. */
 const RETIRED_FIELD_PATHS: Array<{ entityKind: RegistrationEntityKind; fieldPath: string }> = [
-  { entityKind: RegistrationEntityKind.SPOUSE, fieldPath: 'idType' },
   { entityKind: RegistrationEntityKind.CHILD, fieldPath: 'idType' },
   { entityKind: RegistrationEntityKind.CHILD, fieldPath: 'idNumber' },
 ];
@@ -298,7 +299,7 @@ export class MissingRequirementService {
     const registrationId = registration!.id;
     const partnerId = opts?.partnerId ?? registration!.partnerId;
 
-    const [dependants, beneficiaries, existingPending] = await Promise.all([
+    const [dependants, beneficiaries, parents, existingPending] = await Promise.all([
       this.prisma.dependant.findMany({
         where: {
           customerId,
@@ -309,73 +310,59 @@ export class MissingRequirementService {
       this.prisma.beneficiary.findMany({
         where: { customerId, deletedAt: null },
       }),
+      this.prisma.customerParent.findMany({
+        where: { customerId, deletedAt: null },
+      }),
       this.prisma.missingRequirement.findMany({
         where: { customerId, status: RegistrationMissingStatus.PENDING },
       }),
     ]);
 
-    const desired = new Map<string, { entityKind: RegistrationEntityKind; entityId: string; fieldPath: string }>();
-
-    for (const dep of dependants) {
-      const kind = relationshipToEntityKind(dep.relationship);
-      if (!kind) continue;
-      const missing = getMissingRequiredFields(kind, dep);
-      for (const fieldPath of missing) {
-        desired.set(`${kind}:${dep.id}:${fieldPath}`, {
-          entityKind: kind,
-          entityId: dep.id,
-          fieldPath,
-        });
-      }
-    }
-
-    for (const ben of beneficiaries) {
-      const missing = getMissingRequiredFields(RegistrationEntityKind.BENEFICIARY, ben);
-      for (const fieldPath of missing) {
-        desired.set(`${RegistrationEntityKind.BENEFICIARY}:${ben.id}:${fieldPath}`, {
-          entityKind: RegistrationEntityKind.BENEFICIARY,
-          entityId: ben.id,
-          fieldPath,
-        });
-      }
-    }
+    const desiredList = collectDesiredMissingRequirements({
+      spouses: dependants.filter((d) => d.relationship === DependantRelationship.SPOUSE),
+      children: dependants.filter((d) => d.relationship === DependantRelationship.CHILD),
+      beneficiaries,
+      parents,
+    });
+    const desired = new Map(desiredList.map((d) => [desiredMissingKey(d), d]));
 
     // Resolve retired field paths and anything no longer missing
     for (const mr of existingPending) {
       const isRetired = RETIRED_FIELD_PATHS.some(
         (r) => r.entityKind === mr.entityKind && r.fieldPath === mr.fieldPath
       );
-      const key = mr.entityId
-        ? `${mr.entityKind}:${mr.entityId}:${mr.fieldPath}`
-        : null;
-      const stillNeeded = key ? desired.has(key) : false;
+      const key = desiredMissingKey({
+        entityKind: mr.entityKind,
+        entityId: mr.entityId ?? null,
+        fieldPath: mr.fieldPath,
+      });
+      const stillNeeded = desired.has(key);
 
-      // Legacy rows without entityId: resolve if any live entity of that kind has the field
-      let legacyStillNeeded = false;
-      if (!mr.entityId && !isRetired) {
-        legacyStillNeeded = Array.from(desired.values()).some(
-          (d) => d.entityKind === mr.entityKind && d.fieldPath === mr.fieldPath
-        );
-      }
-
-      if (isRetired || (mr.entityId && !stillNeeded) || (!mr.entityId && !legacyStillNeeded)) {
-        await this.prisma.missingRequirement.update({
-          where: { id: mr.id },
-          data: {
-            status: RegistrationMissingStatus.RESOLVED,
-            resolvedAt: new Date(),
-            resolvedBy,
-          },
-        });
-      } else if (!mr.entityId && legacyStillNeeded) {
-        // Attach to first matching live entity and keep pending
-        const match = Array.from(desired.values()).find(
-          (d) => d.entityKind === mr.entityKind && d.fieldPath === mr.fieldPath
-        );
-        if (match) {
+      if (isRetired || !stillNeeded) {
+        const attachable =
+          !mr.entityId &&
+          !isRetired &&
+          mr.fieldPath !== MISSING_NOK_FIELD_PATH
+            ? Array.from(desired.values()).find(
+                (d) =>
+                  d.entityKind === mr.entityKind &&
+                  d.fieldPath === mr.fieldPath &&
+                  d.entityId
+              )
+            : undefined;
+        if (attachable?.entityId) {
           await this.prisma.missingRequirement.update({
             where: { id: mr.id },
-            data: { entityId: match.entityId },
+            data: { entityId: attachable.entityId },
+          });
+        } else {
+          await this.prisma.missingRequirement.update({
+            where: { id: mr.id },
+            data: {
+              status: RegistrationMissingStatus.RESOLVED,
+              resolvedAt: new Date(),
+              resolvedBy,
+            },
           });
         }
       }
@@ -385,9 +372,13 @@ export class MissingRequirementService {
       where: { customerId, status: RegistrationMissingStatus.PENDING },
     });
     const pendingKeys = new Set(
-      pendingAfterResolve
-        .filter((mr) => mr.entityId)
-        .map((mr) => `${mr.entityKind}:${mr.entityId}:${mr.fieldPath}`)
+      pendingAfterResolve.map((mr) =>
+        desiredMissingKey({
+          entityKind: mr.entityKind,
+          entityId: mr.entityId ?? null,
+          fieldPath: mr.fieldPath,
+        })
+      )
     );
 
     const toCreate = Array.from(desired.entries())
@@ -471,6 +462,8 @@ export class MissingRequirementService {
         person = await this.prisma.dependant.findUnique({ where: { id: entityId } });
       } else if (entityId && entityKind === RegistrationEntityKind.BENEFICIARY) {
         person = await this.prisma.beneficiary.findUnique({ where: { id: entityId } });
+      } else if (entityId && entityKind === RegistrationEntityKind.PARENT) {
+        person = await this.prisma.customerParent.findUnique({ where: { id: entityId } });
       }
 
       const missingFields = person
@@ -482,7 +475,9 @@ export class MissingRequirementService {
       const entityName = person
         ? [person.firstName, person.middleName, person.lastName].filter(Boolean).join(' ') ||
           entityKind
-        : entityKind;
+        : entityKind === RegistrationEntityKind.BENEFICIARY && !entityId
+          ? 'Next of kin (not added)'
+          : entityKind;
 
       items.push({
         customerId,
@@ -506,6 +501,8 @@ export class MissingRequirementService {
             ? person.dateOfBirth.toISOString().slice(0, 10)
             : String(person.dateOfBirth).slice(0, 10)
           : null,
+        phoneNumber: person?.phoneNumber ?? null,
+        relationship: person?.relationship ?? null,
       });
     }
 

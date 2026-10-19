@@ -17,6 +17,7 @@ import {
   packageHasFamilyBands,
 } from '../utils/family-category.util';
 import { computeHouseholdPremium } from '../utils/household-premium.util';
+import { MissingRequirementService } from './missing-requirement.service';
 
 @Injectable()
 export class AdditionalPolicyService {
@@ -26,7 +27,8 @@ export class AdditionalPolicyService {
     private readonly prisma: PrismaService,
     private readonly policyService: PolicyService,
     private readonly mpesaStkPushService: MpesaStkPushService,
-    private readonly packagePricingService: PackagePricingService
+    private readonly packagePricingService: PackagePricingService,
+    private readonly missingRequirementService: MissingRequirementService
   ) {}
 
   async getEligibility(customerId: string, userId: string, userRoles: string[]) {
@@ -252,6 +254,8 @@ export class AdditionalPolicyService {
         userId
       );
     }
+
+    await this.missingRequirementService.syncCustomerFromLiveData(customerId, userId);
 
     return {
       policy: created,

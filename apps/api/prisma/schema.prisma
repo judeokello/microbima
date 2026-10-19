@@ -576,6 +576,7 @@ enum RegistrationEntityKind {
   SPOUSE
   CHILD
   BENEFICIARY
+  PARENT
 }
 
 enum RegistrationStatus {

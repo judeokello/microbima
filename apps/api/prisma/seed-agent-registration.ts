@@ -1,14 +1,11 @@
 import { PrismaClient } from '@prisma/client'
 
 /**
- * Seed Agent Registration Data
- *
- * Seeds deferred requirement defaults aligned with care-ops / LCT completeness:
- * - Spouse: firstName, lastName, idNumber, gender, dateOfBirth
+ * Seeds deferred requirement defaults aligned with care-ops completeness:
+ * - Spouse: firstName, lastName, idType, idNumber, gender, dateOfBirth
  * - Child: firstName, lastName, dateOfBirth, gender
- * - Beneficiary: firstName, lastName, idType, idNumber (care-ops only; never sent to LCT)
- *
- * @param prisma - PrismaClient instance (optional, creates new if not provided)
+ * - Beneficiary: firstName, lastName, idType, idNumber, phoneNumber, gender, relationship
+ * - Parent: firstName, lastName, relationship, idType, idNumber, gender, dateOfBirth
  */
 export async function seedAgentRegistrationData(prismaInstance?: PrismaClient) {
   const prisma = prismaInstance || new PrismaClient()
@@ -20,6 +17,7 @@ export async function seedAgentRegistrationData(prismaInstance?: PrismaClient) {
     const deferredRequirements = [
       { entityKind: 'SPOUSE', fieldPath: 'firstName', isRequired: true },
       { entityKind: 'SPOUSE', fieldPath: 'lastName', isRequired: true },
+      { entityKind: 'SPOUSE', fieldPath: 'idType', isRequired: true },
       { entityKind: 'SPOUSE', fieldPath: 'idNumber', isRequired: true },
       { entityKind: 'SPOUSE', fieldPath: 'gender', isRequired: true },
       { entityKind: 'SPOUSE', fieldPath: 'dateOfBirth', isRequired: true },
@@ -33,11 +31,20 @@ export async function seedAgentRegistrationData(prismaInstance?: PrismaClient) {
       { entityKind: 'BENEFICIARY', fieldPath: 'lastName', isRequired: true },
       { entityKind: 'BENEFICIARY', fieldPath: 'idType', isRequired: true },
       { entityKind: 'BENEFICIARY', fieldPath: 'idNumber', isRequired: true },
+      { entityKind: 'BENEFICIARY', fieldPath: 'phoneNumber', isRequired: true },
+      { entityKind: 'BENEFICIARY', fieldPath: 'gender', isRequired: true },
+      { entityKind: 'BENEFICIARY', fieldPath: 'relationship', isRequired: true },
+
+      { entityKind: 'PARENT', fieldPath: 'firstName', isRequired: true },
+      { entityKind: 'PARENT', fieldPath: 'lastName', isRequired: true },
+      { entityKind: 'PARENT', fieldPath: 'relationship', isRequired: true },
+      { entityKind: 'PARENT', fieldPath: 'idType', isRequired: true },
+      { entityKind: 'PARENT', fieldPath: 'idNumber', isRequired: true },
+      { entityKind: 'PARENT', fieldPath: 'gender', isRequired: true },
+      { entityKind: 'PARENT', fieldPath: 'dateOfBirth', isRequired: true },
     ]
 
-    // Retire legacy spouse/child idType-only deferrals that are no longer required
     const retired = [
-      { entityKind: 'SPOUSE', fieldPath: 'idType' },
       { entityKind: 'CHILD', fieldPath: 'idType' },
       { entityKind: 'CHILD', fieldPath: 'idNumber' },
     ] as const
@@ -78,18 +85,17 @@ export async function seedAgentRegistrationData(prismaInstance?: PrismaClient) {
 }
 
 async function main() {
+  const prisma = new PrismaClient()
   try {
-    await seedAgentRegistrationData()
-  } catch (error) {
-    console.error('❌ Error seeding Agent Registration data:', error)
-    throw error
+    await seedAgentRegistrationData(prisma)
+  } finally {
+    await prisma.$disconnect()
   }
 }
 
 if (require.main === module) {
-  main()
-    .catch((e) => {
-      console.error(e)
-      process.exit(1)
-    })
+  main().catch((e) => {
+    console.error(e)
+    process.exit(1)
+  })
 }

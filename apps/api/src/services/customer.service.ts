@@ -1205,6 +1205,8 @@ export class CustomerService {
         await this.lctSyncService.onPolicyActivated(policy.id, correlationId);
       }
 
+      await this.missingRequirementService.syncCustomerFromLiveData(customerId, 'system');
+
       return {
         status: 201,
         correlationId: correlationId,
@@ -1478,6 +1480,8 @@ export class CustomerService {
       });
 
       this.logger.log(`[${correlationId}] Successfully added ${result.totalProcessed} beneficiaries to customer ${customerId}`);
+
+      await this.missingRequirementService.syncCustomerFromLiveData(customerId, 'system');
 
       return {
         status: 201,
@@ -4004,6 +4008,8 @@ export class CustomerService {
 
     await this.lctSyncService.onDependantSoftDeleted(dependantId, correlationId);
 
+    await this.missingRequirementService.syncCustomerFromLiveData(dependant.customerId, userId);
+
     this.logger.log(`[${correlationId}] Soft deleted dependant ${dependantId} by user ${userId}`);
   }
 
@@ -4079,6 +4085,7 @@ export class CustomerService {
     this.logger.log(
       `[${correlationId}] Successfully added ${addRequest.parents.length} parent(s) to customer ${customerId}`
     );
+    await this.missingRequirementService.syncCustomerFromLiveData(customerId, 'system');
     return { added: addRequest.parents.length };
   }
 
@@ -4148,6 +4155,8 @@ export class CustomerService {
       data: updatePayload,
     });
 
+    await this.missingRequirementService.syncCustomerFromLiveData(parent.customerId, userId);
+
     return {
       id: updated.id,
       firstName: updated.firstName,
@@ -4196,6 +4205,8 @@ export class CustomerService {
       },
     });
 
+    await this.missingRequirementService.syncCustomerFromLiveData(parent.customerId, userId);
+
     this.logger.log(`[${correlationId}] Soft deleted parent ${parentId} by user ${userId}`);
   }
 
@@ -4237,6 +4248,8 @@ export class CustomerService {
         deletedBy: userId,
       },
     });
+
+    await this.missingRequirementService.syncCustomerFromLiveData(customerId, userId);
 
     this.logger.log(`[${correlationId}] Soft deleted beneficiary ${beneficiaryId} by user ${userId}`);
   }

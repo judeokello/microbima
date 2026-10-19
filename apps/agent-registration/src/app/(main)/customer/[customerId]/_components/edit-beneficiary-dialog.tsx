@@ -16,7 +16,7 @@ import { Loader2 } from 'lucide-react';
 import { updateBeneficiary, UpdateBeneficiaryData } from '@/lib/api';
 import { useParams } from 'next/navigation';
 import { formatPhoneNumber, getPhoneValidationError } from '@/lib/phone-validation';
-import { getIdNumberValidationError, ID_NUMBER_MAX_LENGTH } from '@/lib/id-number-validation';
+import { getIdNumberValidationError, getIdTypeRequiredWithIdNumberError, ID_NUMBER_MAX_LENGTH } from '@/lib/id-number-validation';
 import { useRevealedFieldForEdit, useRevealedIdForEdit } from '@/components/view-id-number/use-revealed-id-for-edit';
 import * as Sentry from '@sentry/nextjs';
 
@@ -157,6 +157,12 @@ export default function EditBeneficiaryDialog({
       setLoading(false);
       return;
     }
+    const idTypePairError = getIdTypeRequiredWithIdNumberError(formData.idNumber, formData.idType);
+    if (idTypePairError) {
+      setError(idTypePairError);
+      setLoading(false);
+      return;
+    }
 
     try {
       const trimmedIdNumber = formData.idNumber?.trim() ?? '';
@@ -274,7 +280,7 @@ export default function EditBeneficiaryDialog({
             </div>
 
             <div>
-              <Label htmlFor="idType">ID Type</Label>
+              <Label htmlFor="idType">{(formData.idNumber ?? '').trim() ? 'ID Type *' : 'ID Type'}</Label>
               <Select
                 value={formData.idType ?? 'NATIONAL_ID'}
                 onValueChange={(value) => setFormData({ ...formData, idType: value })}
