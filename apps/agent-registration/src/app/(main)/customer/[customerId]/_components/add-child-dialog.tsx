@@ -16,6 +16,7 @@ import { Loader2 } from 'lucide-react';
 import { addDependants, ChildData } from '@/lib/api';
 import { useParams } from 'next/navigation';
 import * as Sentry from '@sentry/nextjs';
+import { getIdTypeRequiredWithIdNumberError } from '@/lib/id-number-validation';
 
 interface AddChildDialogProps {
   customerId: string;
@@ -170,6 +171,13 @@ export default function AddChildDialog({
     setLoading(true);
 
     try {
+      const idTypePairError = getIdTypeRequiredWithIdNumberError(formData.idNumber, formData.idType);
+      if (idTypePairError) {
+        setError(idTypePairError);
+        setLoading(false);
+        return;
+      }
+
       const childData: ChildData = {
         firstName: formData.firstName,
         lastName: formData.lastName,
@@ -298,7 +306,7 @@ export default function AddChildDialog({
             </div>
 
             <div>
-              <Label htmlFor="idType">ID Type</Label>
+              <Label htmlFor="idType">{formData.idNumber.trim() ? 'ID Type *' : 'ID Type'}</Label>
               <Select
                 value={formData.idType}
                 onValueChange={(value) => setFormData({ ...formData, idType: value })}

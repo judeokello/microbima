@@ -14,3 +14,16 @@ export const getIdNumberValidationError = (value: string | undefined, required: 
 
   return null;
 };
+
+/** When a deferrable ID number is being saved, ID type must be present too. */
+export const getIdTypeRequiredWithIdNumberError = (
+  idNumber: string | undefined,
+  idType: string | undefined
+): string | null => {
+  const hasNumber = (idNumber ?? '').trim().length > 0;
+  if (!hasNumber) return null;
+  if (!(idType ?? '').trim()) {
+    return 'ID type is required when ID number is provided';
+  }
+  return null;
+};
