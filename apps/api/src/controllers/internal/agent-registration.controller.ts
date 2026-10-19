@@ -331,7 +331,7 @@ export class AgentRegistrationController {
   @ApiOperation({
     summary: 'Care-ops missing information queue',
     description:
-      'Returns incomplete spouse/child/beneficiary entities for customer care. Live fields are re-evaluated on each load.',
+      'Returns incomplete spouse/child/beneficiary/parent entities for customer care. Live fields are re-evaluated on each load.',
   })
   @ApiQuery({ name: 'partnerId', required: false })
   @ApiQuery({ name: 'limit', required: false })

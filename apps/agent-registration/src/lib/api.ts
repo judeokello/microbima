@@ -3589,7 +3589,7 @@ export interface CareOpsQueueItem {
   customerPhone?: string | null
   registrationId?: string | null
   partnerId?: number | null
-  entityKind: 'SPOUSE' | 'CHILD' | 'BENEFICIARY' | 'CUSTOMER'
+  entityKind: 'SPOUSE' | 'CHILD' | 'BENEFICIARY' | 'CUSTOMER' | 'PARENT'
   entityId?: string | null
   entityName: string
   missingFields: string[]
@@ -3601,6 +3601,8 @@ export interface CareOpsQueueItem {
   idType?: string | null
   idNumber?: string | null
   dateOfBirth?: string | null
+  phoneNumber?: string | null
+  relationship?: string | null
 }
 
 export async function getCareOpsMissingQueue(params?: {

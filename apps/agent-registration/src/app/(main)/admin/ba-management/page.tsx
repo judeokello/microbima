@@ -1,16 +1,18 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Loader2, Plus, Edit, Key } from 'lucide-react'
 import { getBrandAmbassadors, getPartners, BrandAmbassador, Partner } from '@/lib/api'
 import EditBADialog from './_components/edit-ba-dialog'
 import ChangePasswordDialog from './_components/change-password-dialog'
+
+type StatusTab = 'active' | 'archived'
 
 export default function BAManagementPage() {
   const router = useRouter()
@@ -18,6 +20,7 @@ export default function BAManagementPage() {
   const [error, setError] = useState<string | null>(null)
   const [brandAmbassadors, setBrandAmbassadors] = useState<BrandAmbassador[]>([])
   const [partners, setPartners] = useState<Partner[]>([])
+  const [statusTab, setStatusTab] = useState<StatusTab>('active')
   const [editDialogOpen, setEditDialogOpen] = useState(false)
   const [selectedBA, setSelectedBA] = useState<BrandAmbassador | null>(null)
   const [passwordDialogOpen, setPasswordDialogOpen] = useState(false)
@@ -29,7 +32,6 @@ export default function BAManagementPage() {
 
   const loadData = async () => {
     try {
-      setLoading(true)
       const [baData, partnersData] = await Promise.all([
         getBrandAmbassadors(),
         getPartners()
@@ -37,12 +39,23 @@ export default function BAManagementPage() {
 
       setBrandAmbassadors(baData)
       setPartners(partnersData)
+      setError(null)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load data')
     } finally {
       setLoading(false)
     }
   }
+
+  const activeBrandAmbassadors = useMemo(
+    () => brandAmbassadors.filter((ba) => ba.isActive),
+    [brandAmbassadors]
+  )
+
+  const archivedBrandAmbassadors = useMemo(
+    () => brandAmbassadors.filter((ba) => !ba.isActive),
+    [brandAmbassadors]
+  )
 
   const getPartnerName = (ba: BrandAmbassador) => {
     // Use partner data from BA record if available, otherwise fallback to partners list
@@ -84,6 +97,80 @@ export default function BAManagementPage() {
     })
   }
 
+  const renderTable = (rows: BrandAmbassador[], emptyMessage: string, showRegisterCta: boolean) => {
+    if (rows.length === 0) {
+      return (
+        <div className="text-center py-8">
+          <p className="text-muted-foreground mb-4">{emptyMessage}</p>
+          {showRegisterCta && (
+            <Button onClick={() => router.push('/admin/ba-registration')}>
+              <Plus className="mr-2 h-4 w-4" />
+              Register First BA
+            </Button>
+          )}
+        </div>
+      )
+    }
+
+    return (
+      <div className="overflow-x-auto">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Display Name</TableHead>
+              <TableHead>Partner</TableHead>
+              <TableHead>Phone</TableHead>
+              <TableHead>Rate per Registration</TableHead>
+              <TableHead>Created</TableHead>
+              <TableHead>Actions</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {rows.map((ba) => (
+              <TableRow key={ba.id}>
+                <TableCell className="font-medium">
+                  {ba.displayName ?? 'N/A'}
+                </TableCell>
+                <TableCell>
+                  {getPartnerName(ba)}
+                </TableCell>
+                <TableCell>
+                  {ba.phoneNumber ?? 'N/A'}
+                </TableCell>
+                <TableCell>
+                  {ba.perRegistrationRateCents ? formatRate(ba.perRegistrationRateCents) : 'N/A'}
+                </TableCell>
+                <TableCell>
+                  {formatDate(ba.createdAt)}
+                </TableCell>
+                <TableCell>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleEditClick(ba)}
+                      title="Edit Brand Ambassador"
+                    >
+                      <Edit className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handlePasswordClick(ba)}
+                      title="Change Password"
+                    >
+                      <Key className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+    )
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-8">
@@ -116,83 +203,45 @@ export default function BAManagementPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Brand Ambassadors ({brandAmbassadors.length})</CardTitle>
+          <CardTitle>
+            {statusTab === 'active'
+              ? `Active Brand Ambassadors (${activeBrandAmbassadors.length})`
+              : `Archived Brand Ambassadors (${archivedBrandAmbassadors.length})`}
+          </CardTitle>
           <CardDescription>
-            View and manage all registered brand ambassadors
+            {statusTab === 'active'
+              ? 'View and manage active brand ambassadors'
+              : 'View and manage archived brand ambassadors'}
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {brandAmbassadors.length === 0 ? (
-            <div className="text-center py-8">
-              <p className="text-muted-foreground mb-4">No brand ambassadors found</p>
-              <Button onClick={() => router.push('/admin/ba-registration')}>
-                <Plus className="mr-2 h-4 w-4" />
-                Register First BA
-              </Button>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Display Name</TableHead>
-                    <TableHead>Partner</TableHead>
-                    <TableHead>Phone</TableHead>
-                    <TableHead>Rate per Registration</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Created</TableHead>
-                    <TableHead>Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {brandAmbassadors.map((ba) => (
-                    <TableRow key={ba.id}>
-                      <TableCell className="font-medium">
-                        {ba.displayName ?? 'N/A'}
-                      </TableCell>
-                      <TableCell>
-                        {getPartnerName(ba)}
-                      </TableCell>
-                      <TableCell>
-                        {ba.phoneNumber ?? 'N/A'}
-                      </TableCell>
-                      <TableCell>
-                        {ba.perRegistrationRateCents ? formatRate(ba.perRegistrationRateCents) : 'N/A'}
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={ba.isActive ? 'default' : 'secondary'}>
-                          {ba.isActive ? 'Active' : 'Inactive'}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        {formatDate(ba.createdAt)}
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex gap-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleEditClick(ba)}
-                            title="Edit Brand Ambassador"
-                          >
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handlePasswordClick(ba)}
-                            title="Change Password"
-                          >
-                            <Key className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          )}
+          <Tabs
+            value={statusTab}
+            onValueChange={(value) => setStatusTab(value as StatusTab)}
+          >
+            <TabsList className="mb-4">
+              <TabsTrigger value="active">
+                Active ({activeBrandAmbassadors.length})
+              </TabsTrigger>
+              <TabsTrigger value="archived">
+                Archived ({archivedBrandAmbassadors.length})
+              </TabsTrigger>
+            </TabsList>
+            <TabsContent value="active">
+              {renderTable(
+                activeBrandAmbassadors,
+                'No active brand ambassadors found',
+                brandAmbassadors.length === 0
+              )}
+            </TabsContent>
+            <TabsContent value="archived">
+              {renderTable(
+                archivedBrandAmbassadors,
+                'No archived brand ambassadors found',
+                false
+              )}
+            </TabsContent>
+          </Tabs>
         </CardContent>
       </Card>
 
@@ -217,4 +266,3 @@ export default function BAManagementPage() {
     </div>
   )
 }
-

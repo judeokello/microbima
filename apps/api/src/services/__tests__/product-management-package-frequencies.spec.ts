@@ -391,6 +391,29 @@ describe('ProductManagementService - package slug & payment frequencies', () => 
   });
 
   describe('createScheme postpaid frequency vs package', () => {
+    it('rejects a duplicate scheme name with the admin-facing message', async () => {
+      prismaMock.scheme.findFirst.mockResolvedValue({ id: 7, schemeName: 'Amsea Mombasa' });
+      prismaMock.package.findUnique.mockResolvedValue({ parentsSupported: true });
+
+      await expect(
+        service.createScheme(
+          {
+            schemeName: 'Amsea Mombasa',
+            description: 'Group of traders in Mombasa',
+            packageId: 8,
+            generalSchemeWaitingPeriod: 30,
+            parentsSupported: true,
+          },
+          'user-1',
+          'corr-1'
+        )
+      ).rejects.toMatchObject({
+        errorDetails: {
+          schemeName: 'A scheme of this name already exists.',
+        },
+      });
+    });
+
     it('rejects postpaid frequency not supported by package', async () => {
       prismaMock.scheme.findFirst.mockResolvedValue(null);
       prismaMock.packagePaymentFrequency.findUnique.mockResolvedValue(null);

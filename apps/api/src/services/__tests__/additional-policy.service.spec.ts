@@ -14,12 +14,14 @@ describe('AdditionalPolicyService', () => {
   const prisma = {
     customer: { findUnique: jest.fn(), findFirst: jest.fn() },
   };
+  const missingRequirementService = { syncCustomerFromLiveData: jest.fn() };
 
   const service = new AdditionalPolicyService(
     prisma as never,
     policyService as never,
     mpesa as never,
-    packagePricing as never
+    packagePricing as never,
+    missingRequirementService as never
   );
 
   beforeEach(() => {
