@@ -116,9 +116,10 @@ BEGIN
     ON CONFLICT (id) DO NOTHING;
 END $$;
 
--- Seed package schemes (idempotent - using composite unique constraint)
-INSERT INTO "package_schemes" ("packageId", "schemeId") VALUES
-(1, 1) -- MfanisiGo -> OOD Drivers
+-- Seed package schemes (idempotent - using composite unique constraint).
+-- generalSchemeWaitingPeriod is NOT NULL. ON CONFLICT DO NOTHING keeps an existing value.
+INSERT INTO "package_schemes" ("packageId", "schemeId", "generalSchemeWaitingPeriod") VALUES
+(1, 1, 30) -- MfanisiGo -> OOD Drivers
 ON CONFLICT ("packageId", "schemeId") DO NOTHING;
 
 -- Update packages with policy and member number formats (idempotent)
