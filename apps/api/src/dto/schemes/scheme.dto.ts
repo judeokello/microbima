@@ -252,14 +252,14 @@ export class CreateSchemeRequestDto {
   packageId?: number;
 
   @ApiProperty({
-    description: 'Waiting period in days (0-9999) for the package-scheme link',
+    description: 'Waiting period in days (0-365) for the package-scheme link',
     example: 30,
     required: false,
   })
   @IsOptional()
   @IsInt()
   @Min(0)
-  @Max(9999)
+  @Max(365)
   generalSchemeWaitingPeriod?: number;
 }
 

@@ -110,29 +110,13 @@ export class PaymentMessagingService {
     }
 
     const settings = await this.systemSettings.getSnapshot();
-    const templateKey = this.resolveMatchedTemplateKey(
-      params.wasPendingActivation,
-      params.activationSucceeded,
-      payment.paymentStatus,
-    );
-
-    if (!templateKey) {
-      return;
-    }
-
     const policy = payment.policy;
-    const isActivationTemplate = templateKey.includes('activation');
+    const isActivation =
+      params.wasPendingActivation && params.activationSucceeded;
 
-    const amount = formatSmsAmount(Number(payment.amount), settings.defaultSystemCurrency);
-    const paymentType = formatPaymentType(payment.paymentType);
-    const placeholderValues: Record<string, string> = {
-      amount,
-      payment_type: paymentType,
-      product_name: policy.productName ?? '',
-    };
-
-    if (isActivationTemplate) {
-      const waitingPeriodDays = await this.resolveSchemeWaitingPeriod(
+    let waitingPeriodDays: number | null = null;
+    if (isActivation) {
+      waitingPeriodDays = await this.resolveSchemeWaitingPeriod(
         policy.customerId,
         policy.packageId,
       );
@@ -142,18 +126,41 @@ export class PaymentMessagingService {
         );
         return;
       }
-
       if (!policy.policyNumber || !policy.startDate) {
         this.logger.warn(
           `[${params.correlationId}] Activation payment SMS skipped: missing policyNumber or startDate on policy ${policy.id}`,
         );
         return;
       }
+    }
+
+    const templateKey = this.resolveMatchedTemplateKey(
+      params.wasPendingActivation,
+      params.activationSucceeded,
+      payment.paymentStatus,
+      waitingPeriodDays,
+    );
+
+    if (!templateKey) {
+      return;
+    }
+
+    const amount = formatSmsAmount(Number(payment.amount), settings.defaultSystemCurrency);
+    const paymentType = formatPaymentType(payment.paymentType);
+    const placeholderValues: Record<string, string> = {
+      amount,
+      payment_type: paymentType,
+      product_name: policy.productName ?? '',
+    };
+
+    if (templateKey.includes('activation') && policy.policyNumber) {
       placeholderValues.policy_number = policy.policyNumber;
-      placeholderValues.scheme_waiting_period = String(waitingPeriodDays);
-      placeholderValues.waiting_period_end_date = formatSmsDate(
-        addUtcCalendarDays(policy.startDate, waitingPeriodDays),
-      );
+      if (waitingPeriodDays != null && waitingPeriodDays > 0 && policy.startDate) {
+        placeholderValues.scheme_waiting_period = String(waitingPeriodDays);
+        placeholderValues.waiting_period_end_date = formatSmsDate(
+          addUtcCalendarDays(policy.startDate, waitingPeriodDays),
+        );
+      }
     }
 
     if (this.templateUsesPaymentReference(templateKey)) {
@@ -251,12 +258,19 @@ export class PaymentMessagingService {
     wasPendingActivation: boolean,
     activationSucceeded: boolean,
     status: PaymentStatus,
+    waitingPeriodDays: number | null,
   ): string | null {
     const pendingReceipt = status === PaymentStatus.COMPLETED_PENDING_RECEIPT;
+    const noWaitingPeriod = waitingPeriodDays === 0;
 
     if (wasPendingActivation && activationSucceeded) {
-      return pendingReceipt
-        ? 'payment_received_activation_pending_receipt'
+      if (pendingReceipt) {
+        return noWaitingPeriod
+          ? 'payment_received_activation_pending_receipt_no_waiting'
+          : 'payment_received_activation_pending_receipt';
+      }
+      return noWaitingPeriod
+        ? 'payment_received_activation_no_waiting'
         : 'payment_received_activation';
     }
 
@@ -269,7 +283,9 @@ export class PaymentMessagingService {
 
   private templateUsesPaymentReference(templateKey: string): boolean {
     return (
-      templateKey === 'payment_received_activation' || templateKey === 'payment_received'
+      templateKey === 'payment_received_activation' ||
+      templateKey === 'payment_received_activation_no_waiting' ||
+      templateKey === 'payment_received'
     );
   }
 
@@ -290,6 +306,6 @@ export class PaymentMessagingService {
     });
 
     const days = link?.packageScheme?.generalSchemeWaitingPeriod;
-    return days == null ? null : days;
+    return days ?? null;
   }
 }

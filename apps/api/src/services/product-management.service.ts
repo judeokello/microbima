@@ -1445,8 +1445,8 @@ export class ProductManagementService {
     );
 
     const validationErrors: Record<string, string> = {};
-    if (generalSchemeWaitingPeriod < 0 || generalSchemeWaitingPeriod > 9999) {
-      validationErrors['generalSchemeWaitingPeriod'] = 'Waiting period must be between 0 and 9999';
+    if (generalSchemeWaitingPeriod < 0 || generalSchemeWaitingPeriod > 365) {
+      validationErrors['generalSchemeWaitingPeriod'] = 'Waiting period must be between 0 and 365';
     }
     if (Object.keys(validationErrors).length > 0) {
       throw ValidationException.withMultipleErrors(validationErrors);
@@ -2019,8 +2019,8 @@ export class ProductManagementService {
         if (data.generalSchemeWaitingPeriod === undefined || data.generalSchemeWaitingPeriod === null) {
           validationErrors['generalSchemeWaitingPeriod'] =
             'Waiting period is required when linking a scheme to a package';
-        } else if (data.generalSchemeWaitingPeriod < 0 || data.generalSchemeWaitingPeriod > 9999) {
-          validationErrors['generalSchemeWaitingPeriod'] = 'Waiting period must be between 0 and 9999';
+        } else if (data.generalSchemeWaitingPeriod < 0 || data.generalSchemeWaitingPeriod > 365) {
+          validationErrors['generalSchemeWaitingPeriod'] = 'Waiting period must be between 0 and 365';
         }
 
         if (data.parentsSupported) {
@@ -2122,7 +2122,7 @@ export class ProductManagementService {
               data: {
                 packageId: data.packageId,
                 schemeId: scheme.id,
-                generalSchemeWaitingPeriod: data.generalSchemeWaitingPeriod ?? null,
+                generalSchemeWaitingPeriod: data.generalSchemeWaitingPeriod!,
               },
             });
             this.logger.log(`[${correlationId}] Linked scheme ${scheme.id} to package ${data.packageId}`);
@@ -2175,7 +2175,7 @@ export class ProductManagementService {
             data: {
               packageId: data.packageId,
               schemeId: scheme.id,
-              generalSchemeWaitingPeriod: data.generalSchemeWaitingPeriod ?? null,
+              generalSchemeWaitingPeriod: data.generalSchemeWaitingPeriod!,
             },
           });
           this.logger.log(`[${correlationId}] Linked scheme ${scheme.id} to package ${data.packageId}`);

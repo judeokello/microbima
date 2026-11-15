@@ -88,7 +88,7 @@ VALUES (
   'SMS',
   'en',
   NULL,
-  'Hi {first_name}, your MaishaPoa portal PIN has been set. Sign in anytime at {customer_specific_weblogin}.',
+  'Dear {first_name}, your MaishaPoa portal PIN has been set. Sign in anytime at {customer_specific_weblogin}.',
   NULL,
   ARRAY['first_name', 'customer_specific_weblogin'],
   true,
@@ -158,7 +158,7 @@ SET "smsEnabled" = EXCLUDED."smsEnabled", "emailEnabled" = EXCLUDED."emailEnable
 INSERT INTO messaging_templates (id, "templateKey", "channel", "language", "subject", "body", "textBody", "placeholders", "isActive", "createdAt", "updatedAt")
 VALUES (
   gen_random_uuid(), 'payment_received_activation', 'SMS', 'en', NULL,
-  'Dear {first_name}, we have received your payment of {amount} and {payment_type} reference number {payment_reference}. Your {product_name} policy number is {policy_number} and it is now active. Your {scheme_waiting_period} day waiting period starts today and you can access treatment from {waiting_period_end_date}. Thank you',
+  'Dear {first_name}, we have received your payment of {amount} and {payment_type} reference number {payment_reference}. Your {product_name} policy number is {policy_number} and it is now active. Your {scheme_waiting_period} day waiting period starts today and you can access treatment from {waiting_period_end_date}. You will receive an SMS reminder when your waiting period is over. Thank you',
   NULL,
   ARRAY['first_name', 'amount', 'payment_type', 'payment_reference', 'product_name', 'policy_number', 'scheme_waiting_period', 'waiting_period_end_date'],
   true, NOW(), NOW()
@@ -174,9 +174,57 @@ SET "smsEnabled" = EXCLUDED."smsEnabled", "emailEnabled" = EXCLUDED."emailEnable
 INSERT INTO messaging_templates (id, "templateKey", "channel", "language", "subject", "body", "textBody", "placeholders", "isActive", "createdAt", "updatedAt")
 VALUES (
   gen_random_uuid(), 'payment_received_activation_pending_receipt', 'SMS', 'en', NULL,
-  'Dear {first_name}, we have received your {payment_type} payment of {amount}. Your {product_name} policy number is {policy_number} and it is now active. Your {scheme_waiting_period} day waiting period starts today and you can access treatment from {waiting_period_end_date}. Thank you',
+  'Dear {first_name}, we have received your {payment_type} payment of {amount}. Your {product_name} policy number is {policy_number} and it is now active. Your {scheme_waiting_period} day waiting period starts today and you can access treatment from {waiting_period_end_date}. You will receive an SMS reminder when your waiting period is over. Thank you',
   NULL,
   ARRAY['first_name', 'amount', 'payment_type', 'product_name', 'policy_number', 'scheme_waiting_period', 'waiting_period_end_date'],
+  true, NOW(), NOW()
+)
+ON CONFLICT ("templateKey", "channel", "language") DO UPDATE
+SET "body" = EXCLUDED."body", "placeholders" = EXCLUDED."placeholders", "isActive" = EXCLUDED."isActive", "updatedAt" = NOW();
+
+INSERT INTO messaging_routes ("templateKey", "smsEnabled", "emailEnabled", "isActive", "createdAt", "updatedAt")
+VALUES ('payment_received_activation_no_waiting', true, false, true, NOW(), NOW())
+ON CONFLICT ("templateKey") DO UPDATE
+SET "smsEnabled" = EXCLUDED."smsEnabled", "emailEnabled" = EXCLUDED."emailEnabled", "isActive" = EXCLUDED."isActive", "updatedAt" = NOW();
+
+INSERT INTO messaging_templates (id, "templateKey", "channel", "language", "subject", "body", "textBody", "placeholders", "isActive", "createdAt", "updatedAt")
+VALUES (
+  gen_random_uuid(), 'payment_received_activation_no_waiting', 'SMS', 'en', NULL,
+  'Dear {first_name}, we have received your payment of {amount} and {payment_type} reference number {payment_reference}. Your {product_name} policy number is {policy_number} and it is now active. You do not have a waiting period on your cover and you and your family can access treatment from today. Thank you',
+  NULL,
+  ARRAY['first_name', 'amount', 'payment_type', 'payment_reference', 'product_name', 'policy_number'],
+  true, NOW(), NOW()
+)
+ON CONFLICT ("templateKey", "channel", "language") DO UPDATE
+SET "body" = EXCLUDED."body", "placeholders" = EXCLUDED."placeholders", "isActive" = EXCLUDED."isActive", "updatedAt" = NOW();
+
+INSERT INTO messaging_routes ("templateKey", "smsEnabled", "emailEnabled", "isActive", "createdAt", "updatedAt")
+VALUES ('payment_received_activation_pending_receipt_no_waiting', true, false, true, NOW(), NOW())
+ON CONFLICT ("templateKey") DO UPDATE
+SET "smsEnabled" = EXCLUDED."smsEnabled", "emailEnabled" = EXCLUDED."emailEnabled", "isActive" = EXCLUDED."isActive", "updatedAt" = NOW();
+
+INSERT INTO messaging_templates (id, "templateKey", "channel", "language", "subject", "body", "textBody", "placeholders", "isActive", "createdAt", "updatedAt")
+VALUES (
+  gen_random_uuid(), 'payment_received_activation_pending_receipt_no_waiting', 'SMS', 'en', NULL,
+  'Dear {first_name}, we have received your {payment_type} payment of {amount}. Your {product_name} policy number is {policy_number} and it is now active. You do not have a waiting period on your cover and you and your family can access treatment from today. Thank you',
+  NULL,
+  ARRAY['first_name', 'amount', 'payment_type', 'product_name', 'policy_number'],
+  true, NOW(), NOW()
+)
+ON CONFLICT ("templateKey", "channel", "language") DO UPDATE
+SET "body" = EXCLUDED."body", "placeholders" = EXCLUDED."placeholders", "isActive" = EXCLUDED."isActive", "updatedAt" = NOW();
+
+INSERT INTO messaging_routes ("templateKey", "smsEnabled", "emailEnabled", "isActive", "createdAt", "updatedAt")
+VALUES ('waiting_period_ended', true, false, true, NOW(), NOW())
+ON CONFLICT ("templateKey") DO UPDATE
+SET "smsEnabled" = EXCLUDED."smsEnabled", "emailEnabled" = EXCLUDED."emailEnabled", "isActive" = EXCLUDED."isActive", "updatedAt" = NOW();
+
+INSERT INTO messaging_templates (id, "templateKey", "channel", "language", "subject", "body", "textBody", "placeholders", "isActive", "createdAt", "updatedAt")
+VALUES (
+  gen_random_uuid(), 'waiting_period_ended', 'SMS', 'en', NULL,
+  'Dear {first_name}, the waiting period for your {product_name} policy has ended. You can access treatment from today. Call {general_support_number} for any help. Thank you',
+  NULL,
+  ARRAY['first_name', 'product_name', 'general_support_number'],
   true, NOW(), NOW()
 )
 ON CONFLICT ("templateKey", "channel", "language") DO UPDATE

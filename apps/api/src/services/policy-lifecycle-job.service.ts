@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import * as Sentry from '@sentry/nestjs';
 import { PolicyLifecycleService } from './policy-lifecycle.service';
+import { WaitingPeriodCompletionService } from './waiting-period-completion.service';
 
 /**
  * Daily policy lifecycle evaluation job (@Cron 01:00 UTC).
@@ -11,7 +12,10 @@ export class PolicyLifecycleJobService {
   private readonly logger = new Logger(PolicyLifecycleJobService.name);
   private isRunning = false;
 
-  constructor(private readonly lifecycleService: PolicyLifecycleService) {}
+  constructor(
+    private readonly lifecycleService: PolicyLifecycleService,
+    private readonly waitingPeriodCompletion: WaitingPeriodCompletionService,
+  ) {}
 
   @Cron('0 1 * * *', { timeZone: 'UTC' })
   async handleCron(): Promise<void> {
@@ -40,6 +44,8 @@ export class PolicyLifecycleJobService {
     inactivated: number;
     expired: number;
     notificationsQueued: number;
+    lctEnrolled: number;
+    waitingPeriodSmsQueued: number;
     correlationId: string;
     durationMs: number;
   }> {
@@ -54,6 +60,8 @@ export class PolicyLifecycleJobService {
         inactivated: 0,
         expired: 0,
         notificationsQueued: 0,
+        lctEnrolled: 0,
+        waitingPeriodSmsQueued: 0,
         correlationId: cid,
         durationMs: 0,
       };
@@ -78,6 +86,7 @@ export class PolicyLifecycleJobService {
       );
       const termEnd = await this.lifecycleService.evaluateTermEndTransitions(asOf, cid);
       const renewalQueued = await this.lifecycleService.evaluateRenewalReminders(asOf, cid);
+      const waitingPeriod = await this.waitingPeriodCompletion.evaluate(asOf, cid);
 
       const durationMs = Date.now() - started;
       const result = {
@@ -92,7 +101,10 @@ export class PolicyLifecycleJobService {
           grace.notificationsQueued +
           suspend.notificationsQueued +
           inactive.notificationsQueued +
-          renewalQueued,
+          renewalQueued +
+          waitingPeriod.smsQueued,
+        lctEnrolled: waitingPeriod.lctEnrolled,
+        waitingPeriodSmsQueued: waitingPeriod.smsQueued,
         correlationId: cid,
         durationMs,
       };
@@ -101,7 +113,8 @@ export class PolicyLifecycleJobService {
         `[${cid}] PolicyLifecycleJobService.runDaily finished in ${durationMs}ms ` +
           `graceEntered=${result.graceEntered} suspended=${result.suspended} ` +
           `inactivated=${result.inactivated} expired=${result.expired} ` +
-          `notificationsQueued=${result.notificationsQueued}`
+          `notificationsQueued=${result.notificationsQueued} ` +
+          `lctEnrolled=${result.lctEnrolled} waitingPeriodSmsQueued=${result.waitingPeriodSmsQueued}`
       );
 
       return result;

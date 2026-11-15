@@ -108,8 +108,8 @@ export default function CreateSchemeDialog({
         throw new Error('All fields are required');
       }
       const generalSchemeWaitingPeriod = parseInt(waitingPeriodRaw, 10);
-      if (Number.isNaN(generalSchemeWaitingPeriod) || generalSchemeWaitingPeriod < 0 || generalSchemeWaitingPeriod > 9999) {
-        throw new Error('Waiting period must be a number between 0 and 9999');
+      if (Number.isNaN(generalSchemeWaitingPeriod) || generalSchemeWaitingPeriod < 0 || generalSchemeWaitingPeriod > 365) {
+        throw new Error('Waiting period must be a number between 0 and 365');
       }
 
       if (formData.isPostpaid) {
@@ -265,10 +265,10 @@ export default function CreateSchemeDialog({
                 type="number"
                 inputMode="numeric"
                 value={formData.generalSchemeWaitingPeriod}
-                onChange={(e) => setFormData({ ...formData, generalSchemeWaitingPeriod: e.target.value.replace(/\D/g, '').slice(0, 4) })}
+                onChange={(e) => setFormData({ ...formData, generalSchemeWaitingPeriod: e.target.value.replace(/\D/g, '').slice(0, 3) })}
                 required
                 min={0}
-                max={9999}
+                max={365}
                 placeholder="e.g. 30"
               />
             </div>

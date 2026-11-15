@@ -240,6 +240,12 @@ export class DailyLifecycleRunResponseDto {
   notificationsQueued: number;
 
   @ApiProperty()
+  lctEnrolled: number;
+
+  @ApiProperty()
+  waitingPeriodSmsQueued: number;
+
+  @ApiProperty()
   correlationId: string;
 
   @ApiPropertyOptional()
