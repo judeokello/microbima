@@ -15,6 +15,7 @@ import {
   shouldEnqueueStatusChange,
 } from './lct.types';
 import { OCCUPYING_POLICY_STATUSES } from '../../utils/occupying-policy.util';
+import { isWaitingAccessReached } from '../../utils/waiting-period.util';
 
 type Tx = Prisma.TransactionClient;
 
@@ -84,6 +85,13 @@ export class LctSyncService {
     });
     if (!policy || policy.customer.isTestUser) return;
 
+    if (await this.shouldDeferInitialLctEnrollment(policyId, client)) {
+      this.logger.log(
+        `[${correlationId}] LCT enroll deferred until waiting period ends policy=${policyId}`
+      );
+      return;
+    }
+
     await this.ensureMemberRowsForLateDependants(policyId, correlationId, client);
     await this.upsertTargetsForPolicy(policyId, correlationId, client);
 
@@ -127,6 +135,14 @@ export class LctSyncService {
 
     if (!shouldEnqueueStatusChange(params.fromStatus, params.toStatus)) {
       return;
+    }
+
+    const existingTargets = await client.lctMemberSyncTarget.count({
+      where: { policyId: params.policyId },
+    });
+    if (existingTargets === 0) {
+      if (params.toStatus !== PolicyStatus.ACTIVE) return;
+      if (await this.shouldDeferInitialLctEnrollment(params.policyId, client)) return;
     }
 
     const action = mapPolicyStatusToLctAction(params.toStatus);
@@ -226,6 +242,11 @@ export class LctSyncService {
     });
     if (!policy || policy.customer.isTestUser) return;
 
+    const existingTargets = await this.prisma.lctMemberSyncTarget.count({
+      where: { policyId },
+    });
+    if (existingTargets === 0) return;
+
     const action = mapPolicyStatusToLctAction(policy.status);
     if (!action) return;
 
@@ -305,8 +326,24 @@ export class LctSyncService {
       );
     }
 
-    await this.ensureMemberRowsForLateDependants(params.newPolicyId, correlationId, client);
-    await this.upsertTargetsForPolicy(params.newPolicyId, correlationId, client);
+    const deferNew = await this.shouldDeferInitialLctEnrollment(params.newPolicyId, client);
+    if (!deferNew) {
+      const newPolicyPreview = await client.policy.findUnique({
+        where: { id: params.newPolicyId },
+        select: { status: true, customer: { select: { isTestUser: true } } },
+      });
+      const newAction = newPolicyPreview
+        ? mapPolicyStatusToLctAction(newPolicyPreview.status)
+        : null;
+      if (
+        newPolicyPreview &&
+        !newPolicyPreview.customer.isTestUser &&
+        newAction === LctPendingAction.ACTIVATE
+      ) {
+        await this.ensureMemberRowsForLateDependants(params.newPolicyId, correlationId, client);
+        await this.upsertTargetsForPolicy(params.newPolicyId, correlationId, client);
+      }
+    }
 
     const newPolicy = await client.policy.findUnique({
       where: { id: params.newPolicyId },
@@ -446,6 +483,12 @@ export class LctSyncService {
     tx?: Tx
   ): Promise<void> {
     const client = tx ?? this.prisma;
+    if (await this.shouldDeferInitialLctEnrollment(policyId, client)) {
+      this.logger.log(
+        `[${correlationId}] LCT targets deferred until waiting period ends policy=${policyId}`
+      );
+      return;
+    }
     const policy = await client.policy.findUnique({
       where: { id: policyId },
       include: {
@@ -531,6 +574,37 @@ export class LctSyncService {
     if (principalTarget) {
       await this.refreshErrorFlags(client, principalTarget.id);
     }
+  }
+
+  /**
+   * Hold the first LCT rows until the scheme waiting period has elapsed.
+   * Policies that already have targets (including day-0 sends) keep the existing hooks.
+   */
+  private async shouldDeferInitialLctEnrollment(
+    policyId: string,
+    client: PrismaService | Tx
+  ): Promise<boolean> {
+    const existing = await client.lctMemberSyncTarget.count({ where: { policyId } });
+    if (existing > 0) return false;
+
+    const policy = await client.policy.findUnique({
+      where: { id: policyId },
+      select: { customerId: true, packageId: true, startDate: true },
+    });
+    if (!policy) return true;
+
+    const link = await client.packageSchemeCustomer.findFirst({
+      where: {
+        customerId: policy.customerId,
+        packageScheme: { packageId: policy.packageId },
+      },
+      select: { packageScheme: { select: { generalSchemeWaitingPeriod: true } } },
+    });
+    const days = link?.packageScheme?.generalSchemeWaitingPeriod;
+    if (days == null) return true;
+    if (days === 0) return false;
+    if (!policy.startDate) return true;
+    return !isWaitingAccessReached(policy.startDate, days, new Date());
   }
 
   private async enqueuePending(

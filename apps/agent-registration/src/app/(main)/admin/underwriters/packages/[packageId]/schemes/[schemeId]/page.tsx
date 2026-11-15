@@ -431,8 +431,8 @@ export default function SchemeDetailPage() {
       const waitingPeriodRaw = formData.generalSchemeWaitingPeriod.trim();
       if (waitingPeriodRaw) {
         const generalSchemeWaitingPeriod = parseInt(waitingPeriodRaw, 10);
-        if (Number.isNaN(generalSchemeWaitingPeriod) || generalSchemeWaitingPeriod < 0 || generalSchemeWaitingPeriod > 9999) {
-          throw new Error('Waiting period must be a number between 0 and 9999');
+        if (Number.isNaN(generalSchemeWaitingPeriod) || generalSchemeWaitingPeriod < 0 || generalSchemeWaitingPeriod > 365) {
+          throw new Error('Waiting period must be a number between 0 and 365');
         }
         const patchResponse = await fetch(
           `${process.env.NEXT_PUBLIC_INTERNAL_API_BASE_URL}/internal/product-management/packages/${packageId}/schemes/${schemeId}`,
@@ -1031,11 +1031,11 @@ export default function SchemeDetailPage() {
                   onChange={(e) =>
                     setFormData({
                       ...formData,
-                      generalSchemeWaitingPeriod: e.target.value.replace(/\D/g, '').slice(0, 4),
+                      generalSchemeWaitingPeriod: e.target.value.replace(/\D/g, '').slice(0, 3),
                     })
                   }
                   min={0}
-                  max={9999}
+                  max={365}
                   required
                 />
               ) : (
