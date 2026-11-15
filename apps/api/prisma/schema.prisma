@@ -907,8 +907,8 @@ model PackageScheme {
   id                        Int  @id @default(autoincrement())
   packageId                 Int
   schemeId                  Int
-  /// Days before treatment access after policy activation (0–9999); nullable until backfill
-  generalSchemeWaitingPeriod Int?
+  /// Days before treatment access after policy activation (0–365)
+  generalSchemeWaitingPeriod Int
 
   // Relations
   package                Package                 @relation(fields: [packageId], references: [id])
