@@ -115,6 +115,86 @@ describe('PaymentMessagingService', () => {
     );
   });
 
+  it('enqueues the no-waiting activation template when the scheme wait is zero days', async () => {
+    prisma.policyPayment.findUnique.mockResolvedValue({
+      id: 5,
+      paymentSmsEnqueuedAt: null,
+      paymentStatus: PaymentStatus.COMPLETED,
+      amount: 1500,
+      paymentType: 'MPESA',
+      transactionReference: 'ZERO123',
+      policy: {
+        id: 'policy-5',
+        customerId: 'cust-5',
+        packageId: 1,
+        productName: 'MfanisiGo Silver',
+        policyNumber: 'P005',
+        startDate: new Date('2026-01-01T00:00:00.000Z'),
+        customer: { id: 'cust-5', firstName: 'John', lastName: 'Doe' },
+      },
+    });
+    prisma.packageSchemeCustomer.findFirst.mockResolvedValue({
+      packageScheme: { generalSchemeWaitingPeriod: 0 },
+    });
+
+    await service.tryEnqueueMatchedPaymentSms({
+      policyPaymentId: 5,
+      wasPendingActivation: true,
+      activationSucceeded: true,
+      correlationId: 'cid-5',
+    });
+
+    expect(messagingService.enqueue).toHaveBeenCalledWith(
+      expect.objectContaining({
+        templateKey: 'payment_received_activation_no_waiting',
+        placeholderValues: expect.objectContaining({
+          payment_reference: 'ZERO123',
+          policy_number: 'P005',
+        }),
+      }),
+    );
+    const call = messagingService.enqueue.mock.calls[0][0];
+    expect(call.placeholderValues.scheme_waiting_period).toBeUndefined();
+  });
+
+  it('enqueues the no-waiting pending-receipt template when the scheme wait is zero days', async () => {
+    prisma.policyPayment.findUnique.mockResolvedValue({
+      id: 6,
+      paymentSmsEnqueuedAt: null,
+      paymentStatus: PaymentStatus.COMPLETED_PENDING_RECEIPT,
+      amount: 800,
+      paymentType: 'MPESA',
+      transactionReference: 'PEND0',
+      policy: {
+        id: 'policy-6',
+        customerId: 'cust-6',
+        packageId: 1,
+        productName: 'MfanisiGo',
+        policyNumber: 'P006',
+        startDate: new Date('2026-01-01T00:00:00.000Z'),
+        customer: { id: 'cust-6', firstName: 'Ann', lastName: 'Kay' },
+      },
+    });
+    prisma.packageSchemeCustomer.findFirst.mockResolvedValue({
+      packageScheme: { generalSchemeWaitingPeriod: 0 },
+    });
+
+    await service.tryEnqueueMatchedPaymentSms({
+      policyPaymentId: 6,
+      wasPendingActivation: true,
+      activationSucceeded: true,
+      correlationId: 'cid-6',
+    });
+
+    expect(messagingService.enqueue).toHaveBeenCalledWith(
+      expect.objectContaining({
+        templateKey: 'payment_received_activation_pending_receipt_no_waiting',
+      }),
+    );
+    const call = messagingService.enqueue.mock.calls[0][0];
+    expect(call.placeholderValues.payment_reference).toBeUndefined();
+  });
+
   it('enqueues pending-receipt regular template without payment_reference', async () => {
     prisma.policyPayment.findUnique.mockResolvedValue({
       id: 3,
