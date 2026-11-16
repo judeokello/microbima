@@ -3,6 +3,7 @@
  * Next unpaid expected due date is derived from startDate + paymentCadence coverage.
  */
 
+import { PAYMENT_CADENCE } from '../constants/payment-cadence.constants';
 import {
   computeExpectedPremiumThroughAsOf,
   computePremiumDueAndExcess,
@@ -41,6 +42,34 @@ export function utcCalendarDaysBetween(from: Date, to: Date): number {
 }
 
 /**
+ * Due date of the first installment that is not fully covered.
+ *
+ * Monthly cadence: the day that installment becomes expected (the last day of its
+ * cadence window — the month mark). Grace and suspension then count from that day,
+ * so a member has 14 days after the month mark before cover is suspended.
+ *
+ * Other cadences: the start of that unpaid cadence window.
+ */
+export function unpaidInstallmentDueDate(params: {
+  policyStart: Date;
+  paymentCadenceDays: number;
+  paidPeriods: number;
+}): Date {
+  const start = utcDayStart(
+    params.policyStart.getUTCFullYear(),
+    params.policyStart.getUTCMonth(),
+    params.policyStart.getUTCDate()
+  );
+  if (params.paymentCadenceDays === PAYMENT_CADENCE.MONTHLY) {
+    return addUtcCalendarDays(
+      start,
+      (params.paidPeriods + 1) * params.paymentCadenceDays - 1
+    );
+  }
+  return addUtcCalendarDays(start, params.paidPeriods * params.paymentCadenceDays);
+}
+
+/**
  * Earliest installment slot that is not fully covered by confirmed paid amount
  * through `asOf`, using the same period counting as premium-statement math.
  *
@@ -74,8 +103,11 @@ export function nextUnpaidExpectedDueDate(params: {
   const paidPeriods = Math.floor(params.paidThroughAsOf / params.installmentAmount);
 
   if (premiumDue > 0) {
-    // First unpaid period index (0-based): paidPeriods
-    return addUtcCalendarDays(start, paidPeriods * params.paymentCadenceDays);
+    return unpaidInstallmentDueDate({
+      policyStart: start,
+      paymentCadenceDays: params.paymentCadenceDays,
+      paidPeriods,
+    });
   }
 
   // Fully paid for all accrued periods. Next obligation appears when floor(inclusiveDays/cadence)

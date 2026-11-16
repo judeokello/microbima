@@ -43,7 +43,8 @@
     "repair:first-product-member-numbers": "ts-node -r dotenv/config scripts/repair-first-product-member-numbers.ts",
     "reprocess:siti-empty-msisdn-ipns": "ts-node -r dotenv/config scripts/reprocess-siti-empty-msisdn-ipns.ts",
     "audit:messaging-creator-phones": "ts-node -r dotenv/config scripts/audit-messaging-creator-phones.ts",
-    "remediate:daily-premium-as-installment": "ts-node -r dotenv/config scripts/remediate-daily-premium-as-installment.ts"
+    "remediate:daily-premium-as-installment": "ts-node -r dotenv/config scripts/remediate-daily-premium-as-installment.ts",
+    "remediate:monthly-grace": "ts-node -r dotenv/config scripts/remediate-monthly-grace.ts"
   },
   "dependencies": {
     "@microbima/common-config": "workspace:^",

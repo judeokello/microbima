@@ -8,6 +8,7 @@ import {
   oneMonthPremiumAmount,
   outstandingArrears,
   twoWeekUpfrontAmount,
+  unpaidInstallmentDueDate,
   utcCalendarDaysBetween,
 } from '../policy-due-date.util';
 import { INACTIVE_AFTER_SUSPENDED_DAYS } from '../../constants/policy-lifecycle.constants';
@@ -52,6 +53,48 @@ describe('policy-due-date.util', () => {
       });
       expect(nextDue.toISOString().startsWith('2026-01-01')).toBe(true);
       expect(daysOverdue({ nextUnpaidDueDate: nextDue, asOfUtc: asOf })).toBe(19);
+    });
+
+    it('monthly unpaid due date is the month mark, with 14 days before suspension', () => {
+      const start = new Date(Date.UTC(2026, 8, 1));
+      const monthMark = new Date(Date.UTC(2026, 9, 1));
+      const nextDue = nextUnpaidExpectedDueDate({
+        policyStart: start,
+        paymentCadenceDays: 31,
+        installmentAmount: 1000,
+        paidThroughAsOf: 0,
+        asOfUtc: monthMark,
+      });
+      expect(nextDue.toISOString().startsWith('2026-10-01')).toBe(true);
+      expect(unpaidInstallmentDueDate({
+        policyStart: start,
+        paymentCadenceDays: 31,
+        paidPeriods: 0,
+      }).toISOString().startsWith('2026-10-01')).toBe(true);
+      expect(daysOverdue({ nextUnpaidDueDate: nextDue, asOfUtc: monthMark })).toBe(0);
+      expect(daysOverdue({ nextUnpaidDueDate: nextDue, asOfUtc: new Date(Date.UTC(2026, 9, 15)) })).toBe(14);
+      expect(daysOverdue({ nextUnpaidDueDate: nextDue, asOfUtc: new Date(Date.UTC(2026, 9, 16)) })).toBe(15);
+    });
+
+    it('monthly second installment is due at the next month mark after one is paid', () => {
+      const start = new Date(Date.UTC(2026, 8, 1));
+      const secondMark = new Date(Date.UTC(2026, 10, 1));
+      const nextDue = nextUnpaidExpectedDueDate({
+        policyStart: start,
+        paymentCadenceDays: 31,
+        installmentAmount: 1000,
+        paidThroughAsOf: 1000,
+        asOfUtc: secondMark,
+      });
+      expect(nextDue.toISOString().startsWith('2026-11-01')).toBe(true);
+      expect(daysOverdue({ nextUnpaidDueDate: nextDue, asOfUtc: secondMark })).toBe(0);
+      expect(outstandingArrears({
+        policyStart: start,
+        paymentCadenceDays: 31,
+        installmentAmount: 1000,
+        paidThroughAsOf: 1000,
+        asOfUtc: secondMark,
+      })).toBe(1000);
     });
 
     it('when current mid-period, next due is when the next period accrues (not overdue)', () => {
