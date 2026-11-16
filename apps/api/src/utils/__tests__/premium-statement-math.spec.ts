@@ -210,6 +210,22 @@ describe('premium-statement-math', () => {
       ];
       expect(sumConfirmedPaidThroughAsOf(payments, policyStart, asOfEnd, CONFIRMED)).toBe(100);
     });
+
+    it('counts a confirmed payment dated before the policy start', () => {
+      const payments = [
+        {
+          amount: 40,
+          paymentStatus: PaymentStatus.COMPLETED,
+          expectedPaymentDate: utcDayStart(2024, 11, 20),
+        },
+        {
+          amount: 100,
+          paymentStatus: PaymentStatus.COMPLETED,
+          expectedPaymentDate: utcDayStart(2025, 0, 5),
+        },
+      ];
+      expect(sumConfirmedPaidThroughAsOf(payments, policyStart, asOfEnd, CONFIRMED)).toBe(140);
+    });
   });
 
   describe('computeMissedOrExcess', () => {

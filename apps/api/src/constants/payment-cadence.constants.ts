@@ -7,7 +7,7 @@
  * @constant PAYMENT_CADENCE
  * @property {number} DAILY - Daily payment frequency (1 day)
  * @property {number} WEEKLY - Weekly payment frequency (7 days)
- * @property {number} MONTHLY - Monthly payment frequency (30 days)
+ * @property {number} MONTHLY - Monthly payment frequency (31 days)
  * @property {number} QUARTERLY - Quarterly payment frequency (90 days)
  * @property {number} ANNUALLY - Annual payment frequency (365 days)
  *

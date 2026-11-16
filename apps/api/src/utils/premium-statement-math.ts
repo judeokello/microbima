@@ -115,9 +115,17 @@ export function isUtcCalendarDayBefore(day: Date, referenceDay: Date): boolean {
   return d < r;
 }
 
+/**
+ * Sum confirmed payments whose expected date falls on or before the as-of day.
+ *
+ * `policyStartDay` is retained for callers that already computed it. Payments dated
+ * before cover starts still count: they are money recorded on this policy, including
+ * a scheme payment posted before the member's policy start. Payments dated after
+ * the as-of day do not count yet.
+ */
 export function sumConfirmedPaidThroughAsOf(
   payments: Array<{ amount: unknown; paymentStatus: string; expectedPaymentDate: Date }>,
-  policyStartDay: Date,
+  _policyStartDay: Date,
   asOfEnd: Date,
   confirmedStatuses: readonly string[]
 ): number {
@@ -125,7 +133,6 @@ export function sumConfirmedPaidThroughAsOf(
     .filter(
       (pm) =>
         confirmedStatuses.includes(pm.paymentStatus) &&
-        pm.expectedPaymentDate >= policyStartDay &&
         pm.expectedPaymentDate <= asOfEnd
     )
     .reduce((sum, pm) => sum + Number(pm.amount), 0);
