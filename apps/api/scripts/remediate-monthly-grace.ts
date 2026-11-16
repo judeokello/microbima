@@ -321,10 +321,7 @@ async function syncCustomer(
     where: { id: customerId },
     data: {
       status: nextStatus,
-      deactivatedAt:
-        nextStatus === CustomerStatus.DEACTIVATED || nextStatus === CustomerStatus.TERMINATED
-          ? new Date()
-          : null,
+      deactivatedAt: nextStatus === CustomerStatus.DEACTIVATED ? new Date() : null,
     },
   });
 }
